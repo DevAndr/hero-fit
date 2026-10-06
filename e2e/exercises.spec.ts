@@ -28,6 +28,7 @@ test("filter by muscle group and search", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Становая тяга" })).toBeVisible();
 
   await page.getByRole("link", { name: "Все" }).click();
+  await expect(page).toHaveURL(/\/exercises$/);
   await page.getByPlaceholder("Поиск по названию").fill("присед");
   await page.getByPlaceholder("Поиск по названию").press("Enter");
   await expect(page).toHaveURL(/q=%D0%BF/);
