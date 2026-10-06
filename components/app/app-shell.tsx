@@ -6,6 +6,7 @@ import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
 import type { CurrentUser } from "@/lib/auth/dal";
 import { levelProgress } from "@/lib/progress/level";
+import { streakStatus } from "@/lib/progress/streak";
 import { cn } from "@/lib/utils";
 
 function Logo() {
@@ -36,14 +37,17 @@ function LevelMeter({ xp }: { xp: number }) {
   );
 }
 
-function StreakBadge({ days }: { days: number }) {
+function StreakBadge({ user }: { user: CurrentUser }) {
+  const status = streakStatus(user, new Date());
+  const days = status.state === "none" || status.state === "lost" ? 0 : status.streak;
   return (
     <span
       className={cn(
         "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums",
         days > 0 ? "bg-streak/15 text-streak" : "bg-muted text-muted-foreground",
       )}
-      title="Streak — тренировочные дни (окна по 24 часа) подряд"
+      title={status.state === "due" ? `Не потеряй streak! Осталось ${status.hoursLeft} ч` : "Streak — тренировочные дни (окна по 24 часа) подряд"}
+      data-testid="header-streak"
     >
       <Flame className="size-3.5" />
       {days}
@@ -66,7 +70,7 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
           </div>
           <div className="ml-auto flex items-center gap-3">
             <LevelMeter xp={user.xp} />
-            <StreakBadge days={user.currentStreak} />
+            <StreakBadge user={user} />
             <Link href="/training" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               <Play />
               Начать тренировку

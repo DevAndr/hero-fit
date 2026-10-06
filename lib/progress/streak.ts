@@ -63,3 +63,28 @@ export function applyWorkoutToStreak(state: StreakState, now: Date): StreakUpdat
 export function streakDeadline(lastStreakAt: Date | null): Date | null {
   return lastStreakAt ? new Date(lastStreakAt.getTime() + 2 * DAY_MS) : null;
 }
+
+export type StreakStatus =
+  | { state: "none" }
+  | { state: "counted"; streak: number; nextWindowAt: Date }
+  | { state: "due"; streak: number; deadline: Date; hoursLeft: number }
+  | { state: "frozen"; streak: number; freezesNeeded: number }
+  | { state: "lost"; streak: number };
+
+/** Состояние серии «на сейчас» — для дашборда и напоминаний «Не потеряй streak!». */
+export function streakStatus(
+  user: { currentStreak: number; lastStreakAt: Date | null; streakFreezes: number },
+  now: Date,
+): StreakStatus {
+  if (!user.lastStreakAt || user.currentStreak === 0) return { state: "none" };
+  const streak = user.currentStreak;
+  const delta = now.getTime() - user.lastStreakAt.getTime();
+  if (delta < DAY_MS) return { state: "counted", streak, nextWindowAt: new Date(user.lastStreakAt.getTime() + DAY_MS) };
+  if (delta < 2 * DAY_MS) {
+    const deadline = new Date(user.lastStreakAt.getTime() + 2 * DAY_MS);
+    return { state: "due", streak, deadline, hoursLeft: Math.ceil((deadline.getTime() - now.getTime()) / 3_600_000) };
+  }
+  // Тренировка «сейчас» пропустила бы столько окон — как в applyWorkoutToStreak.
+  const freezesNeeded = Math.floor(delta / DAY_MS) - 1;
+  return freezesNeeded <= user.streakFreezes ? { state: "frozen", streak, freezesNeeded } : { state: "lost", streak };
+}

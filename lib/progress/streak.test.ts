@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyWorkoutToStreak, streakDeadline, type StreakState } from "./streak";
+import { applyWorkoutToStreak, streakDeadline, streakStatus, type StreakState } from "./streak";
 
 const H = 60 * 60 * 1000;
 const t0 = new Date("2026-10-01T18:00:00Z");
@@ -57,5 +57,33 @@ describe("streakDeadline", () => {
   it("is 48h after the last counted workout", () => {
     expect(streakDeadline(t0)).toEqual(at(48));
     expect(streakDeadline(null)).toBeNull();
+  });
+});
+
+describe("streakStatus", () => {
+  it("no streak yet", () => {
+    expect(streakStatus({ currentStreak: 0, lastStreakAt: null, streakFreezes: 1 }, t0)).toEqual({ state: "none" });
+  });
+
+  it("within 24h of the last counted workout — today is done", () => {
+    const s = streakStatus({ currentStreak: 3, lastStreakAt: t0, streakFreezes: 0 }, at(5));
+    expect(s).toEqual({ state: "counted", streak: 3, nextWindowAt: at(24) });
+  });
+
+  it("24–48h — must train before the deadline", () => {
+    const s = streakStatus({ currentStreak: 3, lastStreakAt: t0, streakFreezes: 0 }, at(45));
+    expect(s).toEqual({ state: "due", streak: 3, deadline: at(48), hoursLeft: 3 });
+  });
+
+  it("deadline passed — freezes keep it alive if enough", () => {
+    expect(streakStatus({ currentStreak: 3, lastStreakAt: t0, streakFreezes: 1 }, at(50))).toMatchObject({
+      state: "frozen",
+      streak: 3,
+      freezesNeeded: 1,
+    });
+    expect(streakStatus({ currentStreak: 3, lastStreakAt: t0, streakFreezes: 1 }, at(80))).toEqual({
+      state: "lost",
+      streak: 3,
+    });
   });
 });
