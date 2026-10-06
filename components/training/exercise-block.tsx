@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { HintBadge } from "@/components/stats/hint-badge";
+import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
@@ -24,6 +26,7 @@ export function ExerciseBlock({
   index,
   total,
   last,
+  hint,
   dispatch,
   onComplete,
 }: {
@@ -31,6 +34,7 @@ export function ExerciseBlock({
   index: number;
   total: number;
   last?: LastPerformance[string];
+  hint?: ProgressionHint;
   dispatch: Dispatch<Action>;
   /** Вызывается, когда подход отмечен выполненным (запуск таймера отдыха). */
   onComplete: (item: ExerciseState, set: SetState) => void;
@@ -51,6 +55,7 @@ export function ExerciseBlock({
               Прошлый раз: <span className="text-foreground">{formatSets(last.sets)}</span>
             </p>
           ) : null}
+          {hint ? <HintBadge hint={hint} className="mt-1.5 w-fit" /> : null}
         </div>
 
         <div className="flex items-center gap-0.5 rounded-lg border px-1 text-xs" aria-label="Отдых между подходами">

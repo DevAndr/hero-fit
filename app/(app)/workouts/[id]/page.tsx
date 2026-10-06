@@ -175,7 +175,11 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
         <h2 className="text-lg font-bold">Упражнения</h2>
         {workout.exercises.map((we) => (
           <div key={we.id} className="rounded-xl border bg-card p-4">
-            <h3 className="font-semibold">{we.exercise.name}</h3>
+            <h3 className="font-semibold">
+              <Link href={`/stats/exercises/${we.exerciseId}`} className="hover:text-primary hover:underline">
+                {we.exercise.name}
+              </Link>
+            </h3>
             <ol className="mt-2 flex flex-wrap gap-2 text-sm tabular-nums">
               {we.sets.map((s) => (
                 <li

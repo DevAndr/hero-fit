@@ -35,10 +35,16 @@ import { useAutosave, type SaveStatus } from "@/components/training/use-autosave
 import { initState, reducer, toDraft, type ExerciseState, type SetState } from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { cancelWorkoutAction, finishWorkoutAction, startWorkoutAction } from "@/lib/workouts/actions";
+import type { ProgressionHint } from "@/lib/progress/progression";
 import type { ActiveWorkout, LastPerformance } from "@/lib/workouts/queries";
 import { workoutTotals } from "@/lib/workouts/schema";
 
-type Props = { workout: ActiveWorkout; exercises: ExerciseItem[]; last: LastPerformance };
+type Props = {
+  workout: ActiveWorkout;
+  exercises: ExerciseItem[];
+  last: LastPerformance;
+  hints: Record<string, ProgressionHint>;
+};
 
 export function WorkoutEditor(props: Props) {
   return (
@@ -96,7 +102,7 @@ function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone:
   return next?.exercise.name ?? null;
 }
 
-function Editor({ workout, exercises, last }: Props) {
+function Editor({ workout, exercises, last, hints }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   const draft = useMemo(() => toDraft(state), [state]);
   const { status, settle } = useAutosave(workout.id, draft);
@@ -205,6 +211,7 @@ function Editor({ workout, exercises, last }: Props) {
           index={index}
           total={state.exercises.length}
           last={last[item.exercise.id]}
+          hint={hints[item.exercise.id]}
           dispatch={dispatch}
           onComplete={onComplete}
         />
