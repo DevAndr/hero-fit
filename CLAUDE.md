@@ -40,7 +40,7 @@
 1RM калькулятор (формула Эпли: 1RM = вес × (1 + повторы/30)).
 
 #### Streak (режим «в ударе») — механика
-Что считается «днём тренировки»? Календарный день или 24 часа?
+«День тренировки» = окно 24 часа (не календарный день): streak прерывается, если с последней засчитанной тренировки (`User.lastStreakAt`) прошло больше 24 часов и нет заморозки.
 Заморозка streak (1 раз в неделю / за ачивку) — иначе пользователь выпадет и бросит.
 Восстановление streak за награду.
 Уведомление «Не потеряй streak! Осталось 3 часа».
@@ -105,3 +105,12 @@
 - Страниц ачивок
 - Регистрация | Вход | Восстановление пароля
 
+### Разработка
+- `npm run db:up` — PostgreSQL в Docker (docker-compose.yml), затем `npm run db:migrate` и `npm run db:seed`
+- `.env` создаётся из `.env.example` (секреты JWT генерируются командой из комментария)
+- Prisma 7: генератор `prisma-client`, клиент в `generated/prisma` (gitignored, импорт из `@/generated/prisma/client`), подключение через `@prisma/adapter-pg`, конфиг CLI в `prisma.config.ts`
+- Клиент БД — `lib/db.ts`, валидированные env — `lib/env.ts` (только сервер)
+- Встроенные упражнения и готовые программы имеют `userId = null` (сид `prisma/seed.ts`, идемпотентный)
+- UI: shadcn/ui (стиль base-nova на Base UI — ссылки через `render={<Link />}` + `nativeButton={false}`), тёмная тема по умолчанию
+- Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
+- Проверки: `npm run typecheck`, `npm run lint`, `npm run build`

@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Справочники ─────────────────────────────
+
+enum MuscleGroup {
+  CHEST // Грудь
+  LEGS // Ноги
+  SHOULDERS // Плечи
+  FOREARMS // Предплечья
+  CALVES // Икры
+  TRICEPS // Трицепс
+  BICEPS // Бицепс
+  BACK // Спина
+  TRAPS // Трапеция
+  ABS // Пресс
+}
+
+enum WorkoutStatus {
+  PLANNED // собрана, но не запущена
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RecordType {
+  ONE_RM // расчётный 1RM по Эпли
+  MAX_WEIGHT
+  MAX_REPS
+}
+
+enum AchievementCategory {
+  WORKOUT_COUNT // кол-во тренировок, кратное 5
+  STREAK // «в ударе»
+  WEIGHT_PROGRESS // прогрессия веса в упражнении
+  SET_VOLUME // > 4 подходов в упражнении
+  DAILY_LOGIN // вход в приложение каждый день
+}
+
+enum XpReason {
+  WORKOUT_COMPLETED
+  PERSONAL_RECORD
+  ACHIEVEMENT
+  STREAK_BONUS
+  DAILY_LOGIN
+}
+
+// ───────────────────────────── Пользователь и авторизация ─────────────────────────────
+
+model User {
+  id           String  @id @default(cuid())
+  login        String  @unique
+  email        String  @unique
+  passwordHash String
+  name         String?
+
+  // Прогресс
+  xp    Int @default(0) // суммарный XP за всё время; уровень вычисляется из него
+  level Int @default(1) // денормализовано для быстрых выборок
+
+  // Streak: «день тренировки» = окно 24 часа с момента последней засчитанной тренировки
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastStreakAt    DateTime? // время последней тренировки, продлившей streak
+  streakFreezes   Int       @default(1) // доступные заморозки
+  freezeGrantedAt DateTime? // когда последний раз выдана еженедельная заморозка
+
+  // Ежедневный вход
+  loginStreak  Int       @default(0)
+  lastLoginDay DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  exercises           Exercise[]
+  templates           WorkoutTemplate[]
+  workouts            Workout[]
+  personalRecords     PersonalRecord[]
+  achievements        UserAchievement[]
+  xpEvents            XpEvent[]
+}
+
+/// Сессия = семейство refresh-токенов одного устройства.
+/// revokedAt ≠ null — сессия в blacklist (logout или обнаружен повторный refresh).
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+}
+
+/// Храним только SHA-256 хеш токена. При ротации старый токен помечается usedAt;
+/// повторное использование уже использованного токена → отзыв всей сессии.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  sessionId String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ───────────────────────────── Упражнения ─────────────────────────────
+
+/// userId = null — встроенное упражнение (доступно всем, не редактируется).
+model Exercise {
+  id             String        @id @default(cuid())
+  userId         String?
+  name           String
+  description    String?
+  muscleGroups   MuscleGroup[] // первая — основная
+  isBodyweight   Boolean       @default(false)
+  defaultRestSec Int           @default(90)
+  archivedAt     DateTime? // «удалённое» упражнение — скрыто, но история тренировок сохраняется
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateExercises TemplateExercise[]
+  workoutExercises  WorkoutExercise[]
+  personalRecords   PersonalRecord[]
+  achievements      UserAchievement[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// ───────────────────────────── Шаблоны и программы ─────────────────────────────
+
+/// userId = null — готовая программа (Push/Pull/Legs, Full Body, 5×5).
+model WorkoutTemplate {
+  id          String   @id @default(cuid())
+  userId      String?
+  name        String
+  description String?
+  program     String? // группировка дней одной программы, напр. "PPL"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises TemplateExercise[]
+  workouts  Workout[]
+
+  @@index([userId])
+}
+
+model TemplateExercise {
+  id           String @id @default(cuid())
+  templateId   String
+  exerciseId   String
+  order        Int
+  targetSets   Int    @default(3)
+  targetReps   Int?
+  targetWeight Float?
+  restSec      Int?
+
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([templateId])
+}
+
+// ───────────────────────────── Тренировки ─────────────────────────────
+
+model Workout {
+  id          String        @id @default(cuid())
+  userId      String
+  templateId  String?
+  name        String
+  status      WorkoutStatus @default(PLANNED)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  durationSec Int? // finishedAt - startedAt, фиксируется при завершении
+  totalVolume Float         @default(0) // Σ вес × повторы
+  totalSets   Int           @default(0)
+  totalReps   Int           @default(0)
+  xpEarned    Int           @default(0)
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template  WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  exercises WorkoutExercise[]
+  xpEvents  XpEvent[]
+
+  @@index([userId, status])
+  @@index([userId, finishedAt])
+}
+
+model WorkoutExercise {
+  id         String @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  order      Int
+  restSec    Int    @default(90)
+
+  workout  Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets     WorkoutSet[]
+
+  @@index([workoutId])
+  @@index([exerciseId])
+}
+
+model WorkoutSet {
+  id                String    @id @default(cuid())
+  workoutExerciseId String
+  order             Int
+  weight            Float     @default(0) // кг; 0 для упражнений с собственным весом
+  reps              Int
+  isWarmup          Boolean   @default(false)
+  completedAt       DateTime?
+
+  workoutExercise WorkoutExercise  @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  personalRecords PersonalRecord[]
+
+  @@index([workoutExerciseId])
+}
+
+// ───────────────────────────── Прогресс ─────────────────────────────
+
+/// Текущий лучший результат по типу рекорда; история — через WorkoutSet.
+model PersonalRecord {
+  id         String     @id @default(cuid())
+  userId     String
+  exerciseId String
+  type       RecordType
+  value      Float
+  setId      String?
+  achievedAt DateTime   @default(now())
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  set      WorkoutSet? @relation(fields: [setId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, exerciseId, type])
+}
+
+/// Ачивки генерируются динамически: code уникален в рамках пользователя,
+/// напр. "workouts:25", "streak:7", "weight:<exerciseId>:3", "sets:<exerciseId>", "login:30".
+model UserAchievement {
+  id          String              @id @default(cuid())
+  userId      String
+  code        String
+  category    AchievementCategory
+  title       String
+  description String
+  threshold   Int
+  exerciseId  String?
+  xpReward    Int                 @default(0)
+  earnedAt    DateTime            @default(now())
+  seenAt      DateTime? // для уведомления «новая ачивка»
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@index([userId, earnedAt])
+}
+
+/// Журнал начислений XP — источник правды для User.xp.
+model XpEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    XpReason
+  workoutId String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
