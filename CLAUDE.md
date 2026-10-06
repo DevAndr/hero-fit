@@ -114,3 +114,5 @@
 - UI: shadcn/ui (стиль base-nova на Base UI — ссылки через `render={<Link />}` + `nativeButton={false}`), тёмная тема по умолчанию
 - Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
 - Проверки: `npm run typecheck`, `npm run lint`, `npm run build`
+- Авторизация (`lib/auth/*`): access JWT (15 мин) и refresh JWT (30 дн) — оба в httpOnly cookie `hf_at`/`hf_rt` (решение: Server Components должны видеть сессию). Refresh ротируется в `proxy.ts`; повтор старого refresh в течение 30 с — гонка (выдаём только access), позже — кража → сессия отзывается. Защищённые страницы/actions вызывают `requireUser()` из `lib/auth/dal.ts` (проверяет `Session.revokedAt` в БД = blacklist)
+- Публичные страницы перечислены в `proxy.ts` (`PUBLIC_PAGES`), всё остальное требует входа

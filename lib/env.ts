@@ -8,6 +8,11 @@ const schema = z.object({
   JWT_ACCESS_TTL: z.string().default("15m"),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
   APP_URL: z.url().default("http://localhost:3000"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().default("Hero Fit <no-reply@hero-fit.local>"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
