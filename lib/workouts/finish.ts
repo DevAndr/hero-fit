@@ -1,6 +1,7 @@
 import "server-only";
 import { RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
 import { applyWorkoutToStreak } from "@/lib/progress/streak";
@@ -16,7 +17,9 @@ export type FinishMeta = {
   levelAfter: number;
   workoutXp: number;
   recordsXp: number;
+  achievementsXp: number;
   records: NewRecord[];
+  achievements: NewAchievement[];
   streak: number;
   streakExtended: boolean;
   streakReset: boolean;
@@ -101,19 +104,6 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     const xpAfter = user.xp + baseXp + recordsXp;
     const streak = applyWorkoutToStreak(user, now);
 
-    const meta: FinishMeta = {
-      xpBefore: user.xp,
-      levelBefore: levelProgress(user.xp).level,
-      levelAfter: levelProgress(xpAfter).level,
-      workoutXp: baseXp,
-      recordsXp,
-      records,
-      streak: streak.currentStreak,
-      streakExtended: streak.extended,
-      streakReset: streak.reset,
-      usedFreezes: streak.usedFreezes,
-    };
-
     await tx.workout.update({
       where: { id: workoutId },
       data: {
@@ -127,6 +117,37 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       },
     });
 
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        xp: xpAfter,
+        level: levelProgress(xpAfter).level,
+        currentStreak: streak.currentStreak,
+        longestStreak: streak.longestStreak,
+        lastStreakAt: streak.lastStreakAt,
+        streakFreezes: streak.streakFreezes,
+        freezeGrantedAt: streak.freezeGrantedAt,
+      },
+    });
+
+    // Ачивки считаются по уже обновлённым данным (новая тренировка, streak) и сами начисляют свой XP.
+    const unlocked = await evaluateAchievements(tx, userId);
+
+    const meta: FinishMeta = {
+      xpBefore: user.xp,
+      levelBefore: levelProgress(user.xp).level,
+      levelAfter: levelProgress(xpAfter + unlocked.xp).level,
+      workoutXp: baseXp,
+      recordsXp,
+      achievementsXp: unlocked.xp,
+      records,
+      achievements: unlocked.achievements,
+      streak: streak.currentStreak,
+      streakExtended: streak.extended,
+      streakReset: streak.reset,
+      usedFreezes: streak.usedFreezes,
+    };
+
     await tx.xpEvent.create({
       data: { userId, workoutId, amount: baseXp, reason: XpReason.WORKOUT_COMPLETED, meta },
     });
@@ -136,19 +157,6 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       });
     }
 
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        xp: xpAfter,
-        level: meta.levelAfter,
-        currentStreak: streak.currentStreak,
-        longestStreak: streak.longestStreak,
-        lastStreakAt: streak.lastStreakAt,
-        streakFreezes: streak.streakFreezes,
-        freezeGrantedAt: streak.freezeGrantedAt,
-      },
-    });
-
     return { ok: true };
-  });
+  }, { timeout: 15_000 });
 }

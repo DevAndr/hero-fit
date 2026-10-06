@@ -16,6 +16,8 @@ export type CurrentUser = {
   xp: number;
   level: number;
   currentStreak: number;
+  loginStreak: number;
+  lastLoginDay: Date | null;
 };
 
 /**
@@ -41,6 +43,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           xp: true,
           level: true,
           currentStreak: true,
+          loginStreak: true,
+          lastLoginDay: true,
         },
       },
     },

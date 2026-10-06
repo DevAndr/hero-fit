@@ -1,0 +1,24 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { markAchievementsSeenAction } from "@/lib/achievements/actions";
+
+type Unseen = { id: string; title: string; description: string; xpReward: number };
+
+/** Показывает тосты о новых ачивках один раз и помечает их просмотренными. */
+export function AchievementToaster({ achievements }: { achievements: Unseen[] }) {
+  const shown = useRef(new Set<string>());
+
+  useEffect(() => {
+    const fresh = achievements.filter((a) => !shown.current.has(a.id));
+    if (fresh.length === 0) return;
+    for (const a of fresh) {
+      shown.current.add(a.id);
+      toast.success(`🏆 ${a.title}`, { description: `${a.description} · +${a.xpReward} XP`, duration: 6000 });
+    }
+    void markAchievementsSeenAction(fresh.map((a) => a.id));
+  }, [achievements]);
+
+  return null;
+}

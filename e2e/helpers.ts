@@ -17,6 +17,7 @@ export async function registerUser(page: Page, name = "Герой") {
   await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
   await page.getByLabel("Повторите пароль").fill(PASSWORD);
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  // argon2 намеренно «тяжёлый»: под параллельной нагрузкой e2e регистрация может занять несколько секунд.
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
   return { login, email: `${login}@test.local` };
 }

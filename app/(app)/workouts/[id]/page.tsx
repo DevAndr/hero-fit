@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, Dumbbell, Flame, Layers, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
+import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { formatClock } from "@/lib/format";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
@@ -44,7 +44,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   if (!workout) notFound();
 
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
-  const xpAfter = meta ? meta.xpBefore + workout.xpEarned : user.xp;
+  const achievementsXp = meta?.achievementsXp ?? 0;
+  const totalXp = workout.xpEarned + achievementsXp;
+  const xpAfter = meta ? meta.xpBefore + totalXp : user.xp;
   const level = levelProgress(xpAfter);
   const leveledUp = meta ? meta.levelAfter > meta.levelBefore : false;
   const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
@@ -80,11 +82,17 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
             Опыт
           </p>
           <p className="mt-1 text-3xl font-black text-xp" data-testid="xp-earned">
-            +{workout.xpEarned} XP
+            +{totalXp} XP
           </p>
-          {meta?.recordsXp ? (
+          {meta && (meta.recordsXp || achievementsXp) ? (
             <p className="text-xs text-muted-foreground">
-              {meta.workoutXp} за тренировку + {meta.recordsXp} за рекорды
+              {[
+                `${meta.workoutXp} за тренировку`,
+                meta.recordsXp ? `${meta.recordsXp} за рекорды` : null,
+                achievementsXp ? `${achievementsXp} за ачивки` : null,
+              ]
+                .filter(Boolean)
+                .join(" + ")}
             </p>
           ) : null}
           <div className="mt-3">
@@ -121,6 +129,26 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
           </p>
         </div>
       </div>
+
+      {meta?.achievements?.length ? (
+        <section className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-4">
+          <h2 className="flex items-center gap-2 font-bold">
+            <Medal className="size-4 text-primary" />
+            Новые ачивки
+          </h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {meta.achievements.map((a) => (
+              <li key={a.code} className="flex flex-wrap justify-between gap-2">
+                <span>
+                  <span className="font-semibold">{a.title}</span>{" "}
+                  <span className="text-muted-foreground">· {a.description}</span>
+                </span>
+                <span className="font-semibold text-xp tabular-nums">+{a.xpReward} XP</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {meta?.records.length ? (
         <section className="mt-4 rounded-xl border border-xp/40 bg-xp/5 p-4">

@@ -10,6 +10,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: "ru-RU",
+    timezoneId: "Europe/Moscow",
     trace: "retain-on-failure",
   },
   projects: [
