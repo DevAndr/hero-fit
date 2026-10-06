@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Dumbbell, Flame, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
 import type { CurrentUser } from "@/lib/auth/dal";
@@ -43,7 +43,7 @@ function StreakBadge({ days }: { days: number }) {
         "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums",
         days > 0 ? "bg-streak/15 text-streak" : "bg-muted text-muted-foreground",
       )}
-      title="Streak — тренировки без перерыва больше 24 часов"
+      title="Streak — тренировочные дни (окна по 24 часа) подряд"
     >
       <Flame className="size-3.5" />
       {days}
@@ -67,10 +67,10 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
           <div className="ml-auto flex items-center gap-3">
             <LevelMeter xp={user.xp} />
             <StreakBadge days={user.currentStreak} />
-            <Button className="hidden sm:inline-flex" nativeButton={false} render={<Link href="/training" />}>
+            <Link href="/training" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               <Play />
               Начать тренировку
-            </Button>
+            </Link>
             <UserMenu name={user.name} login={user.login} email={user.email} />
           </div>
         </header>

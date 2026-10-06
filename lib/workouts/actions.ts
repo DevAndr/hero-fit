@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
@@ -213,19 +214,7 @@ export async function saveAsTemplateAction(workoutId: string, name: string): Pro
     data: {
       userId: user.id,
       name: title,
-      exercises: {
-        create: workout.exercises.map((we, order) => {
-          const last = we.sets.at(-1);
-          return {
-            exerciseId: we.exerciseId,
-            order,
-            restSec: we.restSec,
-            targetSets: Math.max(1, we.sets.length),
-            targetReps: last?.reps || null,
-            targetWeight: last?.weight || null,
-          };
-        }),
-      },
+      exercises: { create: templateItemsFromWorkout(workout.exercises) },
     },
   });
   revalidatePath("/training");

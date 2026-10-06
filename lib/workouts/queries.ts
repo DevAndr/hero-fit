@@ -116,6 +116,14 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
         },
       },
       xpEvents: { where: { reason: "WORKOUT_COMPLETED" }, select: { meta: true }, take: 1 },
+      template: {
+        select: {
+          userId: true,
+          name: true,
+          exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true } },
+        },
+      },
     },
   });
 }
+

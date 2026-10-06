@@ -5,11 +5,13 @@ import { Clock, Dumbbell, Flame, Layers, Repeat, Sparkles, Trophy, Weight } from
 import { PageHeader } from "@/components/app/app-shell";
 import { formatClock } from "@/lib/format";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
-import { Button } from "@/components/ui/button";
+import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
+import { buttonVariants } from "@/components/ui/button";
 import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { levelProgress } from "@/lib/progress/level";
 import type { FinishMeta } from "@/lib/workouts/finish";
+import { differsFromTemplate } from "@/lib/templates/from-workout";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { cn } from "@/lib/utils";
 
@@ -45,13 +47,22 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const xpAfter = meta ? meta.xpBefore + workout.xpEarned : user.xp;
   const level = levelProgress(xpAfter);
   const leveledUp = meta ? meta.levelAfter > meta.levelBefore : false;
+  const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
+  const canUpdateTemplate = ownTemplate ? differsFromTemplate(workout.exercises, ownTemplate.exercises) : false;
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title={`${workout.name} — готово!`}
         description={workout.finishedAt ? dateFormat.format(workout.finishedAt) : undefined}
-        actions={<SaveTemplateButton workoutId={workout.id} defaultName={workout.name} />}
+        actions={
+          <>
+            {canUpdateTemplate && ownTemplate ? (
+              <UpdateTemplateButton workoutId={workout.id} templateName={ownTemplate.name} />
+            ) : null}
+            <SaveTemplateButton workoutId={workout.id} defaultName={workout.name} />
+          </>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -152,9 +163,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       </section>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <Button nativeButton={false} render={<Link href="/dashboard" />}>
+        <Link href="/dashboard" className={buttonVariants()}>
           В кабинет
-        </Button>
+        </Link>
       </div>
     </div>
   );

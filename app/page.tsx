@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { Dumbbell, Flame, Trophy, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/lib/db";
 
 const features = [
   { icon: Zap, title: "Уровни и XP", text: "Каждый подход, повтор и килограмм приближают новый уровень." },
-  { icon: Flame, title: "Режим «в ударе»", text: "Тренируйся без перерывов дольше 24 часов и держи streak." },
+  { icon: Flame, title: "Режим «в ударе»", text: "Тренируйся каждый 24-часовой день подряд и держи streak." },
   { icon: Trophy, title: "Ачивки", text: "Награды генерируются по твоему реальному прогрессу." },
 ];
 
@@ -32,12 +32,12 @@ export default async function Home() {
           Hero Fit превращает тренировки в игру: прокачивай уровень, бей личные рекорды и собирай ачивки.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button size="lg" nativeButton={false} render={<Link href="/register" />}>
+          <Link href="/register" className={buttonVariants({ size: "lg" })}>
             Начать
-          </Button>
-          <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/login" />}>
+          </Link>
+          <Link href="/login" className={buttonVariants({ size: "lg", variant: "outline" })}>
             Войти
-          </Button>
+          </Link>
         </div>
       </section>
 
