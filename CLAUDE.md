@@ -113,6 +113,9 @@
 - Встроенные упражнения и готовые программы имеют `userId = null` (сид `prisma/seed.ts`, идемпотентный)
 - UI: shadcn/ui (стиль base-nova на Base UI — ссылки через `render={<Link />}` + `nativeButton={false}`), тёмная тема по умолчанию
 - Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
-- Проверки: `npm run typecheck`, `npm run lint`, `npm run build`
+- Проверки: `npm run typecheck`, `npm run lint`, `npm test` (Vitest, `*.test.ts` рядом с кодом), `npm run build && npm run test:e2e` (Playwright, `e2e/`, desktop + mobile)
+- Приватные страницы — в группе `app/(app)/` (layout с `AppShell` и `requireUser()`), формы входа — в `app/(auth)/`
+- Уровень считается из `User.xp` функцией `levelProgress` (`lib/progress/level.ts`): переход L→L+1 стоит 100·L^1.3 XP
+- Удаление своих упражнений — мягкое (`archivedAt`); встроенные (`userId = null`) не редактируются
 - Авторизация (`lib/auth/*`): access JWT (15 мин) и refresh JWT (30 дн) — оба в httpOnly cookie `hf_at`/`hf_rt` (решение: Server Components должны видеть сессию). Refresh ротируется в `proxy.ts`; повтор старого refresh в течение 30 с — гонка (выдаём только access), позже — кража → сессия отзывается. Защищённые страницы/actions вызывают `requireUser()` из `lib/auth/dal.ts` (проверяет `Session.revokedAt` в БД = blacklist)
 - Публичные страницы перечислены в `proxy.ts` (`PUBLIC_PAGES`), всё остальное требует входа
