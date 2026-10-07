@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
+import { ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
 import { requireUser } from "@/lib/auth/dal";
 import { getNotificationSettings } from "@/lib/notifications/queries";
@@ -13,6 +14,7 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title="Настройки" description={`${user.name ?? user.login} · ${user.email}`} />
+      <ThemeSettings />
       <PushDeviceCard devices={_count.pushSubscriptions} />
       <NotificationPrefs initial={prefs} />
     </div>

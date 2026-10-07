@@ -112,7 +112,7 @@
 - Клиент БД — `lib/db.ts`, валидированные env — `lib/env.ts` (только сервер)
 - Встроенные упражнения и готовые программы имеют `userId = null` (сид `prisma/seed.ts`, идемпотентный)
 - Тестовая учётка из сида (кроме `NODE_ENV=production`): `demo` / `Demo1234`, повторный сид сбрасывает ей пароль
-- UI: shadcn/ui (стиль base-nova на Base UI), тёмная тема по умолчанию. Ссылка, оформленная кнопкой — `<Link className={buttonVariants()}>` (не `Button render={<Link/>}`: Base UI вешает `role="button"` на ссылку)
+- UI: shadcn/ui (стиль base-nova на Base UI). Тема — `next-themes` (`components/app/theme-provider.tsx`): светлая/тёмная/системная, по умолчанию тёмная, выбор в `/settings`, хранится в localStorage. Цвета — только семантические токены из `app/globals.css` (фирменные `primary`/`chart-*`/`xp`/`streak` заданы для обеих тем). Ссылка, оформленная кнопкой — `<Link className={buttonVariants()}>` (не `Button render={<Link/>}`: Base UI вешает `role="button"` на ссылку)
 - Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
 - Проверки: `npm run typecheck`, `npm run lint`, `npm test` (Vitest, `*.test.ts` рядом с кодом), `npm run build && npm run test:e2e` (Playwright, `e2e/`, desktop + mobile)
 - Приватные страницы — в группе `app/(app)/` (layout с `AppShell` и `requireUser()`), формы входа — в `app/(auth)/`
