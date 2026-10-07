@@ -37,6 +37,7 @@ import { useWorkoutSync, type SyncStatus } from "@/components/training/use-worko
 import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
 import { initState, reducer, toDraft, type ExerciseState, type SetState } from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
+import { unstable_rethrow } from "next/navigation";
 import { cancelWorkoutAction } from "@/lib/workouts/actions";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { ActiveWorkout, LastPerformance } from "@/lib/workouts/queries";
@@ -194,7 +195,9 @@ function Editor({ workout, exercises, last, hints }: Props) {
         await sync.settle();
         rest.skip();
         await cancelWorkoutAction(workout.id);
-      } catch {
+      } catch (err) {
+        // Успешная отмена завершается redirect() — на клиенте это отклонённый промис, не сбой сети.
+        unstable_rethrow(err);
         toast.error("Нет сети — отменить тренировку можно, когда появится связь");
         setCancelOpen(false);
       }

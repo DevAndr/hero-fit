@@ -16,14 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { restoreStreakAction } from "@/lib/progress/actions";
+import { weeksText } from "@/lib/progress/streak-copy";
 
-const days = (n: number) => {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${n} день`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} дня`;
-  return `${n} дней`;
-};
 
 export function RestoreStreakButton({ streak, cost, missing }: { streak: number; cost: number; missing: number }) {
   const [pending, startTransition] = useTransition();
@@ -40,14 +34,14 @@ export function RestoreStreakButton({ streak, cost, missing }: { streak: number;
     <AlertDialog>
       <AlertDialogTrigger render={<Button size="sm" className="mt-2 bg-streak text-background hover:bg-streak/90" />}>
         <Flame />
-        Вернуть {days(streak)} за {cost} XP
+        Вернуть {weeksText(streak)} за {cost} XP
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Вернуть серию {days(streak)}?</AlertDialogTitle>
+          <AlertDialogTitle>Вернуть серию {weeksText(streak)}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Спишем {cost} XP (уровень не понизится). После этого у вас будут сутки, чтобы потренироваться и продлить
-            серию.
+            Спишем {cost} XP (уровень не понизится). Пропущенная неделя будет закрыта — сделайте 3 тренировки до
+            воскресенья, чтобы продлить серию.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -57,7 +51,7 @@ export function RestoreStreakButton({ streak, cost, missing }: { streak: number;
             onClick={() =>
               startTransition(async () => {
                 const result = await restoreStreakAction();
-                if (result.ok) toast.success(`Серия ${days(result.streak)} снова горит 🔥`);
+                if (result.ok) toast.success(`Серия ${weeksText(result.streak)} снова горит 🔥`);
                 else toast.error(result.error);
               })
             }

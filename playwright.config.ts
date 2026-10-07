@@ -40,7 +40,8 @@ export default defineConfig({
     // Всегда свой сервер: чужой (без NODE_EXTRA_CA_CERTS) не доставит push в фейковый сервис.
     reuseExistingServer: false,
     // Сервер доверяет сертификату фейкового push-сервиса из e2e/push-server.ts и работает с тестовой базой.
-    env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL },
+    // E2E_TEST_CLOCK — cron-эндпоинт принимает ?now= (напоминания по дням недели).
+    env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1" },
     timeout: 60_000,
   },
 });

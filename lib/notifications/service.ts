@@ -3,7 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { sendPushToUser } from "@/lib/notifications/push";
-import { shouldRemindStreak } from "@/lib/notifications/reminders";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { shouldRemindStreak, streakReminderBody } from "@/lib/notifications/reminders";
+import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
 
@@ -74,39 +76,46 @@ export async function processDuePushes(now = new Date()) {
   return due.length;
 }
 
-/** «Не потеряй streak! Осталось N ч» — одно напоминание на окно серии. */
+/** «Не потеряй streak!» — неделю ещё можно засчитать, но тренировок не хватает на оставшиеся дни. Раз в день. */
 export async function processStreakReminders(now = new Date()) {
-  const H = 3_600_000;
-  const candidates = await db.user.findMany({
-    where: {
-      notifyStreak: true,
-      currentStreak: { gt: 0 },
-      // окно 24–48 ч с последней засчитанной тренировки, из него — последние 3 часа
-      lastStreakAt: { gt: new Date(now.getTime() - 48 * H), lte: new Date(now.getTime() - 45 * H) },
-    },
-    select: { id: true, currentStreak: true, lastStreakAt: true, streakFreezes: true, streakReminderFor: true },
-  });
+  // Грубый отбор в SQL по местному времени (пт–вс, после полудня, сегодня ещё не напоминали), точный — shouldRemindStreak.
+  const candidates = await db.$queryRaw<
+    {
+      id: string;
+      timeZone: string;
+      currentStreak: number;
+      lastStreakWeek: string | null;
+      streakFreezes: number;
+      weekWorkouts: number;
+      weekWorkoutsKey: string | null;
+      freezeGrantedAt: Date | null;
+      streakReminderDay: string | null;
+    }[]
+  >`
+    SELECT id, "timeZone", "currentStreak", "lastStreakWeek", "streakFreezes", "weekWorkouts", "weekWorkoutsKey", "freezeGrantedAt", "streakReminderDay"
+    FROM "User"
+    WHERE "notifyStreak" AND "currentStreak" > 0 AND "lastStreakWeek" IS NOT NULL
+      AND extract(isodow FROM ${now}::timestamptz AT TIME ZONE "timeZone") >= 5
+      AND extract(hour FROM ${now}::timestamptz AT TIME ZONE "timeZone") >= ${STREAK_REMINDER_HOUR}
+      AND "streakReminderDay" IS DISTINCT FROM to_char(${now}::timestamptz AT TIME ZONE "timeZone", 'YYYY-MM-DD')
+  `;
 
   let sent = 0;
   for (const user of candidates) {
-    const reminder = shouldRemindStreak(user, now);
+    const tz = safeTimeZone(user.timeZone);
+    const reminder = shouldRemindStreak(user, now, tz);
     if (!reminder) continue;
     await db.$transaction(async (tx) => {
       // Условие по старому значению — параллельный воркер не напомнит второй раз.
       const { count } = await tx.user.updateMany({
-        where: { id: user.id, streakReminderFor: user.streakReminderFor },
-        data: { streakReminderFor: user.lastStreakAt },
+        where: { id: user.id, streakReminderDay: user.streakReminderDay },
+        data: { streakReminderDay: dayKey(now, tz) },
       });
       if (count === 0) return;
       await notify(
         tx,
         user.id,
-        {
-          type: NotificationType.STREAK,
-          title: "Не потеряй streak! 🔥",
-          body: `Серия ${user.currentStreak} — осталось ${reminder.hoursLeft} ч, чтобы её продлить.`,
-          url: "/training",
-        },
+        { type: NotificationType.STREAK, title: "Не потеряй streak! 🔥", body: streakReminderBody(reminder), url: "/training" },
         { push: true },
       );
       sent++;
@@ -117,8 +126,9 @@ export async function processStreakReminders(now = new Date()) {
   return sent;
 }
 
-export async function runNotificationTick() {
-  const reminders = await processStreakReminders();
+/** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
+export async function runNotificationTick(now = new Date()) {
+  const reminders = await processStreakReminders(now);
   const pushes = await processDuePushes();
   return { reminders, pushes };
 }

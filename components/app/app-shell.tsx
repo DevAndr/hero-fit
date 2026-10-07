@@ -6,7 +6,9 @@ import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
 import type { CurrentUser } from "@/lib/auth/dal";
 import { levelProgress } from "@/lib/progress/level";
-import { streakStatus } from "@/lib/progress/streak";
+import { safeTimeZone } from "@/lib/daily-login";
+import { streakHint } from "@/lib/progress/streak-copy";
+import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
 
 function Logo() {
@@ -38,19 +40,19 @@ function LevelMeter({ xp }: { xp: number }) {
 }
 
 function StreakBadge({ user }: { user: CurrentUser }) {
-  const status = streakStatus(user, new Date());
-  const days = status.state === "none" || status.state === "lost" ? 0 : status.streak;
+  const status = streakStatus(user, new Date(), safeTimeZone(user.timeZone));
+  const weeks = streakValue(status);
   return (
     <span
       className={cn(
         "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums",
-        days > 0 ? "bg-streak/15 text-streak" : "bg-muted text-muted-foreground",
+        weeks > 0 ? "bg-streak/15 text-streak" : "bg-muted text-muted-foreground",
       )}
-      title={status.state === "due" ? `Не потеряй streak! Осталось ${status.hoursLeft} ч` : "Streak — тренировочные дни (окна по 24 часа) подряд"}
+      title={streakHint(status)}
       data-testid="header-streak"
     >
       <Flame className="size-3.5" />
-      {days}
+      {weeks}
     </span>
   );
 }

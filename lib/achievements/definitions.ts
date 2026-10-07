@@ -1,5 +1,8 @@
 import type { AchievementCategory, MuscleGroup } from "@/generated/prisma/enums";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
+import { plural } from "@/lib/format";
+import { weeksText } from "@/lib/progress/streak-copy";
+import { STREAK_WEEK_STEP, STREAK_WEEK_TARGET, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 
 /**
  * Ачивки генерируются динамически из статистики пользователя: никакого справочника в БД —
@@ -61,8 +64,6 @@ export type AchievementStats = {
   expressWorkouts: number;
   earlyWorkouts: number;
   lateWorkouts: number;
-  bestWeeklyRun: number;
-  currentWeeklyRun: number;
   // Программы
   customTemplates: number;
   programs: { program: string; workouts: number }[];
@@ -96,8 +97,6 @@ export const EMPTY_STATS: AchievementStats = {
   expressWorkouts: 0,
   earlyWorkouts: 0,
   lateWorkouts: 0,
-  bestWeeklyRun: 0,
-  currentWeeklyRun: 0,
   customTemplates: 0,
   programs: [],
   maxGapDays: 0,
@@ -105,7 +104,6 @@ export const EMPTY_STATS: AchievementStats = {
 };
 
 export const WORKOUT_STEP = 5;
-export const STREAK_THRESHOLDS = [3, 7, 14, 30, 60, 100];
 export const LOGIN_THRESHOLDS = [3, 7, 14, 30, 60, 100, 365];
 /** Ачивка за каждые +5 кг к рабочему весу первой тренировки. */
 export const WEIGHT_STEP_KG = 5;
@@ -125,9 +123,6 @@ export const EXPRESS = { maxSec: 30 * 60, minSets: 15 };
 export const EARLY_HOUR = 7;
 export const LATE_HOUR = 22;
 export const TIME_OF_DAY_THRESHOLDS = [5, 25];
-/** Неделя считается, если в ней 3+ тренировки. */
-export const WEEK_MIN_WORKOUTS = 3;
-export const WEEKS_THRESHOLDS = [4, 8, 12, 26, 52];
 export const PROGRAM_THRESHOLDS = [10, 25, 50];
 export const LEVEL_THRESHOLDS = [5, 10, 25, 50];
 export const COLLECTOR_THRESHOLDS = [10, 25, 50, 100];
@@ -148,11 +143,11 @@ const WORKOUT_TITLES: Record<number, string> = {
   100: "Легенда зала",
 };
 const STREAK_TITLES: Record<number, string> = {
-  3: "В ударе",
-  7: "Неделя огня",
-  14: "Две недели без пропусков",
-  30: "Месяц в ударе",
-  100: "Неостановимый",
+  2: "В ударе",
+  4: "Месяц огня",
+  12: "Квартал без пропусков",
+  26: "Полгода в ударе",
+  52: "Год в ударе",
 };
 const LOGIN_TITLES: Record<number, string> = { 7: "Неделя в игре", 30: "Месяц в игре", 365: "Год в игре" };
 const TONNES_TITLES: Record<number, string> = {
@@ -165,13 +160,6 @@ const TONNES_TITLES: Record<number, string> = {
 };
 const WORKOUT_TONNES_TITLES: Record<number, string> = { 5: "Тяжёлый день", 10: "Грузчик", 20: "Подъёмный кран" };
 
-const plural = (n: number, one: string, few: string, many: string) => {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
-};
 const days = (n: number) => `${n} ${plural(n, "день", "дня", "дней")}`;
 const workouts = (n: number) => `${n} ${plural(n, "тренировка", "тренировки", "тренировок")}`;
 const number = (n: number) => n.toLocaleString("ru-RU");
@@ -194,25 +182,6 @@ function nextThreshold(fixed: number[], step: number | undefined, value: number)
   return last + (Math.floor((value + EPS - last) / step) + 1) * step;
 }
 
-/**
- * Серия недель подряд, в каждой из которых 3+ тренировки. `weeks` — понедельники таких недель
- * («YYYY-MM-DD»), `currentWeek` — понедельник текущей. Текущая серия жива, пока она доходит
- * до текущей или прошлой недели (текущая ещё не закончилась).
- */
-export function weeklyRuns(weeks: string[], currentWeek: string): { best: number; current: number } {
-  const WEEK_MS = 7 * 24 * 3600 * 1000;
-  const index = (key: string) => Math.round(Date.parse(`${key}T00:00:00Z`) / WEEK_MS);
-  const sorted = [...new Set(weeks.map(index))].sort((a, b) => a - b);
-  let best = 0;
-  let run = 0;
-  for (const [i, w] of sorted.entries()) {
-    run = i > 0 && w === sorted[i - 1] + 1 ? run + 1 : 1;
-    best = Math.max(best, run);
-  }
-  const last = sorted.at(-1);
-  const now = index(currentWeek);
-  return { best, current: last !== undefined && now - last <= 1 ? run : 0 };
-}
 
 // ───────────────────────────── Лестницы порогов ─────────────────────────────
 
@@ -249,14 +218,15 @@ const workoutDef = (n: number) =>
     xpReward: 20 + n,
   });
 
+/** Недельный streak (lib/progress/weekly-streak.ts). Прежние `streak:N` (дни) и `weeks:N` больше не выдаются. */
 const streakDef = (n: number) =>
   def(n, {
-    code: `streak:${n}`,
+    code: `streakw:${n}`,
     category: "STREAK",
-    title: STREAK_TITLES[n] ?? `Streak ${days(n)}`,
-    description: `Тренироваться ${days(n)} подряд`,
-    xpReward: n * 5,
-    freezeReward: n >= 7 ? 1 : undefined,
+    title: STREAK_TITLES[n] ?? `В ударе: ${weeksText(n)}`,
+    description: `Тренироваться ${STREAK_WEEK_TARGET}+ раза в неделю ${n} ${plural(n, "неделю", "недели", "недель")} подряд`,
+    xpReward: n * 15,
+    freezeReward: n >= 4 ? 1 : undefined,
   });
 
 const loginDef = (n: number) =>
@@ -355,7 +325,7 @@ function ladders(s: AchievementStats): Ladder[] {
   return [
     { fixed: [WORKOUT_STEP], step: WORKOUT_STEP, value: s.workouts, def: workoutDef },
     // Получение — по максимальной серии (сохраняется после перерыва), цель — по текущей.
-    { fixed: STREAK_THRESHOLDS, step: 50, value: s.longestStreak, goalValue: s.currentStreak, def: streakDef },
+    { fixed: STREAK_WEEK_THRESHOLDS, step: STREAK_WEEK_STEP, value: s.longestStreak, goalValue: s.currentStreak, def: streakDef },
     { fixed: LOGIN_THRESHOLDS, step: 365, value: s.loginStreak, def: loginDef },
     ...s.exercises.flatMap(exerciseLadders),
 
@@ -538,22 +508,6 @@ function ladders(s: AchievementStats): Ladder[] {
           xpReward: 20 + n,
         }),
     },
-    {
-      fixed: WEEKS_THRESHOLDS,
-      step: 52,
-      value: s.bestWeeklyRun,
-      goalValue: s.currentWeeklyRun,
-      def: (n) =>
-        def(n, {
-          code: `weeks:${n}`,
-          category: "TIME",
-          title: `Стабильность: ${n} ${plural(n, "неделя", "недели", "недель")}`,
-          description: `Тренироваться ${WEEK_MIN_WORKOUTS}+ раза в неделю ${n} ${plural(n, "неделю", "недели", "недель")} подряд`,
-          xpReward: n * 5,
-          freezeReward: 1,
-        }),
-    },
-
     // Программы
     {
       fixed: [1],

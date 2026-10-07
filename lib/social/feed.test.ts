@@ -29,8 +29,9 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
     ],
     levelBefore: 7,
     levelAfter: 8,
-    streak: 7,
+    streak: 4,
     streakExtended: true,
+    weekCount: 3,
   },
   kudos: 0,
   byMe: false,
@@ -41,7 +42,7 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
 describe("toFeedEntry", () => {
   it("summarizes a workout: top exercises, PRs, achievements without daily-login noise, level up, streak milestone", () => {
     const e = toFeedEntry(row(), "viewer");
-    expect(e).toMatchObject({ me: false, volume: 6200, durationSec: 3120, moreExercises: 1, levelUp: 8, streakMilestone: 7 });
+    expect(e).toMatchObject({ me: false, volume: 6200, durationSec: 3120, moreExercises: 1, levelUp: 8, streakMilestone: 4 });
     expect(e.exercises).toEqual([
       { name: "Жим лёжа", top: 100 },
       { name: "Отжимания на брусьях", top: null }, // без веса
@@ -72,11 +73,16 @@ describe("toFeedEntry", () => {
 });
 
 describe("streakMilestone", () => {
-  it("only when this workout extended the streak onto a threshold", () => {
-    expect(streakMilestone({ streak: 7, streakExtended: true })).toBe(7);
-    expect(streakMilestone({ streak: 8, streakExtended: true })).toBeNull();
-    expect(streakMilestone({ streak: 7, streakExtended: false })).toBeNull(); // вторая тренировка в тот же день
-    expect(streakMilestone({ streak: 150, streakExtended: true })).toBe(150);
+  it("only when this workout credited a week onto a threshold (in weeks)", () => {
+    expect(streakMilestone({ streak: 4, streakExtended: true, weekCount: 3 })).toBe(4);
+    expect(streakMilestone({ streak: 7, streakExtended: true, weekCount: 3 })).toBeNull();
+    expect(streakMilestone({ streak: 4, streakExtended: false, weekCount: 4 })).toBeNull(); // 4-я тренировка той же недели
+    expect(streakMilestone({ streak: 104, streakExtended: true, weekCount: 3 })).toBe(104);
+    expect(streakMilestone({ streak: 100, streakExtended: true, weekCount: 3 })).toBeNull();
+  });
+
+  it("old day-based meta (no weekCount) is not a weekly milestone", () => {
+    expect(streakMilestone({ streak: 4, streakExtended: true })).toBeNull();
   });
 });
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Timer, Trophy, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { weeksText } from "@/lib/progress/streak-copy";
 import { kudosLabel, type FeedEntry } from "@/lib/social/feed";
 import { loadFeedPageAction, toggleKudosAction } from "@/lib/social/actions";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,7 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
     ...entry.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
     ...(entry.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${entry.levelUp}`, className: "text-primary" }] : []),
     ...(entry.streakMilestone
-      ? [{ icon: Flame, text: `${entry.streakMilestone} тренировочных дней подряд`, className: "text-streak" }]
+      ? [{ icon: Flame, text: `${weeksText(entry.streakMilestone)} подряд в ударе`, className: "text-streak" }]
       : []),
   ];
   const shownHighlights = compact ? highlights.slice(0, 2) : highlights;

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { formatClock, rirLabel } from "@/lib/format";
+import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
+
 
 const RECORD_LABELS: Record<RecordType, string> = {
   ONE_RM: "1RM (расчётный)",
@@ -119,16 +121,10 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
             Streak
           </p>
           <p className="mt-1 text-3xl font-black text-streak" data-testid="streak">
-            {meta?.streak ?? user.currentStreak} 🔥
+            {meta?.weekCount !== undefined ? meta.streak : user.currentStreak} 🔥
           </p>
           <p className="text-xs text-muted-foreground">
-            {meta?.streakReset
-              ? "Серия прервалась — начинаем заново!"
-              : meta?.usedFreezes
-                ? `Серию спасла заморозка (${meta.usedFreezes})`
-                : meta?.streakExtended
-                  ? "Серия продлена! Следующая тренировка — в ближайшие 24–48 ч."
-                  : "Сегодня уже засчитано — серия продолжается."}
+            {workoutStreakCaption(meta)}
           </p>
         </div>
       </div>

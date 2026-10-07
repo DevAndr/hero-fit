@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
+    "db:migrate-streak": "tsx prisma/migrate-weekly-streak.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"

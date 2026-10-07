@@ -7,5 +7,8 @@ export async function GET(req: NextRequest) {
   if (!env.CRON_SECRET || req.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json(await runNotificationTick());
+  // Тестовые часы — только в e2e (E2E_TEST_CLOCK=1), в обычной работе ?now= игнорируется.
+  const at = env.E2E_TEST_CLOCK === "1" ? req.nextUrl.searchParams.get("now") : null;
+  const now = at && !Number.isNaN(Date.parse(at)) ? new Date(at) : new Date();
+  return NextResponse.json(await runNotificationTick(now));
 }

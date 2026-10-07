@@ -3,11 +3,10 @@ import {
   EMPTY_STATS,
   earnedAchievements,
   nextGoals,
-  STREAK_THRESHOLDS,
   thresholdsUpTo,
-  weeklyRuns,
   type AchievementStats,
 } from "./definitions";
+import { STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 
 const empty = EMPTY_STATS;
 
@@ -17,21 +16,12 @@ const codesOf = (prefix: string, stats: Partial<AchievementStats>) =>
 
 describe("thresholdsUpTo", () => {
   it("lists fixed thresholds, then continues with a step", () => {
-    expect(thresholdsUpTo(STREAK_THRESHOLDS, 50, 20)).toEqual([3, 7, 14]);
-    expect(thresholdsUpTo(STREAK_THRESHOLDS, 50, 210)).toEqual([3, 7, 14, 30, 60, 100, 150, 200]);
+    expect(thresholdsUpTo(STREAK_WEEK_THRESHOLDS, 52, 10)).toEqual([2, 4, 8]);
+    expect(thresholdsUpTo(STREAK_WEEK_THRESHOLDS, 52, 160)).toEqual([2, 4, 8, 12, 26, 52, 104, 156]);
   });
 
   it("without a step — only the fixed thresholds", () => {
     expect(thresholdsUpTo([10, 25], undefined, 1000)).toEqual([10, 25]);
-  });
-});
-
-describe("weeklyRuns", () => {
-  it("longest run of consecutive weeks and the run alive now", () => {
-    const weeks = ["2026-08-03", "2026-08-10", "2026-08-17", "2026-09-07", "2026-09-14", "2026-09-28"];
-    expect(weeklyRuns(weeks, "2026-10-05")).toEqual({ best: 3, current: 1 }); // прошлая неделя ещё считается
-    expect(weeklyRuns(weeks, "2026-10-12")).toEqual({ best: 3, current: 0 });
-    expect(weeklyRuns([], "2026-10-05")).toEqual({ best: 0, current: 0 });
   });
 });
 
@@ -45,15 +35,24 @@ describe("earnedAchievements", () => {
     expect(codes({ ...empty, workouts: 17 })).toEqual(["workouts:5", "workouts:10", "workouts:15"]);
   });
 
-  it("streak achievements use the longest streak (kept after a break)", () => {
-    expect(codes({ ...empty, longestStreak: 8, currentStreak: 1 })).toEqual(["streak:3", "streak:7"]);
+  it("weekly streak achievements use the longest streak (kept after a break)", () => {
+    expect(codes({ ...empty, longestStreak: 9, currentStreak: 1 })).toEqual(["streakw:2", "streakw:4", "streakw:8"]);
+    expect(codesOf("streakw", { longestStreak: 104 })).toContain("streakw:104");
   });
 
-  it("long streaks, weekly consistency and 30+ login days reward a streak freeze", () => {
-    const all = earnedAchievements({ ...empty, longestStreak: 7, loginStreak: 30, bestWeeklyRun: 4 });
+  it("no more day-streak or «Стабильность» codes", () => {
+    const all = codes({ ...empty, longestStreak: 60, currentStreak: 60 });
+    expect(all.filter((c) => c.startsWith("streak:") || c.startsWith("weeks:"))).toEqual([]);
+  });
+
+  it("weekly streak of 4+ and 30+ login days reward a streak freeze", () => {
+    const all = earnedAchievements({ ...empty, longestStreak: 4, loginStreak: 30 });
     const reward = Object.fromEntries(all.map((a) => [a.code, a.freezeReward ?? 0]));
-    expect(reward).toMatchObject({ "streak:3": 0, "streak:7": 1, "login:14": 0, "login:30": 1, "weeks:4": 1 });
-    expect(all.find((a) => a.code === "streak:7")?.description).toBe("Тренироваться 7 дней подряд · награда: заморозка серии");
+    expect(reward).toMatchObject({ "streakw:2": 0, "streakw:4": 1, "login:14": 0, "login:30": 1 });
+    const four = all.find((a) => a.code === "streakw:4");
+    expect(four).toMatchObject({ title: "Месяц огня", xpReward: 60 });
+    expect(four?.description).toBe("Тренироваться 3+ раза в неделю 4 недели подряд · награда: заморозка серии");
+    expect(all.find((a) => a.code === "streakw:2")?.title).toBe("В ударе");
   });
 
   it("daily login streak", () => {
@@ -137,7 +136,6 @@ describe("earnedAchievements", () => {
     expect(codesOf("express", { expressWorkouts: 1 })).toEqual(["express:1"]);
     expect(codesOf("early", { earlyWorkouts: 5 })).toEqual(["early:5"]);
     expect(codesOf("late", { lateWorkouts: 25 })).toEqual(["late:5", "late:25"]);
-    expect(codesOf("weeks", { bestWeeklyRun: 9, currentWeeklyRun: 0 })).toEqual(["weeks:4", "weeks:8"]);
   });
 
   it("programs: own template and workouts by a ready-made program", () => {
@@ -184,7 +182,6 @@ describe("earnedAchievements", () => {
       expressWorkouts: 2,
       earlyWorkouts: 30,
       lateWorkouts: 30,
-      bestWeeklyRun: 120,
       customTemplates: 2,
       programs: [{ program: "5×5", workouts: 60 }],
       maxGapDays: 30,
@@ -203,10 +200,10 @@ describe("earnedAchievements", () => {
 
 describe("nextGoals", () => {
   it("shows the next threshold in each category with progress, closest first", () => {
-    const goals = nextGoals({ ...empty, workouts: 8, currentStreak: 2, loginStreak: 1 });
-    expect(goals.map((g) => g.code).slice(0, 3)).toEqual(["workouts:10", "streak:3", "login:3"]);
+    const goals = nextGoals({ ...empty, workouts: 8, currentStreak: 1, loginStreak: 1 });
+    expect(goals.map((g) => g.code).slice(0, 3)).toEqual(["workouts:10", "streakw:2", "login:3"]);
     expect(goals[0]).toMatchObject({ current: 8, target: 10, percent: 80 });
-    expect(goals[1]).toMatchObject({ current: 2, target: 3, percent: 66 });
+    expect(goals[1]).toMatchObject({ current: 1, target: 2, percent: 50 });
   });
 
   it("weight goal is the next +5 kg step of the closest exercise", () => {

@@ -1,5 +1,5 @@
 import type { RecordType } from "@/generated/prisma/enums";
-import { STREAK_THRESHOLDS } from "@/lib/achievements/definitions";
+import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 
 /** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
 export type FeedRow = {
@@ -21,6 +21,7 @@ export type FeedRow = {
     levelAfter?: number;
     streak?: number;
     streakExtended?: boolean;
+    weekCount?: number;
   } | null;
   kudos: number;
   byMe: boolean;
@@ -53,12 +54,13 @@ export const FEED_EXERCISES = 3;
 const QUIET_ACHIEVEMENTS = /^login:/;
 const WEIGHT_RECORDS: RecordType[] = ["ONE_RM", "MAX_WEIGHT"];
 
-/** Серия попала на памятный порог (3, 7, 14, 30…) именно этой тренировкой. */
+/** Серия (в неделях) попала на памятный порог (2, 4, 8, 12…) именно этой тренировкой. */
 export function streakMilestone(meta: FeedRow["meta"]) {
-  if (!meta?.streakExtended || !meta.streak) return null;
+  // Без weekCount — старая (дневная) серия: её числа — не недели
+  if (!meta?.streakExtended || !meta.streak || meta.weekCount === undefined) return null;
   const { streak } = meta;
-  const last = STREAK_THRESHOLDS.at(-1)!;
-  return STREAK_THRESHOLDS.includes(streak) || (streak > last && (streak - last) % 50 === 0) ? streak : null;
+  const last = STREAK_WEEK_THRESHOLDS.at(-1)!;
+  return STREAK_WEEK_THRESHOLDS.includes(streak) || (streak > last && (streak - last) % STREAK_WEEK_STEP === 0) ? streak : null;
 }
 
 export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {

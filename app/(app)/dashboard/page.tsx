@@ -12,9 +12,10 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getFeed } from "@/lib/social/queries";
-import { formatClock } from "@/lib/format";
+import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
-import { restoreOffer, streakStatus, type RestoreOffer } from "@/lib/progress/streak";
+import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
+import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
@@ -31,7 +32,9 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-const timeFmt = new Intl.DateTimeFormat("ru-RU", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+/** Срок выкупа — в поясе пользователя (четверг 00:00 у него, а не у сервера). */
+const deadlineText = (date: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(date);
 
 function StreakCard({
   status,
@@ -39,27 +42,25 @@ function StreakCard({
   freezes,
   offer,
   levelXp,
+  timeZone,
 }: {
   status: ReturnType<typeof streakStatus>;
   longest: number;
   freezes: number;
   offer: RestoreOffer | null;
   levelXp: number;
+  timeZone: string;
 }) {
-  const alive = status.state === "counted" || status.state === "due" || status.state === "frozen";
-  const value = status.state === "none" || status.state === "lost" ? 0 : status.streak;
-  const message = {
-    none: "Завершите тренировку, чтобы зажечь серию",
-    counted: "Сегодня уже засчитано 🔥",
-    due: `Не потеряй streak! Осталось ${status.state === "due" ? status.hoursLeft : 0} ч`,
-    frozen: "Срок прошёл — следующую тренировку спасёт заморозка",
-    lost: offer ? `Серия сгорела — её можно вернуть до ${timeFmt.format(offer.expiresAt)}` : "Серия прервалась — начните новую",
-  }[status.state];
+  const value = streakValue(status);
+  const alive = value > 0;
+  const urgent = isStreakUrgent(status);
+  const message = offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, timeZone)}` : streakMessage(status);
+  const count = status.state === "done" ? STREAK_WEEK_TARGET : status.state === "pending" || status.state === "frozen" ? status.count : 0;
 
   return (
     <section
       aria-label="Streak"
-      className={cn("rounded-xl border p-4", status.state === "due" ? "border-streak/60 bg-streak/10" : "bg-card")}
+      className={cn("rounded-xl border p-4", urgent ? "border-streak/60 bg-streak/10" : "bg-card")}
     >
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Flame className="size-4 text-streak" />
@@ -68,7 +69,13 @@ function StreakCard({
       <p className={cn("mt-1 text-5xl font-black", alive ? "text-streak" : "text-muted-foreground")} data-testid="streak-value">
         {value}
       </p>
-      <p className="text-sm font-medium" data-testid="streak-message">
+      <p className="text-xs text-muted-foreground">{plural(value, "неделя", "недели", "недель")} подряд</p>
+      <div className="mt-2 flex gap-1.5" role="img" aria-label={`Эта неделя: ${Math.min(count, STREAK_WEEK_TARGET)} из ${STREAK_WEEK_TARGET}`}>
+        {Array.from({ length: STREAK_WEEK_TARGET }, (_, i) => (
+          <span key={i} className={cn("size-2.5 rounded-full", i < count ? "bg-streak" : "bg-muted")} />
+        ))}
+      </div>
+      <p className="mt-2 text-sm font-medium" data-testid="streak-message">
         {message}
       </p>
       {offer ? <RestoreStreakButton streak={offer.streak} cost={offer.cost} missing={Math.max(0, offer.cost - levelXp)} /> : null}
@@ -90,8 +97,9 @@ export default async function DashboardPage() {
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
   const now = new Date();
-  const status = streakStatus(data.streak, now);
-  const offer = restoreOffer(data.streak, now);
+  const streakTz = safeTimeZone(user.timeZone);
+  const status = streakStatus(data.streak, now, streakTz);
+  const offer = restoreOffer(data.streak, now, streakTz);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -102,8 +110,8 @@ export default async function DashboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {data.activeWorkout
               ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-              : status.state === "due"
-                ? "Сегодня тренировка продлит серию"
+              : isStreakUrgent(status)
+                ? "Тренировка сегодня спасёт серию недели"
                 : "Готов прокачаться сегодня?"}
           </p>
         </div>
@@ -134,6 +142,7 @@ export default async function DashboardPage() {
           freezes={data.streak.streakFreezes}
           offer={offer}
           levelXp={level.current}
+          timeZone={streakTz}
         />
 
         <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">
