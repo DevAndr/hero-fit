@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { NotificationType, RecordType, WorkoutStatus, XpReason, type MuscleGroup } from "@/generated/prisma/enums";
+import { NotificationType, RecordType, XpReason, type MuscleGroup } from "@/generated/prisma/enums";
 import {
   EARLY_HOUR,
   earnedAchievements,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/achievements/definitions";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { notify } from "@/lib/notifications/service";
+import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 
 type Client = Prisma.TransactionClient;
@@ -59,6 +59,7 @@ async function exerciseStats(client: Client, userId: string): Promise<ExerciseSt
 }
 
 type Totals = {
+  workouts: number;
   volume: number;
   maxVolume: number;
   reps: number;
@@ -80,7 +81,8 @@ async function workoutTotals(client: Client, userId: string, tz: string): Promis
       FROM "Workout"
       WHERE "userId" = ${userId} AND status = 'COMPLETED'
     )
-    SELECT COALESCE(SUM("totalVolume"), 0)::float AS volume,
+    SELECT COUNT(*)::int AS workouts,
+           COALESCE(SUM("totalVolume"), 0)::float AS volume,
            COALESCE(MAX("totalVolume"), 0)::float AS "maxVolume",
            COALESCE(SUM("totalReps"), 0)::int AS reps,
            COALESCE(SUM("durationSec"), 0)::int AS sec,
@@ -202,9 +204,8 @@ export async function getAchievementStats(client: Client, userId: string): Promi
     select: { longestStreak: true, currentStreak: true, loginStreak: true, level: true, bodyWeight: true, timeZone: true },
   });
   const tz = safeTimeZone(timeZone);
-  const [workouts, exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements] =
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements] =
     await Promise.all([
-      client.workout.count({ where: { userId, status: WorkoutStatus.COMPLETED } }),
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
       weekStats(client, userId, tz),
@@ -218,7 +219,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
     ]);
   return {
     ...user,
-    workouts,
+    workouts: totals.workouts,
     exercises,
     achievements,
     totalVolumeKg: totals.volume,
@@ -291,14 +292,17 @@ async function grant(client: Client, userId: string, fresh: AchievementDef[]): P
   if (count !== fresh.length) return null;
 
   const prefs = await client.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
-  for (const a of fresh) {
-    await notify(
-      client,
-      userId,
-      { type: NotificationType.ACHIEVEMENT, title: `🏆 ${a.title}`, body: `${a.description} · +${a.xpReward} XP`, url: "/achievements" },
-      { push: prefs.notifyAchievements },
-    );
-  }
+  await notifyMany(
+    client,
+    userId,
+    fresh.map((a) => ({
+      type: NotificationType.ACHIEVEMENT,
+      title: `🏆 ${a.title}`,
+      body: `${a.description} · +${a.xpReward} XP`,
+      url: "/achievements",
+    })),
+    { push: prefs.notifyAchievements },
+  );
 
   const xp = fresh.reduce((sum, a) => sum + a.xpReward, 0);
   await client.xpEvent.create({

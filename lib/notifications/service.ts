@@ -18,6 +18,16 @@ export async function notify(client: Client, userId: string, message: Message, {
   if (push) await client.scheduledPush.create({ data: { userId, ...message, sendAt: new Date() } });
 }
 
+/** Пачка уведомлений одному пользователю — два INSERT вместо двух на каждое (важно внутри транзакции). */
+export async function notifyMany(client: Client, userId: string, messages: Message[], { push }: { push: boolean }) {
+  if (messages.length === 0) return;
+  await client.notification.createMany({ data: messages.map((m) => ({ userId, ...m })) });
+  if (push) {
+    const sendAt = new Date();
+    await client.scheduledPush.createMany({ data: messages.map((m) => ({ userId, ...m, sendAt })) });
+  }
+}
+
 // ───────────────────────────── Таймер отдыха ─────────────────────────────
 
 const restKey = (userId: string) => `rest:${userId}`;
