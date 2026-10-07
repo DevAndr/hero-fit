@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const date = z
+export const planDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d, "Нет такой даты");
@@ -14,7 +14,7 @@ export const PLAN_DURATIONS = [30, 45, 60, 75, 90, 120] as const;
 export const planInputSchema = z.object({
   templateId,
   title,
-  date,
+  date: planDateSchema,
   time,
   durationMin,
   /** Пусто — разовая тренировка; иначе — серия на каждый день недели (0 = пн … 6 = вс). */
@@ -26,7 +26,7 @@ export const planInputSchema = z.object({
 export type PlanInput = z.infer<typeof planInputSchema>;
 
 export const planPatchSchema = z
-  .object({ templateId, title, date, time, durationMin })
+  .object({ templateId, title, date: planDateSchema, time, durationMin })
   .partial();
 
 export const planScopeSchema = z.enum(["one", "following"]);
