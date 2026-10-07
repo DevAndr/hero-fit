@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { ChartColumn, LogOut, Settings, Swords } from "lucide-react";
+import { ChartColumn, LogOut, Settings, Swords, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -41,6 +41,10 @@ export function UserMenu({ name, login, email }: { name: string | null; login: s
         <DropdownMenuItem render={<Link href="/stats" />}>
           <ChartColumn />
           Статистика
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/friends" />}>
+          <Users />
+          Друзья
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/leaderboard" />}>
           <Swords />

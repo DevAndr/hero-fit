@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
-import { FriendsPanel, InviteBanner, InviteCard } from "@/components/social/friends-panel";
 import { LeagueTable } from "@/components/social/league-table";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { MIN_PERCENTILE_POPULATION, normalizeFriendCode } from "@/lib/social/league";
-import { ensureFriendCode, getFriends, getInviter, getLeague, getPercentile } from "@/lib/social/queries";
+import { MIN_PERCENTILE_POPULATION } from "@/lib/social/league";
+import { getLeague, getPercentile } from "@/lib/social/queries";
 
 export const metadata: Metadata = { title: "Рейтинг" };
 
@@ -51,21 +52,15 @@ function PercentileCard({ percentile, myXp }: { percentile: number | null; myXp:
 export default async function LeaderboardPage({ searchParams }: PageProps<"/leaderboard">) {
   const user = await requireUser();
   const params = await searchParams;
+  // Приглашения переехали в «Друзья» — старые ссылки продолжают работать.
+  if (typeof params.invite === "string") redirect(`/friends?invite=${encodeURIComponent(params.invite)}`);
   const previous = params.week === "prev";
-  const inviteCode = typeof params.invite === "string" ? normalizeFriendCode(params.invite) : null;
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
 
-  const [me, code, rank, inviter] = await Promise.all([
+  const [me, rank] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { nickname: true, name: true } }),
-    ensureFriendCode(user.id),
     getPercentile(user.id, timeZone),
-    inviteCode ? getInviter(inviteCode, user.id) : null,
   ]);
-
-  const banner =
-    inviteCode && inviter && inviter.status === null && me.nickname ? (
-      <InviteBanner code={inviteCode} nickname={inviter.nickname} level={inviter.level} />
-    ) : null;
 
   if (!me.nickname) {
     return (
@@ -73,10 +68,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps<"/lead
         <PageHeader title="Рейтинг" description="Недельная лига с друзьями" />
         <div className="flex items-start gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
           <Users className="mt-0.5 size-5 shrink-0" />
-          <p>
-            Соревнуйтесь с друзьями: каждую неделю — новая лига, места по XP за тренировки и рекорды.
-            {inviter ? ` ${inviter.nickname} уже ждёт вас — придумайте ник, чтобы принять приглашение.` : " Для начала придумайте ник."}
-          </p>
+          <p>Соревнуйтесь с друзьями: каждую неделю — новая лига, места по XP за тренировки и рекорды. Для начала придумайте ник.</p>
         </div>
         <div className="max-w-xl">
           <NicknameForm initial={null} suggestion={me.name ?? undefined} />
@@ -88,28 +80,35 @@ export default async function LeaderboardPage({ searchParams }: PageProps<"/lead
     );
   }
 
-  const [league, friends] = await Promise.all([getLeague(user.id, timeZone, previous ? 1 : 0), getFriends(user.id)]);
+  const league = await getLeague(user.id, timeZone, previous ? 1 : 0);
 
   return (
     <div className="space-y-4">
       <PageHeader title="Рейтинг" description={`Вы в лиге как ${me.nickname}`} />
-      {banner}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <LeagueTable members={league.members} weekStart={league.weekStart} previous={previous} />
           {league.friends === 0 ? (
             <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              В лиге пока только вы. Пригласите друзей — места обновляются после каждой тренировки, а в понедельник
-              начинается новая неделя.
+              В лиге пока только вы.{" "}
+              <Link href="/friends" className="text-primary hover:underline">
+                Пригласите друзей
+              </Link>{" "}
+              — места обновляются после каждой тренировки, а в понедельник начинается новая неделя.
             </p>
           ) : null}
         </div>
         <div className="min-w-0 space-y-4">
           <PercentileCard percentile={rank.percentile} myXp={rank.myXp} />
-          <InviteCard code={code} />
+          <Link
+            href="/friends"
+            className="block rounded-xl border bg-card p-4 text-sm transition-colors hover:border-primary/50"
+          >
+            <span className="font-semibold">Друзья ({league.friends}) →</span>
+            <span className="block text-muted-foreground">Лента активности, приглашения и заявки</span>
+          </Link>
         </div>
       </div>
-      <FriendsPanel {...friends} />
     </div>
   );
 }

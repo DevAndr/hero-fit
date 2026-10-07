@@ -59,3 +59,18 @@ export async function seedWorkouts(
     }
   });
 }
+
+/** Два пользователя-друга с никами — без прокликивания заявок. */
+export async function makeFriends(loginA: string, nickA: string, loginB: string, nickB: string) {
+  await withDb(async (db) => {
+    const a = await userId(db, loginA);
+    const b = await userId(db, loginB);
+    for (const [id, nick] of [[a, nickA], [b, nickB]]) {
+      await db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2) where id = $1`, [id, nick]);
+    }
+    await db.query(
+      `insert into "Friendship" (id, "requesterId", "addresseeId", status, "acceptedAt") values ($1, $2, $3, 'ACCEPTED', now())`,
+      [randomUUID(), a, b],
+    );
+  });
+}

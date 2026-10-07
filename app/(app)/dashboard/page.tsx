@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles } from "lucide-react";
+import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
+import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
+import { getFeed } from "@/lib/social/queries";
 import { formatClock } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { streakStatus } from "@/lib/progress/streak";
@@ -68,7 +70,8 @@ function StreakCard({ status, longest, freezes }: { status: ReturnType<typeof st
 export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
-  const data = await getDashboard(user.id, timeZone);
+  const [data, feed] = await Promise.all([getDashboard(user.id, timeZone), getFeed(user.id, null, 8)]);
+  const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
   const status = streakStatus(data.streak, new Date());
 
@@ -179,6 +182,32 @@ export default async function DashboardPage() {
           value={`${data.weekHours.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`}
           hint={data.counts.week ? `≈ ${Math.round((data.weekHours * 60) / data.counts.week)} мин на тренировку` : undefined}
         />
+      </section>
+
+      <section aria-label="Друзья недавно" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">Друзья недавно</h2>
+          <Link href="/friends" className="text-xs text-primary hover:underline">
+            Вся лента
+          </Link>
+        </div>
+        {friendsRecent.length ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            {friendsRecent.map((entry) => (
+              <FeedCard key={entry.id} entry={entry} compact />
+            ))}
+          </div>
+        ) : (
+          <Link
+            href="/friends"
+            className="flex items-center gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-primary/50"
+          >
+            <Users className="size-5 shrink-0 text-primary" />
+            {feed.friends
+              ? "Друзья пока не тренировались — поддержите их 👊, когда начнут."
+              : "Тренируйтесь вместе: пригласите друга — увидите его тренировки и соревнуйтесь в недельной лиге."}
+          </Link>
+        )}
       </section>
 
       <p className="flex items-center gap-1 text-xs text-muted-foreground">

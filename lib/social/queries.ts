@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { FriendshipStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { streakStatus } from "@/lib/progress/streak";
+import { decodeCursor, encodeCursor, toFeedEntry, type FeedRow } from "@/lib/social/feed";
 import { generateFriendCode, percentile, rankLeague, type LeagueMember } from "@/lib/social/league";
 
 /** XP лиги — только за тренировки и побитые рекорды (ачивки и ежедневный вход не дают форы). */
@@ -151,3 +152,63 @@ export async function getInviter(code: string, userId: string) {
 
 export type League = Awaited<ReturnType<typeof getLeague>>;
 export type Friends = Awaited<ReturnType<typeof getFriends>>;
+
+// ───────────────────────────── Лента активности ─────────────────────────────
+
+export const FEED_PAGE = 15;
+
+/** Чью активность я вижу: свою и друзей, которые делятся тренировками. */
+async function feedAuthorIds(userId: string) {
+  const friends = await friendIds(userId);
+  if (friends.length === 0) return [userId];
+  const sharing = await db.user.findMany({ where: { id: { in: friends }, shareActivity: true }, select: { id: true } });
+  return [userId, ...sharing.map((u) => u.id)];
+}
+
+/** Можно ли пользователю видеть (и поддержать) тренировку — та же проверка, что и для ленты. */
+export async function canSeeWorkout(userId: string, workoutId: string) {
+  const workout = await db.workout.findUnique({ where: { id: workoutId }, select: { userId: true, status: true } });
+  if (!workout || workout.status !== "COMPLETED") return null;
+  const ids = await feedAuthorIds(userId);
+  return ids.includes(workout.userId) ? workout : null;
+}
+
+/** Страница ленты (новые сверху). Скрытие весов применяется здесь же — в браузер они не уходят. */
+export async function getFeed(userId: string, cursor: string | null, limit = FEED_PAGE) {
+  const ids = await feedAuthorIds(userId);
+  const after = decodeCursor(cursor);
+  const rows = await db.$queryRaw<FeedRow[]>`
+    SELECT w.id, w."userId", u.nickname, u."hideWeights", w.name, w."finishedAt", w."durationSec",
+           w."totalVolume", w."totalSets", w."totalReps", x.meta,
+           (
+             SELECT json_agg(json_build_object('name', e.name, 'top', t.top) ORDER BY we."order")
+             FROM "WorkoutExercise" we
+             JOIN "Exercise" e ON e.id = we."exerciseId"
+             LEFT JOIN LATERAL (
+               SELECT MAX(s.weight) AS top FROM "WorkoutSet" s
+               WHERE s."workoutExerciseId" = we.id AND s."isWarmup" = false
+             ) t ON true
+             WHERE we."workoutId" = w.id
+           ) AS exercises,
+           (SELECT COUNT(*) FROM "Kudos" k WHERE k."workoutId" = w.id)::int AS kudos,
+           EXISTS (SELECT 1 FROM "Kudos" k WHERE k."workoutId" = w.id AND k."userId" = ${userId}) AS "byMe",
+           (
+             SELECT array_agg(z.nickname) FROM (
+               SELECT ku.nickname FROM "Kudos" k JOIN "User" ku ON ku.id = k."userId"
+               WHERE k."workoutId" = w.id AND k."userId" <> ${userId}
+               ORDER BY k."createdAt" DESC LIMIT 2
+             ) z
+           ) AS "kudosNames"
+    FROM "Workout" w
+    JOIN "User" u ON u.id = w."userId"
+    LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'
+    WHERE w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND w."userId" = ANY(${ids})
+      ${after ? Prisma.sql`AND (w."finishedAt", w.id) < (${after.at}, ${after.id})` : Prisma.empty}
+    ORDER BY w."finishedAt" DESC, w.id DESC
+    LIMIT ${limit + 1}
+  `;
+  const entries = rows.slice(0, limit).map((r) => toFeedEntry(r, userId));
+  return { entries, next: rows.length > limit ? encodeCursor(entries.at(-1)!) : null, friends: ids.length - 1 };
+}
+
+export type Feed = Awaited<ReturnType<typeof getFeed>>;

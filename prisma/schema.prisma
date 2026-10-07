@@ -88,6 +88,10 @@ model User {
   nicknameKey String? @unique // ник в нижнем регистре — уникальность без учёта регистра
   friendCode  String? @unique
 
+  // Лента активности: видят только друзья. Настройки применяются при чтении — действуют и на прошлые тренировки.
+  shareActivity Boolean @default(true) // показывать мои тренировки друзьям
+  hideWeights   Boolean @default(false) // скрывать рабочие веса и объём (длительность и рекорды видны)
+
   // Прогресс
   xp    Int @default(0) // суммарный XP за всё время; уровень вычисляется из него
   level Int @default(1) // денормализовано для быстрых выборок
@@ -127,6 +131,7 @@ model User {
   scheduledPushes     ScheduledPush[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
+  kudos               Kudos[]
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -275,6 +280,7 @@ model Workout {
   template  WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
   exercises WorkoutExercise[]
   xpEvents  XpEvent[]
+  kudos     Kudos[]
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -418,4 +424,19 @@ model ScheduledPush {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([sendAt])
+}
+
+// ───────────────────────────── Лента активности ─────────────────────────────
+
+/// 👊 от друга на завершённую тренировку (запись ленты = тренировка). Один на пару «тренировка–пользователь».
+model Kudos {
+  id        String   @id @default(cuid())
+  workoutId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutId, userId])
 }

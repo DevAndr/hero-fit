@@ -4,10 +4,10 @@ import { withDb } from "./db";
 import { quickWorkout, registerUser } from "./helpers";
 
 async function setNickname(page: Page, nickname: string) {
-  await page.goto("/leaderboard");
+  await page.goto("/friends");
   await page.getByLabel("Ник", { exact: true }).fill(nickname);
   await page.getByRole("button", { name: "Сохранить" }).click();
-  await expect(page.getByText(`Вы в лиге как ${nickname}`)).toBeVisible();
+  await expect(page.getByText(`Вы — ${nickname}`)).toBeVisible();
 }
 
 const nick = (login: string, prefix: string) => `${prefix}_${login.slice(-8)}`;
@@ -28,13 +28,14 @@ test("invite by link → request → accept → both in the weekly league", asyn
     const b = await registerUser(pageB, "Борис");
     const bravo = nick(b.login, "Bravo");
     // Ник без учёта регистра уже занят
-    await pageB.goto("/leaderboard");
+    await pageB.goto("/friends");
     await pageB.getByLabel("Ник", { exact: true }).fill(alpha.toUpperCase());
     await pageB.getByRole("button", { name: "Сохранить" }).click();
     await expect(pageB.getByText("Этот ник уже занят")).toBeVisible();
 
-    // По ссылке-приглашению: сначала ник, затем баннер с приглашением
+    // По ссылке-приглашению (старый адрес /leaderboard переадресует в «Друзья»): сначала ник, затем баннер
     await pageB.goto(`/leaderboard?invite=${code}`);
+    await expect(pageB).toHaveURL(`/friends?invite=${code}`);
     await expect(pageB.getByText(`${alpha} уже ждёт вас`)).toBeVisible();
     await pageB.getByLabel("Ник", { exact: true }).fill(bravo);
     await pageB.getByRole("button", { name: "Сохранить" }).click();
@@ -45,7 +46,7 @@ test("invite by link → request → accept → both in the weekly league", asyn
     await expect(pageB.getByRole("list", { name: "Отправленные заявки" })).toContainText(alpha);
 
     // A получает уведомление и принимает заявку
-    await page.goto("/leaderboard");
+    await page.goto("/friends");
     await expect(page.getByRole("button", { name: /Уведомления/ })).toBeVisible();
     const incoming = page.getByRole("list", { name: "Входящие заявки" });
     await expect(incoming).toContainText(bravo);
@@ -73,10 +74,11 @@ test("invite by link → request → accept → both in the weekly league", asyn
     await expect(pageB.getByTestId("league-xp").first()).toHaveText("0 XP");
 
     // Удаление из друзей
-    await pageB.goto("/leaderboard");
+    await pageB.goto("/friends");
     await pageB.getByRole("button", { name: `Удалить ${alpha} из друзей` }).click();
     await pageB.getByRole("alertdialog").getByRole("button", { name: "Удалить" }).click();
     await expect(pageB.getByText(`${alpha} удалён из друзей`)).toBeVisible();
+    await pageB.goto("/leaderboard");
     await expect(pageB.getByRole("list", { name: "Места" }).getByRole("listitem")).toHaveCount(1);
   } finally {
     await other.close();

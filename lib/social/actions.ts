@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { FriendshipStatus, NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { notify } from "@/lib/notifications/service";
 import { nicknameKey, nicknameSchema, normalizeFriendCode } from "@/lib/social/league";
+import { canSeeWorkout, getFeed } from "@/lib/social/queries";
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -14,6 +16,7 @@ const NICK_TAKEN: Result = { ok: false, error: "Этот ник уже заня�
 
 function revalidate() {
   revalidatePath("/leaderboard");
+  revalidatePath("/friends");
   revalidatePath("/settings");
 }
 
@@ -126,4 +129,75 @@ export async function removeFriendshipAction(id: string): Promise<Result> {
   });
   revalidate();
   return count ? { ok: true } : { ok: false, error: "Не найдено" };
+}
+
+// ───────────────────────────── Лента активности ─────────────────────────────
+
+/** Следующая страница ленты («Показать ещё»). */
+export async function loadFeedPageAction(cursor: string) {
+  const user = await requireUser();
+  return getFeed(user.id, cursor);
+}
+
+/**
+ * 👊 на тренировку друга (повторное нажатие — убрать). Уведомление автору группируется:
+ * пока он его не прочитал, обновляем одно и то же («Поддержали: Маша, Борис и ещё 1»); push — только первый раз.
+ */
+export async function toggleKudosAction(workoutId: string): Promise<Result> {
+  const user = await requireUser();
+  const workout = await canSeeWorkout(user.id, workoutId);
+  if (!workout) return { ok: false, error: "Тренировка недоступна" };
+  if (workout.userId === user.id) return { ok: false, error: "Свою тренировку поддержать нельзя" };
+
+  const removed = await db.kudos.deleteMany({ where: { workoutId, userId: user.id } });
+  if (removed.count === 0) {
+    try {
+      await db.kudos.create({ data: { workoutId, userId: user.id } });
+    } catch (e) {
+      // двойной клик — уже поставлено
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+    }
+    await notifyKudos(workoutId, workout.userId);
+  }
+  revalidatePath("/friends");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+async function notifyKudos(workoutId: string, ownerId: string) {
+  const [workout, givers, owner] = await Promise.all([
+    db.workout.findUniqueOrThrow({ where: { id: workoutId }, select: { name: true } }),
+    db.kudos.findMany({
+      where: { workoutId },
+      orderBy: { createdAt: "desc" },
+      select: { user: { select: { nickname: true } } },
+    }),
+    db.user.findUniqueOrThrow({ where: { id: ownerId }, select: { notifySocial: true } }),
+  ]);
+  const names = givers.map((g) => g.user.nickname ?? "Атлет");
+  const body = `Поддержали: ${names.slice(0, 2).join(", ")}${names.length > 2 ? ` и ещё ${names.length - 2}` : ""}`;
+  const title = `👊 Тренировка «${workout.name}»`;
+  const url = `/friends#w-${workoutId}`;
+
+  const unread = await db.notification.findFirst({
+    where: { userId: ownerId, type: NotificationType.SOCIAL, url, readAt: null },
+    select: { id: true },
+  });
+  if (unread) {
+    await db.notification.update({ where: { id: unread.id }, data: { title, body, createdAt: new Date() } });
+  } else {
+    await notify(db, ownerId, { type: NotificationType.SOCIAL, title, body, url }, { push: owner.notifySocial && names.length === 1 });
+  }
+}
+
+const privacySchema = z.object({ shareActivity: z.boolean(), hideWeights: z.boolean() }).partial();
+
+export async function updatePrivacyAction(patch: z.input<typeof privacySchema>): Promise<Result> {
+  const user = await requireUser();
+  const parsed = privacySchema.safeParse(patch);
+  if (!parsed.success) return { ok: false, error: "Неверные настройки" };
+  await db.user.update({ where: { id: user.id }, data: parsed.data });
+  revalidatePath("/settings");
+  revalidatePath("/friends");
+  return { ok: true };
 }

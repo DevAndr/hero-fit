@@ -25,6 +25,8 @@ export async function getNotificationSettings(userId: string) {
       notifyAchievements: true,
       notifySocial: true,
       nickname: true,
+      shareActivity: true,
+      hideWeights: true,
       _count: { select: { pushSubscriptions: true } },
     },
   });

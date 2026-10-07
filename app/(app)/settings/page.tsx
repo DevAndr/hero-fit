@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
 import { NicknameForm } from "@/components/social/nickname-form";
+import { PrivacySettings } from "@/components/social/privacy-settings";
 import { ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
 import { requireUser } from "@/lib/auth/dal";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const { _count, nickname, ...prefs } = await getNotificationSettings(user.id);
+  const { _count, nickname, shareActivity, hideWeights, ...prefs } = await getNotificationSettings(user.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -19,6 +20,7 @@ export default async function SettingsPage() {
       <ThemeSettings />
       <BodyWeightSettings initial={user.bodyWeight} />
       <NicknameForm initial={nickname} />
+      <PrivacySettings initial={{ shareActivity, hideWeights }} />
       <PushDeviceCard devices={_count.pushSubscriptions} />
       <NotificationPrefs initial={prefs} />
     </div>

@@ -91,7 +91,7 @@ export function AddFriendForm() {
     >
       <Input
         aria-label="Код друга"
-        placeholder="Код друга, например ABCD-EFGH"
+        placeholder="Код друга"
         value={code}
         onChange={(e) => setCode(e.target.value)}
         className="font-mono uppercase placeholder:font-sans placeholder:normal-case"
