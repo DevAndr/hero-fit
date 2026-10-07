@@ -114,7 +114,8 @@
 - Тестовая учётка из сида (кроме `NODE_ENV=production`): `demo` / `Demo1234`, повторный сид сбрасывает ей пароль. У неё тестовые друзья `demo.masha` (свежая тренировка с рекордом, ачивкой, уровнем и вехой серии), `demo.boris` (скрывает веса) и входящая заявка от `demo.kate` — пароль тот же; их история пересоздаётся при каждом сиде относительно текущего времени
 - UI: shadcn/ui (стиль base-nova на Base UI). Тема — `next-themes` (`components/app/theme-provider.tsx`): светлая/тёмная/системная, по умолчанию тёмная, выбор в `/settings`, хранится в localStorage. Цвета — только семантические токены из `app/globals.css` (фирменные `primary`/`chart-*`/`xp`/`streak` заданы для обеих тем). Ссылка, оформленная кнопкой — `<Link className={buttonVariants()}>` (не `Button render={<Link/>}`: Base UI вешает `role="button"` на ссылку)
 - Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
-- Проверки: `npm run typecheck`, `npm run lint`, `npm test` (Vitest, `*.test.ts` рядом с кодом), `npm run build && npm run test:e2e` (Playwright, `e2e/`, desktop + mobile)
+- CI — `.github/workflows/ci.yml` (push и PR): job `checks` (typecheck, lint, unit) и job `e2e` (Postgres-сервис, сборка, Playwright desktop + mobile; VAPID-ключи генерируются на лету, секреты JWT — CI-заглушки, трейсы падений — артефакт)
+- Проверки: `npm run typecheck` (сначала `next typegen` — типы маршрутов), `npm run lint`, `npm test` (Vitest, `*.test.ts` рядом с кодом), `npm run build && npm run test:e2e` (Playwright, `e2e/`, desktop + mobile)
 - Приватные страницы — в группе `app/(app)/` (layout с `AppShell` и `requireUser()`), формы входа — в `app/(auth)/`
 - Уровень считается из `User.xp` функцией `levelProgress` (`lib/progress/level.ts`): переход L→L+1 стоит 100·L^1.3 XP
 - Удаление своих упражнений — мягкое (`archivedAt`); встроенные (`userId = null`) не редактируются
