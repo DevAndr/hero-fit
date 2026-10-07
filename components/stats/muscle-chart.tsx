@@ -70,17 +70,19 @@ export function MuscleChart({ rows }: { rows: MuscleRow[] }) {
         </ChartContainer>
       )}
 
-      <table className="sr-only">
-        <caption>Упражнений по группам мышц за период «{PERIODS[period]}»</caption>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.label}>
-              <th scope="row">{p.label}</th>
-              <td>{p.count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="sr-only">
+        <table>
+          <caption>Упражнений по группам мышц за период «{PERIODS[period]}»</caption>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.label}>
+                <th scope="row">{p.label}</th>
+                <td>{p.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

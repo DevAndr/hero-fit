@@ -3,14 +3,19 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ChartColumn } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
+import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { MuscleChart } from "@/components/stats/muscle-chart";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
+import { RepRangeChart } from "@/components/stats/rep-range-chart";
+import { RhythmChart } from "@/components/stats/rhythm-chart";
+import { StrengthChart } from "@/components/stats/strength-chart";
+import { WeeklyTrendChart } from "@/components/stats/weekly-trend-chart";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { formatClock } from "@/lib/format";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
-import { getStats } from "@/lib/stats/queries";
+import { getStats, getTrends } from "@/lib/stats/queries";
 
 export const metadata: Metadata = { title: "Статистика" };
 
@@ -32,7 +37,10 @@ function Tile({ label, value }: { label: string; value: string }) {
 export default async function StatsPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
-  const { totals: t, muscles, exercises, workouts } = await getStats(user.id, timeZone);
+  const [{ totals: t, muscles, exercises, workouts }, trends] = await Promise.all([
+    getStats(user.id, timeZone),
+    getTrends(user.id, timeZone),
+  ]);
 
   if (t.total === 0) {
     return (
@@ -80,8 +88,24 @@ export default async function StatsPage() {
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <WeeklyTrendChart weeks={trends.weekly} />
+        </div>
+        <RepRangeChart rows={trends.repRanges} />
+      </div>
+
+      <ActivityHeatmap columns={trends.activity.columns} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <StrengthChart series={trends.strength.series} points={trends.strength.points} />
+        </div>
+        <RhythmChart weekdays={trends.rhythm.weekdays} hours={trends.rhythm.hours} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
           <MuscleChart rows={muscles} />
         </div>
         <OneRmCalculator />

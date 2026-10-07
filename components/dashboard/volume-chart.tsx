@@ -92,25 +92,27 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
       )}
 
       {/* Табличное представление для скринридеров */}
-      <table className="sr-only">
-        <caption>Объём по дням за {RANGES[range]} дней</caption>
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>Объём</th>
-            <th>Тренировок</th>
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.day}>
-              <td>{dayMonth.format(toDate(p.day))}</td>
-              <td>{kg(p.volume)}</td>
-              <td>{p.workouts}</td>
+      <div className="sr-only">
+        <table>
+          <caption>Объём по дням за {RANGES[range]} дней</caption>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Объём</th>
+              <th>Тренировок</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.day}>
+                <td>{dayMonth.format(toDate(p.day))}</td>
+                <td>{kg(p.volume)}</td>
+                <td>{p.workouts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

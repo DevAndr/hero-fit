@@ -1,9 +1,21 @@
 import "server-only";
+import { Prisma } from "@/generated/prisma/client";
 import { WorkoutStatus, type MuscleGroup, type RecordType } from "@/generated/prisma/enums";
+import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { progressionHint, type ProgressionHint } from "@/lib/progress/progression";
 import { bestOfSets, epley1RM } from "@/lib/progress/records";
+import { REP_RANGES, type RepRangeRow } from "@/lib/stats/ranges";
+import {
+  activityGrid,
+  rhythm,
+  strengthSeries,
+  weeklySeries,
+  weekStart,
+  type DayRow,
+  type StrengthRow,
+} from "@/lib/stats/series";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -212,3 +224,118 @@ export async function getProgressionHints(userId: string, exerciseIds: string[])
   }
   return hints;
 }
+
+// ───────────────────────────── Тренды и графики ─────────────────────────────
+
+export const TREND_WEEKS = 12;
+export const HEATMAP_WEEKS = 26;
+const STRENGTH_SERIES = 3;
+
+/** Итоги по дням (в поясе пользователя) за окно календаря активности; рекорды — из журнала XP. */
+async function dailyRows(userId: string, timeZone: string, since: Date): Promise<DayRow[]> {
+  return db.$queryRaw<DayRow[]>`
+    WITH w AS (
+      SELECT w.id, w."totalVolume", w."durationSec", w."totalSets",
+             to_char((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
+             COALESCE((
+               SELECT SUM(jsonb_array_length(x.meta->'records'))
+               FROM "XpEvent" x WHERE x."workoutId" = w.id AND x.reason = 'PERSONAL_RECORD'
+             ), 0) AS prs
+      FROM "Workout" w
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+    )
+    SELECT day,
+           SUM("totalVolume")::float8 AS volume,
+           COUNT(*)::int AS workouts,
+           COALESCE(SUM("durationSec"), 0)::int AS sec,
+           SUM("totalSets")::int AS sets,
+           SUM(prs)::int AS prs
+    FROM w
+    GROUP BY day
+  `;
+}
+
+/** Лучший расчётный 1RM (Эпли) по неделям для самых частых упражнений с весом. */
+async function strengthRows(userId: string, timeZone: string, since: Date): Promise<StrengthRow[]> {
+  return db.$queryRaw<StrengthRow[]>`
+    WITH s AS (
+      SELECT we."exerciseId",
+             to_char(date_trunc('week', (w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}), 'YYYY-MM-DD') AS week,
+             MAX(CASE WHEN s.reps = 1 THEN s.weight ELSE s.weight * (1 + s.reps / 30.0) END) AS "oneRm",
+             COUNT(DISTINCT w.id) AS sessions
+      FROM "WorkoutSet" s
+      JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+      JOIN "Workout" w ON w.id = we."workoutId"
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+        AND s."isWarmup" = false AND s."completedAt" IS NOT NULL AND s.reps > 0 AND s.weight > 0
+      GROUP BY 1, 2
+    ), top AS (
+      SELECT "exerciseId", SUM(sessions) AS n, MAX(week) AS last
+      FROM s GROUP BY 1
+      ORDER BY n DESC, last DESC, "exerciseId"
+      LIMIT ${STRENGTH_SERIES}
+    )
+    SELECT s."exerciseId", e.name, s.week, s."oneRm"::float8 AS "oneRm"
+    FROM s
+    JOIN top ON top."exerciseId" = s."exerciseId"
+    JOIN "Exercise" e ON e.id = s."exerciseId"
+    ORDER BY top.n DESC, top.last DESC, s."exerciseId", s.week
+  `;
+}
+
+/** Когда тренируется пользователь: день недели и час начала (в его поясе), за всё время. */
+async function rhythmRows(userId: string, timeZone: string) {
+  const local = Prisma.sql`("startedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}`;
+  return Promise.all([
+    db.$queryRaw<{ dow: number; workouts: number }[]>`
+      SELECT EXTRACT(ISODOW FROM ${local})::int AS dow, COUNT(*)::int AS workouts
+      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "startedAt" IS NOT NULL
+      GROUP BY 1
+    `,
+    db.$queryRaw<{ hour: number; workouts: number }[]>`
+      SELECT EXTRACT(HOUR FROM ${local})::int AS hour, COUNT(*)::int AS workouts
+      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "startedAt" IS NOT NULL
+      GROUP BY 1
+    `,
+  ]);
+}
+
+/** Рабочие подходы с весом по диапазонам повторов: за 30 дней и за всё время. */
+async function repRanges(userId: string): Promise<RepRangeRow[]> {
+  const rows = await db.$queryRaw<RepRangeRow[]>`
+    SELECT CASE WHEN s.reps <= 5 THEN 'strength' WHEN s.reps <= 12 THEN 'hypertrophy' ELSE 'endurance' END AS key,
+           COUNT(*) FILTER (WHERE w."finishedAt" >= ${new Date(Date.now() - 30 * DAY_MS)})::int AS month,
+           COUNT(*)::int AS "all"
+    FROM "WorkoutSet" s
+    JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED'
+      AND s."isWarmup" = false AND s."completedAt" IS NOT NULL AND s.reps > 0 AND s.weight > 0
+    GROUP BY 1
+  `;
+  return REP_RANGES.map(({ key }) => rows.find((r) => r.key === key) ?? { key, month: 0, all: 0 });
+}
+
+export async function getTrends(userId: string, timeZone: string) {
+  const today = dayKey(new Date(), timeZone);
+  // С запасом в день: границы недель считаются в поясе пользователя, лишнее отсекают чистые функции.
+  const since = new Date(`${weekStart(today)}T00:00:00Z`);
+  since.setUTCDate(since.getUTCDate() - 7 * (HEATMAP_WEEKS - 1) - 1);
+
+  const [days, strength, [byWeekday, byHour], reps] = await Promise.all([
+    dailyRows(userId, timeZone, since),
+    strengthRows(userId, timeZone, since),
+    rhythmRows(userId, timeZone),
+    repRanges(userId),
+  ]);
+  const weekly = weeklySeries(days, today, TREND_WEEKS);
+  return {
+    weekly,
+    activity: activityGrid(days, today, HEATMAP_WEEKS),
+    strength: strengthSeries(strength, weeklySeries([], today, HEATMAP_WEEKS).map((w) => w.week)),
+    rhythm: rhythm(byWeekday, byHour),
+    repRanges: reps,
+  };
+}
+
+export type Trends = Awaited<ReturnType<typeof getTrends>>;
