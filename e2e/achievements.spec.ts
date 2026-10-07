@@ -67,6 +67,10 @@ test("5th workout, weight progress and streak achievements are generated from hi
   await expect(section.getByText("Жим штанги лёжа: +35 кг")).toHaveCount(0);
   await expect(section.getByText("Жим лёжа: 140 кг")).toHaveCount(0);
   await expect(page.getByTestId("streak")).toContainText("7");
+  // «Неделя огня» — награда: заморозка (1 стартовая + 1 еженедельная + 1 за ачивку)
+  await page.goto("/dashboard");
+  await expect(page.getByRole("region", { name: "Streak" })).toContainText("Заморозки: 3");
+  await page.goBack();
 
   await page.goto("/achievements");
   // Точное число не проверяем: «Жаворонок»/«Сова» зависят от времени запуска теста

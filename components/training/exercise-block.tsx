@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { HintBadge } from "@/components/stats/hint-badge";
+import { PlateTools } from "@/components/training/plate-tools";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
@@ -196,6 +197,7 @@ export function ExerciseBlock({
           <Plus />
           Подход
         </Button>
+        {exercise.isBodyweight ? null : <PlateTools item={item} dispatch={dispatch} />}
       </div>
     </section>
   );

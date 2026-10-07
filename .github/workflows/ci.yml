@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Только для CI: секреты-заглушки, БД — сервис-контейнер. e2e сами создают и засевают базу herofit_test.
+env:
+  DATABASE_URL: postgresql://herofit:herofit@localhost:5432/herofit
+  JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789
+  JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef012345678
+  APP_URL: http://localhost:3123
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  checks:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci # postinstall: prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  e2e:
+    name: Build + e2e (desktop & mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: herofit
+          POSTGRES_PASSWORD: herofit
+          POSTGRES_DB: herofit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U herofit -d herofit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: VAPID keys for push tests
+        run: |
+          keys=$(npx web-push generate-vapid-keys --json)
+          echo "VAPID_PUBLIC_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).publicKey')" >> "$GITHUB_ENV"
+          echo "VAPID_PRIVATE_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).privateKey')" >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7

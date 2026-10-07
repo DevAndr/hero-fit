@@ -25,6 +25,35 @@ describe("workout reducer", () => {
     expect(s.exercises[1].sets[0]).toMatchObject({ weight: "", reps: "" });
   });
 
+  it("setWarmup inserts warm-up sets before working ones and replaces unfinished warm-ups", () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [{ exercise: bench, restSec: 90 }],
+      last: { bench: { date: NOW, sets: [{ weight: 100, reps: 5 }, { weight: 100, reps: 5 }] } },
+    });
+    const k = s.exercises[0].key;
+    const plan = [
+      { weight: 20, reps: 10 },
+      { weight: 60, reps: 3 },
+    ];
+    s = reducer(s, { type: "setWarmup", key: k, sets: plan });
+    expect(s.exercises[0].sets.map((x) => [x.weight, x.reps, x.isWarmup])).toEqual([
+      ["20", "10", true],
+      ["60", "3", true],
+      ["100", "5", false],
+      ["100", "5", false],
+    ]);
+    // Первую разминку выполнили — повторное нажатие заменяет только невыполненные
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[0].key, now: NOW });
+    s = reducer(s, { type: "setWarmup", key: k, sets: [{ weight: 50, reps: 5 }] });
+    expect(s.exercises[0].sets.map((x) => [x.weight, x.isWarmup, Boolean(x.completedAt)])).toEqual([
+      ["20", true, true],
+      ["50", true, false],
+      ["100", false, false],
+      ["100", false, false],
+    ]);
+  });
+
   it("addSet copies the previous set values, unlimited", () => {
     let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
     const k = s.exercises[0].key;

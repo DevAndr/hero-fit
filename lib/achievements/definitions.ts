@@ -13,6 +13,8 @@ export type AchievementDef = {
   threshold: number;
   exerciseId?: string;
   xpReward: number;
+  /** Сколько заморозок серии даёт ачивка (сверх еженедельной). */
+  freezeReward?: number;
 };
 
 export type ExerciseStats = {
@@ -232,7 +234,11 @@ type Ladder = {
 };
 
 type DefInput = Omit<AchievementDef, "threshold">;
-const def = (n: number, d: DefInput): AchievementDef => ({ ...d, threshold: n });
+const def = (n: number, d: DefInput): AchievementDef => ({
+  ...d,
+  threshold: n,
+  description: d.freezeReward ? `${d.description} · награда: заморозка серии` : d.description,
+});
 
 const workoutDef = (n: number) =>
   def(n, {
@@ -250,6 +256,7 @@ const streakDef = (n: number) =>
     title: STREAK_TITLES[n] ?? `Streak ${days(n)}`,
     description: `Тренироваться ${days(n)} подряд`,
     xpReward: n * 5,
+    freezeReward: n >= 7 ? 1 : undefined,
   });
 
 const loginDef = (n: number) =>
@@ -259,6 +266,7 @@ const loginDef = (n: number) =>
     title: LOGIN_TITLES[n] ?? `${days(n)} подряд в приложении`,
     description: `Заходить в приложение ${days(n)} подряд`,
     xpReward: n * 2,
+    freezeReward: n >= 30 ? 1 : undefined,
   });
 
 function exerciseLadders(e: ExerciseStats): Ladder[] {
@@ -542,6 +550,7 @@ function ladders(s: AchievementStats): Ladder[] {
           title: `Стабильность: ${n} ${plural(n, "неделя", "недели", "недель")}`,
           description: `Тренироваться ${WEEK_MIN_WORKOUTS}+ раза в неделю ${n} ${plural(n, "неделю", "недели", "недель")} подряд`,
           xpReward: n * 5,
+          freezeReward: 1,
         }),
     },
 

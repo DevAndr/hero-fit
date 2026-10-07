@@ -69,6 +69,7 @@ enum XpReason {
   ACHIEVEMENT
   STREAK_BONUS
   DAILY_LOGIN
+  STREAK_RESTORE // выкуп сгоревшей серии (отрицательная сумма)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -102,6 +103,7 @@ model User {
   lastStreakAt    DateTime? // время последней тренировки, продлившей streak
   streakFreezes   Int       @default(1) // доступные заморозки
   freezeGrantedAt DateTime? // когда последний раз выдана еженедельная заморозка
+  streakRestoredAt DateTime? // когда последний раз выкупили сгоревшую серию (повторно — только после тренировки)
 
   // Ежедневный вход
   loginStreak  Int       @default(0)

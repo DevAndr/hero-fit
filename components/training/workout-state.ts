@@ -68,7 +68,9 @@ export type Action =
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
   | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup">> }
-  | { type: "toggleComplete"; key: string; setKey: string; now: string };
+  | { type: "toggleComplete"; key: string; setKey: string; now: string }
+  /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
+  | { type: "setWarmup"; key: string; sets: { weight: number; reps: number }[] };
 
 const DEFAULT_SETS = 3;
 
@@ -150,6 +152,21 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
         ...e,
         sets: e.sets.map((s) => (s.key === action.setKey ? { ...s, ...action.patch } : s)),
       }));
+
+    case "setWarmup":
+      return mapExercise(state, action.key, (e) => {
+        const kept = e.sets.filter((s) => !(s.isWarmup && !s.completedAt));
+        const at = kept.findIndex((s) => !s.isWarmup);
+        const warmups: SetState[] = action.sets.map((w) => ({
+          key: key(),
+          weight: fmt(w.weight),
+          reps: fmt(w.reps),
+          isWarmup: true,
+          completedAt: null,
+        }));
+        const index = at === -1 ? kept.length : at;
+        return { ...e, sets: [...kept.slice(0, index), ...warmups, ...kept.slice(index)] };
+      });
 
     case "toggleComplete":
       return mapExercise(state, action.key, (e) => ({
