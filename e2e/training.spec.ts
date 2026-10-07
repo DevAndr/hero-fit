@@ -116,6 +116,8 @@ test("start from a program template, then cancel", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Отменить тренировку" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Отменить тренировку" }).click();
   await expect(page.getByRole("heading", { name: "Новая тренировка" })).toBeVisible();
+  // redirect() из action — не сетевая ошибка
+  await expect(page.getByText(/Нет сети/)).toHaveCount(0);
 });
 
 test("cannot finish without completed sets; save finished workout as template", async ({ page }) => {
