@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
-import { formatClock } from "@/lib/format";
+import { formatClock, rirLabel } from "@/lib/format";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
 import { buttonVariants } from "@/components/ui/button";
@@ -187,6 +187,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
                   className={cn("rounded-md px-2 py-0.5", s.isWarmup ? "bg-muted text-muted-foreground" : "bg-primary/10")}
                 >
                   {s.weight ? `${s.weight} × ${s.reps}` : `${s.reps} повт.`}
+                  {s.rir !== null ? <span className="ml-1 text-xs text-muted-foreground">@RIR {rirLabel(s.rir)}</span> : null}
                 </li>
               ))}
             </ol>

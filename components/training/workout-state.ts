@@ -2,7 +2,15 @@ import type { ActiveWorkout, ExerciseInfo, LastPerformance } from "@/lib/workout
 import type { WorkoutDraft } from "@/lib/workouts/schema";
 
 /** Вес и повторы — строки: пользователь может временно стереть поле или ввести «82,5». */
-export type SetState = { key: string; weight: string; reps: string; isWarmup: boolean; completedAt: string | null };
+export type SetState = {
+  key: string;
+  weight: string;
+  reps: string;
+  isWarmup: boolean;
+  /** Запас повторов после подхода (RIR) — спрашивается, когда подход отмечен выполненным. */
+  rir: number | null;
+  completedAt: string | null;
+};
 export type ExerciseState = { key: string; exercise: ExerciseInfo; restSec: number; sets: SetState[] };
 export type WorkoutState = {
   name: string;
@@ -45,6 +53,7 @@ export function toDraft(state: WorkoutState): WorkoutDraft {
         weight: parseNumber(s.weight),
         reps: Math.round(parseNumber(s.reps)),
         isWarmup: s.isWarmup,
+        rir: s.rir,
         completedAt: s.completedAt,
       })),
     })),
@@ -67,7 +76,7 @@ export type Action =
   | { type: "setRest"; key: string; restSec: number }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
-  | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup">> }
+  | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup" | "rir">> }
   | { type: "toggleComplete"; key: string; setKey: string; now: string }
   /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
   | { type: "setWarmup"; key: string; sets: { weight: number; reps: number }[] };
@@ -100,6 +109,7 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
             weight: fmt(s.weight),
             reps: fmt(s.reps),
             isWarmup: false,
+            rir: null,
             completedAt: null,
           })),
         };
@@ -139,7 +149,7 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
           ...e,
           sets: [
             ...e.sets,
-            { key: key(), weight: last?.weight ?? "", reps: last?.reps ?? "", isWarmup: false, completedAt: null },
+            { key: key(), weight: last?.weight ?? "", reps: last?.reps ?? "", isWarmup: false, rir: null, completedAt: null },
           ],
         };
       });
@@ -162,6 +172,7 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
           weight: fmt(w.weight),
           reps: fmt(w.reps),
           isWarmup: true,
+          rir: null,
           completedAt: null,
         }));
         const index = at === -1 ? kept.length : at;

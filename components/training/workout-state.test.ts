@@ -130,7 +130,7 @@ describe("toDraft", () => {
     s = reducer(s, { type: "rename", name: "   " });
     const draft = toDraft(s);
     expect(draft.name).toBe("Тренировка");
-    expect(draft.exercises[0].sets[0]).toEqual({ weight: 82.5, reps: 6, isWarmup: false, completedAt: null });
+    expect(draft.exercises[0].sets[0]).toEqual({ weight: 82.5, reps: 6, isWarmup: false, rir: null, completedAt: null });
     expect(draft.exercises[0].sets[1]).toMatchObject({ weight: 0, reps: 0 });
   });
 });

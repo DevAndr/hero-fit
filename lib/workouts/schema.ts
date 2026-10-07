@@ -8,6 +8,8 @@ export const setDraftSchema = z.object({
   weight: z.number().min(0).max(1000).catch(0),
   reps: z.number().int().min(0).max(1000).catch(0),
   isWarmup: z.boolean().default(false),
+  /** Запас повторов: 0 — до отказа … 4 — «4+»; null — не указан. */
+  rir: z.number().int().min(0).max(4).nullable().default(null).catch(null),
   completedAt: z.iso.datetime().nullable(),
 });
 

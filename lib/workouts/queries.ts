@@ -15,7 +15,7 @@ export type ActiveWorkout = {
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
-    sets: { weight: number; reps: number; isWarmup: boolean; completedAt: string | null }[];
+    sets: { weight: number; reps: number; isWarmup: boolean; rir: number | null; completedAt: string | null }[];
   }[];
 };
 
@@ -46,6 +46,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
         weight: s.weight,
         reps: s.reps,
         isWarmup: s.isWarmup,
+        rir: s.rir,
         completedAt: s.completedAt?.toISOString() ?? null,
       })),
     })),

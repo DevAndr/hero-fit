@@ -310,6 +310,8 @@ model WorkoutSet {
   weight            Float     @default(0) // кг; 0 для упражнений с собственным весом
   reps              Int
   isWarmup          Boolean   @default(false)
+  /// Запас повторов (Reps In Reserve): 0 — до отказа … 4 — «4 и больше»; null — не указан
+  rir               Int?
   completedAt       DateTime?
 
   workoutExercise WorkoutExercise  @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)

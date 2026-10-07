@@ -10,7 +10,7 @@ describe("workoutDraftSchema", () => {
       exercises: [{ exerciseId: "e1", restSec: 90, sets: [{ weight: 100, reps: 5, completedAt: null }] }],
     });
     expect(r.name).toBe("Push");
-    expect(r.exercises[0].sets[0]).toEqual({ weight: 100, reps: 5, isWarmup: false, completedAt: null });
+    expect(r.exercises[0].sets[0]).toEqual({ weight: 100, reps: 5, isWarmup: false, rir: null, completedAt: null });
   });
 
   it("coerces garbage numbers in sets to 0 instead of failing autosave", () => {
@@ -19,6 +19,16 @@ describe("workoutDraftSchema", () => {
       exercises: [{ exerciseId: "e1", restSec: 60, sets: [{ weight: -5, reps: 2.5, completedAt: null }] }],
     });
     expect(r.exercises[0].sets[0]).toMatchObject({ weight: 0, reps: 0 });
+  });
+
+  it("keeps RIR 0–4, drops anything else to «not set»", () => {
+    const parse = (rir: unknown) =>
+      workoutDraftSchema.parse({
+        name: "X",
+        exercises: [{ exerciseId: "e1", restSec: 60, sets: [{ weight: 100, reps: 5, rir, completedAt: null }] }],
+      }).exercises[0].sets[0].rir;
+    expect([parse(0), parse(4), parse(null)]).toEqual([0, 4, null]);
+    expect([parse(7), parse(-1), parse(1.5), parse("2")]).toEqual([null, null, null, null]);
   });
 
   it("rejects too many exercises and bad rest", () => {
