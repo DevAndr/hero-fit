@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { hash } from "@node-rs/argon2";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 import type { MuscleGroup } from "../generated/prisma/enums";
@@ -187,10 +188,28 @@ async function seedPrograms(exerciseIds: Map<string, string>) {
   }
 }
 
+// Тестовая учётка для локальной разработки (в production не создаётся).
+const DEMO_USER = { login: "demo", email: "demo@hero-fit.local", name: "Demo", password: "Demo1234" };
+
+async function seedDemoUser() {
+  if (process.env.NODE_ENV === "production") return false;
+  // Те же параметры Argon2id, что в lib/auth/password.ts (его нельзя импортировать: server-only)
+  const passwordHash = await hash(DEMO_USER.password, { memoryCost: 19456, timeCost: 2, parallelism: 1 });
+  const { login, email, name } = DEMO_USER;
+  // Повторный сид сбрасывает пароль, прогресс не трогает
+  await db.user.upsert({
+    where: { login },
+    create: { login, email, name, passwordHash },
+    update: { passwordHash },
+  });
+  return true;
+}
+
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
   console.log(`Seeded ${EXERCISES.length} exercises, ${PROGRAMS.length} program templates`);
+  if (await seedDemoUser()) console.log(`Demo user: ${DEMO_USER.login} / ${DEMO_USER.password}`);
 }
 
 main()
