@@ -4,6 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 import type { MuscleGroup, RecordType } from "../generated/prisma/enums";
 import { levelProgress } from "../lib/progress/level";
+import { recomputeStreak } from "../lib/progress/streak-db";
+import { STREAK_WEEK_TARGET, weekKey, weeksBetween } from "../lib/progress/weekly-streak";
 import { PR_XP, workoutXp } from "../lib/progress/xp";
 
 const db = new PrismaClient({
@@ -217,7 +219,6 @@ type SeedWorkout = {
   exercises: SeedSet[];
   records?: [exercise: string, type: RecordType, value: number][];
   achievements?: [code: string, title: string][];
-  streak?: number;
 };
 type SeedFriend = {
   login: string;
@@ -226,8 +227,30 @@ type SeedFriend = {
   hideWeights?: boolean;
   /** false — входящая заявка к demo (ещё не друзья). */
   accepted: boolean;
+  /** Сколько прошлых недель перед текущей добить «пн/ср/пт» тренировками — для недельной серии. */
+  fillerWeeks?: number;
   workouts: SeedWorkout[];
 };
+
+const HOUR = 3_600_000;
+/** Часов с начала текущей недели (пн 00:00 UTC — пояс тестовых друзей) — их свежие тренировки кладём внутрь неё. */
+const WEEK_H = (Date.now() - Date.parse(`${weekKey(new Date(), "UTC")}T00:00:00Z`)) / HOUR;
+
+function fillerWorkouts(weeks: number): SeedWorkout[] {
+  return Array.from({ length: weeks }, (_, k) =>
+    [0, 2, 4].map((day) => ({
+      name: "Full Body",
+      // пн/ср/пт 18:00 UTC (k + 1) недель назад
+      hoursAgo: WEEK_H + (k + 1) * 7 * 24 - (day * 24 + 18),
+      minutes: 50,
+      exercises: [
+        ["Приседания со штангой", 100, 5, 3],
+        ["Жим штанги лёжа", 95, 5, 3],
+        ["Подтягивания", 0, 8, 3],
+      ] satisfies SeedSet[],
+    })),
+  ).flat();
+}
 
 const DEMO_FRIENDS: SeedFriend[] = [
   {
@@ -235,10 +258,12 @@ const DEMO_FRIENDS: SeedFriend[] = [
     name: "Маша",
     nickname: "Iron_Masha",
     accepted: true,
+    // 3 недели по 3 тренировки + 3 на этой неделе: свежая Push засчитывает 4-ю неделю — веха серии в ленте
+    fillerWeeks: 3,
     workouts: [
       {
         name: "Legs",
-        hoursAgo: 98,
+        hoursAgo: WEEK_H * 0.85,
         minutes: 64,
         exercises: [
           ["Приседания со штангой", 110, 5, 4],
@@ -246,22 +271,20 @@ const DEMO_FRIENDS: SeedFriend[] = [
           ["Подъём на носки стоя", 60, 15, 3],
         ],
         records: [["Приседания со штангой", "ONE_RM", 128.3]],
-        streak: 5,
       },
       {
         name: "Pull",
-        hoursAgo: 50,
+        hoursAgo: WEEK_H * 0.5,
         minutes: 55,
         exercises: [
           ["Становая тяга", 140, 5, 3],
           ["Подтягивания", 0, 10, 3],
           ["Тяга штанги в наклоне", 70, 8, 3],
         ],
-        streak: 6,
       },
       {
         name: "Push",
-        hoursAgo: 3,
+        hoursAgo: Math.min(3, WEEK_H * 0.15),
         minutes: 52,
         exercises: [
           ["Жим штанги лёжа", 102.5, 5, 4],
@@ -270,7 +293,6 @@ const DEMO_FRIENDS: SeedFriend[] = [
         ],
         records: [["Жим штанги лёжа", "MAX_WEIGHT", 102.5]],
         achievements: [["lift:bench:100", "Клуб сотки: жим лёжа"]],
-        streak: 7,
       },
     ],
   },
@@ -323,8 +345,6 @@ const DEMO_FRIENDS: SeedFriend[] = [
   },
 ];
 
-const HOUR = 3_600_000;
-
 /** История друга пересоздаётся при каждом сиде относительно «сейчас» — лента и лига всегда свежие. */
 async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds: Map<string, string>) {
   await db.workout.deleteMany({ where: { userId } });
@@ -334,9 +354,22 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
 
   let xp = 0;
   const workoutIds: string[] = [];
-  for (const w of [...friend.workouts].sort((a, b) => b.hoursAgo - a.hoursAgo)) {
+  // meta тренировки — как в lib/workouts/finish.ts: счёт недели и недельная серия на момент тренировки
+  const weekCounts = new Map<string, number>();
+  let streak = 0;
+  let lastWeek: string | null = null;
+  const all = [...fillerWorkouts(friend.fillerWeeks ?? 0), ...friend.workouts];
+  for (const w of all.sort((a, b) => b.hoursAgo - a.hoursAgo)) {
     const finishedAt = new Date(Date.now() - w.hoursAgo * HOUR);
     const startedAt = new Date(finishedAt.getTime() - w.minutes * 60_000);
+    const week = weekKey(finishedAt, "UTC");
+    const weekCount = (weekCounts.get(week) ?? 0) + 1;
+    weekCounts.set(week, weekCount);
+    const streakExtended = weekCount === STREAK_WEEK_TARGET;
+    if (streakExtended) {
+      streak = lastWeek && weeksBetween(lastWeek, week) === 1 ? streak + 1 : 1;
+      lastWeek = week;
+    }
     const totals = w.exercises.reduce(
       (t, [, weight, reps, sets]) => ({
         sets: t.sets + sets,
@@ -397,10 +430,11 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
       achievementsXp: 0,
       records,
       achievements: (w.achievements ?? []).map(([code, title]) => ({ code, title, description: "", xpReward: 0 })),
-      streak: w.streak ?? 1,
-      streakExtended: true,
+      streak,
+      streakExtended,
       streakReset: false,
       usedFreezes: 0,
+      weekCount,
     };
     await db.xpEvent.create({
       data: { userId, workoutId: workout.id, amount: baseXp, reason: "WORKOUT_COMPLETED", meta, createdAt: finishedAt },
@@ -419,18 +453,8 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
     }
   }
 
-  const last = friend.workouts.reduce((a, b) => (a.hoursAgo < b.hoursAgo ? a : b));
-  const streak = last.streak ?? 1;
-  await db.user.update({
-    where: { id: userId },
-    data: {
-      xp,
-      level: levelProgress(xp).level,
-      currentStreak: streak,
-      longestStreak: streak,
-      lastStreakAt: new Date(Date.now() - last.hoursAgo * HOUR),
-    },
-  });
+  await db.user.update({ where: { id: userId }, data: { xp, level: levelProgress(xp).level, timeZone: "UTC" } });
+  await recomputeStreak(db, userId, new Date());
   return workoutIds;
 }
 
@@ -511,6 +535,9 @@ async function main() {
   if (demoHash) {
     console.log(`Demo user: ${DEMO_USER.login} / ${DEMO_USER.password}`);
     await seedDemoFriends(exerciseIds, demoHash);
+    // Серия demo — по его истории (недельный streak)
+    const demo = await db.user.findUniqueOrThrow({ where: { login: DEMO_USER.login }, select: { id: true } });
+    await recomputeStreak(db, demo.id, new Date());
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
   }
 }

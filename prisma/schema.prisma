@@ -97,14 +97,13 @@ model User {
   xp    Int @default(0) // суммарный XP за всё время; уровень вычисляется из него
   level Int @default(1) // денормализовано для быстрых выборок
 
-  // Streak: «день тренировки» = окно 24 часа с момента последней засчитанной тренировки
+  // Streak «в ударе» — недели подряд с 3+ тренировками (lib/progress/weekly-streak.ts)
   currentStreak   Int       @default(0)
   longestStreak   Int       @default(0)
-  lastStreakAt    DateTime? // время последней тренировки, продлившей streak
   streakFreezes   Int       @default(1) // доступные заморозки
-  freezeGrantedAt DateTime? // когда последний раз выдана еженедельная заморозка
+  freezeGrantedAt DateTime? // когда последний раз выдана плановая заморозка (раз в 4 недели)
   streakRestoredAt DateTime? // когда последний раз выкупили сгоревшую серию (повторно — только после новой засчитанной недели)
-  // Недельный streak: серия — недели подряд с 3+ тренировками (lib/progress/weekly-streak.ts); неделя — «YYYY-MM-DD» понедельника
+  // Неделя — «YYYY-MM-DD» понедельника в поясе пользователя
   lastStreakWeek  String? // последняя засчитанная неделя
   weekWorkouts    Int     @default(0) // тренировок за неделю weekWorkoutsKey (для шапки без лишнего SQL)
   weekWorkoutsKey String?
@@ -118,8 +117,6 @@ model User {
   notifyStreak       Boolean   @default(true)
   notifyAchievements Boolean   @default(true)
   notifySocial       Boolean   @default(true)
-  /// lastStreakAt, для которого уже отправлено «Не потеряй streak!» (одно напоминание на окно)
-  streakReminderFor  DateTime?
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
   streakReminderDay  String?
 
