@@ -49,17 +49,61 @@ test("5th workout, weight progress and streak achievements are generated from hi
   await quickWorkout(page, "Жим штанги лёжа", [{ weight: "130", reps: "3" }]);
 
   const section = page.locator("section").filter({ hasText: "Новые ачивки" });
-  for (const title of ["Разогрев", "Жим штанги лёжа: +10%", "Жим штанги лёжа: +25%", "В ударе", "Неделя огня"]) {
+  // Старт 100 кг → 130 кг: по ачивке за каждые +5 кг (+5 … +30)
+  const weightTitles = [5, 10, 15, 20, 25, 30].map((kg) => `Жим штанги лёжа: +${kg} кг`);
+  const titles = [
+    "Разогрев",
+    ...weightTitles,
+    "В ударе",
+    "Неделя огня",
+    "Поднял слона", // 6,6 т за всё время
+    "Жим лёжа: 120 кг",
+    "Клуб сотки: жим лёжа",
+    "Коллекционер: 10", // выдана следующим кругом — из уже выданных
+  ];
+  for (const title of titles) {
     await expect(section.getByText(title, { exact: true })).toBeVisible();
   }
-  await expect(section.getByText("Жим штанги лёжа: +50%")).toHaveCount(0);
+  await expect(section.getByText("Жим штанги лёжа: +35 кг")).toHaveCount(0);
+  await expect(section.getByText("Жим лёжа: 140 кг")).toHaveCount(0);
   await expect(page.getByTestId("streak")).toContainText("7");
 
   await page.goto("/achievements");
-  await expect(page.getByText("Получено: 5")).toBeVisible();
-  // Ближайшая цель по весу: +50% (сейчас +30%)
-  await expect(page.getByLabel("Цель: Жим штанги лёжа: +50%")).toContainText("30% / 50%");
+  // Точное число не проверяем: «Жаворонок»/«Сова» зависят от времени запуска теста
+  for (const title of titles) await expect(page.getByRole("article", { name: title, exact: true })).toBeVisible();
+  // Ближайшая цель по весу: +35 кг (сейчас +30 кг)
+  await expect(page.getByLabel("Цель: Жим штанги лёжа: +35 кг")).toContainText("30 кг / 35 кг");
   await expect(page.getByLabel("Цель: Втянулся")).toContainText("5 / 10");
+});
+
+test("own exercise, body weight and base lifts give achievements outside of a workout", async ({ page }) => {
+  await registerUser(page);
+
+  // «Изобретатель» — сразу после создания своего упражнения
+  await page.goto("/exercises");
+  const dialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  await dialog.getByLabel("Название").fill("Жим Ларсена");
+  await dialog.getByRole("button", { name: "Грудь", exact: true }).click();
+  await dialog.getByRole("button", { name: "Добавить" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("🏆 Изобретатель")).toBeVisible();
+
+  // 1RM = 100 × (1 + 5/30) ≈ 116,7 кг; без веса тела цели «к весу тела» нет
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "100", reps: "5" }]);
+  await page.goto("/achievements");
+  await expect(page.getByRole("article", { name: "Клуб сотки: жим лёжа" })).toBeVisible();
+  await expect(page.getByLabel("Цель: Жим лёжа: 120 кг")).toContainText("100 кг / 120 кг");
+  await expect(page.getByText(/веса тела/)).toHaveCount(0);
+
+  // Вес тела 90 кг → 116,7 / 90 = ×1,3: получена ×1, следующая цель ×1,25
+  await page.goto("/settings");
+  await page.getByLabel("Вес тела, кг").fill("90");
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByText("🏆 Жим лёжа: ×1 веса тела")).toBeVisible();
+  await expect(page.getByText("🏆 Жим лёжа: ×1,25 веса тела")).toBeVisible();
+  await page.goto("/achievements");
+  await expect(page.getByLabel("Цель: Жим лёжа: ×1,5 веса тела")).toContainText("129.6% / 150%");
 });
 
 test("daily login streak in the user's time zone", async ({ page }) => {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { parseExerciseForm, type ExerciseInput } from "@/lib/exercises/schema";
 
 export type ExerciseFormState = {
@@ -46,6 +47,7 @@ export async function saveExerciseAction(
     } else {
       await createOrRestore(user.id, data);
     }
+    if (!id) await evaluateAchievementsNow(user.id); // «Изобретатель»
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return NAME_TAKEN;
     throw e;

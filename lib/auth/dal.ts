@@ -20,6 +20,8 @@ export type CurrentUser = {
   lastLoginDay: Date | null;
   lastStreakAt: Date | null;
   streakFreezes: number;
+  bodyWeight: number | null;
+  timeZone: string;
 };
 
 /**
@@ -49,6 +51,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           lastLoginDay: true,
           lastStreakAt: true,
           streakFreezes: true,
+          bodyWeight: true,
+          timeZone: true,
         },
       },
     },

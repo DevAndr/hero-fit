@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { templateSchema, type TemplateInput } from "@/lib/templates/schema";
 
@@ -45,6 +46,7 @@ export async function saveTemplateAction(id: string | null, input: TemplateInput
     data: { userId: user.id, name, description, exercises: { create: items } },
     select: { id: true },
   });
+  await evaluateAchievementsNow(user.id); // «Своя программа»
   revalidate();
   return { ok: true, id: created.id };
 }
@@ -84,6 +86,7 @@ export async function copyTemplateAction(formData: FormData) {
     },
     select: { id: true },
   });
+  await evaluateAchievementsNow(user.id);
   revalidate();
   redirect(`/templates/${copy.id}`);
 }

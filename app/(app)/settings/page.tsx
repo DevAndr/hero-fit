@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
+import { BodyWeightSettings } from "@/components/app/body-weight-settings";
 import { ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
 import { requireUser } from "@/lib/auth/dal";
@@ -15,6 +16,7 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title="Настройки" description={`${user.name ?? user.login} · ${user.email}`} />
       <ThemeSettings />
+      <BodyWeightSettings initial={user.bodyWeight} />
       <PushDeviceCard devices={_count.pushSubscriptions} />
       <NotificationPrefs initial={prefs} />
     </div>

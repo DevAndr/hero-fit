@@ -41,6 +41,13 @@ enum AchievementCategory {
   WEIGHT_PROGRESS // прогрессия веса в упражнении
   SET_VOLUME // > 4 подходов в упражнении
   DAILY_LOGIN // вход в приложение каждый день
+  VOLUME // тоннаж и повторы
+  RECORDS // побитые личные рекорды
+  STRENGTH // круглые веса и сила относительно веса тела в базовых упражнениях
+  VARIETY // разнообразие: упражнения, группы мышц
+  TIME // часы в зале, длительность, время суток, регулярность по неделям
+  PROGRAMS // свои шаблоны и готовые программы
+  MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
 }
 
 enum NotificationType {
@@ -66,6 +73,9 @@ model User {
   email        String  @unique
   passwordHash String
   name         String?
+  bodyWeight   Float? // кг; для ачивок «1RM к весу тела»
+  /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
+  timeZone     String  @default("UTC")
 
   // Прогресс
   xp    Int @default(0) // суммарный XP за всё время; уровень вычисляется из него
@@ -289,7 +299,7 @@ model PersonalRecord {
 }
 
 /// Ачивки генерируются динамически: code уникален в рамках пользователя,
-/// напр. "workouts:25", "streak:7", "weight:<exerciseId>:3", "sets:<exerciseId>", "login:30".
+/// напр. "workouts:25", "streak:7", "weightkg:<exerciseId>:10", "sets:<exerciseId>", "login:30".
 model UserAchievement {
   id          String              @id @default(cuid())
   userId      String

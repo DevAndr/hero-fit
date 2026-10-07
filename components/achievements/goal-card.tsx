@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function GoalCard({ goal }: { goal: Goal }) {
   const { icon: Icon, color } = CATEGORY_META[goal.category];
-  const unit = goal.category === "WEIGHT_PROGRESS" ? "%" : "";
+  const { unit } = goal;
   return (
     <div className="flex gap-3 rounded-xl border bg-card p-4" aria-label={`Цель: ${goal.title}`}>
       <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg opacity-70", color)}>
