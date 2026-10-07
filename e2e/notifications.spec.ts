@@ -4,8 +4,11 @@ import { userId, withDb } from "./db";
 import { quickWorkout, registerUser } from "./helpers";
 import { startPushService } from "./push-server";
 
-const runTick = (request: APIRequestContext) =>
-  request.get("/api/cron/notifications", { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+/** now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts). */
+const runTick = (request: APIRequestContext, now?: Date) =>
+  request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
+    headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+  });
 
 async function addSubscription(login: string, sub: { endpoint: string; p256dh: string; auth: string }) {
   await withDb(async (db) => {
@@ -19,12 +22,24 @@ async function addSubscription(login: string, sub: { endpoint: string; p256dh: s
   });
 }
 
-/** Время — с часов Node (как у сервера), а не now() из БД: не зависим от рассинхрона часов Docker. */
-async function setDueStreak(login: string, hoursAgo: number) {
+/** Суббота 15:00 UTC две-три недели назад: в «сейчас» такая серия уже сгорела — фоновый воркер её не тронет. */
+function pastSaturday() {
+  const d = new Date(Date.now() - 14 * 86_400_000);
+  while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() - 1);
+  d.setUTCHours(15, 0, 0, 0);
+  return d;
+}
+const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Серия 4 недели, на неделе субботы at — 1 тренировка из 3: напоминание «нужно ещё 2». */
+async function setDueStreak(login: string, at: Date) {
+  const monday = new Date(at.getTime() - 5 * 86_400_000);
+  const previous = new Date(monday.getTime() - 7 * 86_400_000);
   await withDb(async (db) => {
     await db.query(
-      `update "User" set "currentStreak" = 4, "longestStreak" = 4, "lastStreakAt" = $2 where id = $1`,
-      [await userId(db, login), new Date(Date.now() - hoursAgo * 3_600_000)],
+      `update "User" set "timeZone" = 'UTC', "currentStreak" = 4, "longestStreak" = 4, "lastStreakWeek" = $2,
+         "streakFreezes" = 0, "weekWorkouts" = 1, "weekWorkoutsKey" = $3 where id = $1`,
+      [await userId(db, login), dayKey(previous), dayKey(monday)],
     );
   });
 }
@@ -49,29 +64,30 @@ test("streak reminder: encrypted push delivered once, shown in the bell", async 
   try {
     const { login } = await registerUser(page);
     await addSubscription(login, push);
-    await setDueStreak(login, 45.5); // до дедлайна (48 ч) — 2,5 часа → «осталось 3 ч»
+    const at = pastSaturday();
+    await setDueStreak(login, at);
 
-    await runTick(request);
+    await runTick(request, at);
     await expect.poll(() => push.received.length).toBe(1);
     const [msg] = push.received;
     expect(msg.payload).toMatchObject({
       type: "STREAK",
       title: "Не потеряй streak! 🔥",
-      body: "Серия 4 — осталось 3 ч, чтобы её продлить.",
+      body: "Серия 4 недели — нужно ещё 2 тренировки до конца воскресенья.",
       url: "/training",
     });
     expect(String(msg.headers.authorization)).toMatch(/^vapid t=.+, k=.+/);
     expect(msg.headers["content-encoding"]).toBe("aes128gcm");
 
     // Повторный тик (и фоновый воркер) — без дубля
-    await runTick(request);
+    await runTick(request, at);
     await page.waitForTimeout(6000);
     expect(push.received).toHaveLength(1);
 
     await page.reload();
     await expect(page.getByTestId("unread-count")).toHaveText("1");
     await page.getByRole("button", { name: /Уведомления/ }).click();
-    await expect(page.getByRole("menuitem", { name: /Не потеряй streak!/ })).toContainText("осталось 3 ч");
+    await expect(page.getByRole("menuitem", { name: /Не потеряй streak!/ })).toContainText("нужно ещё 2 тренировки");
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("unread-count")).toHaveCount(0);
   } finally {
@@ -144,8 +160,9 @@ test("settings: preferences persist; disabled streak reminders are not sent", as
     await page.reload();
     await expect(page.getByRole("switch", { name: "Не потеряй streak" })).not.toBeChecked();
 
-    await setDueStreak(login, 45.5);
-    await runTick(request);
+    const at = pastSaturday();
+    await setDueStreak(login, at);
+    await runTick(request, at);
     await page.waitForTimeout(1500);
     expect(push.received).toHaveLength(0);
   } finally {
@@ -158,8 +175,9 @@ test("dead subscriptions (410 Gone) are removed", async ({ page, request }) => {
   try {
     const { login } = await registerUser(page);
     await addSubscription(login, push);
-    await setDueStreak(login, 45.5);
-    await runTick(request);
+    const at = pastSaturday();
+    await setDueStreak(login, at);
+    await runTick(request, at);
     await expect.poll(() => push.received.length).toBe(1);
     await expect
       .poll(() =>
