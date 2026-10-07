@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
 import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
+import { TodayPlan } from "@/components/dashboard/today-plan";
 import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { buttonVariants } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
+import { getTodayPlan } from "@/lib/plans/queries";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
@@ -99,7 +101,11 @@ function StreakCard({
 export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
-  const [data, feed] = await Promise.all([getDashboard(user.id, timeZone), getFeed(user.id, null, 8)]);
+  const [data, feed, plan] = await Promise.all([
+    getDashboard(user.id, timeZone),
+    getFeed(user.id, null, 8),
+    getTodayPlan(user.id, safeTimeZone(user.timeZone)),
+  ]);
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
   const now = new Date();
@@ -126,6 +132,8 @@ export default async function DashboardPage() {
           {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
         </Link>
       </section>
+
+      <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <section aria-label="Уровень" className="rounded-xl border bg-card p-4">

@@ -4,6 +4,8 @@ import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import { StartScreen } from "@/components/training/start-screen";
 import { WorkoutEditor } from "@/components/training/workout-editor";
 import { requireUser } from "@/lib/auth/dal";
+import { safeTimeZone } from "@/lib/daily-login";
+import { getTodayPlan } from "@/lib/plans/queries";
 import { listExercises } from "@/lib/exercises/queries";
 import { getProgressionHints } from "@/lib/stats/queries";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
@@ -15,11 +17,13 @@ export default async function TrainingPage() {
   const workout = await getActiveWorkout(user.id);
 
   if (!workout) {
-    const options = await getStartOptions(user.id);
+    const [options, plans] = await Promise.all([getStartOptions(user.id), getTodayPlan(user.id, safeTimeZone(user.timeZone))]);
+    // Невыполненный план на сегодня (или пропущенный вчера) — первым вариантом
+    const plan = plans.today[0] ?? plans.missedYesterday;
     return (
       <>
         <PageHeader title="Новая тренировка" description="Начните с нуля, с шаблона или повторите прошлую" />
-        <StartScreen {...options} />
+        <StartScreen {...options} plan={plan} />
         <OfflineCleanup />
       </>
     );

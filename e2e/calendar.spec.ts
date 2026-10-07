@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { userId, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // Неделя 7–13 января 2030 (пн–вс) — всегда в будущем: статусы «запланировано»
@@ -134,4 +136,62 @@ test("drag a plan to another day and time (mouse and keyboard)", async ({ page, 
   await page.getByRole("button", { name: /^Pull, среда, 9 января/ }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Pull" })).toBeVisible();
+});
+
+/** Разовый план на день (offset — дней от сегодня в поясе пользователя). */
+async function addPlan(login: string, title: string, offset: number, time = "18:00") {
+  await withDb(async (db) => {
+    const id = await userId(db, login);
+    await db.query(
+      `insert into "PlanEntry" (id, "userId", title, date, time, "durationMin", "updatedAt")
+       select $2, u.id, $3, to_char((now() AT TIME ZONE u."timeZone") + make_interval(days => $4), 'YYYY-MM-DD'), $5, 60, now()
+       from "User" u where u.id = $1`,
+      [id, randomUUID(), title, offset, time],
+    );
+  });
+}
+
+test("today's plan: dashboard card → start → finish → done in the calendar; training shortcut", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await page.goto("/calendar");
+  await page.getByRole("button", { name: "Запланировать", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
+  await dialog.getByLabel("Шаблон").selectOption({ label: "Push" });
+  await dialog.getByLabel("Начало").fill("23:30"); // сегодня, позже «сейчас»
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+
+  // «Тренировка»: план первым вариантом
+  await page.goto("/training");
+  await expect(page.getByRole("button", { name: /По плану: Push · 23:30/ })).toBeVisible();
+
+  // Дашборд: «Сегодня по плану» → Начать
+  await page.goto("/dashboard");
+  const card = page.getByRole("region", { name: "План на сегодня" });
+  await expect(card).toContainText("Сегодня по плану: Push · 23:30");
+  await card.getByRole("button", { name: "Начать" }).click();
+  await expect(page.getByLabel("Название тренировки")).toHaveValue("Push");
+  await expect(page.locator("main section[aria-label]")).toHaveCount(5); // упражнения шаблона
+
+  // Пока тренировка идёт — «Продолжить»
+  await page.goto("/dashboard");
+  await expect(card.getByRole("link", { name: "Продолжить" })).toBeVisible();
+
+  await page.goto("/training");
+  const bench = page.getByRole("region", { name: "Жим штанги лёжа" });
+  await bench.getByLabel("Вес, подход 1").fill("50");
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await page.getByRole("button", { name: "Завершить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+  await expect(page).toHaveURL(/\/workouts\/\w+$/);
+
+  await page.goto("/calendar");
+  const done = page.getByRole("button", { name: /^Push, .*, 23:30–00:30, выполнено$/ }).first();
+  await done.click();
+  await expect(page.getByRole("dialog", { name: "Push" }).getByRole("link", { name: "Открыть сводку" })).toBeVisible();
+
+  // Вчерашний пропущенный план — предложение сделать сегодня
+  await addPlan(login, "Ноги", -1);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("region", { name: "План на сегодня" })).toContainText("Вчера были Ноги — сделать сегодня?");
 });
