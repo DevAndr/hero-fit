@@ -6,6 +6,7 @@ test("activity feed: friend's workout, kudos with grouped notification, hidden w
   page,
   browser,
 }) => {
+  test.slow(); // два пользователя (две регистрации argon2) + тренировка — под параллельной нагрузкой и на CI долго
   const a = await registerUser(page, "Алекс");
   const other = await browser.newContext();
   const pageB = await other.newPage();
