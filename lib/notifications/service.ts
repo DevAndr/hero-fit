@@ -130,26 +130,33 @@ export async function processStreakReminders(now = new Date()) {
 }
 
 /**
- * «Сегодня по плану» за planReminderMin минут до начала. Кандидаты одним SQL — у кого на сегодня или завтра
- * (окно может перейти через полночь) есть серия по дню недели или запись; точный выбор — duePlanReminders.
+ * «Сегодня по плану» за planReminderMin минут до начала. Кандидаты — одним SQL по окну начала (окно может перейти
+ * через полночь — смотрим и завтра); точный выбор с исключениями и статусами — duePlanReminders.
  */
 export async function processPlanReminders(now = new Date()) {
+  // Только те, у кого начало плана попадает в окно (сейчас, сейчас + planReminderMin] по местному времени:
+  // серии — на сегодня/завтра по дню недели, записи (разовые и перенесённые) — по своей дате.
   const candidates = await db.$queryRaw<{ id: string; timeZone: string; planReminderMin: number }[]>`
     WITH u AS (
       SELECT id, "timeZone", "planReminderMin",
-             (${now}::timestamptz AT TIME ZONE "timeZone")::date AS today
+             (${now}::timestamptz AT TIME ZONE "timeZone") AS l,
+             (${now}::timestamptz AT TIME ZONE "timeZone") + make_interval(mins => "planReminderMin") AS l_end
       FROM "User" WHERE "notifyPlan"
     )
     SELECT u.id, u."timeZone", u."planReminderMin" FROM u
     WHERE EXISTS (
-      SELECT 1 FROM "PlanSeries" s
+      SELECT 1 FROM "PlanSeries" s, (VALUES (0), (1)) AS d(shift)
       WHERE s."userId" = u.id
-        AND s.weekday IN (extract(isodow FROM u.today)::int - 1, extract(isodow FROM u.today + 1)::int - 1)
-        AND s."startDate" <= to_char(u.today + 1, 'YYYY-MM-DD')
-        AND (s."endDate" IS NULL OR s."endDate" >= to_char(u.today, 'YYYY-MM-DD'))
+        AND s.weekday = extract(isodow FROM u.l::date + d.shift)::int - 1
+        AND s."startDate" <= to_char(u.l::date + d.shift, 'YYYY-MM-DD')
+        AND (s."endDate" IS NULL OR s."endDate" >= to_char(u.l::date + d.shift, 'YYYY-MM-DD'))
+        AND (u.l::date + d.shift + s.time::time) > u.l
+        AND (u.l::date + d.shift + s.time::time) <= u.l_end
     ) OR EXISTS (
       SELECT 1 FROM "PlanEntry" e
-      WHERE e."userId" = u.id AND e.date IN (to_char(u.today, 'YYYY-MM-DD'), to_char(u.today + 1, 'YYYY-MM-DD'))
+      WHERE e."userId" = u.id AND NOT e.cancelled
+        AND (e.date::date + e.time::time) > u.l
+        AND (e.date::date + e.time::time) <= u.l_end
     )
   `;
 

@@ -194,13 +194,13 @@ test("today's plan reminder: push shortly before the planned time, once; setting
   try {
     const { login } = await registerUser(page);
     await addSubscription(login, push);
-    // Тестовые часы: 10 января 2030, 15:00 UTC; план на 15:30 — в окне «за 60 минут»
-    const at = new Date("2030-01-10T15:00:00Z");
+    // Тестовые часы: среда 12 марта 2031, 15:00 UTC (другая дата, чем у e2e календаря); план на 15:30 — в окне «за 60 минут»
+    const at = new Date("2031-03-12T15:00:00Z");
     await withDb(async (db) => {
       const id = await userId(db, login);
       await db.query(`update "User" set "timeZone" = 'UTC' where id = $1`, [id]);
       await db.query(
-        `insert into "PlanEntry" (id, "userId", title, date, time, "durationMin", "updatedAt") values ($1, $2, 'Ноги', '2030-01-10', '15:30', 60, now())`,
+        `insert into "PlanEntry" (id, "userId", title, date, time, "durationMin", "updatedAt") values ($1, $2, 'Ноги', '2031-03-12', '15:30', 60, now())`,
         [randomUUID(), id],
       );
     });
@@ -211,7 +211,7 @@ test("today's plan reminder: push shortly before the planned time, once; setting
       type: "PLAN",
       title: "Сегодня по плану: Ноги 💪",
       body: "В 15:30",
-      url: "/calendar?date=2030-01-10",
+      url: "/calendar?date=2031-03-12",
     });
     await runTick(request, at);
     await page.waitForTimeout(1500);

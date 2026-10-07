@@ -152,6 +152,7 @@ async function addPlan(login: string, title: string, offset: number, time = "18:
 }
 
 test("today's plan: dashboard card → start → finish → done in the calendar; training shortcut", async ({ page }) => {
+  test.slow(); // полная тренировка — под параллельной нагрузкой не укладывается в 30 с
   const { login } = await registerUser(page);
   await page.goto("/calendar");
   await page.getByRole("button", { name: "Запланировать", exact: true }).click();
