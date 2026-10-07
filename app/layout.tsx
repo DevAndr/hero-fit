@@ -19,6 +19,8 @@ export const metadata: Metadata = {
     template: "%s · Hero Fit",
   },
   description: "Игровой трекер тренировок: уровни, ачивки, streak и прогресс",
+  appleWebApp: { capable: true, title: "Hero Fit", statusBarStyle: "black-translucent" },
+  icons: { apple: "/pwa-icon/180" },
 };
 
 export const viewport: Viewport = {

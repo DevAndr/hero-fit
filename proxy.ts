@@ -45,7 +45,7 @@ export default async function proxy(req: NextRequest) {
       return passThrough();
     }
 
-    if (!authed && !PUBLIC_PAGES.includes(pathname)) {
+    if (!authed && !PUBLIC_PAGES.includes(pathname) && !pathname.startsWith("/pwa-icon/")) {
       const url = new URL("/login", req.nextUrl);
       url.searchParams.set("next", pathname + search);
       return NextResponse.redirect(url);
@@ -73,5 +73,5 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)"],
 };

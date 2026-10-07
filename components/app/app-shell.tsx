@@ -55,7 +55,15 @@ function StreakBadge({ user }: { user: CurrentUser }) {
   );
 }
 
-export function AppShell({ user, children }: { user: CurrentUser; children: ReactNode }) {
+export function AppShell({
+  user,
+  notifications,
+  children,
+}: {
+  user: CurrentUser;
+  notifications?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-full flex-1">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-6 border-r p-4 lg:flex">
@@ -68,13 +76,14 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
           <div className="lg:hidden">
             <Logo />
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <LevelMeter xp={user.xp} />
             <StreakBadge user={user} />
             <Link href="/training" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               <Play />
               Начать тренировку
             </Link>
+            {notifications}
             <UserMenu name={user.name} login={user.login} email={user.email} />
           </div>
         </header>

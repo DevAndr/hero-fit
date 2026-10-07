@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { Client } from "pg";
+import pg, { Client } from "pg";
+
+// Колонки — timestamp без зоны, в них UTC (так пишет Prisma). По умолчанию pg сериализует Date
+// в локальном поясе процесса, и Postgres молча отбрасывает смещение — время уехало бы на UTC-offset.
+pg.defaults.parseInputDatesAsUTC = true;
 
 /** Прямой доступ к БД для подготовки истории в e2e (быстрее, чем прокликивать десятки тренировок). */
 export async function withDb<T>(fn: (db: Client) => Promise<T>) {

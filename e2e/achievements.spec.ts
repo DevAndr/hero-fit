@@ -1,27 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { seedWorkouts, userId, withDb } from "./db";
-import { registerUser } from "./helpers";
-
-async function quickWorkout(page: Page, exercise: string, sets: { weight: string; reps: string }[]) {
-  await page.goto("/training");
-  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-  await page.getByRole("button", { name: "Добавить упражнение" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Поиск упражнения").fill(exercise);
-  await dialog.getByRole("button", { name: new RegExp(`^${exercise}`) }).click();
-  await dialog.getByRole("button", { name: /^Добавить \(/ }).click();
-
-  const block = page.getByRole("region", { name: exercise });
-  for (let i = 3; i < sets.length; i++) await block.getByRole("button", { name: "Подход", exact: true }).click();
-  for (const [i, s] of sets.entries()) {
-    await block.getByLabel(`Вес, подход ${i + 1}`).fill(s.weight);
-    await block.getByLabel(`Повторы, подход ${i + 1}`).fill(s.reps);
-    await block.getByRole("button", { name: `Подход ${i + 1} выполнен` }).click();
-  }
-  await page.getByRole("button", { name: "Завершить тренировку" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
-  await expect(page).toHaveURL(/\/workouts\//);
-}
+import { quickWorkout, registerUser } from "./helpers";
 
 test("new user sees goals with progress and an empty list", async ({ page }) => {
   await registerUser(page);

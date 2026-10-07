@@ -1,7 +1,8 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { NotificationType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { earnedAchievements, type AchievementStats, type ExerciseStats } from "@/lib/achievements/definitions";
+import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 
 type Client = Prisma.TransactionClient;
@@ -81,6 +82,16 @@ export async function evaluateAchievements(
   });
   // Параллельный запрос мог успеть выдать часть — тогда XP не начисляем, чтобы не задвоить.
   if (count !== fresh.length) return { achievements: [], xp: 0 };
+
+  const prefs = await client.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
+  for (const a of fresh) {
+    await notify(
+      client,
+      userId,
+      { type: NotificationType.ACHIEVEMENT, title: `🏆 ${a.title}`, body: `${a.description} · +${a.xpReward} XP`, url: "/achievements" },
+      { push: prefs.notifyAchievements },
+    );
+  }
 
   const xp = fresh.reduce((sum, a) => sum + a.xpReward, 0);
   await client.xpEvent.create({

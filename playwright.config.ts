@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { CERT_PATH, ensureCerts } from "./e2e/certs";
+
+ensureCerts();
 
 const PORT = 3123;
 
@@ -20,7 +23,11 @@ export default defineConfig({
   webServer: {
     command: `npx next start -p ${PORT}`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    // Всегда свой сервер: чужой (без NODE_EXTRA_CA_CERTS) не доставит push в фейковый сервис.
+    // Другие серверы на той же БД тоже мешают — их фоновый воркер забирает очередь push.
+    reuseExistingServer: false,
+    // Сервер доверяет сертификату фейкового push-сервиса из e2e/push-server.ts
+    env: { NODE_EXTRA_CA_CERTS: CERT_PATH },
     timeout: 60_000,
   },
 });

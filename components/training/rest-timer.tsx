@@ -13,7 +13,11 @@ import {
 } from "react";
 import { Bell, BellOff, SkipForward, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { subscribeError } from "@/components/notifications/notification-settings";
+import { usePush } from "@/components/notifications/push-provider";
 import { formatClock } from "@/lib/format";
+import { cancelRestPushAction, scheduleRestPushAction } from "@/lib/notifications/actions";
 import { cn } from "@/lib/utils";
 
 /**
@@ -103,6 +107,22 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   const [rest, setRest] = useState<Rest | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const restRef = useRef(rest);
+  const push = usePush();
+  const pushOn = Boolean(push?.subscribed);
+  const scheduledRef = useRef<Rest | null>(null);
+
+  // Push в конце отдыха: дойдёт даже при заблокированном экране, когда страница «заморожена».
+  // На видимой странице SW его не покажет — здесь уже пропищал локальный сигнал.
+  useEffect(() => {
+    const prev = scheduledRef.current;
+    scheduledRef.current = rest;
+    if (!pushOn) return;
+    if (rest && rest.endsAt !== prev?.endsAt) {
+      void scheduleRestPushAction(new Date(rest.endsAt).toISOString(), rest.label).catch(() => {});
+    } else if (!rest && prev) {
+      void cancelRestPushAction().catch(() => {});
+    }
+  }, [rest, pushOn]);
 
   // Восстанавливаем таймер после перезагрузки. Только после монтирования: sessionStorage
   // нет на сервере, а чтение при первом рендере дало бы рассинхрон гидрации.
@@ -194,24 +214,45 @@ export function RestTimerBar() {
   );
 }
 
-/** Кнопка запроса разрешения на системные уведомления (нужны, когда вкладка в фоне). */
 const noopSubscribe = () => () => {};
-const readPermission = () => (typeof Notification === "undefined" ? "unsupported" : Notification.permission);
+const readPermission = (): NotificationPermission | "unsupported" =>
+  typeof Notification === "undefined" ? "unsupported" : Notification.permission;
 
+/** Включить уведомления об окончании отдыха: Web Push, а где его нет — системные уведомления вкладки. */
 export function NotificationToggle({ className }: { className?: string }) {
+  const push = usePush();
   const browserPermission = useSyncExternalStore(noopSubscribe, readPermission, () => "default" as const);
   const [requested, setPermission] = useState<NotificationPermission | null>(null);
-  const permission = requested ?? browserPermission;
+  const permission: NotificationPermission | "unsupported" = requested ?? browserPermission;
+
+  if (push?.supported && push.available) {
+    if (!push.ready || push.subscribed) return null;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn("text-muted-foreground", className)}
+        disabled={push.busy || push.permission === "denied"}
+        title={push.permission === "denied" ? "Уведомления запрещены в настройках браузера" : undefined}
+        onClick={async () => {
+          const ok = await push.subscribe();
+          if (ok) toast.success("Push включён — сигнал придёт и при заблокированном экране");
+          else toast.error(subscribeError());
+        }}
+      >
+        {push.permission === "denied" ? <BellOff /> : <Bell />}
+        {push.permission === "denied" ? "Уведомления выключены" : "Уведомлять об отдыхе"}
+      </Button>
+    );
+  }
 
   if (permission === "unsupported" || permission === "granted") return null;
-
   return (
     <Button
       variant="ghost"
       size="sm"
       className={cn("text-muted-foreground", className)}
       disabled={permission === "denied"}
-      title={permission === "denied" ? "Уведомления запрещены в настройках браузера" : undefined}
       onClick={async () => setPermission(await Notification.requestPermission())}
     >
       {permission === "denied" ? <BellOff /> : <Bell />}
