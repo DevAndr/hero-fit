@@ -129,7 +129,7 @@ export async function getStats(userId: string, timeZone: string) {
 export type ExerciseSession = {
   workoutId: string;
   date: string;
-  sets: { weight: number; reps: number }[];
+  sets: { weight: number; reps: number; rir: number | null }[];
   topWeight: number;
   best1RM: number;
   volume: number;
@@ -151,7 +151,7 @@ export async function getExerciseProgress(userId: string, exerciseId: string) {
         sets: {
           where: { isWarmup: false, completedAt: { not: null } },
           orderBy: { order: "asc" },
-          select: { weight: true, reps: true },
+          select: { weight: true, reps: true, rir: true },
         },
       },
     });
@@ -195,7 +195,7 @@ export async function getExerciseProgress(userId: string, exerciseId: string) {
 /** Подсказки «Пора увеличить вес» для редактора тренировки: последние сессии по каждому упражнению. */
 export async function getProgressionHints(userId: string, exerciseIds: string[]): Promise<Record<string, ProgressionHint>> {
   if (exerciseIds.length === 0) return {};
-  const rows = await db.$queryRaw<{ exerciseId: string; workoutId: string; weight: number; reps: number }[]>`
+  const rows = await db.$queryRaw<{ exerciseId: string; workoutId: string; weight: number; reps: number; rir: number | null }[]>`
     WITH recent AS (
       SELECT we.id AS weid, we."exerciseId", w.id AS "workoutId", w."finishedAt",
              DENSE_RANK() OVER (PARTITION BY we."exerciseId" ORDER BY w."finishedAt" DESC, w.id) AS rnk
@@ -203,17 +203,17 @@ export async function getProgressionHints(userId: string, exerciseIds: string[])
       JOIN "Workout" w ON w.id = we."workoutId"
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND we."exerciseId" = ANY(${exerciseIds})
     )
-    SELECT r."exerciseId", r."workoutId", s.weight, s.reps
+    SELECT r."exerciseId", r."workoutId", s.weight, s.reps, s.rir
     FROM recent r
     JOIN "WorkoutSet" s ON s."workoutExerciseId" = r.weid
     WHERE r.rnk <= 3 AND s."isWarmup" = false AND s."completedAt" IS NOT NULL AND s.reps > 0
     ORDER BY r."finishedAt" ASC, s."order" ASC
   `;
-  const sessions = new Map<string, Map<string, { weight: number; reps: number }[]>>();
+  const sessions = new Map<string, Map<string, { weight: number; reps: number; rir: number | null }[]>>();
   for (const r of rows) {
     const perExercise = sessions.get(r.exerciseId) ?? new Map();
     const sets = perExercise.get(r.workoutId) ?? [];
-    sets.push({ weight: r.weight, reps: r.reps });
+    sets.push({ weight: r.weight, reps: r.reps, rir: r.rir });
     perExercise.set(r.workoutId, sets);
     sessions.set(r.exerciseId, perExercise);
   }

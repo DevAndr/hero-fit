@@ -13,6 +13,7 @@ async function setNickname(page: Page, nickname: string) {
 const nick = (login: string, prefix: string) => `${prefix}_${login.slice(-8)}`;
 
 test("invite by link → request → accept → both in the weekly league", async ({ page, browser }) => {
+  test.slow(); // два пользователя (две регистрации argon2) + тренировка — под параллельной нагрузкой и на CI долго
   const a = await registerUser(page, "Алекс");
   const alpha = nick(a.login, "Alpha");
   // Без ника — лиги нет, есть подсказка придумать ник (имя подставлено)

@@ -34,6 +34,35 @@ describe("progressionHint", () => {
     });
   });
 
+  it("RIR 2+ in every working set → raise the weight after a single session", () => {
+    const easy = { sets: [{ weight: 100, reps: 5, rir: 3 }, { weight: 100, reps: 5, rir: 2 }] };
+    expect(progressionHint([easy])).toEqual({ kind: "weight", current: 100, suggested: 102.5, easy: true });
+    // Разминка с меньшим весом не мешает: смотрим подходы с рабочим весом
+    expect(progressionHint([{ sets: [{ weight: 60, reps: 8, rir: null }, ...easy.sets] }])).toMatchObject({ easy: true });
+  });
+
+  it("a set to failure (RIR 0) in the last session blocks the hint even after 3 equal sessions", () => {
+    const failed = { sets: [{ weight: 100, reps: 5, rir: 1 }, { weight: 100, reps: 5, rir: 0 }] };
+    expect(progressionHint([session(100, [5, 5]), session(100, [5, 5]), failed])).toBeNull();
+  });
+
+  it("RIR 1 or partly unknown → the usual 3-session rule", () => {
+    const hard = { sets: [{ weight: 100, reps: 5, rir: 1 }, { weight: 100, reps: 5, rir: 1 }] };
+    expect(progressionHint([hard])).toBeNull();
+    expect(progressionHint([hard, hard, hard])).toEqual({ kind: "weight", current: 100, suggested: 102.5 });
+    const partly = { sets: [{ weight: 100, reps: 5, rir: 3 }, { weight: 100, reps: 5, rir: null }] };
+    expect(progressionHint([partly])).toBeNull();
+  });
+
+  it("bodyweight with easy RIR → add reps now", () => {
+    expect(progressionHint([{ sets: [{ weight: 0, reps: 12, rir: 3 }] }])).toEqual({
+      kind: "reps",
+      current: 12,
+      suggested: 14,
+      easy: true,
+    });
+  });
+
   it("ignores sessions without sets", () => {
     expect(progressionHint([{ sets: [] }, session(100, [5]), session(100, [5]), session(100, [5])])).toMatchObject({
       kind: "weight",

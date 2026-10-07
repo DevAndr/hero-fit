@@ -10,6 +10,7 @@ import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { epley1RM } from "@/lib/progress/records";
+import { formatSet } from "@/lib/format";
 import { getExerciseProgress } from "@/lib/stats/queries";
 
 export const metadata: Metadata = { title: "Прогресс упражнения" };
@@ -84,7 +85,7 @@ export default async function ExerciseProgressPage({ params }: PageProps<"/stats
                   {date.format(new Date(s.date))}
                 </Link>
                 <span className="text-muted-foreground tabular-nums">
-                  {s.sets.map((x) => (x.weight ? `${fmt(x.weight)}×${x.reps}` : `${x.reps}`)).join(", ")}
+                  {s.sets.map(formatSet).join(", ")}
                 </span>
                 <span className="tabular-nums">
                   {fmt(s.volume)} кг{s.best1RM ? ` · 1RM ≈ ${fmt(s.best1RM)}` : ""}

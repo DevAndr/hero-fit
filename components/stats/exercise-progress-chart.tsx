@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Area, AreaChart, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import type { ExerciseSession } from "@/lib/stats/queries";
+import { formatSet } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -33,7 +34,7 @@ function ProgressTooltip({
         {!bodyweight && p.best1RM ? <span className="text-muted-foreground">· 1RM ≈ {fmt(p.best1RM)} кг</span> : null}
       </p>
       <p className="mt-1 text-muted-foreground tabular-nums">
-        {p.sets.map((s) => (s.weight ? `${fmt(s.weight)}×${s.reps}` : `${s.reps}`)).join(", ")}
+        {p.sets.map(formatSet).join(", ")}
       </p>
     </div>
   );

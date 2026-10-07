@@ -20,6 +20,9 @@ const PORT = 3123;
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // Под полной параллельной нагрузкой (и на CI) тяжёлые запросы — завершение тренировки с ачивками,
+  // регистрация с argon2 — иногда идут дольше стандартных 5 с; без нагрузки — доли секунды.
+  expect: { timeout: 10_000 },
   reporter: "list",
   use: {
     baseURL: `http://localhost:${PORT}`,

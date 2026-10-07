@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Check, EllipsisVertical, Minus, Plus, Timer, Trash2, X } from "lucide-react";
-import type { Dispatch, ReactNode } from "react";
+import { Fragment, type Dispatch, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -124,66 +124,74 @@ export function ExerciseBlock({
           const done = Boolean(set.completedAt);
           const workingNumber = item.sets.slice(0, i + 1).filter((s) => !s.isWarmup).length;
           return (
-            <div
-              key={set.key}
-              data-testid="set-row"
-              data-done={done || undefined}
-              className={cn(
-                "grid grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem] items-center gap-2 rounded-lg px-2 py-1 transition-colors",
-                done && "bg-primary/10",
-              )}
-            >
-              <button
-                type="button"
-                title="Нажмите, чтобы отметить как разминочный"
-                aria-label={`Подход ${i + 1}: ${set.isWarmup ? "разминка" : "рабочий"}`}
-                onClick={() => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { isWarmup: !set.isWarmup } })}
+            <Fragment key={set.key}>
+              <div
+                data-testid="set-row"
+                data-done={done || undefined}
                 className={cn(
-                  "h-8 rounded-md text-sm font-bold tabular-nums",
-                  set.isWarmup ? "text-xp" : "text-muted-foreground",
+                  "grid grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem] items-center gap-2 rounded-lg px-2 py-1 transition-colors",
+                  done && "bg-primary/10",
                 )}
               >
-                {set.isWarmup ? "Р" : workingNumber}
-              </button>
-              <Input
-                inputMode="decimal"
-                value={set.weight}
-                placeholder="0"
-                aria-label={`Вес, подход ${i + 1}`}
-                onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { weight: e.target.value } })}
-                className="h-9 text-center tabular-nums"
-              />
-              <Input
-                inputMode="numeric"
-                value={set.reps}
-                placeholder="0"
-                aria-label={`Повторы, подход ${i + 1}`}
-                onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { reps: e.target.value } })}
-                className="h-9 text-center tabular-nums"
-              />
-              <Button
-                type="button"
-                size="icon"
-                variant={done ? "default" : "outline"}
-                aria-pressed={done}
-                aria-label={`Подход ${i + 1} выполнен`}
-                onClick={() => {
-                  dispatch({ type: "toggleComplete", key: item.key, setKey: set.key, now: new Date().toISOString() });
-                  if (!done) onComplete(item, set);
-                }}
-                className="size-9"
-              >
-                <Check />
-              </Button>
-              <button
-                type="button"
-                aria-label={`Удалить подход ${i + 1}`}
-                onClick={() => dispatch({ type: "removeSet", key: item.key, setKey: set.key })}
-                className="flex h-8 items-center justify-center text-muted-foreground hover:text-destructive"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+                <button
+                  type="button"
+                  title="Нажмите, чтобы отметить как разминочный"
+                  aria-label={`Подход ${i + 1}: ${set.isWarmup ? "разминка" : "рабочий"}`}
+                  onClick={() => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { isWarmup: !set.isWarmup } })}
+                  className={cn(
+                    "h-8 rounded-md text-sm font-bold tabular-nums",
+                    set.isWarmup ? "text-xp" : "text-muted-foreground",
+                  )}
+                >
+                  {set.isWarmup ? "Р" : workingNumber}
+                </button>
+                <Input
+                  inputMode="decimal"
+                  value={set.weight}
+                  placeholder="0"
+                  aria-label={`Вес, подход ${i + 1}`}
+                  onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { weight: e.target.value } })}
+                  className="h-9 text-center tabular-nums"
+                />
+                <Input
+                  inputMode="numeric"
+                  value={set.reps}
+                  placeholder="0"
+                  aria-label={`Повторы, подход ${i + 1}`}
+                  onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { reps: e.target.value } })}
+                  className="h-9 text-center tabular-nums"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={done ? "default" : "outline"}
+                  aria-pressed={done}
+                  aria-label={`Подход ${i + 1} выполнен`}
+                  onClick={() => {
+                    dispatch({ type: "toggleComplete", key: item.key, setKey: set.key, now: new Date().toISOString() });
+                    if (!done) onComplete(item, set);
+                  }}
+                  className="size-9"
+                >
+                  <Check />
+                </Button>
+                <button
+                  type="button"
+                  aria-label={`Удалить подход ${i + 1}`}
+                  onClick={() => dispatch({ type: "removeSet", key: item.key, setKey: set.key })}
+                  className="flex h-8 items-center justify-center text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              {done && !set.isWarmup ? (
+                <RirPicker
+                  value={set.rir}
+                  label={`Запас повторов, подход ${i + 1}`}
+                  onChange={(rir) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { rir } })}
+                />
+              ) : null}
+            </Fragment>
           );
         })}
 
@@ -200,5 +208,38 @@ export function ExerciseBlock({
         {exercise.isBodyweight ? null : <PlateTools item={item} dispatch={dispatch} />}
       </div>
     </section>
+  );
+}
+
+const RIR_OPTIONS = [
+  { value: 0, label: "0", hint: "до отказа" },
+  { value: 1, label: "1", hint: "ещё 1 повтор" },
+  { value: 2, label: "2", hint: "ещё 2 повтора" },
+  { value: 3, label: "3", hint: "ещё 3 повтора" },
+  { value: 4, label: "4+", hint: "легко, 4 и больше" },
+];
+
+/** Сколько повторов осталось в запасе (RIR) — по нему подсказка «Пора увеличить вес» срабатывает точнее. */
+function RirPicker({ value, label, onChange }: { value: number | null; label: string; onChange: (rir: number | null) => void }) {
+  return (
+    <div role="group" aria-label={label} className="flex items-center gap-1 px-2 pb-1 pl-[3.25rem] text-xs">
+      <span className="mr-1 text-muted-foreground">Запас повторов</span>
+      {RIR_OPTIONS.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          title={o.hint}
+          aria-label={`Запас: ${o.hint}`}
+          aria-pressed={value === o.value}
+          onClick={() => onChange(value === o.value ? null : o.value)}
+          className={cn(
+            "h-6 min-w-7 rounded-md border px-1.5 font-semibold tabular-nums transition-colors",
+            value === o.value ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

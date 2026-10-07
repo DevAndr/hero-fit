@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 
-/** «Пора увеличить вес»: 3 тренировки подряд одинаково. */
+/** «Пора увеличить вес»: 3 тренировки подряд одинаково или запас повторов 2+ (RIR). */
 export function HintBadge({ hint, className }: { hint: ProgressionHint; className?: string }) {
   return (
     <p
@@ -15,6 +15,7 @@ export function HintBadge({ hint, className }: { hint: ProgressionHint; classNam
       {hint.kind === "weight"
         ? `Пора увеличить вес: ${fmt(hint.current)} → ${fmt(hint.suggested)} кг`
         : `Пора добавить повторы: ${hint.current} → ${hint.suggested} или доп. вес`}
+      {hint.easy ? " — в прошлый раз оставался запас 2+ повтора" : ""}
     </p>
   );
 }
