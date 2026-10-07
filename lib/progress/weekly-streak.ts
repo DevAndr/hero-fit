@@ -82,3 +82,125 @@ export function weeklyRuns(weeks: string[], currentWeek: string): { best: number
   const now = index(currentWeek);
   return { best, current: last !== undefined && now - last <= 1 ? run : 0 };
 }
+
+// ───────────────────────────── Правила серии ─────────────────────────────
+
+/** Тренировок в неделю, чтобы она засчиталась. */
+export const STREAK_WEEK_TARGET = 3;
+/** Пороги ачивок серии (в неделях), дальше — каждые STREAK_WEEK_STEP. */
+export const STREAK_WEEK_THRESHOLDS = [2, 4, 8, 12, 26, 52];
+export const STREAK_WEEK_STEP = 52;
+/** Плановая заморозка — раз в столько недель, пока их меньше MAX_FREEZES. */
+export const FREEZE_GRANT_WEEKS = 4;
+export const MAX_FREEZES = 2;
+/** Заморозки из наград ачивок копятся дальше планового лимита — но не больше. */
+export const MAX_REWARD_FREEZES = 3;
+export const MIN_RESTORE_STREAK = 2;
+/** Выкуп — в первые столько дней недели, на которой серия сгорела (до четверга 00:00). */
+export const RESTORE_WINDOW_DAYS = 3;
+export const STREAK_REMINDER_HOUR = 12;
+
+export type WeeklyStreakState = {
+  currentStreak: number;
+  longestStreak: number;
+  lastStreakWeek: string | null;
+  streakFreezes: number;
+  freezeGrantedAt: Date | null;
+};
+
+export type WeekCredit = WeeklyStreakState & { frozenWeeks: string[]; extended: boolean; reset: boolean };
+
+/** Плановая заморозка раз в FREEZE_GRANT_WEEKS недель (накопленные за ачивки не урезаем). */
+export function grantFreeze(state: WeeklyStreakState, now: Date): WeeklyStreakState {
+  const { freezeGrantedAt } = state;
+  if (freezeGrantedAt && now.getTime() - freezeGrantedAt.getTime() < FREEZE_GRANT_WEEKS * WEEK_MS) return state;
+  return { ...state, streakFreezes: state.streakFreezes < MAX_FREEZES ? state.streakFreezes + 1 : state.streakFreezes, freezeGrantedAt: now };
+}
+
+/**
+ * Неделя набрала STREAK_WEEK_TARGET тренировок. Пропущенные недели между последней засчитанной и этой
+ * закрываем заморозками; не хватает — серия начинается заново. Неделя не позже последней засчитанной — без изменений.
+ */
+export function applyWeekCredit(state: WeeklyStreakState, week: string): WeekCredit {
+  const unchanged = { ...state, frozenWeeks: [], extended: false, reset: false };
+  const credit = (patch: Partial<WeekCredit>): WeekCredit => {
+    const next = { ...unchanged, lastStreakWeek: week, extended: true, ...patch };
+    return { ...next, longestStreak: Math.max(next.longestStreak, next.currentStreak) };
+  };
+  if (!state.lastStreakWeek) return credit({ currentStreak: 1 });
+  const gap = weeksBetween(state.lastStreakWeek, week);
+  if (gap <= 0) return unchanged;
+  const missed = Array.from({ length: gap - 1 }, (_, i) => addWeeks(state.lastStreakWeek!, i + 1));
+  if (missed.length <= state.streakFreezes) {
+    return credit({
+      currentStreak: state.currentStreak + 1,
+      streakFreezes: state.streakFreezes - missed.length,
+      frozenWeeks: missed,
+    });
+  }
+  return credit({ currentStreak: 1, reset: true });
+}
+
+export type StreakUserFields = {
+  currentStreak: number;
+  lastStreakWeek: string | null;
+  streakFreezes: number;
+  weekWorkouts: number;
+  weekWorkoutsKey: string | null;
+};
+
+type WeekProgress = { streak: number; count: number; needed: number; daysLeft: number };
+
+export type StreakStatus =
+  | { state: "none" }
+  | { state: "done"; streak: number }
+  | ({ state: "pending" } & WeekProgress)
+  | ({ state: "frozen"; freezesNeeded: number } & WeekProgress)
+  | { state: "lost"; streak: number };
+
+/** Состояние серии «на сейчас» — для шапки, дашборда, лиги и напоминаний. */
+export function streakStatus(user: StreakUserFields, now: Date, tz: string): StreakStatus {
+  if (!user.lastStreakWeek || user.currentStreak === 0) return { state: "none" };
+  const streak = user.currentStreak;
+  const current = weekKey(now, tz);
+  const missed = weeksBetween(user.lastStreakWeek, current) - 1;
+  if (missed < 0) return { state: "done", streak };
+  const count = user.weekWorkoutsKey === current ? user.weekWorkouts : 0;
+  const progress = { streak, count, needed: Math.max(0, STREAK_WEEK_TARGET - count), daysLeft: daysLeftInWeek(now, tz) };
+  if (missed === 0) return { state: "pending", ...progress };
+  if (missed <= user.streakFreezes) return { state: "frozen", freezesNeeded: missed, ...progress };
+  return { state: "lost", streak };
+}
+
+/** Число для шапки и лиги: сгоревшая серия — 0. */
+export function streakValue(status: StreakStatus): number {
+  return status.state === "none" || status.state === "lost" ? 0 : status.streak;
+}
+
+// ───────────────────────────── Выкуп серии ─────────────────────────────
+
+/** 2 недели — 150 XP, 5 — 300, от 9 — 500. */
+export function restoreCost(streak: number) {
+  return Math.min(500, 50 + 50 * streak);
+}
+
+export type RestoreOffer = { streak: number; cost: number; expiresAt: Date };
+
+/**
+ * Выкуп сгоревшей серии: только в неделю сгорания (lastStreakWeek + заморозки + 2) до четверга 00:00
+ * и один раз до следующей засчитанной недели.
+ */
+export function restoreOffer(
+  user: StreakUserFields & { streakRestoredAt: Date | null },
+  now: Date,
+  tz: string,
+): RestoreOffer | null {
+  if (!user.lastStreakWeek || user.currentStreak < MIN_RESTORE_STREAK) return null;
+  if (streakStatus(user, now, tz).state !== "lost") return null;
+  const lostWeek = addWeeks(user.lastStreakWeek, user.streakFreezes + 2);
+  if (weekKey(now, tz) !== lostWeek) return null;
+  if (user.streakRestoredAt && weekKey(user.streakRestoredAt, tz) > user.lastStreakWeek) return null;
+  const expiresAt = localMidnight(addDays(lostWeek, RESTORE_WINDOW_DAYS), tz);
+  if (now >= expiresAt) return null;
+  return { streak: user.currentStreak, cost: restoreCost(user.currentStreak), expiresAt };
+}
