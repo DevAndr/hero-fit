@@ -78,6 +78,7 @@ test("history: volume chart 7/30 days, counters, last workout, streak reminder",
   await expect(page.getByTestId("streak-value")).toHaveText("3");
   await expect(page.getByTestId("streak-message")).toHaveText(/^(Эта неделя: 1\/3 · осталось \d дн(я|ей)|Не потеряй streak! Ещё 2 тренировки до конца недели)$/);
   await expect(page.getByLabel("Эта неделя: 1 из 3")).toBeVisible();
+  await expect(page.getByTestId("streak-week")).toHaveText("1/3 за неделю");
   await expect(page.getByTestId("header-streak")).toHaveText("3");
 });
 

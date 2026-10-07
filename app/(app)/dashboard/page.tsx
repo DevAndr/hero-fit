@@ -70,10 +70,16 @@ function StreakCard({
         {value}
       </p>
       <p className="text-xs text-muted-foreground">{plural(value, "неделя", "недели", "недель")} подряд</p>
-      <div className="mt-2 flex gap-1.5" role="img" aria-label={`Эта неделя: ${Math.min(count, STREAK_WEEK_TARGET)} из ${STREAK_WEEK_TARGET}`}>
-        {Array.from({ length: STREAK_WEEK_TARGET }, (_, i) => (
-          <span key={i} className={cn("size-2.5 rounded-full", i < count ? "bg-streak" : "bg-muted")} />
-        ))}
+      {/* Прогресс недели: точка — тренировка, на третьей неделя засчитывается */}
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex gap-1.5" role="img" aria-label={`Эта неделя: ${Math.min(count, STREAK_WEEK_TARGET)} из ${STREAK_WEEK_TARGET}`}>
+          {Array.from({ length: STREAK_WEEK_TARGET }, (_, i) => (
+            <span key={i} className={cn("size-2.5 rounded-full", i < count ? "bg-streak" : "bg-muted")} />
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums" aria-hidden data-testid="streak-week">
+          {Math.min(count, STREAK_WEEK_TARGET)}/{STREAK_WEEK_TARGET} за неделю
+        </span>
       </div>
       <p className="mt-2 text-sm font-medium" data-testid="streak-message">
         {message}
