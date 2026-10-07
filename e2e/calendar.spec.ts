@@ -84,3 +84,54 @@ test("event card: edit only this occurrence, delete this and following", async (
   await page.getByRole("link", { name: "Предыдущая неделя" }).click();
   await expect(page.getByRole("button", { name: /^Push, четверг, 10 января, 07:30/ })).toBeVisible();
 });
+
+test("drag a plan to another day and time (mouse and keyboard)", async ({ page, isMobile }) => {
+  test.skip(isMobile, "перетаскивание — только на ПК");
+  await registerUser(page);
+  await page.goto(THURSDAY);
+  await page.getByRole("button", { name: "Запланировать: четверг, 10 января, 18:00" }).click();
+  await fillPlan(page, { repeat: [] });
+
+  // Мышь: четверг 18:00 → пятница 16:00
+  const event = page.getByRole("button", { name: /^Push, четверг, 10 января, 18:00/ });
+  const slot = page.getByRole("button", { name: "Запланировать: пятница, 11 января, 16:00" });
+  await event.scrollIntoViewIfNeeded();
+  const from = (await event.boundingBox())!;
+  const to = (await slot.boundingBox())!;
+  await page.mouse.move(from.x + 10, from.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y + 15, { steps: 5 });
+  await page.mouse.move(to.x + 10, to.y + 5, { steps: 15 });
+  await page.mouse.up();
+  await page.getByRole("dialog", { name: "Повторяющаяся тренировка" }).getByRole("button", { name: "Только эту" }).click();
+  await expect(page.getByRole("button", { name: /^Push, пятница, 11 января, 16:00–17:00/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Push, четверг, 10 января/ })).toHaveCount(0);
+  await page.getByRole("link", { name: "Следующая неделя" }).click();
+  await expect(page.getByRole("button", { name: /^Push, четверг, 17 января, 18:00/ })).toBeVisible(); // серия на месте
+  await page.getByRole("link", { name: "Предыдущая неделя" }).click();
+
+  // Клавиатура: разовая тренировка вт 07:00 → ср 08:00 (без вопроса о повторе)
+  await page.getByRole("button", { name: "Запланировать", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
+  await dialog.getByLabel("Шаблон").selectOption({ label: "Pull" });
+  await dialog.getByLabel("Дата").fill("2030-01-08");
+  await dialog.getByLabel("Начало").fill("07:00");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+  // Закрытый диалог возвращает фокус на «Запланировать» — дожидаемся, иначе он уведёт фокус с события
+  await expect(page.getByRole("button", { name: "Запланировать", exact: true })).toBeFocused();
+  const pull = page.getByRole("button", { name: /^Pull, вторник, 8 января, 07:00/ });
+  await pull.focus();
+  await expect(pull).toBeFocused();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("button", { name: /^Pull, среда, 9 января, 08:00–09:00/ })).toBeVisible();
+
+  // Enter по-прежнему открывает карточку (перенос — только пробелом)
+  await page.getByRole("button", { name: /^Pull, среда, 9 января/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Pull" })).toBeVisible();
+});

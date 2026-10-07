@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { EventCard } from "@/components/calendar/event-card";
 import { MonthView } from "@/components/calendar/month-view";
-import { PlanDialog, type PlanDialogState, type TemplateOption } from "@/components/calendar/plan-dialog";
+import { PlanDialog, ScopeChoice, type PlanDialogState, type TemplateOption } from "@/components/calendar/plan-dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { updatePlanAction } from "@/lib/plans/actions";
+import type { PlanScope } from "@/lib/plans/edit";
 import { DayStrip, WeekGrid } from "@/components/calendar/week-grid";
 import { addDays } from "@/lib/plans/expand";
 import type { PlanStatus } from "@/lib/plans/match";
@@ -63,6 +67,31 @@ export function CalendarView({
     setSelected(date);
   }
 
+  // Перенос перетаскиванием: событие сразу стоит на новом месте, пока сервер сохраняет
+  const [moved, setMoved] = useState<Record<string, { date: string; time: string }>>({});
+  const [lastEvents, setLastEvents] = useState(events);
+  if (lastEvents !== events) {
+    setLastEvents(events);
+    setMoved({});
+  }
+  const [pendingMove, setPendingMove] = useState<{ event: CalendarEvent; date: string; time: string } | null>(null);
+  const [moving, startMove] = useTransition();
+  const shown = events.map((e) => (moved[e.key] ? { ...e, ...moved[e.key] } : e));
+
+  const move = (event: CalendarEvent, target: { date: string; time: string }, scope: PlanScope) => {
+    setPendingMove(null);
+    setMoved((m) => ({ ...m, [event.key]: target }));
+    startMove(async () => {
+      const result = await updatePlanAction(event.key, scope, target);
+      if (!result.ok) {
+        toast.error(result.error);
+        setMoved((m) => Object.fromEntries(Object.entries(m).filter(([key]) => key !== event.key)));
+      }
+    });
+  };
+  const onMove = (event: CalendarEvent, target: { date: string; time: string }) =>
+    event.recurring ? setPendingMove({ event, ...target }) : move(event, target, "one");
+
   const actions: CalendarActions = {
     openEvent: setOpened,
     createAt: (d, time) => setDialog({ mode: "create", date: d, time }),
@@ -114,7 +143,7 @@ export function CalendarView({
       {view === "week" ? (
         <>
           <div className="hidden lg:block">
-            <WeekGrid days={weekDays} events={events} today={today} nowMin={nowMin} actions={actions} slots />
+            <WeekGrid days={weekDays} events={shown} today={today} nowMin={nowMin} actions={actions} slots onMove={onMove} />
           </div>
           <div className="space-y-3 lg:hidden">
             <DayStrip days={weekDays} events={events} selected={selected} today={today} onSelect={setSelected} />
@@ -145,6 +174,18 @@ export function CalendarView({
         }}
       />
       <PlanDialog state={dialog} templates={templates} onClose={() => setDialog(null)} />
+      <Dialog open={pendingMove !== null} onOpenChange={(open) => !open && setPendingMove(null)}>
+        <DialogContent className="sm:max-w-sm">
+          {pendingMove ? (
+            <ScopeChoice
+              verb="Перенести"
+              pending={moving}
+              onChoose={(scope) => move(pendingMove.event, pendingMove, scope)}
+              onCancel={() => setPendingMove(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

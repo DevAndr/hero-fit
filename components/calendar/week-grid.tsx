@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import type { CalendarActions, CalendarEvent } from "@/components/calendar/calendar-view";
+import { DraggableEvent, useDayDrop, WeekDnd } from "@/components/calendar/week-dnd";
 import { layoutDay, minutesOf, timeOf } from "@/lib/plans/match";
 import { dayLabel, endTime, eventColor, eventDot, eventLabel, WEEKDAYS_SHORT } from "@/lib/plans/view";
 import { cn } from "@/lib/utils";
@@ -18,15 +19,21 @@ export function EventBlock({
   style,
   className,
   children,
+  buttonRef,
+  dragProps,
 }: {
   event: CalendarEvent;
   onOpen: (event: CalendarEvent) => void;
   style?: React.CSSProperties;
   className?: string;
   children?: ReactNode;
+  buttonRef?: (node: HTMLElement | null) => void;
+  dragProps?: Record<string, unknown>;
 }) {
   return (
     <button
+      ref={buttonRef}
+      {...dragProps}
       type="button"
       aria-label={eventLabel(event, event.status)}
       onClick={() => onOpen(event)}
@@ -63,6 +70,7 @@ export function WeekGrid({
   actions,
   slots = false,
   onSwipe,
+  onMove,
 }: {
   days: string[];
   events: CalendarEvent[];
@@ -72,6 +80,8 @@ export function WeekGrid({
   /** Невидимые кнопки слотов (ПК): клик по пустому месту — новая тренировка на это время. */
   slots?: boolean;
   onSwipe?: (step: number) => void;
+  /** ПК: перенос перетаскиванием (мышь и клавиатура). */
+  onMove?: (event: CalendarEvent, target: { date: string; time: string }) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const touchX = useRef<number | null>(null);
@@ -124,9 +134,19 @@ export function WeekGrid({
               </span>
             ))}
           </div>
-          {days.map((d) => (
-            <DayColumn key={d} date={d} events={events.filter((e) => e.date === d)} today={today} nowMin={nowMin} actions={actions} slots={slots} />
-          ))}
+          {onMove ? (
+            <WeekDnd events={events} slotPx={SLOT_PX} onMove={onMove}>
+              {days.map((d) => (
+                <DropColumn key={d} date={d}>
+                  <DayColumn date={d} events={events.filter((e) => e.date === d)} today={today} nowMin={nowMin} actions={actions} slots={slots} dnd />
+                </DropColumn>
+              ))}
+            </WeekDnd>
+          ) : (
+            days.map((d) => (
+              <DayColumn key={d} date={d} events={events.filter((e) => e.date === d)} today={today} nowMin={nowMin} actions={actions} slots={slots} />
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -140,6 +160,7 @@ function DayColumn({
   nowMin,
   actions,
   slots,
+  dnd = false,
 }: {
   date: string;
   events: CalendarEvent[];
@@ -147,11 +168,12 @@ function DayColumn({
   nowMin: number;
   actions: CalendarActions;
   slots: boolean;
+  dnd?: boolean;
 }) {
   const layout = layoutDay(events.map((e) => ({ key: e.key, start: minutesOf(e.time), end: minutesOf(e.time) + e.durationMin })));
   const label = dayLabel(date);
   return (
-    <div role="group" aria-label={label} className="relative border-l">
+    <div role="group" aria-label={label} className="relative h-full border-l">
       {Array.from({ length: 24 }, (_, h) => (
         <div key={h} aria-hidden className="absolute inset-x-0 border-t border-border/60" style={{ top: h * HOUR_PX }} />
       ))}
@@ -171,18 +193,27 @@ function DayColumn({
       {events.map((e) => {
         const start = minutesOf(e.time);
         const { col, cols } = layout.get(e.key) ?? { col: 0, cols: 1 };
+        const style: React.CSSProperties = {
+          top: (start / 30) * SLOT_PX,
+          height: Math.max(SLOT_PX, (Math.min(e.durationMin, 24 * 60 - start) / 30) * SLOT_PX) - 2,
+          left: `calc(${(col / cols) * 100}% + 2px)`,
+          width: `calc(${100 / cols}% - 4px)`,
+        };
+        if (!dnd) return <EventBlock key={e.key} event={e} onOpen={actions.openEvent} className="absolute z-10" style={style} />;
         return (
-          <EventBlock
+          <DraggableEvent
             key={e.key}
             event={e}
-            onOpen={actions.openEvent}
-            className="absolute z-10"
-            style={{
-              top: (start / 30) * SLOT_PX,
-              height: Math.max(SLOT_PX, (Math.min(e.durationMin, 24 * 60 - start) / 30) * SLOT_PX) - 2,
-              left: `calc(${(col / cols) * 100}% + 2px)`,
-              width: `calc(${100 / cols}% - 4px)`,
-            }}
+            render={({ ref, dragProps, transform, isDragging }) => (
+              <EventBlock
+                event={e}
+                onOpen={actions.openEvent}
+                buttonRef={ref}
+                dragProps={dragProps}
+                className={cn("absolute z-10 touch-none", isDragging && "z-30 shadow-lg ring-2 ring-ring")}
+                style={{ ...style, transform }}
+              />
+            )}
           />
         );
       })}
@@ -235,6 +266,16 @@ export function DayStrip({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Колонка дня как цель переноса (только внутри WeekDnd). */
+function DropColumn({ date, children }: { date: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDayDrop(date);
+  return (
+    <div ref={setNodeRef} data-day-column className={cn("relative", isOver && "bg-primary/5")}>
+      {children}
     </div>
   );
 }
