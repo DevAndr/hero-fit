@@ -2,7 +2,7 @@
  * Streak «в ударе» — недели подряд с тренировками. Неделя — с понедельника 00:00 до воскресенья 24:00
  * в поясе пользователя, её ключ — дата понедельника «YYYY-MM-DD».
  */
-import { dayKey } from "@/lib/daily-login";
+import { dayKey } from "../daily-login";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -203,4 +203,24 @@ export function restoreOffer(
   const expiresAt = localMidnight(addDays(lostWeek, RESTORE_WINDOW_DAYS), tz);
   if (now >= expiresAt) return null;
   return { streak: user.currentStreak, cost: restoreCost(user.currentStreak), expiresAt };
+}
+
+// ───────────────────────────── Пересчёт из истории ─────────────────────────────
+
+export type StreakFromHistory = Pick<WeeklyStreakState, "currentStreak" | "longestStreak" | "lastStreakWeek"> & {
+  weekWorkouts: number;
+  weekWorkoutsKey: string;
+};
+
+/** Серия по истории (без заморозок): недели с STREAK_WEEK_TARGET+ тренировками подряд. */
+export function streakFromHistory(rows: { week: string; workouts: number }[], currentWeek: string): StreakFromHistory {
+  const credited = rows.filter((r) => r.workouts >= STREAK_WEEK_TARGET).map((r) => r.week).sort();
+  const runs = weeklyRuns(credited, currentWeek);
+  return {
+    currentStreak: runs.current,
+    longestStreak: runs.best,
+    lastStreakWeek: credited.at(-1) ?? null,
+    weekWorkouts: rows.find((r) => r.week === currentWeek)?.workouts ?? 0,
+    weekWorkoutsKey: currentWeek,
+  };
 }

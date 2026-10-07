@@ -103,7 +103,11 @@ model User {
   lastStreakAt    DateTime? // время последней тренировки, продлившей streak
   streakFreezes   Int       @default(1) // доступные заморозки
   freezeGrantedAt DateTime? // когда последний раз выдана еженедельная заморозка
-  streakRestoredAt DateTime? // когда последний раз выкупили сгоревшую серию (повторно — только после тренировки)
+  streakRestoredAt DateTime? // когда последний раз выкупили сгоревшую серию (повторно — только после новой засчитанной недели)
+  // Недельный streak: серия — недели подряд с 3+ тренировками (lib/progress/weekly-streak.ts); неделя — «YYYY-MM-DD» понедельника
+  lastStreakWeek  String? // последняя засчитанная неделя
+  weekWorkouts    Int     @default(0) // тренировок за неделю weekWorkoutsKey (для шапки без лишнего SQL)
+  weekWorkoutsKey String?
 
   // Ежедневный вход
   loginStreak  Int       @default(0)
@@ -116,6 +120,8 @@ model User {
   notifySocial       Boolean   @default(true)
   /// lastStreakAt, для которого уже отправлено «Не потеряй streak!» (одно напоминание на окно)
   streakReminderFor  DateTime?
+  /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
+  streakReminderDay  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -131,6 +137,7 @@ model User {
   pushSubscriptions   PushSubscription[]
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
+  streakCoverWeeks    StreakCoverWeek[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
   kudos               Kudos[]
@@ -443,4 +450,24 @@ model Kudos {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workoutId, userId])
+}
+
+// ───────────────────────────── Streak ─────────────────────────────
+
+enum StreakCoverReason {
+  FREEZE // пропущенную неделю закрыла заморозка
+  RESTORE // серию выкупили за XP
+}
+
+/// Журнал недель, пропущенных без потери серии.
+model StreakCoverWeek {
+  id        String            @id @default(cuid())
+  userId    String
+  week      String // понедельник недели, "YYYY-MM-DD"
+  reason    StreakCoverReason
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, week])
 }

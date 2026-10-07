@@ -8,6 +8,7 @@ import {
   localMidnight,
   restoreCost,
   restoreOffer,
+  streakFromHistory,
   streakStatus,
   streakValue,
   weekKey,
@@ -243,5 +244,34 @@ describe("restore", () => {
     expect(restoreOffer({ ...restored, lastStreakWeek: "2026-09-28" }, new Date("2026-10-13T12:00:00Z"), MSK)).toBeNull();
     const creditedAfter = user({ lastStreakWeek: "2026-10-05", currentStreak: 6, streakRestoredAt: new Date("2026-10-06T10:00:00Z") });
     expect(restoreOffer(creditedAfter, new Date("2026-10-20T12:00:00Z"), MSK)).toMatchObject({ streak: 6 });
+  });
+});
+
+describe("streakFromHistory", () => {
+  it("weeks with 3+ workouts form the streak; this week's counter is kept", () => {
+    const rows = [
+      { week: "2026-09-07", workouts: 3 },
+      { week: "2026-09-14", workouts: 5 },
+      { week: "2026-09-21", workouts: 2 }, // недобор — разрыв
+      { week: "2026-09-28", workouts: 3 },
+      { week: "2026-10-05", workouts: 1 },
+    ];
+    expect(streakFromHistory(rows, "2026-10-05")).toEqual({
+      currentStreak: 1,
+      longestStreak: 2,
+      lastStreakWeek: "2026-09-28",
+      weekWorkouts: 1,
+      weekWorkoutsKey: "2026-10-05",
+    });
+  });
+
+  it("no history", () => {
+    expect(streakFromHistory([], "2026-10-05")).toEqual({
+      currentStreak: 0,
+      longestStreak: 0,
+      lastStreakWeek: null,
+      weekWorkouts: 0,
+      weekWorkoutsKey: "2026-10-05",
+    });
   });
 });
