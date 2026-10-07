@@ -71,7 +71,8 @@ test("full workout: build, sets, rest timer, autosave, finish → summary with X
   // + 32 за ачивку «Жим лёжа: 60 кг» (рабочий вес 62,5 кг)
   await expect(page.getByTestId("xp-earned")).toHaveText("+108 XP");
   await expect(page.getByText("76 за тренировку + 32 за ачивки")).toBeVisible();
-  await expect(page.getByTestId("streak")).toContainText("1");
+  await expect(page.getByTestId("streak")).toContainText("0");
+  await expect(page.getByText("Неделя: 1/3 — ещё 2 тренировки до +1 к серии")).toBeVisible();
   await expect(page.getByText("1 100 кг")).toBeVisible();
   // Невыполненные подходы в историю не попали
   await expect(page.getByText("60 × 10")).toBeVisible();
@@ -101,8 +102,23 @@ test("repeat last workout prefills sets; beating it gives a PR", async ({ page }
   await expect(page.getByText("Новые рекорды")).toBeVisible();
   await expect(page.getByText("100 кг → 110 кг")).toBeVisible();
   await expect(page.getByText(/за рекорды/)).toBeVisible();
-  // Вторая тренировка в пределах 24 часов — тот же тренировочный день
-  await expect(page.getByText("Сегодня уже засчитано")).toBeVisible();
+  // Вторая тренировка недели — до засчитанной недели ещё одна
+  await expect(page.getByText("Неделя: 2/3 — ещё 1 тренировка до +1 к серии")).toBeVisible();
+});
+
+test("three workouts in a week extend the weekly streak", async ({ page }) => {
+  for (const n of [1, 2, 3]) {
+    await page.goto("/training");
+    await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+    await addToWorkout(page, ["Подтягивания"]);
+    await fillSet(page, "Подтягивания", 1, "", "10");
+    await completeSet(page, "Подтягивания", 1);
+    await finish(page);
+    await expect(page).toHaveURL(/\/workouts\/\w+$/);
+    if (n < 3) await expect(page.getByText(`Неделя: ${n}/3`)).toBeVisible();
+  }
+  await expect(page.getByText("Неделя засчитана — серия 1 неделя!")).toBeVisible();
+  await expect(page.getByTestId("streak")).toContainText("1");
 });
 
 test("start from a program template, then cancel", async ({ page }) => {

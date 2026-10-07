@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
-import { applyWorkoutToStreak } from "@/lib/progress/streak";
+import { safeTimeZone } from "@/lib/daily-login";
+import { countWeekWorkouts } from "@/lib/progress/streak-db";
+import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, workoutXp } from "@/lib/progress/xp";
 import { workoutTotals } from "@/lib/workouts/schema";
 
@@ -24,6 +26,8 @@ export type FinishMeta = {
   streakExtended: boolean;
   streakReset: boolean;
   usedFreezes: number;
+  /** Тренировок за неделю этой тренировки (включая её). */
+  weekCount: number;
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -94,15 +98,34 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         xp: true,
         currentStreak: true,
         longestStreak: true,
-        lastStreakAt: true,
+        lastStreakWeek: true,
         streakFreezes: true,
         freezeGrantedAt: true,
+        weekWorkoutsKey: true,
+        timeZone: true,
       },
     });
     const baseXp = workoutXp(totals);
     const recordsXp = records.length * PR_XP;
     const xpAfter = user.xp + baseXp + recordsXp;
-    const streak = applyWorkoutToStreak(user, now);
+
+    // Недельный streak: тренировка уже COMPLETED (захват выше) — считаем неделю вместе с ней.
+    const tz = safeTimeZone(user.timeZone);
+    const week = weekKey(now, tz);
+    const weekCount = await countWeekWorkouts(tx, userId, week, tz);
+    const withFreeze = grantFreeze(user, now);
+    const streak =
+      weekCount >= STREAK_WEEK_TARGET
+        ? applyWeekCredit(withFreeze, week)
+        : { ...withFreeze, frozenWeeks: [], extended: false, reset: false };
+    if (streak.frozenWeeks.length) {
+      await tx.streakCoverWeek.createMany({
+        data: streak.frozenWeeks.map((w) => ({ userId, week: w, reason: "FREEZE" as const })),
+        skipDuplicates: true,
+      });
+    }
+    // Тренировка задним числом (офлайн) не портит счётчик уже начавшейся следующей недели.
+    const weekCounter = !user.weekWorkoutsKey || week >= user.weekWorkoutsKey ? { weekWorkouts: weekCount, weekWorkoutsKey: week } : {};
 
     await tx.workout.update({
       where: { id: workoutId },
@@ -124,9 +147,10 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         level: levelProgress(xpAfter).level,
         currentStreak: streak.currentStreak,
         longestStreak: streak.longestStreak,
-        lastStreakAt: streak.lastStreakAt,
+        lastStreakWeek: streak.lastStreakWeek,
         streakFreezes: streak.streakFreezes,
         freezeGrantedAt: streak.freezeGrantedAt,
+        ...weekCounter,
       },
     });
 
@@ -145,7 +169,8 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       streak: streak.currentStreak,
       streakExtended: streak.extended,
       streakReset: streak.reset,
-      usedFreezes: streak.usedFreezes,
+      usedFreezes: streak.frozenWeeks.length,
+      weekCount,
     };
 
     await tx.xpEvent.create({
