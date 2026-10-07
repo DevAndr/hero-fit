@@ -111,7 +111,7 @@
 - Prisma 7: генератор `prisma-client`, клиент в `generated/prisma` (gitignored, импорт из `@/generated/prisma/client`), подключение через `@prisma/adapter-pg`, конфиг CLI в `prisma.config.ts`
 - Клиент БД — `lib/db.ts`, валидированные env — `lib/env.ts` (только сервер)
 - Встроенные упражнения и готовые программы имеют `userId = null` (сид `prisma/seed.ts`, идемпотентный)
-- Тестовая учётка из сида (кроме `NODE_ENV=production`): `demo` / `Demo1234`, повторный сид сбрасывает ей пароль
+- Тестовая учётка из сида (кроме `NODE_ENV=production`): `demo` / `Demo1234`, повторный сид сбрасывает ей пароль. У неё тестовые друзья `demo.masha` (свежая тренировка с рекордом, ачивкой, уровнем и вехой серии), `demo.boris` (скрывает веса) и входящая заявка от `demo.kate` — пароль тот же; их история пересоздаётся при каждом сиде относительно текущего времени
 - UI: shadcn/ui (стиль base-nova на Base UI). Тема — `next-themes` (`components/app/theme-provider.tsx`): светлая/тёмная/системная, по умолчанию тёмная, выбор в `/settings`, хранится в localStorage. Цвета — только семантические токены из `app/globals.css` (фирменные `primary`/`chart-*`/`xp`/`streak` заданы для обеих тем). Ссылка, оформленная кнопкой — `<Link className={buttonVariants()}>` (не `Button render={<Link/>}`: Base UI вешает `role="button"` на ссылку)
 - Next.js 16: перед кодом сверяться с `node_modules/next/dist/docs/`; middleware называется `proxy.ts`
 - Проверки: `npm run typecheck`, `npm run lint`, `npm test` (Vitest, `*.test.ts` рядом с кодом), `npm run build && npm run test:e2e` (Playwright, `e2e/`, desktop + mobile)
