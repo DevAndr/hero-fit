@@ -41,10 +41,11 @@ export function PushProvider({ vapidKey, children }: { vapidKey: string | null; 
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!supported) return;
+    // Service worker нужен и без push — для тренировки без сети (кэш страницы и статики)
+    if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
-      .then((reg) => reg.pushManager.getSubscription())
+      .then((reg) => (supported ? reg.pushManager.getSubscription() : null))
       .then((sub) => {
         setSubscription(sub);
         // Подписка браузера жива — убеждаемся, что сервер знает её для текущего пользователя.

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useReducer, useState, useTransition } from "react";
-import { CircleAlert, CloudCheck, EllipsisVertical, Flag, Loader2, Play, Trash2 } from "lucide-react";
+import { CircleAlert, CloudCheck, CloudOff, EllipsisVertical, Flag, Loader2, Play, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -32,11 +32,12 @@ import {
   useRestTimer,
 } from "@/components/training/rest-timer";
 import { formatClock } from "@/lib/format";
-import { useAutosave, type SaveStatus } from "@/components/training/use-autosave";
+import { pickInitial, pruneRecords, readRecord, refreshTrainingCache } from "@/components/training/offline-store";
+import { useWorkoutSync, type SyncStatus } from "@/components/training/use-workout-sync";
 import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
 import { initState, reducer, toDraft, type ExerciseState, type SetState } from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { cancelWorkoutAction, finishWorkoutAction, startWorkoutAction } from "@/lib/workouts/actions";
+import { cancelWorkoutAction } from "@/lib/workouts/actions";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { ActiveWorkout, LastPerformance } from "@/lib/workouts/queries";
 import { workoutTotals } from "@/lib/workouts/schema";
@@ -72,12 +73,25 @@ function Elapsed({ since }: { since: string }) {
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
-  if (status === "error")
+function SaveIndicator({ status, onSync }: { status: SyncStatus; onSync: () => void }) {
+  if (status === "offline" || status === "error")
     return (
-      <span className="flex items-center gap-1 text-xs text-destructive">
-        <CircleAlert className="size-3.5" />
-        Не сохранено — проверьте сеть
+      <span className="flex flex-wrap items-center gap-2 text-xs" data-testid="save-status">
+        {status === "offline" ? (
+          <span className="flex items-center gap-1 text-streak">
+            <CloudOff className="size-3.5" />
+            Нет сети — сохранено на устройстве
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-destructive">
+            <CircleAlert className="size-3.5" />
+            Не сохранено на сервере
+          </span>
+        )}
+        <Button variant="outline" size="xs" onClick={onSync}>
+          <RefreshCw />
+          Синхронизировать
+        </Button>
       </span>
     );
   if (status === "saved")
@@ -95,6 +109,8 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   );
 }
 
+const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
 /** Подпись для таймера отдыха: какой подход следующий. */
 function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone: SetState) {
   const remainingHere = current.sets.filter((s) => s.key !== justDone.key && !s.completedAt);
@@ -107,11 +123,29 @@ function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone:
 function Editor({ workout, exercises, last, hints }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   const draft = useMemo(() => toDraft(state), [state]);
-  const { status, settle } = useAutosave(workout.id, draft);
+  const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
   const rest = useRestTimer();
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+
+  // Черновик на устройстве новее серверного (не успели отправить без сети) — поднимаем его.
+  // Только после монтирования: на сервере localStorage нет, иначе разъехалась бы гидрация.
+  const { restore } = sync;
+  useEffect(() => {
+    // Без сети страница могла прийти из кэша и быть устаревшей — чужие черновики не трогаем.
+    if (navigator.onLine) {
+      pruneRecords(workout.id);
+      refreshTrainingCache();
+    }
+    const rec = readRecord(workout.id);
+    const picked = pickInitial(workout, rec);
+    if (rec && picked.state) {
+      dispatch({ type: "replace", state: picked.state });
+      restore(rec);
+      toast.info("Восстановлено с устройства — отправим на сервер, когда будет сеть");
+    }
+  }, [workout, restore]);
 
   const totals = workoutTotals(draft.exercises);
   const pendingSets = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => !s.completedAt).length, 0);
@@ -133,37 +167,37 @@ function Editor({ workout, exercises, last, hints }: Props) {
       index,
     });
 
-  const start = async () => {
-    await settle();
-    const result = await startWorkoutAction(workout.id);
-    if (result.ok && result.startedAt) dispatch({ type: "started", startedAt: result.startedAt });
-    else if (!result.ok) toast.error(result.error);
-    return result.ok;
+  /** Старт сразу на устройстве (секундомер идёт и без сети), на сервер — через очередь синхронизации. */
+  const start = () => {
+    const at = new Date().toISOString();
+    dispatch({ type: "started", startedAt: at });
+    sync.queueStart(at);
   };
 
   const onComplete = (item: ExerciseState, set: SetState) => {
-    if (state.status === "PLANNED") void start();
+    if (state.status === "PLANNED") start();
     const label = nextLabel(state.exercises, item, set);
     if (label) rest.start(item.restSec, label);
   };
 
+  /** Завершение: при успехе уводит на сводку; без сети — встаёт в очередь со временем с устройства. */
   const finish = () =>
     startTransition(async () => {
-      await settle();
       rest.skip();
-      const result = await finishWorkoutAction(workout.id, toDraft(state));
-      // При успехе action делает redirect на сводку; сюда попадаем только с ошибкой.
-      if (result && !result.ok) {
-        toast.error(result.error);
-        setFinishOpen(false);
-      }
+      const outcome = await sync.queueFinish(new Date().toISOString());
+      if (outcome !== "sent") setFinishOpen(false);
     });
 
   const cancel = () =>
     startTransition(async () => {
-      await settle();
-      rest.skip();
-      await cancelWorkoutAction(workout.id);
+      try {
+        await sync.settle();
+        rest.skip();
+        await cancelWorkoutAction(workout.id);
+      } catch {
+        toast.error("Нет сети — отменить тренировку можно, когда появится связь");
+        setCancelOpen(false);
+      }
     });
 
   return (
@@ -206,7 +240,7 @@ function Editor({ workout, exercises, last, hints }: Props) {
                 ) : (
                   <span className="text-sm text-muted-foreground">Соберите тренировку и нажмите «Начать»</span>
                 )}
-                <SaveIndicator status={status} />
+                <SaveIndicator status={sync.status} onSync={() => void sync.syncNow()} />
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
@@ -226,7 +260,7 @@ function Editor({ workout, exercises, last, hints }: Props) {
                   <Button
                     size="lg"
                     disabled={state.exercises.length === 0 || pending}
-                    onClick={() => startTransition(async () => void (await start()))}
+                    onClick={start}
                   >
                     <Play />
                     Начать
@@ -268,7 +302,23 @@ function Editor({ workout, exercises, last, hints }: Props) {
               className="lg:hidden"
             />
 
-            {state.status === "IN_PROGRESS" ? (
+            {sync.queuedFinish ? (
+              <section
+                aria-label="Завершение ждёт сети"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-streak/50 bg-streak/10 p-4"
+              >
+                <p className="text-sm">
+                  <span className="font-semibold">Тренировка завершена на устройстве в {timeFmt.format(new Date(sync.queuedFinish))}.</span>{" "}
+                  <span className="text-muted-foreground">
+                    Отправим, когда появится сеть, — время завершения сохранится.
+                  </span>
+                </p>
+                <Button variant="outline" onClick={() => void sync.syncNow()}>
+                  <RefreshCw />
+                  Отправить сейчас
+                </Button>
+              </section>
+            ) : state.status === "IN_PROGRESS" ? (
               <Button size="lg" className="w-full" onClick={() => setFinishOpen(true)} disabled={pending}>
                 <Flag />
                 Завершить тренировку

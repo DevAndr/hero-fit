@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
+import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import { StartScreen } from "@/components/training/start-screen";
 import { WorkoutEditor } from "@/components/training/workout-editor";
 import { requireUser } from "@/lib/auth/dal";
@@ -19,6 +20,7 @@ export default async function TrainingPage() {
       <>
         <PageHeader title="Новая тренировка" description="Начните с нуля, с шаблона или повторите прошлую" />
         <StartScreen {...options} />
+        <OfflineCleanup />
       </>
     );
   }

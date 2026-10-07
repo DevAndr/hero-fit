@@ -62,6 +62,8 @@ export function toDraft(state: WorkoutState): WorkoutDraft {
 
 export type Action =
   | { type: "rename"; name: string }
+  /** Подменить всё состояние — черновиком, восстановленным с устройства. */
+  | { type: "replace"; state: WorkoutState }
   | { type: "started"; startedAt: string }
   | {
       type: "addExercises";
@@ -91,6 +93,9 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
   switch (action.type) {
     case "rename":
       return { ...state, name: action.name };
+
+    case "replace":
+      return action.state;
 
     case "started":
       return { ...state, status: "IN_PROGRESS", startedAt: action.startedAt };
