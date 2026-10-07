@@ -11,6 +11,7 @@ import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { levelProgress } from "@/lib/progress/level";
 import type { FinishMeta } from "@/lib/workouts/finish";
+import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import { differsFromTemplate } from "@/lib/templates/from-workout";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,8 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
 
   return (
     <div className="mx-auto max-w-3xl">
+      {/* Тренировка на сервере завершена — её черновик на устройстве больше не нужен */}
+      <OfflineCleanup workoutId={workout.id} />
       <PageHeader
         title={`${workout.name} — готово!`}
         description={workout.finishedAt ? dateFormat.format(workout.finishedAt) : undefined}

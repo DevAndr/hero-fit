@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
-import { workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
+import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -157,9 +157,15 @@ export async function saveWorkoutDraftAction(workoutId: string, draft: WorkoutDr
 
 // ───────────────────────────── Старт / финиш / отмена ─────────────────────────────
 
-export async function startWorkoutAction(workoutId: string): Promise<Result & { startedAt?: string }> {
+const H = 3_600_000;
+
+/** clientStartedAt — время старта с устройства, если начали без сети (не старше 12 ч, не в будущем). */
+export async function startWorkoutAction(
+  workoutId: string,
+  clientStartedAt?: string,
+): Promise<Result & { startedAt?: string }> {
   const user = await requireUser();
-  const startedAt = new Date();
+  const startedAt = clampClientTime(clientStartedAt, new Date(), null, 12 * H);
   const { count } = await db.workout.updateMany({
     where: { id: workoutId, userId: user.id, status: WorkoutStatus.PLANNED },
     data: { status: WorkoutStatus.IN_PROGRESS, startedAt },
@@ -168,7 +174,12 @@ export async function startWorkoutAction(workoutId: string): Promise<Result & { 
   return { ok: true, startedAt: startedAt.toISOString() };
 }
 
-export async function finishWorkoutAction(workoutId: string, draft: WorkoutDraft): Promise<Result> {
+/** clientFinishedAt — время завершения с устройства, если завершили без сети (не раньше старта, не в будущем). */
+export async function finishWorkoutAction(
+  workoutId: string,
+  draft: WorkoutDraft,
+  clientFinishedAt?: string,
+): Promise<Result> {
   const user = await requireUser();
   const parsed = workoutDraftSchema.safeParse(draft);
   if (!parsed.success) return { ok: false, error: "Некорректные данные тренировки" };
@@ -179,7 +190,9 @@ export async function finishWorkoutAction(workoutId: string, draft: WorkoutDraft
     const done = await db.workout.count({ where: { id: workoutId, userId: user.id, status: WorkoutStatus.COMPLETED } });
     if (!done) return saved;
   } else {
-    const result = await finishWorkout(user.id, workoutId);
+    const workout = await db.workout.findFirst({ where: { id: workoutId, userId: user.id }, select: { startedAt: true } });
+    const finishedAt = clampClientTime(clientFinishedAt, new Date(), workout?.startedAt ?? null, 24 * H);
+    const result = await finishWorkout(user.id, workoutId, finishedAt);
     if (!result.ok) return result;
   }
 

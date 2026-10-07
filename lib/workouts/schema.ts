@@ -47,3 +47,14 @@ export function workoutTotals(exercises: { sets: { weight: number; reps: number;
   }
   return { sets, reps, volume: Math.round(volume * 10) / 10, exercises: exerciseCount };
 }
+
+/**
+ * Время с устройства (старт/финиш тренировки без сети) — принимаем, но в разумных рамках:
+ * не в будущем, не раньше `min`, не старше `maxAgeMs`. Некорректное — серверное «сейчас».
+ */
+export function clampClientTime(iso: string | null | undefined, now: Date, min: Date | null, maxAgeMs: number) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return now;
+  const lower = Math.max(min?.getTime() ?? -Infinity, now.getTime() - maxAgeMs);
+  return new Date(Math.min(now.getTime(), Math.max(lower, t)));
+}

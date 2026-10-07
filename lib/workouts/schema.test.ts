@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workoutDraftSchema, workoutTotals } from "./schema";
+import { clampClientTime, workoutDraftSchema, workoutTotals } from "./schema";
 
 const done = "2026-10-06T10:00:00.000Z";
 
@@ -55,5 +55,21 @@ describe("workoutTotals", () => {
       { sets: [{ weight: 50, reps: 10, completedAt: null }] },
     ]);
     expect(totals).toEqual({ sets: 3, reps: 22, volume: 1000, exercises: 2 });
+  });
+});
+
+describe("clampClientTime", () => {
+  const now = new Date("2026-10-07T12:00:00Z");
+  const H = 3600 * 1000;
+  it("keeps a sane device time, clamps the future, too old and before min", () => {
+    expect(clampClientTime("2026-10-07T11:30:00Z", now, null, 12 * H)).toEqual(new Date("2026-10-07T11:30:00Z"));
+    expect(clampClientTime("2026-10-07T13:00:00Z", now, null, 12 * H)).toEqual(now);
+    expect(clampClientTime("2026-10-06T10:00:00Z", now, null, 12 * H)).toEqual(new Date("2026-10-07T00:00:00Z"));
+    const started = new Date("2026-10-07T11:00:00Z");
+    expect(clampClientTime("2026-10-07T10:00:00Z", now, started, 24 * H)).toEqual(started);
+  });
+  it("falls back to now for missing or invalid input", () => {
+    expect(clampClientTime(undefined, now, null, H)).toEqual(now);
+    expect(clampClientTime("garbage", now, null, H)).toEqual(now);
   });
 });

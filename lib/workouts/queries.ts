@@ -12,6 +12,8 @@ export type ActiveWorkout = {
   name: string;
   status: "PLANNED" | "IN_PROGRESS";
   startedAt: string | null;
+  /** Когда сервер последний раз сохранял тренировку — сравнивается с черновиком на устройстве. */
+  updatedAt: string;
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
@@ -39,6 +41,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     name: workout.name,
     status: workout.status as ActiveWorkout["status"],
     startedAt: workout.startedAt?.toISOString() ?? null,
+    updatedAt: workout.updatedAt.toISOString(),
     exercises: workout.exercises.map((we) => ({
       exercise: we.exercise,
       restSec: we.restSec,
