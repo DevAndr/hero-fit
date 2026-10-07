@@ -83,7 +83,7 @@ export function NotificationBell({ feed }: { feed: NotificationFeed }) {
             return (
               <DropdownMenuItem
                 key={n.id}
-                className="items-start gap-2 py-2"
+                className="items-start gap-2 py-2 cursor-pointer"
                 onClick={() => n.url && router.push(n.url)}
               >
                 <Icon className={cn("mt-0.5 size-4", color)} />
