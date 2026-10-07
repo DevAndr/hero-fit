@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyWorkoutToStreak, streakDeadline, streakStatus, type StreakState } from "./streak";
+import {
+  applyWorkoutToStreak,
+  restoreCost,
+  restoredLastStreakAt,
+  restoreOffer,
+  streakDeadline,
+  streakStatus,
+  type StreakState,
+} from "./streak";
 
 const H = 60 * 60 * 1000;
 const t0 = new Date("2026-10-01T18:00:00Z");
@@ -85,5 +93,42 @@ describe("streakStatus", () => {
       state: "lost",
       streak: 3,
     });
+  });
+});
+
+describe("weekly freeze vs reward freezes", () => {
+  it("weekly grant does not cut freezes earned from achievements", () => {
+    const s = { ...base, streakFreezes: 4, freezeGrantedAt: at(-24 * 8) };
+    expect(applyWorkoutToStreak(s, t0).streakFreezes).toBe(4);
+  });
+});
+
+describe("restoreOffer", () => {
+  const lost = { currentStreak: 12, lastStreakAt: t0, streakFreezes: 0, streakRestoredAt: null };
+
+  it("offered within 48 h after the streak burned (lastStreakAt + 2 days + freezes)", () => {
+    expect(restoreOffer(lost, at(47))).toBeNull(); // ещё не сгорела
+    expect(restoreOffer(lost, at(49))).toEqual({ streak: 12, cost: restoreCost(12), expiresAt: at(48 + 48) });
+    expect(restoreOffer(lost, at(96))).toBeNull(); // окно выкупа прошло
+    // С заморозкой серия сгорает на сутки позже
+    expect(restoreOffer({ ...lost, streakFreezes: 1 }, at(60))).toBeNull();
+    expect(restoreOffer({ ...lost, streakFreezes: 1 }, at(73))?.expiresAt).toEqual(at(72 + 48));
+  });
+
+  it("not for short streaks and only once until the next workout", () => {
+    expect(restoreOffer({ ...lost, currentStreak: 2 }, at(50))).toBeNull();
+    expect(restoreOffer({ ...lost, streakRestoredAt: at(50) }, at(60))).toBeNull();
+    // Выкупили раньше, потом тренировались (lastStreakAt новее) — снова можно
+    expect(restoreOffer({ ...lost, lastStreakAt: at(10), streakRestoredAt: at(5) }, at(60))).not.toBeNull();
+  });
+
+  it("cost grows with the streak and is capped", () => {
+    expect([restoreCost(3), restoreCost(7), restoreCost(30), restoreCost(200)]).toEqual([80, 120, 350, 500]);
+  });
+
+  it("after restore the streak is due — one day to train", () => {
+    const now = at(60);
+    const status = streakStatus({ currentStreak: 12, lastStreakAt: restoredLastStreakAt(now), streakFreezes: 0 }, now);
+    expect(status).toMatchObject({ state: "due", streak: 12, hoursLeft: 24 });
   });
 });

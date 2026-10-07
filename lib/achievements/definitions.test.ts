@@ -49,6 +49,13 @@ describe("earnedAchievements", () => {
     expect(codes({ ...empty, longestStreak: 8, currentStreak: 1 })).toEqual(["streak:3", "streak:7"]);
   });
 
+  it("long streaks, weekly consistency and 30+ login days reward a streak freeze", () => {
+    const all = earnedAchievements({ ...empty, longestStreak: 7, loginStreak: 30, bestWeeklyRun: 4 });
+    const reward = Object.fromEntries(all.map((a) => [a.code, a.freezeReward ?? 0]));
+    expect(reward).toMatchObject({ "streak:3": 0, "streak:7": 1, "login:14": 0, "login:30": 1, "weeks:4": 1 });
+    expect(all.find((a) => a.code === "streak:7")?.description).toBe("Тренироваться 7 дней подряд · награда: заморозка серии");
+  });
+
   it("daily login streak", () => {
     expect(codes({ ...empty, loginStreak: 14 })).toEqual(["login:3", "login:7", "login:14"]);
   });

@@ -72,16 +72,54 @@ test("history: volume chart 7/30 days, counters, last workout, streak reminder",
 
 test("lost and frozen streak states; header agrees", async ({ page }) => {
   const { login } = await registerUser(page);
-  await setStreak(login, 80, 5, 0);
+  // Сгорела больше 48 ч назад — выкупить уже нельзя
+  await setStreak(login, 100, 5, 0);
   await page.reload();
   await expect(page.getByTestId("streak-value")).toHaveText("0");
   await expect(page.getByTestId("streak-message")).toHaveText("Серия прервалась — начните новую");
+  await expect(page.getByRole("button", { name: /Вернуть/ })).toHaveCount(0);
   await expect(page.getByTestId("header-streak")).toHaveText("0");
 
   await setStreak(login, 60, 5, 1);
   await page.reload();
   await expect(page.getByTestId("streak-value")).toHaveText("5");
   await expect(page.getByTestId("streak-message")).toContainText("спасёт заморозка");
+});
+
+async function setXp(login: string, xp: number, level: number) {
+  await withDb(async (db) => {
+    const id = await userId(db, login);
+    await db.query(`update "User" set xp = $2, level = $3 where id = $1`, [id, xp, level]);
+  });
+}
+
+test("burned streak can be bought back with XP once; level does not drop", async ({ page }) => {
+  const { login } = await registerUser(page);
+  // Серия 12 сгорела 2 ч назад (последняя тренировка 50 ч назад, заморозок нет); цена 50 + 12·10 = 170 XP
+  await setStreak(login, 50, 12, 0);
+  await setXp(login, 120, 2); // в уровне 2 всего 20 XP — не хватает
+  await page.reload();
+  await expect(page.getByTestId("streak-message")).toContainText("Серия сгорела — её можно вернуть до");
+  await expect(page.getByText("Вернуть серию стоит 170 XP — в текущем уровне не хватает 150 XP")).toBeVisible();
+
+  await setXp(login, 300, 2); // 200 XP в уровне 2
+  await page.reload();
+  await page.getByRole("button", { name: "Вернуть 12 дней за 170 XP" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Вернуть за 170 XP" }).click();
+  await expect(page.getByText("Серия 12 дней снова горит 🔥")).toBeVisible();
+  await expect(page.getByTestId("streak-value")).toHaveText("12");
+  await expect(page.getByTestId("streak-message")).toHaveText("Не потеряй streak! Осталось 24 ч");
+  await expect(page.getByRole("button", { name: /Вернуть/ })).toHaveCount(0);
+
+  await withDb(async (db) => {
+    const id = await userId(db, login);
+    const { rows } = await db.query(
+      `select u.xp, u.level, (select sum(amount)::int from "XpEvent" x where x."userId" = u.id and reason = 'STREAK_RESTORE') as paid
+       from "User" u where u.id = $1`,
+      [id],
+    );
+    expect(rows[0]).toEqual({ xp: 130, level: 2, paid: -170 });
+  });
 });
 
 test("active workout turns the main button into «Продолжить»", async ({ page }) => {

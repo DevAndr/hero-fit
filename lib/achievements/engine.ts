@@ -18,6 +18,7 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
+import { MAX_REWARD_FREEZES } from "@/lib/progress/streak";
 
 type Client = Prisma.TransactionClient;
 
@@ -285,7 +286,17 @@ export function evaluateAchievementsNow(userId: string) {
 
 async function grant(client: Client, userId: string, fresh: AchievementDef[]): Promise<{ xp: number; level: number } | null> {
   const { count } = await client.userAchievement.createMany({
-    data: fresh.map((a) => ({ userId, ...a })),
+    // Явный список полей: freezeReward — правило выдачи, в БД его нет
+    data: fresh.map(({ code, category, title, description, threshold, exerciseId, xpReward }) => ({
+      userId,
+      code,
+      category,
+      title,
+      description,
+      threshold,
+      exerciseId,
+      xpReward,
+    })),
     skipDuplicates: true,
   });
   // Параллельный запрос мог успеть выдать часть — тогда XP не начисляем, чтобы не задвоить.
@@ -310,6 +321,14 @@ async function grant(client: Client, userId: string, fresh: AchievementDef[]): P
   });
   const user = await client.user.update({ where: { id: userId }, data: { xp: { increment: xp } }, select: { xp: true } });
   const { level } = levelProgress(user.xp);
-  await client.user.update({ where: { id: userId }, data: { level } });
+  // Заморозки-награды копятся сверх еженедельного лимита, но не больше MAX_REWARD_FREEZES
+  const freezes = fresh.reduce((sum, a) => sum + (a.freezeReward ?? 0), 0);
+  const current = freezes
+    ? (await client.user.findUniqueOrThrow({ where: { id: userId }, select: { streakFreezes: true } })).streakFreezes
+    : 0;
+  await client.user.update({
+    where: { id: userId },
+    data: { level, ...(freezes ? { streakFreezes: Math.min(MAX_REWARD_FREEZES, current + freezes) } : {}) },
+  });
   return { xp, level };
 }

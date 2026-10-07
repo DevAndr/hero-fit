@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
+import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { getDashboard } from "@/lib/dashboard/queries";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
-import { streakStatus } from "@/lib/progress/streak";
+import { restoreOffer, streakStatus, type RestoreOffer } from "@/lib/progress/streak";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
@@ -30,7 +31,21 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function StreakCard({ status, longest, freezes }: { status: ReturnType<typeof streakStatus>; longest: number; freezes: number }) {
+const timeFmt = new Intl.DateTimeFormat("ru-RU", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
+function StreakCard({
+  status,
+  longest,
+  freezes,
+  offer,
+  levelXp,
+}: {
+  status: ReturnType<typeof streakStatus>;
+  longest: number;
+  freezes: number;
+  offer: RestoreOffer | null;
+  levelXp: number;
+}) {
   const alive = status.state === "counted" || status.state === "due" || status.state === "frozen";
   const value = status.state === "none" || status.state === "lost" ? 0 : status.streak;
   const message = {
@@ -38,7 +53,7 @@ function StreakCard({ status, longest, freezes }: { status: ReturnType<typeof st
     counted: "Сегодня уже засчитано 🔥",
     due: `Не потеряй streak! Осталось ${status.state === "due" ? status.hoursLeft : 0} ч`,
     frozen: "Срок прошёл — следующую тренировку спасёт заморозка",
-    lost: "Серия прервалась — начните новую",
+    lost: offer ? `Серия сгорела — её можно вернуть до ${timeFmt.format(offer.expiresAt)}` : "Серия прервалась — начните новую",
   }[status.state];
 
   return (
@@ -56,6 +71,7 @@ function StreakCard({ status, longest, freezes }: { status: ReturnType<typeof st
       <p className="text-sm font-medium" data-testid="streak-message">
         {message}
       </p>
+      {offer ? <RestoreStreakButton streak={offer.streak} cost={offer.cost} missing={Math.max(0, offer.cost - levelXp)} /> : null}
       <p className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
         <span>Рекорд: {longest}</span>
         <span className="flex items-center gap-1">
@@ -73,7 +89,9 @@ export default async function DashboardPage() {
   const [data, feed] = await Promise.all([getDashboard(user.id, timeZone), getFeed(user.id, null, 8)]);
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
-  const status = streakStatus(data.streak, new Date());
+  const now = new Date();
+  const status = streakStatus(data.streak, now);
+  const offer = restoreOffer(data.streak, now);
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -110,7 +128,13 @@ export default async function DashboardPage() {
           </p>
         </section>
 
-        <StreakCard status={status} longest={data.streak.longestStreak} freezes={data.streak.streakFreezes} />
+        <StreakCard
+          status={status}
+          longest={data.streak.longestStreak}
+          freezes={data.streak.streakFreezes}
+          offer={offer}
+          levelXp={level.current}
+        />
 
         <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
