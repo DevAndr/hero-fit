@@ -14,7 +14,7 @@ import { getDashboard } from "@/lib/dashboard/queries";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
-import { isStreakUrgent, streakMessage, weeksText } from "@/lib/progress/streak-copy";
+import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
 
