@@ -53,6 +53,7 @@ export type CalendarData = {
   extra: CalendarExtraWorkout[];
   /** Активная тренировка, запущенная из плана: у её вхождения — «Продолжить». */
   activePlanKey: string | null;
+  hasActiveWorkout: boolean;
   templates: Record<string, { name: string; exercises: number }>;
 };
 
@@ -86,6 +87,7 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
     occurrences: matched.occurrences,
     extra: matched.extra.map((w) => ({ id: w.id, name: names.get(w.id) ?? "Тренировка", startedAt: w.startedAt, finishedAt: w.finishedAt })),
     activePlanKey: active?.planKey ?? null,
+    hasActiveWorkout: active !== null,
     templates: Object.fromEntries(templates.map((t) => [t.id, { name: t.name, exercises: t._count.exercises }])),
   };
 }

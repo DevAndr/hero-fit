@@ -8,12 +8,22 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/
 import { Switch } from "@/components/ui/switch";
 import { usePush } from "@/components/notifications/push-provider";
 import { sendTestPushAction, updateNotificationSettingsAction } from "@/lib/notifications/actions";
+import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 
-type Prefs = { notifyRest: boolean; notifyStreak: boolean; notifyAchievements: boolean; notifySocial: boolean };
+type Prefs = {
+  notifyRest: boolean;
+  notifyStreak: boolean;
+  notifyAchievements: boolean;
+  notifySocial: boolean;
+  notifyPlan: boolean;
+  planReminderMin: number;
+};
+type Toggle = Exclude<keyof Prefs, "planReminderMin">;
 
-const PREFS: { key: keyof Prefs; label: string; description: string }[] = [
+const PREFS: { key: Toggle; label: string; description: string }[] = [
   { key: "notifyRest", label: "Таймер отдыха", description: "Сигнал об окончании отдыха, даже при заблокированном экране" },
-  { key: "notifyStreak", label: "Не потеряй streak", description: "Напоминание, когда до конца серии остаётся 3 часа" },
+  { key: "notifyStreak", label: "Не потеряй streak", description: "Когда тренировок не хватает, чтобы засчитать неделю (с пятницы)" },
+  { key: "notifyPlan", label: "Тренировка по плану", description: "Напоминание перед тренировкой из календаря" },
   { key: "notifyAchievements", label: "Новые ачивки", description: "Push, когда получена ачивка" },
   { key: "notifySocial", label: "Друзья", description: "Заявки в друзья и их принятие" },
 ];
@@ -91,13 +101,14 @@ export function NotificationPrefs({ initial }: { initial: Prefs }) {
   const [prefs, setPrefs] = useState(initial);
   const [, startTransition] = useTransition();
 
-  const toggle = (key: keyof Prefs, value: boolean) => {
+  const save = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
+    const previous = prefs[key];
     setPrefs((p) => ({ ...p, [key]: value }));
     startTransition(async () => {
       try {
         await updateNotificationSettingsAction({ [key]: value });
       } catch {
-        setPrefs((p) => ({ ...p, [key]: !value }));
+        setPrefs((p) => ({ ...p, [key]: previous }));
         toast.error("Не удалось сохранить настройку");
       }
     });
@@ -112,9 +123,29 @@ export function NotificationPrefs({ initial }: { initial: Prefs }) {
             <FieldLabel htmlFor={`pref-${key}`}>{label}</FieldLabel>
             <FieldDescription>{description}</FieldDescription>
           </FieldContent>
-          <Switch id={`pref-${key}`} checked={prefs[key]} onCheckedChange={(v) => toggle(key, v)} />
+          <Switch id={`pref-${key}`} checked={prefs[key]} onCheckedChange={(v) => save(key, v)} />
         </Field>
       ))}
+      {prefs.notifyPlan ? (
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldLabel htmlFor="pref-plan-lead">Напоминать за</FieldLabel>
+            <FieldDescription>Сколько минут до начала тренировки по плану</FieldDescription>
+          </FieldContent>
+          <select
+            id="pref-plan-lead"
+            value={prefs.planReminderMin}
+            onChange={(e) => save("planReminderMin", Number(e.target.value))}
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          >
+            {PLAN_REMINDER_LEADS.map((m) => (
+              <option key={m} value={m}>
+                {m < 60 ? `${m} мин` : `${m / 60} ч`}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
     </section>
   );
 }

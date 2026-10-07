@@ -24,6 +24,8 @@ export async function getNotificationSettings(userId: string) {
       notifyStreak: true,
       notifyAchievements: true,
       notifySocial: true,
+      notifyPlan: true,
+      planReminderMin: true,
       nickname: true,
       shareActivity: true,
       hideWeights: true,

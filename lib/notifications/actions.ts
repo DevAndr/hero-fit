@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 import { NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
@@ -35,7 +36,14 @@ export async function unsubscribePushAction(endpoint: string) {
 }
 
 const settingsSchema = z
-  .object({ notifyRest: z.boolean(), notifyStreak: z.boolean(), notifyAchievements: z.boolean(), notifySocial: z.boolean() })
+  .object({
+    notifyRest: z.boolean(),
+    notifyStreak: z.boolean(),
+    notifyAchievements: z.boolean(),
+    notifySocial: z.boolean(),
+    notifyPlan: z.boolean(),
+    planReminderMin: z.union(PLAN_REMINDER_LEADS.map((m) => z.literal(m))),
+  })
   .partial();
 
 export async function updateNotificationSettingsAction(patch: z.input<typeof settingsSchema>) {

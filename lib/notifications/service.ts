@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { sendPushToUser } from "@/lib/notifications/push";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { shouldRemindStreak, streakReminderBody } from "@/lib/notifications/reminders";
+import { addDays } from "@/lib/plans/expand";
+import { getCalendar } from "@/lib/plans/queries";
+import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
@@ -126,9 +129,69 @@ export async function processStreakReminders(now = new Date()) {
   return sent;
 }
 
+/**
+ * «Сегодня по плану» за planReminderMin минут до начала. Кандидаты одним SQL — у кого на сегодня или завтра
+ * (окно может перейти через полночь) есть серия по дню недели или запись; точный выбор — duePlanReminders.
+ */
+export async function processPlanReminders(now = new Date()) {
+  const candidates = await db.$queryRaw<{ id: string; timeZone: string; planReminderMin: number }[]>`
+    WITH u AS (
+      SELECT id, "timeZone", "planReminderMin",
+             (${now}::timestamptz AT TIME ZONE "timeZone")::date AS today
+      FROM "User" WHERE "notifyPlan"
+    )
+    SELECT u.id, u."timeZone", u."planReminderMin" FROM u
+    WHERE EXISTS (
+      SELECT 1 FROM "PlanSeries" s
+      WHERE s."userId" = u.id
+        AND s.weekday IN (extract(isodow FROM u.today)::int - 1, extract(isodow FROM u.today + 1)::int - 1)
+        AND s."startDate" <= to_char(u.today + 1, 'YYYY-MM-DD')
+        AND (s."endDate" IS NULL OR s."endDate" >= to_char(u.today, 'YYYY-MM-DD'))
+    ) OR EXISTS (
+      SELECT 1 FROM "PlanEntry" e
+      WHERE e."userId" = u.id AND e.date IN (to_char(u.today, 'YYYY-MM-DD'), to_char(u.today + 1, 'YYYY-MM-DD'))
+    )
+  `;
+
+  let sent = 0;
+  for (const user of candidates) {
+    const tz = safeTimeZone(user.timeZone);
+    const today = dayKey(now, tz);
+    const calendar = await getCalendar(user.id, today, addDays(today, 1), tz, now);
+    const sentKeys = new Set(
+      (await db.planReminder.findMany({ where: { userId: user.id }, select: { planKey: true } })).map((r) => r.planKey),
+    );
+    const due = duePlanReminders(calendar.occurrences, {
+      now,
+      tz,
+      leadMin: user.planReminderMin,
+      sentKeys,
+      doneKeys: new Set(calendar.occurrences.filter((o) => o.status === "done").map((o) => o.key)),
+      hasActiveWorkout: calendar.hasActiveWorkout,
+    });
+    for (const o of due) {
+      const exercises = o.templateId ? (calendar.templates[o.templateId]?.exercises ?? null) : null;
+      await db.$transaction(async (tx) => {
+        // Уникальная строка — параллельный воркер не напомнит второй раз
+        const created = await tx.planReminder.createMany({ data: [{ userId: user.id, planKey: o.key }], skipDuplicates: true });
+        if (created.count === 0) return;
+        await notify(
+          tx,
+          user.id,
+          { type: NotificationType.PLAN, ...planReminderText(o, exercises, today), url: `/calendar?date=${o.date}` },
+          { push: true },
+        );
+        sent++;
+      });
+    }
+  }
+  if (sent) await processDuePushes();
+  return sent;
+}
+
 /** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
 export async function runNotificationTick(now = new Date()) {
-  const reminders = await processStreakReminders(now);
+  const reminders = (await processStreakReminders(now)) + (await processPlanReminders(now));
   const pushes = await processDuePushes();
   return { reminders, pushes };
 }

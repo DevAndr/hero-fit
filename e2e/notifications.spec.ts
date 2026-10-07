@@ -188,3 +188,39 @@ test("dead subscriptions (410 Gone) are removed", async ({ page, request }) => {
     await push.close();
   }
 });
+
+test("today's plan reminder: push shortly before the planned time, once; settings switch", async ({ page, request }) => {
+  const push = await startPushService();
+  try {
+    const { login } = await registerUser(page);
+    await addSubscription(login, push);
+    // Тестовые часы: 10 января 2030, 15:00 UTC; план на 15:30 — в окне «за 60 минут»
+    const at = new Date("2030-01-10T15:00:00Z");
+    await withDb(async (db) => {
+      const id = await userId(db, login);
+      await db.query(`update "User" set "timeZone" = 'UTC' where id = $1`, [id]);
+      await db.query(
+        `insert into "PlanEntry" (id, "userId", title, date, time, "durationMin", "updatedAt") values ($1, $2, 'Ноги', '2030-01-10', '15:30', 60, now())`,
+        [randomUUID(), id],
+      );
+    });
+
+    await runTick(request, at);
+    await expect.poll(() => push.received.length).toBe(1);
+    expect(push.received[0].payload).toMatchObject({
+      type: "PLAN",
+      title: "Сегодня по плану: Ноги 💪",
+      body: "В 15:30",
+      url: "/calendar?date=2030-01-10",
+    });
+    await runTick(request, at);
+    await page.waitForTimeout(1500);
+    expect(push.received).toHaveLength(1);
+
+    await page.goto("/settings");
+    await expect(page.getByRole("switch", { name: "Тренировка по плану" })).toBeChecked();
+    await expect(page.getByLabel("Напоминать за")).toHaveValue("60");
+  } finally {
+    await push.close();
+  }
+});
