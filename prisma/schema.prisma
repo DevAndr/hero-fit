@@ -56,6 +56,7 @@ enum NotificationType {
   ACHIEVEMENT
   SYSTEM // тестовые и служебные
   SOCIAL // друзья: заявки и принятие
+  PLAN // «Сегодня по плану»
 }
 
 enum FriendshipStatus {
@@ -117,6 +118,9 @@ model User {
   notifyStreak       Boolean   @default(true)
   notifyAchievements Boolean   @default(true)
   notifySocial       Boolean   @default(true)
+  notifyPlan         Boolean   @default(true)
+  /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
+  planReminderMin    Int       @default(60)
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
   streakReminderDay  String?
 
@@ -135,6 +139,9 @@ model User {
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
+  planSeries          PlanSeries[]
+  planEntries         PlanEntry[]
+  planReminders       PlanReminder[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
   kudos               Kudos[]
@@ -241,8 +248,10 @@ model WorkoutTemplate {
   updatedAt   DateTime @updatedAt
 
   user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises TemplateExercise[]
-  workouts  Workout[]
+  exercises   TemplateExercise[]
+  workouts    Workout[]
+  planSeries  PlanSeries[]
+  planEntries PlanEntry[]
 
   @@index([userId])
 }
@@ -269,6 +278,8 @@ model Workout {
   id          String        @id @default(cuid())
   userId      String
   templateId  String?
+  /// ключ вхождения календаря, из которого запущена тренировка (lib/plans/expand.ts)
+  planKey     String?
   name        String
   status      WorkoutStatus @default(PLANNED)
   startedAt   DateTime?
@@ -467,4 +478,63 @@ model StreakCoverWeek {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, week])
+}
+
+// ───────────────────────────── Календарь ─────────────────────────────
+// Даты — «YYYY-MM-DD», время — «HH:MM» местного времени пользователя (lib/plans/expand.ts)
+
+/// Повторяющаяся тренировка: каждую неделю в день weekday (0 = пн … 6 = вс).
+model PlanSeries {
+  id          String   @id @default(cuid())
+  userId      String
+  templateId  String?
+  title       String // название шаблона на момент создания или своё
+  weekday     Int
+  time        String
+  durationMin Int      @default(60)
+  startDate   String // первое вхождение не раньше
+  endDate     String? // последнее возможное вхождение (включительно)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  entries  PlanEntry[]
+
+  @@index([userId])
+}
+
+/// Разовая тренировка или исключение из серии (перенос / отмена одной даты).
+model PlanEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  seriesId     String?
+  originalDate String? // дата вхождения серии, которое заменяет запись
+  templateId   String?
+  title        String
+  date         String
+  time         String
+  durationMin  Int      @default(60)
+  cancelled    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series   PlanSeries?      @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([seriesId, originalDate])
+  @@index([userId, date])
+}
+
+/// Напоминание «Сегодня по плану» по вхождению отправлено (одно на вхождение).
+model PlanReminder {
+  id      String   @id @default(cuid())
+  userId  String
+  planKey String
+  sentAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, planKey])
 }

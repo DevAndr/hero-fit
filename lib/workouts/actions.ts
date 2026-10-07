@@ -6,6 +6,7 @@ import { WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
+import { getOccurrence } from "@/lib/plans/queries";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
@@ -16,8 +17,40 @@ type PlannedExercise = { exerciseId: string; restSec: number; sets: { weight: nu
 
 // ───────────────────────────── Старт ─────────────────────────────
 
+/** Упражнения из шаблона (свой или встроенный); вес — из прошлой тренировки. */
+async function fromTemplate(userId: string, id: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
+  const template = await db.workoutTemplate.findFirst({
+    where: { id, OR: [{ userId }, { userId: null }] },
+    include: {
+      exercises: {
+        orderBy: { order: "asc" },
+        where: { exercise: { archivedAt: null } },
+        include: { exercise: { select: { defaultRestSec: true } } },
+      },
+    },
+  });
+  if (!template) return null;
+  const last = await getLastPerformance(userId, template.exercises.map((e) => e.exerciseId));
+  return {
+    name: template.name,
+    templateId: template.id,
+    planned: template.exercises.map((te) => {
+      // Вес подставляем из прошлой тренировки — пользователю остаётся только подтвердить.
+      const lastSets = last[te.exerciseId]?.sets ?? [];
+      return {
+        exerciseId: te.exerciseId,
+        restSec: te.restSec ?? te.exercise.defaultRestSec,
+        sets: Array.from({ length: te.targetSets }, (_, i) => ({
+          weight: lastSets[i]?.weight ?? lastSets.at(-1)?.weight ?? te.targetWeight ?? 0,
+          reps: te.targetReps ?? lastSets[i]?.reps ?? 0,
+        })),
+      };
+    }),
+  };
+}
+
 /**
- * source: "empty" | "template:<id>" | "repeat:<workoutId>".
+ * source: "empty" | "template:<id>" | "repeat:<workoutId>" | "plan:<ключ вхождения календаря>".
  * Создаёт тренировку в статусе PLANNED — её можно дособрать перед стартом.
  */
 export async function createWorkoutAction(formData: FormData) {
@@ -34,33 +67,21 @@ export async function createWorkoutAction(formData: FormData) {
   let templateId: string | undefined;
   let planned: PlannedExercise[] = [];
 
+  let planKey: string | undefined;
+
   if (kind === "template" && id) {
-    const template = await db.workoutTemplate.findFirst({
-      where: { id, OR: [{ userId: user.id }, { userId: null }] },
-      include: {
-        exercises: {
-          orderBy: { order: "asc" },
-          where: { exercise: { archivedAt: null } },
-          include: { exercise: { select: { defaultRestSec: true } } },
-        },
-      },
-    });
-    if (template) {
-      name = template.name;
-      templateId = template.id;
-      const last = await getLastPerformance(user.id, template.exercises.map((e) => e.exerciseId));
-      planned = template.exercises.map((te) => {
-        // Вес подставляем из прошлой тренировки — пользователю остаётся только подтвердить.
-        const lastSets = last[te.exerciseId]?.sets ?? [];
-        return {
-          exerciseId: te.exerciseId,
-          restSec: te.restSec ?? te.exercise.defaultRestSec,
-          sets: Array.from({ length: te.targetSets }, (_, i) => ({
-            weight: lastSets[i]?.weight ?? lastSets.at(-1)?.weight ?? te.targetWeight ?? 0,
-            reps: te.targetReps ?? lastSets[i]?.reps ?? 0,
-          })),
-        };
-      });
+    const fromTpl = await fromTemplate(user.id, id);
+    if (fromTpl) ({ name, templateId, planned } = fromTpl);
+  } else if (kind === "plan") {
+    // Ключ вхождения сам содержит «:» — берём всё после «plan:»
+    const key = source.slice("plan:".length);
+    const found = await getOccurrence(user.id, key);
+    if (found) {
+      planKey = key;
+      name = found.occurrence.title;
+      // Шаблон удалён или недоступен — пустая тренировка с названием плана
+      const fromTpl = found.occurrence.templateId ? await fromTemplate(user.id, found.occurrence.templateId) : null;
+      if (fromTpl) ({ templateId, planned } = fromTpl);
     }
   } else if (kind === "repeat" && id) {
     const previous = await db.workout.findFirst({
@@ -89,6 +110,7 @@ export async function createWorkoutAction(formData: FormData) {
       userId: user.id,
       name,
       templateId,
+      planKey,
       status: WorkoutStatus.PLANNED,
       exercises: {
         create: planned.map((e, order) => ({

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Flame, Info, Timer, Trophy, Users, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Flame, Info, Timer, Trophy, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; color: string }> = {
   ACHIEVEMENT: { icon: Trophy, color: "text-xp" },
   SYSTEM: { icon: Info, color: "text-muted-foreground" },
   SOCIAL: { icon: Users, color: "text-chart-2" },
+  PLAN: { icon: CalendarDays, color: "text-primary" },
 };
 
 const relative = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
