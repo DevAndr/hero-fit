@@ -8,7 +8,6 @@ import {
   LATE_HOUR,
   LIFTS,
   WEEK_MIN_WORKOUTS,
-  weeklyRuns,
   type AchievementDef,
   type AchievementStats,
   type ExerciseStats,
@@ -19,6 +18,7 @@ import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { MAX_REWARD_FREEZES } from "@/lib/progress/streak";
+import { weeklyRuns } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
 

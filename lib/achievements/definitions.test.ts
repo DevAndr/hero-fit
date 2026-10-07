@@ -5,7 +5,6 @@ import {
   nextGoals,
   STREAK_THRESHOLDS,
   thresholdsUpTo,
-  weeklyRuns,
   type AchievementStats,
 } from "./definitions";
 
@@ -23,15 +22,6 @@ describe("thresholdsUpTo", () => {
 
   it("without a step — only the fixed thresholds", () => {
     expect(thresholdsUpTo([10, 25], undefined, 1000)).toEqual([10, 25]);
-  });
-});
-
-describe("weeklyRuns", () => {
-  it("longest run of consecutive weeks and the run alive now", () => {
-    const weeks = ["2026-08-03", "2026-08-10", "2026-08-17", "2026-09-07", "2026-09-14", "2026-09-28"];
-    expect(weeklyRuns(weeks, "2026-10-05")).toEqual({ best: 3, current: 1 }); // прошлая неделя ещё считается
-    expect(weeklyRuns(weeks, "2026-10-12")).toEqual({ best: 3, current: 0 });
-    expect(weeklyRuns([], "2026-10-05")).toEqual({ best: 0, current: 0 });
   });
 });
 

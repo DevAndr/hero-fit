@@ -1,5 +1,6 @@
 import type { AchievementCategory, MuscleGroup } from "@/generated/prisma/enums";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
+import { plural } from "@/lib/format";
 
 /**
  * Ачивки генерируются динамически из статистики пользователя: никакого справочника в БД —
@@ -165,13 +166,6 @@ const TONNES_TITLES: Record<number, string> = {
 };
 const WORKOUT_TONNES_TITLES: Record<number, string> = { 5: "Тяжёлый день", 10: "Грузчик", 20: "Подъёмный кран" };
 
-const plural = (n: number, one: string, few: string, many: string) => {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
-};
 const days = (n: number) => `${n} ${plural(n, "день", "дня", "дней")}`;
 const workouts = (n: number) => `${n} ${plural(n, "тренировка", "тренировки", "тренировок")}`;
 const number = (n: number) => n.toLocaleString("ru-RU");
@@ -194,25 +188,6 @@ function nextThreshold(fixed: number[], step: number | undefined, value: number)
   return last + (Math.floor((value + EPS - last) / step) + 1) * step;
 }
 
-/**
- * Серия недель подряд, в каждой из которых 3+ тренировки. `weeks` — понедельники таких недель
- * («YYYY-MM-DD»), `currentWeek` — понедельник текущей. Текущая серия жива, пока она доходит
- * до текущей или прошлой недели (текущая ещё не закончилась).
- */
-export function weeklyRuns(weeks: string[], currentWeek: string): { best: number; current: number } {
-  const WEEK_MS = 7 * 24 * 3600 * 1000;
-  const index = (key: string) => Math.round(Date.parse(`${key}T00:00:00Z`) / WEEK_MS);
-  const sorted = [...new Set(weeks.map(index))].sort((a, b) => a - b);
-  let best = 0;
-  let run = 0;
-  for (const [i, w] of sorted.entries()) {
-    run = i > 0 && w === sorted[i - 1] + 1 ? run + 1 : 1;
-    best = Math.max(best, run);
-  }
-  const last = sorted.at(-1);
-  const now = index(currentWeek);
-  return { best, current: last !== undefined && now - last <= 1 ? run : 0 };
-}
 
 // ───────────────────────────── Лестницы порогов ─────────────────────────────
 
