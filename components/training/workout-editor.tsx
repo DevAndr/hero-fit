@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useReducer, useState, useTransition } from "react";
 import { CircleAlert, CloudCheck, EllipsisVertical, Flag, Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ExerciseBlock } from "@/components/training/exercise-block";
+import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import { ExercisePicker } from "@/components/training/exercise-picker";
 import {
   NotificationToggle,
@@ -32,6 +33,7 @@ import {
 } from "@/components/training/rest-timer";
 import { formatClock } from "@/lib/format";
 import { useAutosave, type SaveStatus } from "@/components/training/use-autosave";
+import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
 import { initState, reducer, toDraft, type ExerciseState, type SetState } from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { cancelWorkoutAction, finishWorkoutAction, startWorkoutAction } from "@/lib/workouts/actions";
@@ -115,6 +117,22 @@ function Editor({ workout, exercises, last, hints }: Props) {
   const pendingSets = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => !s.completedAt).length, 0);
   const added = useMemo(() => new Set(state.exercises.map((e) => e.exercise.id)), [state.exercises]);
 
+  const addExercises = (items: ExerciseItem[], index?: number) =>
+    dispatch({
+      type: "addExercises",
+      exercises: items.map((e) => ({
+        exercise: {
+          id: e.id,
+          name: e.name,
+          muscleGroups: e.muscleGroups,
+          isBodyweight: e.isBodyweight,
+        },
+        restSec: e.defaultRestSec,
+      })),
+      last,
+      index,
+    });
+
   const start = async () => {
     await settle();
     const result = await startWorkoutAction(workout.id);
@@ -149,129 +167,154 @@ function Editor({ workout, exercises, last, hints }: Props) {
     });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div className="rounded-xl border bg-card p-4">
-        <div className="flex items-start gap-2">
-          <Input
-            value={state.name}
-            onChange={(e) => dispatch({ type: "rename", name: e.target.value })}
-            aria-label="Название тренировки"
-            className="h-auto border-none bg-transparent px-0 text-xl font-black shadow-none focus-visible:ring-0 dark:bg-transparent"
-            maxLength={80}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Действия с тренировкой" />}>
-              <EllipsisVertical />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem variant="destructive" onClick={() => setCancelOpen(true)}>
-                <Trash2 />
-                Отменить тренировку
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <WorkoutDnd
+      exercises={state.exercises}
+      onReorder={(key, toIndex) => dispatch({ type: "reorderExercise", key, toIndex })}
+      onDropFromCatalog={(exercise, index) => addExercises([exercise], index)}
+    >
+      {(dropIndex) => (
+        // На ПК справа — каталог упражнений; на мобильных — диалог «Добавить упражнение»
+        <div className="mx-auto max-w-2xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6">
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-start gap-2">
+                <Input
+                  value={state.name}
+                  onChange={(e) => dispatch({ type: "rename", name: e.target.value })}
+                  aria-label="Название тренировки"
+                  className="h-auto border-none bg-transparent px-0 text-xl font-black shadow-none focus-visible:ring-0 dark:bg-transparent"
+                  maxLength={80}
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="ghost" size="icon-sm" aria-label="Действия с тренировкой" />}
+                  >
+                    <EllipsisVertical />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem variant="destructive" onClick={() => setCancelOpen(true)}>
+                      <Trash2 />
+                      Отменить тренировку
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                {state.status === "IN_PROGRESS" && state.startedAt ? (
+                  <Elapsed since={state.startedAt} />
+                ) : (
+                  <span className="text-sm text-muted-foreground">Соберите тренировку и нажмите «Начать»</span>
+                )}
+                <SaveIndicator status={status} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
+                <span>
+                  Подходы: <b className="text-foreground">{totals.sets}</b>
+                </span>
+                <span>
+                  Повторы: <b className="text-foreground">{totals.reps}</b>
+                </span>
+                <span>
+                  Объём: <b className="text-foreground">{totals.volume.toLocaleString("ru-RU")} кг</b>
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {state.status === "PLANNED" ? (
+                  <Button
+                    size="lg"
+                    disabled={state.exercises.length === 0 || pending}
+                    onClick={() => startTransition(async () => void (await start()))}
+                  >
+                    <Play />
+                    Начать
+                  </Button>
+                ) : null}
+                <NotificationToggle />
+              </div>
+            </div>
+
+            <ExerciseDropList empty={state.exercises.length === 0}>
+              {state.exercises.map((item, index) => (
+                <Fragment key={item.key}>
+                  {dropIndex === index ? <DropIndicator /> : null}
+                  <SortableItem id={item.key} label={item.exercise.name}>
+                    {(handle) => (
+                      <ExerciseBlock
+                        item={item}
+                        index={index}
+                        total={state.exercises.length}
+                        last={last[item.exercise.id]}
+                        hint={hints[item.exercise.id]}
+                        dispatch={dispatch}
+                        onComplete={onComplete}
+                        handle={handle}
+                      />
+                    )}
+                  </SortableItem>
+                </Fragment>
+              ))}
+              {dropIndex !== null && dropIndex === state.exercises.length && state.exercises.length > 0 ? (
+                <DropIndicator />
+              ) : null}
+            </ExerciseDropList>
+
+            <ExercisePicker
+              exercises={exercises}
+              alreadyAdded={added}
+              onAdd={(items) => addExercises(items)}
+              className="lg:hidden"
+            />
+
+            {state.status === "IN_PROGRESS" ? (
+              <Button size="lg" className="w-full" onClick={() => setFinishOpen(true)} disabled={pending}>
+                <Flag />
+                Завершить тренировку
+              </Button>
+            ) : null}
+
+            <AlertDialog open={finishOpen} onOpenChange={setFinishOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Завершить тренировку?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Выполнено подходов: {totals.sets}, объём {totals.volume.toLocaleString("ru-RU")} кг.
+                    {pendingSets > 0 ? ` Неотмеченные подходы (${pendingSets}) не попадут в историю.` : ""}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={pending}>Продолжить</AlertDialogCancel>
+                  <AlertDialogAction onClick={finish} disabled={pending}>
+                    {pending ? <Loader2 className="animate-spin" /> : null}
+                    Завершить
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Отменить тренировку?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Все введённые подходы будут удалены, XP не начислится.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={pending}>Назад</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={cancel} disabled={pending}>
+                    Отменить тренировку
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+          <ExerciseCatalog exercises={exercises} alreadyAdded={added} onAdd={(e) => addExercises([e])} />
         </div>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          {state.status === "IN_PROGRESS" && state.startedAt ? (
-            <Elapsed since={state.startedAt} />
-          ) : (
-            <span className="text-sm text-muted-foreground">Соберите тренировку и нажмите «Начать»</span>
-          )}
-          <SaveIndicator status={status} />
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
-          <span>
-            Подходы: <b className="text-foreground">{totals.sets}</b>
-          </span>
-          <span>
-            Повторы: <b className="text-foreground">{totals.reps}</b>
-          </span>
-          <span>
-            Объём: <b className="text-foreground">{totals.volume.toLocaleString("ru-RU")} кг</b>
-          </span>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {state.status === "PLANNED" ? (
-            <Button size="lg" disabled={state.exercises.length === 0 || pending} onClick={() => startTransition(async () => void (await start()))}>
-              <Play />
-              Начать
-            </Button>
-          ) : null}
-          <NotificationToggle />
-        </div>
-      </div>
-
-      {state.exercises.map((item, index) => (
-        <ExerciseBlock
-          key={item.key}
-          item={item}
-          index={index}
-          total={state.exercises.length}
-          last={last[item.exercise.id]}
-          hint={hints[item.exercise.id]}
-          dispatch={dispatch}
-          onComplete={onComplete}
-        />
-      ))}
-
-      <ExercisePicker
-        exercises={exercises}
-        alreadyAdded={added}
-        onAdd={(items) =>
-          dispatch({
-            type: "addExercises",
-            exercises: items.map((e) => ({
-              exercise: { id: e.id, name: e.name, muscleGroups: e.muscleGroups, isBodyweight: e.isBodyweight },
-              restSec: e.defaultRestSec,
-            })),
-            last,
-          })
-        }
-      />
-
-      {state.status === "IN_PROGRESS" ? (
-        <Button size="lg" className="w-full" onClick={() => setFinishOpen(true)} disabled={pending}>
-          <Flag />
-          Завершить тренировку
-        </Button>
-      ) : null}
-
-      <AlertDialog open={finishOpen} onOpenChange={setFinishOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Завершить тренировку?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Выполнено подходов: {totals.sets}, объём {totals.volume.toLocaleString("ru-RU")} кг.
-              {pendingSets > 0 ? ` Неотмеченные подходы (${pendingSets}) не попадут в историю.` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>Продолжить</AlertDialogCancel>
-            <AlertDialogAction onClick={finish} disabled={pending}>
-              {pending ? <Loader2 className="animate-spin" /> : null}
-              Завершить
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Отменить тренировку?</AlertDialogTitle>
-            <AlertDialogDescription>Все введённые подходы будут удалены, XP не начислится.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>Назад</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={cancel} disabled={pending}>
-              Отменить тренировку
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+      )}
+    </WorkoutDnd>
   );
 }

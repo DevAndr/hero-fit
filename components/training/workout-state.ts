@@ -54,9 +54,16 @@ export function toDraft(state: WorkoutState): WorkoutDraft {
 export type Action =
   | { type: "rename"; name: string }
   | { type: "started"; startedAt: string }
-  | { type: "addExercises"; exercises: { exercise: ExerciseInfo; restSec: number }[]; last: LastPerformance }
+  | {
+      type: "addExercises";
+      exercises: { exercise: ExerciseInfo; restSec: number }[];
+      last: LastPerformance;
+      /** Куда вставить (перетаскивание из каталога); без него — в конец. */
+      index?: number;
+    }
   | { type: "removeExercise"; key: string }
   | { type: "moveExercise"; key: string; delta: -1 | 1 }
+  | { type: "reorderExercise"; key: string; toIndex: number }
   | { type: "setRest"; key: string; restSec: number }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
@@ -77,30 +84,27 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     case "started":
       return { ...state, status: "IN_PROGRESS", startedAt: action.startedAt };
 
-    case "addExercises":
-      return {
-        ...state,
-        exercises: [
-          ...state.exercises,
-          ...action.exercises.map(({ exercise, restSec }) => {
-            // Подходы заполняем по прошлой тренировке — «как в прошлый раз».
-            const previous = action.last[exercise.id]?.sets ?? [];
-            const template = previous.length ? previous : Array.from({ length: DEFAULT_SETS }, () => ({ weight: 0, reps: 0 }));
-            return {
-              key: key(),
-              exercise,
-              restSec,
-              sets: template.map((s) => ({
-                key: key(),
-                weight: fmt(s.weight),
-                reps: fmt(s.reps),
-                isWarmup: false,
-                completedAt: null,
-              })),
-            };
-          }),
-        ],
-      };
+    case "addExercises": {
+      const added = action.exercises.map(({ exercise, restSec }) => {
+        // Подходы заполняем по прошлой тренировке — «как в прошлый раз».
+        const previous = action.last[exercise.id]?.sets ?? [];
+        const template = previous.length ? previous : Array.from({ length: DEFAULT_SETS }, () => ({ weight: 0, reps: 0 }));
+        return {
+          key: key(),
+          exercise,
+          restSec,
+          sets: template.map((s) => ({
+            key: key(),
+            weight: fmt(s.weight),
+            reps: fmt(s.reps),
+            isWarmup: false,
+            completedAt: null,
+          })),
+        };
+      });
+      const at = Math.min(Math.max(action.index ?? state.exercises.length, 0), state.exercises.length);
+      return { ...state, exercises: [...state.exercises.slice(0, at), ...added, ...state.exercises.slice(at)] };
+    }
 
     case "removeExercise":
       return { ...state, exercises: state.exercises.filter((e) => e.key !== action.key) };
@@ -111,6 +115,15 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       if (from < 0 || to < 0 || to >= state.exercises.length) return state;
       const exercises = [...state.exercises];
       [exercises[from], exercises[to]] = [exercises[to], exercises[from]];
+      return { ...state, exercises };
+    }
+
+    case "reorderExercise": {
+      const from = state.exercises.findIndex((e) => e.key === action.key);
+      const to = action.toIndex;
+      if (from < 0 || from === to || to < 0 || to >= state.exercises.length) return state;
+      const exercises = [...state.exercises];
+      exercises.splice(to, 0, ...exercises.splice(from, 1));
       return { ...state, exercises };
     }
 

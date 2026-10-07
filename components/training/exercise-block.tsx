@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Check, EllipsisVertical, Minus, Plus, Timer, Trash2, X } from "lucide-react";
-import type { Dispatch } from "react";
+import type { Dispatch, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ export function ExerciseBlock({
   hint,
   dispatch,
   onComplete,
+  handle,
 }: {
   item: ExerciseState;
   index: number;
@@ -38,6 +39,8 @@ export function ExerciseBlock({
   dispatch: Dispatch<Action>;
   /** Вызывается, когда подход отмечен выполненным (запуск таймера отдыха). */
   onComplete: (item: ExerciseState, set: SetState) => void;
+  /** Ручка перетаскивания (на ПК). */
+  handle?: ReactNode;
 }) {
   const { exercise } = item;
   const doneCount = item.sets.filter((s) => s.completedAt).length;
@@ -45,6 +48,7 @@ export function ExerciseBlock({
   return (
     <section className="rounded-xl border bg-card" aria-label={exercise.name}>
       <header className="flex items-start gap-2 p-4 pb-2">
+        {handle}
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold">{exercise.name}</h3>
           <p className="text-xs text-muted-foreground">

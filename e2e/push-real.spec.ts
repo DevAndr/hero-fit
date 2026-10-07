@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, expect, test, type Page } from "@playwright/test";
 import { userId, withDb } from "./db";
-import { registerUser } from "./helpers";
+import { addToWorkout, registerUser } from "./helpers";
 
 /**
  * Настоящий push через FCM: подписка в браузере → сервер → Google → service worker → уведомление.
@@ -46,10 +46,7 @@ test("real push loop: subscribe, test push shown by SW, rest push scheduled/canc
     // Таймер отдыха планирует push на момент окончания и отменяет его по «Пропустить»
     await page.goto("/training");
     await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-    await page.getByRole("button", { name: "Добавить упражнение" }).click();
-    await page.getByLabel("Поиск упражнения").fill("Шраги");
-    await page.getByRole("dialog").getByRole("button", { name: /^Шраги со штангой/ }).click();
-    await page.getByRole("button", { name: /^Добавить \(/ }).click();
+    await addToWorkout(page, ["Шраги со штангой"]);
     const block = page.getByRole("region", { name: "Шраги со штангой" });
     await block.getByLabel("Повторы, подход 1").fill("10");
     await block.getByRole("button", { name: "Подход 1 выполнен" }).click();

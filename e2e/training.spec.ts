@@ -1,18 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { registerUser } from "./helpers";
+import { addToWorkout, registerUser } from "./helpers";
 
 const exerciseBlock = (page: Page, name: string) => page.getByRole("region", { name });
-
-async function addExercises(page: Page, names: string[]) {
-  await page.getByRole("button", { name: "Добавить упражнение" }).click();
-  const dialog = page.getByRole("dialog");
-  for (const name of names) {
-    await dialog.getByLabel("Поиск упражнения").fill(name);
-    await dialog.getByRole("button", { name: new RegExp(`^${name}`) }).click();
-  }
-  await dialog.getByRole("button", { name: /^Добавить \(/ }).click();
-  await expect(dialog).toBeHidden();
-}
 
 async function fillSet(page: Page, exercise: string, index: number, weight: string, reps: string) {
   const block = exerciseBlock(page, exercise);
@@ -38,7 +27,7 @@ test("full workout: build, sets, rest timer, autosave, finish → summary with X
   await expect(page.getByLabel("Название тренировки")).toHaveValue("Тренировка");
   await page.getByLabel("Название тренировки").fill("Грудь и спина");
 
-  await addExercises(page, ["Жим штанги лёжа", "Подтягивания"]);
+  await addToWorkout(page, ["Жим штанги лёжа", "Подтягивания"]);
   const bench = exerciseBlock(page, "Жим штанги лёжа");
   await expect(bench.getByTestId("set-row")).toHaveCount(3);
 
@@ -90,7 +79,7 @@ test("full workout: build, sets, rest timer, autosave, finish → summary with X
 
 test("repeat last workout prefills sets; beating it gives a PR", async ({ page }) => {
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-  await addExercises(page, ["Приседания со штангой"]);
+  await addToWorkout(page, ["Приседания со штангой"]);
   await fillSet(page, "Приседания со штангой", 1, "100", "5");
   await completeSet(page, "Приседания со штангой", 1);
   await finish(page);
@@ -129,7 +118,7 @@ test("start from a program template, then cancel", async ({ page }) => {
 
 test("cannot finish without completed sets; save finished workout as template", async ({ page }) => {
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-  await addExercises(page, ["Шраги со штангой"]);
+  await addToWorkout(page, ["Шраги со штангой"]);
   await page.getByRole("button", { name: "Начать", exact: true }).click();
   await finish(page);
   await expect(page.getByText("Отметьте хотя бы один выполненный подход")).toBeVisible();

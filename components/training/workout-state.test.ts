@@ -60,6 +60,37 @@ describe("workout reducer", () => {
     s = reducer(s, { type: "setRest", key: a.key, restSec: 9999 });
     expect(s.exercises[1].restSec).toBe(600);
   });
+
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const ids = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
+  const three = () =>
+    reducer(empty(), {
+      type: "addExercises",
+      exercises: [bench, pullup, squat].map((exercise) => ({ exercise, restSec: 90 })),
+      last: {},
+    });
+
+  it("inserts dropped exercises at the given index (clamped), appends without it", () => {
+    const deadlift = { id: "deadlift", name: "Становая", muscleGroups: ["BACK" as const], isBodyweight: false };
+    const add = (index?: number) =>
+      reducer(three(), { type: "addExercises", exercises: [{ exercise: deadlift, restSec: 180 }], last: {}, index });
+    expect(ids(add(0))).toEqual(["deadlift", "bench", "pullup", "squat"]);
+    expect(ids(add(2))).toEqual(["bench", "pullup", "deadlift", "squat"]);
+    expect(ids(add(99))).toEqual(["bench", "pullup", "squat", "deadlift"]);
+    expect(ids(add(-5))).toEqual(["deadlift", "bench", "pullup", "squat"]);
+    expect(ids(add())).toEqual(["bench", "pullup", "squat", "deadlift"]);
+  });
+
+  it("reorders an exercise to a target index", () => {
+    const s = three();
+    const [a, , c] = s.exercises;
+    expect(ids(reducer(s, { type: "reorderExercise", key: c.key, toIndex: 0 }))).toEqual(["squat", "bench", "pullup"]);
+    expect(ids(reducer(s, { type: "reorderExercise", key: a.key, toIndex: 2 }))).toEqual(["pullup", "squat", "bench"]);
+    // Та же позиция, неизвестный ключ, выход за границы — состояние не меняется
+    expect(reducer(s, { type: "reorderExercise", key: a.key, toIndex: 0 })).toBe(s);
+    expect(reducer(s, { type: "reorderExercise", key: "nope", toIndex: 1 })).toBe(s);
+    expect(reducer(s, { type: "reorderExercise", key: a.key, toIndex: 3 })).toBe(s);
+  });
 });
 
 describe("toDraft", () => {

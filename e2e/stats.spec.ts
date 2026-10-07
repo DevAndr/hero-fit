@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { seedWorkouts } from "./db";
-import { registerUser } from "./helpers";
+import { addToWorkout, registerUser } from "./helpers";
 
 test("empty stats page still offers the 1RM calculator", async ({ page }) => {
   await registerUser(page);
@@ -27,10 +27,7 @@ test("history → hint in editor, tiles, muscle groups, exercise progress", asyn
   // «Пора увеличить вес» прямо в тренировке
   await page.goto("/training");
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-  await page.getByRole("button", { name: "Добавить упражнение" }).click();
-  await page.getByLabel("Поиск упражнения").fill("Жим штанги лёжа");
-  await page.getByRole("dialog").getByRole("button", { name: /^Жим штанги лёжа/ }).click();
-  await page.getByRole("button", { name: /^Добавить \(/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
   const bench = page.getByRole("region", { name: "Жим штанги лёжа" });
   await expect(bench.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
   await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Plus, Search } from "lucide-react";
+import { useState } from "react";
+import { Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,32 +12,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import type { MuscleGroup } from "@/generated/prisma/enums";
+import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
+import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
 
 export function ExercisePicker({
   exercises,
   alreadyAdded,
   onAdd,
+  className,
 }: {
   exercises: ExerciseItem[];
   alreadyAdded: Set<string>;
   onAdd: (items: ExerciseItem[]) => void;
+  /** Для кнопки-триггера (на ПК её заменяет каталог). */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<MuscleGroup | null>(null);
+  const filter = useExerciseFilter(exercises);
+  const { filtered } = filter;
   const [selected, setSelected] = useState<string[]>([]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return exercises.filter(
-      (e) => (!q || e.name.toLowerCase().includes(q)) && (!group || e.muscleGroups.includes(group)),
-    );
-  }, [exercises, query, group]);
 
   const toggle = (id: string) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -46,8 +41,7 @@ export function ExercisePicker({
     setOpen(next);
     if (!next) {
       setSelected([]);
-      setQuery("");
-      setGroup(null);
+      filter.reset();
     }
   };
 
@@ -61,7 +55,7 @@ export function ExercisePicker({
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="lg" className="w-full border-dashed">
+          <Button variant="outline" size="lg" className={cn("w-full border-dashed", className)}>
             <Plus />
             Добавить упражнение
           </Button>
@@ -73,32 +67,7 @@ export function ExercisePicker({
           <DialogDescription>Выберите одно или несколько — порядок выбора сохранится.</DialogDescription>
         </DialogHeader>
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск"
-            className="pl-8"
-            aria-label="Поиск упражнения"
-          />
-        </div>
-        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
-          {[null, ...MUSCLE_GROUPS].map((g) => (
-            <button
-              key={g ?? "all"}
-              type="button"
-              onClick={() => setGroup(g)}
-              aria-pressed={g === group}
-              className={cn(
-                "shrink-0 rounded-full border px-2.5 py-0.5 text-xs",
-                g === group ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
-              )}
-            >
-              {g ? MUSCLE_GROUP_LABELS[g] : "Все"}
-            </button>
-          ))}
-        </div>
+        <ExerciseFilterControls filter={filter} className="-mx-4 px-4" />
 
         <ul className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4" aria-label="Список упражнений">
           {filtered.map((e) => {

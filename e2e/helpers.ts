@@ -22,15 +22,34 @@ export async function registerUser(page: Page, name = "Герой") {
   return { login, email: `${login}@test.local` };
 }
 
+/** Добавить упражнения в редактор тренировки: на ПК — «+» в каталоге справа, на мобильных — через диалог. */
+export async function addToWorkout(page: Page, names: string[]) {
+  // Каталог показывается с брейкпоинта lg (1024px) — решаем по ширине окна, а не по isVisible (редактор мог ещё не отрисоваться)
+  if ((page.viewportSize()?.width ?? 0) >= 1024) {
+    const catalog = page.getByRole("complementary", { name: "Каталог упражнений" });
+    for (const name of names) {
+      await catalog.getByLabel("Поиск упражнения").fill(name);
+      await catalog.getByRole("button", { name: `Добавить «${name}»` }).click();
+      await expect(page.getByRole("region", { name }).first()).toBeVisible();
+    }
+    await catalog.getByLabel("Поиск упражнения").fill("");
+    return;
+  }
+  await page.getByRole("button", { name: "Добавить упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  for (const name of names) {
+    await dialog.getByLabel("Поиск упражнения").fill(name);
+    await dialog.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  }
+  await dialog.getByRole("button", { name: /^Добавить \(/ }).click();
+  await expect(dialog).toBeHidden();
+}
+
 /** Пустая тренировка с одним упражнением: заполнить и отметить подходы, завершить → сводка. */
 export async function quickWorkout(page: Page, exercise: string, sets: { weight: string; reps: string }[]) {
   await page.goto("/training");
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();
-  await page.getByRole("button", { name: "Добавить упражнение" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Поиск упражнения").fill(exercise);
-  await dialog.getByRole("button", { name: new RegExp(`^${exercise}`) }).click();
-  await dialog.getByRole("button", { name: /^Добавить \(/ }).click();
+  await addToWorkout(page, [exercise]);
 
   const block = page.getByRole("region", { name: exercise });
   for (let i = 3; i < sets.length; i++) await block.getByRole("button", { name: "Подход", exact: true }).click();

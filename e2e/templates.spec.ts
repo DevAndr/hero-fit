@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { registerUser } from "./helpers";
+import { addToWorkout, registerUser } from "./helpers";
 
 const card = (page: Page, name: string) => page.getByRole("article", { name, exact: true });
 
@@ -80,7 +80,7 @@ test("exercises added during a workout can be saved back into the template", asy
   await page.getByRole("button", { name: "Сохранить шаблон" }).click();
   await card(page, "Мой 5×5").getByRole("button", { name: "Начать «Мой 5×5»" }).click();
 
-  await pick(page, ["Шраги со штангой"]);
+  await addToWorkout(page, ["Шраги со штангой"]);
   const squat = page.getByRole("region", { name: "Приседания со штангой" });
   await squat.getByLabel("Вес, подход 1").fill("100");
   await squat.getByRole("button", { name: "Подход 1 выполнен" }).click();
