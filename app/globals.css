@@ -51,6 +51,9 @@
 }
 
 :root {
+  /* Сила свечения карточек card-glow (эксперимент) — на светлом фоне тише */
+  --glow-primary: 10%;
+  --glow-accent: 8%;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -94,6 +97,8 @@
 }
 
 .dark {
+  --glow-primary: 16%;
+  --glow-accent: 12%;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -131,6 +136,16 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Эксперимент: карточка с мягким свечением фирменных цветов поверх обычного фона карточки.
+   Только токены — работает в обеих темах; убрать = заменить card-glow обратно на bg-card. */
+@utility card-glow {
+  background:
+    radial-gradient(120% 85% at 0% 0%, color-mix(in oklch, var(--primary) var(--glow-primary), transparent), transparent 62%),
+    radial-gradient(95% 75% at 100% 100%, color-mix(in oklch, var(--chart-2) var(--glow-accent), transparent), transparent 68%),
+    var(--card);
+  border-color: color-mix(in oklch, var(--primary) 22%, var(--border));
 }
 
 @layer base {

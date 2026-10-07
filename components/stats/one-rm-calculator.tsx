@@ -17,7 +17,7 @@ export function OneRmCalculator({ initialWeight = "", initialReps = "" }: { init
   const oneRm = r > 0 && r <= 30 ? epley1RM(w, r) : 0;
 
   return (
-    <section aria-label="Калькулятор 1RM" className="rounded-xl border bg-card p-4">
+    <section aria-label="Калькулятор 1RM" className="card-glow rounded-xl border p-4">
       <h2 className="flex items-center gap-2 font-bold">
         <Calculator className="size-4 text-primary" />
         Калькулятор 1RM
