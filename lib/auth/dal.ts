@@ -18,8 +18,10 @@ export type CurrentUser = {
   currentStreak: number;
   loginStreak: number;
   lastLoginDay: Date | null;
-  lastStreakAt: Date | null;
+  lastStreakWeek: string | null;
   streakFreezes: number;
+  weekWorkouts: number;
+  weekWorkoutsKey: string | null;
   bodyWeight: number | null;
   timeZone: string;
 };
@@ -49,8 +51,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           currentStreak: true,
           loginStreak: true,
           lastLoginDay: true,
-          lastStreakAt: true,
+          lastStreakWeek: true,
           streakFreezes: true,
+          weekWorkouts: true,
+          weekWorkoutsKey: true,
           bodyWeight: true,
           timeZone: true,
         },

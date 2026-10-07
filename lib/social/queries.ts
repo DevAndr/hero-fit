@@ -2,7 +2,8 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { FriendshipStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
-import { streakStatus } from "@/lib/progress/streak";
+import { safeTimeZone } from "@/lib/daily-login";
+import { streakStatus, streakValue, type StreakUserFields } from "@/lib/progress/weekly-streak";
 import { decodeCursor, encodeCursor, toFeedEntry, type FeedRow } from "@/lib/social/feed";
 import { generateFriendCode, percentile, rankLeague, type LeagueMember } from "@/lib/social/league";
 
@@ -49,7 +50,7 @@ const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
          (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}) + interval '7 days') AT TIME ZONE ${timeZone} AS end_at
 `;
 
-type LeagueRow = Omit<LeagueMember, "streak"> & { currentStreak: number; lastStreakAt: Date | null; streakFreezes: number };
+type LeagueRow = Omit<LeagueMember, "streak"> & StreakUserFields & { timeZone: string };
 
 /** Лига: я и мои друзья — XP за тренировки и число тренировок за неделю. */
 export async function getLeague(userId: string, timeZone: string, offset: 0 | 1) {
@@ -58,7 +59,7 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
     db.$queryRaw<LeagueRow[]>`
       WITH b AS (${weekBounds(timeZone, offset)})
       SELECT u.id, COALESCE(u.nickname, '') AS nickname, u.level,
-             u."currentStreak", u."lastStreakAt", u."streakFreezes",
+             u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."timeZone",
              COALESCE((
                SELECT SUM(x.amount) FROM "XpEvent" x
                WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
@@ -77,11 +78,13 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
     `,
   ]);
   const now = new Date();
-  const members: LeagueMember[] = rows.map(({ currentStreak, lastStreakAt, streakFreezes, ...m }) => {
-    // Серия «на сейчас»: потерянная не показывается.
-    const status = streakStatus({ currentStreak, lastStreakAt, streakFreezes }, now);
-    return { ...m, streak: status.state === "none" || status.state === "lost" ? 0 : status.streak };
-  });
+  const members: LeagueMember[] = rows.map(
+    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, timeZone: tz, ...m }) => {
+      // Серия «на сейчас» в поясе участника: потерянная не показывается.
+      const user = { currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey };
+      return { ...m, streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
+    },
+  );
   return { weekStart: week.start, members: rankLeague(members, userId), friends: ids.length - 1 };
 }
 

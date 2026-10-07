@@ -107,6 +107,7 @@ test("repeat last workout prefills sets; beating it gives a PR", async ({ page }
 });
 
 test("three workouts in a week extend the weekly streak", async ({ page }) => {
+  test.slow(); // три полные тренировки — под параллельной нагрузкой не укладываются в 30 с
   for (const n of [1, 2, 3]) {
     await page.goto("/training");
     await page.getByRole("button", { name: /Пустая тренировка/ }).click();
@@ -119,6 +120,7 @@ test("three workouts in a week extend the weekly streak", async ({ page }) => {
   }
   await expect(page.getByText("Неделя засчитана — серия 1 неделя!")).toBeVisible();
   await expect(page.getByTestId("streak")).toContainText("1");
+  await expect(page.getByTestId("header-streak")).toHaveText("1");
 });
 
 test("start from a program template, then cancel", async ({ page }) => {

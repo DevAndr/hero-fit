@@ -57,7 +57,15 @@ export async function getDashboard(userId: string, timeZone: string) {
     getAchievementStats(db, userId),
     db.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { currentStreak: true, longestStreak: true, lastStreakAt: true, streakFreezes: true, streakRestoredAt: true },
+      select: {
+        currentStreak: true,
+        longestStreak: true,
+        lastStreakWeek: true,
+        streakFreezes: true,
+        streakRestoredAt: true,
+        weekWorkouts: true,
+        weekWorkoutsKey: true,
+      },
     }),
   ]);
 
