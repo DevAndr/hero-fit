@@ -98,8 +98,9 @@ test("own exercise, body weight and base lifts give achievements outside of a wo
 
   // Вес тела 90 кг → 116,7 / 90 = ×1,3: получена ×1, следующая цель ×1,25
   await page.goto("/settings");
-  await page.getByLabel("Вес тела, кг").fill("90");
-  await page.getByRole("button", { name: "Сохранить" }).click();
+  const bodyWeight = page.getByRole("region", { name: "Вес тела" });
+  await bodyWeight.getByLabel("Вес тела, кг").fill("90");
+  await bodyWeight.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.getByText("🏆 Жим лёжа: ×1 веса тела")).toBeVisible();
   await expect(page.getByText("🏆 Жим лёжа: ×1,25 веса тела")).toBeVisible();
   await page.goto("/achievements");

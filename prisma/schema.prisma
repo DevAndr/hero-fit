@@ -55,6 +55,12 @@ enum NotificationType {
   STREAK // «Не потеряй streak!»
   ACHIEVEMENT
   SYSTEM // тестовые и служебные
+  SOCIAL // друзья: заявки и принятие
+}
+
+enum FriendshipStatus {
+  PENDING // заявка отправлена, ждёт ответа
+  ACCEPTED
 }
 
 enum XpReason {
@@ -77,6 +83,11 @@ model User {
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone     String  @default("UTC")
 
+  // Рейтинг: публичный ник (логин никому не показываем) и личный код для приглашения в друзья.
+  nickname    String?
+  nicknameKey String? @unique // ник в нижнем регистре — уникальность без учёта регистра
+  friendCode  String? @unique
+
   // Прогресс
   xp    Int @default(0) // суммарный XP за всё время; уровень вычисляется из него
   level Int @default(1) // денормализовано для быстрых выборок
@@ -96,6 +107,7 @@ model User {
   notifyRest         Boolean   @default(true)
   notifyStreak       Boolean   @default(true)
   notifyAchievements Boolean   @default(true)
+  notifySocial       Boolean   @default(true)
   /// lastStreakAt, для которого уже отправлено «Не потеряй streak!» (одно напоминание на окно)
   streakReminderFor  DateTime?
 
@@ -113,6 +125,25 @@ model User {
   pushSubscriptions   PushSubscription[]
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
+  friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
+  friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
+}
+
+/// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
+/// Отклонение и удаление — просто удаление строки.
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
 }
 
 /// Сессия = семейство refresh-токенов одного устройства.

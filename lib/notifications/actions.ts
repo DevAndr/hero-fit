@@ -35,7 +35,7 @@ export async function unsubscribePushAction(endpoint: string) {
 }
 
 const settingsSchema = z
-  .object({ notifyRest: z.boolean(), notifyStreak: z.boolean(), notifyAchievements: z.boolean() })
+  .object({ notifyRest: z.boolean(), notifyStreak: z.boolean(), notifyAchievements: z.boolean(), notifySocial: z.boolean() })
   .partial();
 
 export async function updateNotificationSettingsAction(patch: z.input<typeof settingsSchema>) {

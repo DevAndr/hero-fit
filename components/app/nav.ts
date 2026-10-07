@@ -1,4 +1,4 @@
-import { ChartColumn, ClipboardList, Dumbbell, LayoutDashboard, ListChecks, Trophy } from "lucide-react";
+import { ChartColumn, ClipboardList, Dumbbell, LayoutDashboard, ListChecks, Swords, Trophy } from "lucide-react";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Кабинет", icon: LayoutDashboard, mobile: true },
@@ -7,4 +7,5 @@ export const NAV_ITEMS = [
   { href: "/templates", label: "Шаблоны", icon: ClipboardList, mobile: true },
   { href: "/achievements", label: "Ачивки", icon: Trophy, mobile: true },
   { href: "/stats", label: "Статистика", icon: ChartColumn, mobile: false },
+  { href: "/leaderboard", label: "Рейтинг", icon: Swords, mobile: false },
 ] as const;

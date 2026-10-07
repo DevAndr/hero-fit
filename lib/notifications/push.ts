@@ -21,6 +21,7 @@ const TAGS: Record<NotificationType, string> = {
   STREAK: "hero-fit-streak",
   ACHIEVEMENT: "hero-fit-achievement",
   SYSTEM: "hero-fit-system",
+  SOCIAL: "hero-fit-social",
 };
 
 /** Шлёт push на все устройства пользователя; подписки, которых больше нет (404/410), удаляет. */

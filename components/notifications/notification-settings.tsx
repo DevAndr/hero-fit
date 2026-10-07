@@ -9,12 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { usePush } from "@/components/notifications/push-provider";
 import { sendTestPushAction, updateNotificationSettingsAction } from "@/lib/notifications/actions";
 
-type Prefs = { notifyRest: boolean; notifyStreak: boolean; notifyAchievements: boolean };
+type Prefs = { notifyRest: boolean; notifyStreak: boolean; notifyAchievements: boolean; notifySocial: boolean };
 
 const PREFS: { key: keyof Prefs; label: string; description: string }[] = [
   { key: "notifyRest", label: "Таймер отдыха", description: "Сигнал об окончании отдыха, даже при заблокированном экране" },
   { key: "notifyStreak", label: "Не потеряй streak", description: "Напоминание, когда до конца серии остаётся 3 часа" },
   { key: "notifyAchievements", label: "Новые ачивки", description: "Push, когда получена ачивка" },
+  { key: "notifySocial", label: "Друзья", description: "Заявки в друзья и их принятие" },
 ];
 
 /** Почему не удалось подписаться — самые частые причины. */

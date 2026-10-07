@@ -23,6 +23,8 @@ export async function getNotificationSettings(userId: string) {
       notifyRest: true,
       notifyStreak: true,
       notifyAchievements: true,
+      notifySocial: true,
+      nickname: true,
       _count: { select: { pushSubscriptions: true } },
     },
   });
