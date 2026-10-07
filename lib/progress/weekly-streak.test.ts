@@ -159,6 +159,7 @@ const user = (patch: Partial<StreakUserFields & { streakRestoredAt: Date | null 
   streakFreezes: 0,
   weekWorkouts: 0,
   weekWorkoutsKey: null,
+  freezeGrantedAt: new Date("2026-10-01T00:00:00Z"), // плановая заморозка выдана недавно
   streakRestoredAt: null,
   ...patch,
 });
@@ -201,6 +202,14 @@ describe("streakStatus", () => {
       freezesNeeded: 1,
     });
     expect(streakStatus(user({ lastStreakWeek: "2026-09-21", streakFreezes: 0 }), wed, MSK)).toEqual({ state: "lost", streak: 4 });
+  });
+
+  it("a freeze due on the next workout already counts (status does not flip after it is granted)", () => {
+    const due = user({ lastStreakWeek: "2026-09-21", streakFreezes: 0, freezeGrantedAt: new Date("2026-09-01T00:00:00Z") });
+    expect(streakStatus(due, wed, MSK)).toMatchObject({ state: "frozen", freezesNeeded: 1 });
+    expect(streakStatus({ ...due, freezeGrantedAt: null }, wed, MSK)).toMatchObject({ state: "frozen" });
+    expect(streakStatus({ ...due, streakFreezes: 2 }, wed, MSK)).toMatchObject({ state: "frozen" }); // лимит — без выдачи
+    expect(restoreOffer(due, wed, MSK)).toBeNull(); // платить не нужно — спасёт заморозка
   });
 
   it("streakValue — zero for none and lost", () => {

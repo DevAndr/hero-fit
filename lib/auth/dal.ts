@@ -22,6 +22,7 @@ export type CurrentUser = {
   streakFreezes: number;
   weekWorkouts: number;
   weekWorkoutsKey: string | null;
+  freezeGrantedAt: Date | null;
   bodyWeight: number | null;
   timeZone: string;
 };
@@ -55,6 +56,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           streakFreezes: true,
           weekWorkouts: true,
           weekWorkoutsKey: true,
+          freezeGrantedAt: true,
           bodyWeight: true,
           timeZone: true,
         },

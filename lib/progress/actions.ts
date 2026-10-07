@@ -28,6 +28,7 @@ export async function restoreStreakAction(): Promise<{ ok: true; streak: number 
         streakRestoredAt: true,
         weekWorkouts: true,
         weekWorkoutsKey: true,
+        freezeGrantedAt: true,
       },
     });
     const tz = safeTimeZone(u.timeZone);

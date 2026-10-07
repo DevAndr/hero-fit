@@ -88,10 +88,11 @@ export async function processStreakReminders(now = new Date()) {
       streakFreezes: number;
       weekWorkouts: number;
       weekWorkoutsKey: string | null;
+      freezeGrantedAt: Date | null;
       streakReminderDay: string | null;
     }[]
   >`
-    SELECT id, "timeZone", "currentStreak", "lastStreakWeek", "streakFreezes", "weekWorkouts", "weekWorkoutsKey", "streakReminderDay"
+    SELECT id, "timeZone", "currentStreak", "lastStreakWeek", "streakFreezes", "weekWorkouts", "weekWorkoutsKey", "freezeGrantedAt", "streakReminderDay"
     FROM "User"
     WHERE "notifyStreak" AND "currentStreak" > 0 AND "lastStreakWeek" IS NOT NULL
       AND extract(isodow FROM ${now}::timestamptz AT TIME ZONE "timeZone") >= 5

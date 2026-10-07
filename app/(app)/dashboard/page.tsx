@@ -32,7 +32,9 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-const timeFmt = new Intl.DateTimeFormat("ru-RU", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+/** Срок выкупа — в поясе пользователя (четверг 00:00 у него, а не у сервера). */
+const deadlineText = (date: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(date);
 
 function StreakCard({
   status,
@@ -40,17 +42,19 @@ function StreakCard({
   freezes,
   offer,
   levelXp,
+  timeZone,
 }: {
   status: ReturnType<typeof streakStatus>;
   longest: number;
   freezes: number;
   offer: RestoreOffer | null;
   levelXp: number;
+  timeZone: string;
 }) {
   const value = streakValue(status);
   const alive = value > 0;
   const urgent = isStreakUrgent(status);
-  const message = offer ? `Серия сгорела — её можно вернуть до ${timeFmt.format(offer.expiresAt)}` : streakMessage(status);
+  const message = offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, timeZone)}` : streakMessage(status);
   const count = status.state === "done" ? STREAK_WEEK_TARGET : status.state === "pending" || status.state === "frozen" ? status.count : 0;
 
   return (
@@ -138,6 +142,7 @@ export default async function DashboardPage() {
           freezes={data.streak.streakFreezes}
           offer={offer}
           levelXp={level.current}
+          timeZone={streakTz}
         />
 
         <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">

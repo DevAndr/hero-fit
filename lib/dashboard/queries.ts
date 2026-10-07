@@ -65,6 +65,7 @@ export async function getDashboard(userId: string, timeZone: string) {
         streakRestoredAt: true,
         weekWorkouts: true,
         weekWorkoutsKey: true,
+        freezeGrantedAt: true,
       },
     }),
   ]);

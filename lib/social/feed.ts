@@ -21,6 +21,7 @@ export type FeedRow = {
     levelAfter?: number;
     streak?: number;
     streakExtended?: boolean;
+    weekCount?: number;
   } | null;
   kudos: number;
   byMe: boolean;
@@ -55,7 +56,8 @@ const WEIGHT_RECORDS: RecordType[] = ["ONE_RM", "MAX_WEIGHT"];
 
 /** Серия (в неделях) попала на памятный порог (2, 4, 8, 12…) именно этой тренировкой. */
 export function streakMilestone(meta: FeedRow["meta"]) {
-  if (!meta?.streakExtended || !meta.streak) return null;
+  // Без weekCount — старая (дневная) серия: её числа — не недели
+  if (!meta?.streakExtended || !meta.streak || meta.weekCount === undefined) return null;
   const { streak } = meta;
   const last = STREAK_WEEK_THRESHOLDS.at(-1)!;
   return STREAK_WEEK_THRESHOLDS.includes(streak) || (streak > last && (streak - last) % STREAK_WEEK_STEP === 0) ? streak : null;

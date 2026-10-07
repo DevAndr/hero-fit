@@ -31,6 +31,7 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
     levelAfter: 8,
     streak: 4,
     streakExtended: true,
+    weekCount: 3,
   },
   kudos: 0,
   byMe: false,
@@ -73,11 +74,15 @@ describe("toFeedEntry", () => {
 
 describe("streakMilestone", () => {
   it("only when this workout credited a week onto a threshold (in weeks)", () => {
-    expect(streakMilestone({ streak: 4, streakExtended: true })).toBe(4);
-    expect(streakMilestone({ streak: 7, streakExtended: true })).toBeNull();
-    expect(streakMilestone({ streak: 4, streakExtended: false })).toBeNull(); // 4-я тренировка той же недели
-    expect(streakMilestone({ streak: 104, streakExtended: true })).toBe(104);
-    expect(streakMilestone({ streak: 100, streakExtended: true })).toBeNull();
+    expect(streakMilestone({ streak: 4, streakExtended: true, weekCount: 3 })).toBe(4);
+    expect(streakMilestone({ streak: 7, streakExtended: true, weekCount: 3 })).toBeNull();
+    expect(streakMilestone({ streak: 4, streakExtended: false, weekCount: 4 })).toBeNull(); // 4-я тренировка той же недели
+    expect(streakMilestone({ streak: 104, streakExtended: true, weekCount: 3 })).toBe(104);
+    expect(streakMilestone({ streak: 100, streakExtended: true, weekCount: 3 })).toBeNull();
+  });
+
+  it("old day-based meta (no weekCount) is not a weekly milestone", () => {
+    expect(streakMilestone({ streak: 4, streakExtended: true })).toBeNull();
   });
 });
 

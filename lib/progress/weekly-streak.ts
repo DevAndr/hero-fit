@@ -110,15 +110,27 @@ export type WeeklyStreakState = {
 
 export type WeekCredit = WeeklyStreakState & { frozenWeeks: string[]; extended: boolean; reset: boolean };
 
+const freezeDue = (freezeGrantedAt: Date | null, now: Date) =>
+  !freezeGrantedAt || now.getTime() - freezeGrantedAt.getTime() >= FREEZE_GRANT_WEEKS * WEEK_MS;
+const withPlannedFreeze = (freezes: number) => (freezes < MAX_FREEZES ? freezes + 1 : freezes);
+
 /** Плановая заморозка раз в FREEZE_GRANT_WEEKS недель (накопленные за ачивки не урезаем). */
 export function grantFreeze(state: WeeklyStreakState, now: Date): WeeklyStreakState {
-  const { freezeGrantedAt } = state;
-  if (freezeGrantedAt && now.getTime() - freezeGrantedAt.getTime() < FREEZE_GRANT_WEEKS * WEEK_MS) return state;
-  return { ...state, streakFreezes: state.streakFreezes < MAX_FREEZES ? state.streakFreezes + 1 : state.streakFreezes, freezeGrantedAt: now };
+  if (!freezeDue(state.freezeGrantedAt, now)) return state;
+  return { ...state, streakFreezes: withPlannedFreeze(state.streakFreezes), freezeGrantedAt: now };
 }
 
 /**
- * Неделя набрала STREAK_WEEK_TARGET тренировок. Пропущенные недели между последней засчитанной и этой
+ * Заморозки «на сейчас» — вместе с плановой, которую выдаст следующая тренировка: иначе статус
+ * прыгал бы «сгорела» → «спасёт заморозка» после первой же тренировки, а выкуп оказался бы лишним.
+ */
+function availableFreezes(user: { streakFreezes: number; freezeGrantedAt: Date | null }, now: Date) {
+  return freezeDue(user.freezeGrantedAt, now) ? withPlannedFreeze(user.streakFreezes) : user.streakFreezes;
+}
+
+/**
+ * Неделя набрала STREAK_WEEK_TARGET тренировок (заморозки — уже с плановой: вызывать после grantFreeze).
+ * Покрытые недели не передаём: заморозки пишутся здесь же, а выкуп сдвигает lastStreakWeek. Пропущенные недели между последней засчитанной и этой
  * закрываем заморозками; не хватает — серия начинается заново. Неделя не позже последней засчитанной — без изменений.
  */
 export function applyWeekCredit(state: WeeklyStreakState, week: string): WeekCredit {
@@ -147,6 +159,7 @@ export type StreakUserFields = {
   streakFreezes: number;
   weekWorkouts: number;
   weekWorkoutsKey: string | null;
+  freezeGrantedAt: Date | null;
 };
 
 type WeekProgress = { streak: number; count: number; needed: number; daysLeft: number };
@@ -168,7 +181,7 @@ export function streakStatus(user: StreakUserFields, now: Date, tz: string): Str
   const count = user.weekWorkoutsKey === current ? user.weekWorkouts : 0;
   const progress = { streak, count, needed: Math.max(0, STREAK_WEEK_TARGET - count), daysLeft: daysLeftInWeek(now, tz) };
   if (missed === 0) return { state: "pending", ...progress };
-  if (missed <= user.streakFreezes) return { state: "frozen", freezesNeeded: missed, ...progress };
+  if (missed <= availableFreezes(user, now)) return { state: "frozen", freezesNeeded: missed, ...progress };
   return { state: "lost", streak };
 }
 
@@ -197,7 +210,7 @@ export function restoreOffer(
 ): RestoreOffer | null {
   if (!user.lastStreakWeek || user.currentStreak < MIN_RESTORE_STREAK) return null;
   if (streakStatus(user, now, tz).state !== "lost") return null;
-  const lostWeek = addWeeks(user.lastStreakWeek, user.streakFreezes + 2);
+  const lostWeek = addWeeks(user.lastStreakWeek, availableFreezes(user, now) + 2);
   if (weekKey(now, tz) !== lostWeek) return null;
   if (user.streakRestoredAt && weekKey(user.streakRestoredAt, tz) > user.lastStreakWeek) return null;
   const expiresAt = localMidnight(addDays(lostWeek, RESTORE_WINDOW_DAYS), tz);

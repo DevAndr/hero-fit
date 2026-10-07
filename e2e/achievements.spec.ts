@@ -89,6 +89,7 @@ test("5th workout, weight progress and streak achievements are generated from hi
 });
 
 test("own exercise, body weight and base lifts give achievements outside of a workout", async ({ page }) => {
+  test.slow(); // много шагов с пересчётом ачивок — под полной параллельной нагрузкой на грани 30 с
   await registerUser(page);
 
   // «Изобретатель» — сразу после создания своего упражнения

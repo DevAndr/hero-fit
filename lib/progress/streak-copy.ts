@@ -37,3 +37,25 @@ export function streakHint(status: StreakStatus): string {
   }
   return `Streak — недели подряд с ${STREAK_WEEK_TARGET}+ тренировками`;
 }
+
+type WorkoutStreakMeta = {
+  streak: number;
+  streakExtended: boolean;
+  streakReset: boolean;
+  usedFreezes: number;
+  /** Есть только у недельного streak — у старых (дневных) сводок его нет. */
+  weekCount?: number;
+};
+
+/** Подпись под серией в сводке тренировки. Старые дневные сводки — без подписи (их «серия» — в днях). */
+export function workoutStreakCaption(meta: WorkoutStreakMeta | undefined): string {
+  if (!meta || meta.weekCount === undefined) return "";
+  if (meta.streakReset) return "Серия прервалась — начинаем заново!";
+  if (meta.usedFreezes) return `Серию спасла заморозка (${meta.usedFreezes})`;
+  if (meta.streakExtended) return `Неделя засчитана — серия ${weeksText(meta.streak)}!`;
+  if (meta.weekCount < STREAK_WEEK_TARGET) {
+    const left = STREAK_WEEK_TARGET - meta.weekCount;
+    return `Неделя: ${meta.weekCount}/${STREAK_WEEK_TARGET} — ещё ${workoutsText(left)} до +1 к серии`;
+  }
+  return "Неделя уже засчитана — серия продолжается.";
+}

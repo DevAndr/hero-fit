@@ -8,6 +8,7 @@ const user = {
   streakFreezes: 0,
   weekWorkouts: 1,
   weekWorkoutsKey: "2026-10-05",
+  freezeGrantedAt: new Date("2026-10-01T00:00:00Z"),
   streakReminderDay: null,
 };
 const sat15 = new Date("2026-10-10T15:00:00Z");

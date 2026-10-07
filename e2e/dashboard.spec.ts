@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { seedWorkouts, userId, withDb } from "./db";
 import { registerUser } from "./helpers";
 
-/** Недельная серия в поясе UTC: последняя засчитанная неделя — lastWeeksAgo недель назад, на этой неделе — weekCount тренировок. */
+/**
+ * Недельная серия в поясе UTC: последняя засчитанная неделя — lastWeeksAgo недель назад, на этой неделе — weekCount тренировок.
+ * Плановая заморозка только что выдана — статус считается ровно по freezes.
+ */
 async function setWeeklyStreak(
   login: string,
   { streak, lastWeeksAgo, freezes, weekCount = 0 }: { streak: number; lastWeeksAgo: number; freezes: number; weekCount?: number },
@@ -12,7 +15,7 @@ async function setWeeklyStreak(
     await db.query(
       `update "User" set "timeZone" = 'UTC', "currentStreak" = $2, "longestStreak" = greatest("longestStreak", $2),
          "lastStreakWeek" = to_char(date_trunc('week', now() AT TIME ZONE 'UTC') - make_interval(weeks => $3), 'YYYY-MM-DD'),
-         "streakFreezes" = $4, "weekWorkouts" = $5,
+         "streakFreezes" = $4, "freezeGrantedAt" = now(), "weekWorkouts" = $5,
          "weekWorkoutsKey" = to_char(date_trunc('week', now() AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
        where id = $1`,
       [id, streak, lastWeeksAgo, freezes, weekCount],
@@ -110,7 +113,8 @@ test("burned streak can be bought back with XP once; level does not drop", async
   await setWeeklyStreak(login, { streak: 3, lastWeeksAgo: 2, freezes: 0 });
   await setXp(login, 120, 2); // в уровне 2 всего 20 XP — не хватает
   await page.reload();
-  await expect(page.getByTestId("streak-message")).toContainText("Серия сгорела — её можно вернуть до");
+  // Срок — четверг 00:00 в поясе пользователя (UTC), а не сервера
+  await expect(page.getByTestId("streak-message")).toHaveText("Серия сгорела — её можно вернуть до чт 00:00");
   await expect(page.getByText("Вернуть серию стоит 200 XP — в текущем уровне не хватает 180 XP")).toBeVisible();
 
   await setXp(login, 300, 2); // 200 XP в уровне 2

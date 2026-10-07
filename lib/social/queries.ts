@@ -59,7 +59,7 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
     db.$queryRaw<LeagueRow[]>`
       WITH b AS (${weekBounds(timeZone, offset)})
       SELECT u.id, COALESCE(u.nickname, '') AS nickname, u.level,
-             u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."timeZone",
+             u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."freezeGrantedAt", u."timeZone",
              COALESCE((
                SELECT SUM(x.amount) FROM "XpEvent" x
                WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
@@ -79,9 +79,9 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
   ]);
   const now = new Date();
   const members: LeagueMember[] = rows.map(
-    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, timeZone: tz, ...m }) => {
+    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt, timeZone: tz, ...m }) => {
       // Серия «на сейчас» в поясе участника: потерянная не показывается.
-      const user = { currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey };
+      const user = { currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt };
       return { ...m, streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
     },
   );
