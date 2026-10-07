@@ -7,7 +7,7 @@ test("new user sees goals with progress and an empty list", async ({ page }) => 
   await page.goto("/achievements");
   await expect(page.getByText("Получено: 0")).toBeVisible();
   await expect(page.getByLabel("Цель: Разогрев")).toContainText("0 / 5");
-  await expect(page.getByLabel("Цель: В ударе")).toContainText("0 / 3");
+  await expect(page.getByLabel("Цель: В ударе")).toContainText("0 / 2"); // 2 недели подряд
   await expect(page.getByText("Пока пусто")).toBeVisible();
 });
 
@@ -40,8 +40,17 @@ test("5th workout, weight progress and streak achievements are generated from hi
   ]);
   await withDb(async (db) => {
     const id = await userId(db, login);
+    // Прошлая неделя засчитана (серия 1); две последние тренировки — на этой неделе, новая станет третьей
     await db.query(
-      `update "User" set "currentStreak" = 6, "longestStreak" = 6, "lastStreakAt" = now() - interval '30 hours' where id = $1`,
+      `update "User" set "timeZone" = 'UTC', "currentStreak" = 1, "longestStreak" = 1,
+         "lastStreakWeek" = to_char(date_trunc('week', now() AT TIME ZONE 'UTC') - interval '7 days', 'YYYY-MM-DD')
+       where id = $1`,
+      [id],
+    );
+    await db.query(
+      `update "Workout" w set "finishedAt" = now() - make_interval(mins => r.n), "startedAt" = now() - make_interval(mins => r.n + 60)
+       from (select id, row_number() over (order by "finishedAt" desc)::int as n from "Workout" where "userId" = $1) r
+       where w.id = r.id and r.n <= 2`,
       [id],
     );
   });
@@ -54,8 +63,7 @@ test("5th workout, weight progress and streak achievements are generated from hi
   const titles = [
     "Разогрев",
     ...weightTitles,
-    "В ударе",
-    "Неделя огня",
+    "В ударе", // 2 недели подряд
     "Поднял слона", // 6,6 т за всё время
     "Жим лёжа: 120 кг",
     "Клуб сотки: жим лёжа",
@@ -66,10 +74,10 @@ test("5th workout, weight progress and streak achievements are generated from hi
   }
   await expect(section.getByText("Жим штанги лёжа: +35 кг")).toHaveCount(0);
   await expect(section.getByText("Жим лёжа: 140 кг")).toHaveCount(0);
-  await expect(page.getByTestId("streak")).toContainText("7");
-  // «Неделя огня» — награда: заморозка (1 стартовая + 1 еженедельная + 1 за ачивку)
+  await expect(page.getByTestId("streak")).toContainText("2");
+  // 1 стартовая + 1 плановая (раз в 4 недели); «В ударе» (2 недели) заморозку не даёт
   await page.goto("/dashboard");
-  await expect(page.getByRole("region", { name: "Streak" })).toContainText("Заморозки: 3");
+  await expect(page.getByRole("region", { name: "Streak" })).toContainText("Заморозки: 2");
   await page.goBack();
 
   await page.goto("/achievements");

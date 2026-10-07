@@ -7,7 +7,6 @@ import {
   EXPRESS,
   LATE_HOUR,
   LIFTS,
-  WEEK_MIN_WORKOUTS,
   type AchievementDef,
   type AchievementStats,
   type ExerciseStats,
@@ -17,8 +16,7 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
-import { MAX_REWARD_FREEZES } from "@/lib/progress/streak";
-import { weeklyRuns } from "@/lib/progress/weekly-streak";
+import { MAX_REWARD_FREEZES } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
 
@@ -97,7 +95,7 @@ async function workoutTotals(client: Client, userId: string, tz: string): Promis
   return row;
 }
 
-/** Календарные недели (с понедельника, в поясе пользователя): где 3+ тренировки и сколько групп мышц. */
+/** Календарные недели (с понедельника, в поясе пользователя): сколько групп мышц за неделю. */
 async function weekStats(client: Client, userId: string, tz: string) {
   const [rows, [{ currentWeek }]] = await Promise.all([
     client.$queryRaw<{ week: string; workouts: number; groups: number }[]>`
@@ -118,13 +116,7 @@ async function weekStats(client: Client, userId: string, tz: string) {
       SELECT to_char(date_trunc('week', now() AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS "currentWeek"
     `,
   ]);
-  const runs = weeklyRuns(
-    rows.filter((r) => r.workouts >= WEEK_MIN_WORKOUTS).map((r) => r.week),
-    currentWeek,
-  );
   return {
-    bestWeeklyRun: runs.best,
-    currentWeeklyRun: runs.current,
     maxGroupsInWeek: Math.max(0, ...rows.map((r) => r.groups)),
     groupsThisWeek: rows.find((r) => r.week === currentWeek)?.groups ?? 0,
   };
@@ -154,14 +146,12 @@ async function varietyStats(client: Client, userId: string) {
   };
 }
 
-/** Побитые рекорды и спасённый заморозкой streak — из журнала XP (meta каждой тренировки). */
+/** Побитые рекорды — из журнала XP (meta каждой тренировки), спасённые заморозкой недели — из StreakCoverWeek. */
 async function journalStats(client: Client, userId: string) {
   const [row] = await client.$queryRaw<{ prCount: number; maxPrs: number; freezeSaves: number }[]>`
     SELECT COALESCE(SUM(jsonb_array_length(meta->'records')) FILTER (WHERE reason = 'PERSONAL_RECORD'), 0)::int AS "prCount",
            COALESCE(MAX(jsonb_array_length(meta->'records')) FILTER (WHERE reason = 'PERSONAL_RECORD'), 0)::int AS "maxPrs",
-           COUNT(*) FILTER (
-             WHERE reason = 'WORKOUT_COMPLETED' AND COALESCE((meta->>'usedFreezes')::int, 0) > 0
-           )::int AS "freezeSaves"
+           (SELECT COUNT(*) FROM "StreakCoverWeek" c WHERE c."userId" = ${userId} AND c.reason = 'FREEZE')::int AS "freezeSaves"
     FROM "XpEvent"
     WHERE "userId" = ${userId} AND reason IN ('PERSONAL_RECORD', 'WORKOUT_COMPLETED')
   `;
