@@ -1,12 +1,15 @@
 "use client";
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { useId } from "react";
+import { Area, AreaChart, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import type { ExerciseSession } from "@/lib/stats/queries";
+import { cn } from "@/lib/utils";
 
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+const pct = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1, signDisplay: "exceptZero" });
 
 type Point = ExerciseSession & { value: number };
 
@@ -36,8 +39,13 @@ function ProgressTooltip({
   );
 }
 
-/** Рабочий вес по тренировкам (для упражнений со своим весом — макс. повторы). Одна серия — без легенды. */
+/**
+ * Карточка-показатель: последний рабочий вес (для упражнений со своим весом — макс. повторы),
+ * изменение к первой тренировке и плавный график с заливкой без осей. Значения по точкам — в подсказке и таблице.
+ */
 export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[] }) {
+  // useId содержит символы, недопустимые в url(#…) — оставляем только безопасные.
+  const gradientId = `progress-${useId().replace(/[^\w-]/g, "")}`;
   const bodyweight = sessions.every((s) => s.topWeight === 0);
   const data: Point[] = sessions.map((s) => ({
     ...s,
@@ -47,43 +55,96 @@ export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[
     value: { label: bodyweight ? "Макс. повторы" : "Рабочий вес", color: "var(--chart-1)" },
   } satisfies ChartConfig;
 
+  const unit = bodyweight ? "повт." : "кг";
+  const first = data[0];
+  const last = data.at(-1);
+  const change = first && last && first.value > 0 ? ((last.value - first.value) / first.value) * 100 : null;
+
+  // Шкала по диапазону значений с запасом — колебания видны, линия не прилипает к краям.
+  const values = data.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = max === min ? Math.max(1, max * 0.1) : (max - min) * 0.25;
+
   return (
     <section aria-label="График прогресса" className="rounded-xl border bg-card p-4">
-      <h2 className="font-bold">{bodyweight ? "Повторы по тренировкам" : "Рабочий вес по тренировкам"}</h2>
-      <p className="text-sm text-muted-foreground">
-        {bodyweight ? "Максимум повторов в подходе" : "Максимальный вес в рабочих подходах, кг"}
-      </p>
+      <h2 className="text-sm text-muted-foreground">{bodyweight ? "Макс. повторы в подходе" : "Рабочий вес"}</h2>
+      {last ? (
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+          <span className="text-2xl font-bold" data-testid="progress-value">
+            {fmt(last.value)} {unit}
+          </span>
+          {change !== null && data.length > 1 ? (
+            <span
+              data-testid="progress-change"
+              title={`К первой тренировке (${fullDate.format(new Date(first.date))})`}
+              className={cn(
+                "text-sm font-medium tabular-nums",
+                change > 0 ? "text-primary" : change < 0 ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {change > 0 ? "▲ " : change < 0 ? "▼ " : ""}
+              {pct.format(change)}%
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
       {data.length < 2 ? (
-        <div className="mt-4 flex h-40 items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
+        <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
           График появится после второй тренировки с этим упражнением
         </div>
       ) : (
-        <ChartContainer config={config} className="mt-4 aspect-auto h-60 w-full">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={24}
-              tickFormatter={(d: string) => dayMonth.format(new Date(d))}
-            />
-            <YAxis width={48} tickLine={false} axisLine={false} domain={["auto", "auto"]} tickCount={5} />
-            <ChartTooltip content={<ProgressTooltip bodyweight={bodyweight} />} />
-            <Line
-              dataKey="value"
-              type="monotone"
-              stroke="var(--color-value)"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              dot={{ r: 4, fill: "var(--color-value)", stroke: "var(--card)", strokeWidth: 2 }}
-              activeDot={{ r: 6, stroke: "var(--card)", strokeWidth: 2 }}
-            />
-          </LineChart>
-        </ChartContainer>
+        <>
+          <ChartContainer config={config} className="mt-3 aspect-auto h-36 w-full">
+            <AreaChart data={data} margin={{ top: 6, right: 6, left: 6, bottom: 6 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-value)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--color-value)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <YAxis hide domain={[min - pad, max + pad]} />
+              <ChartTooltip
+                cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
+                content={<ProgressTooltip bodyweight={bodyweight} />}
+              />
+              <Area
+                dataKey="value"
+                type="monotone"
+                stroke="var(--color-value)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill={`url(#${gradientId})`}
+                dot={false}
+                activeDot={{ r: 5, fill: "var(--color-value)", stroke: "var(--card)", strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ChartContainer>
+          <p className="mt-1 flex justify-between text-xs text-muted-foreground tabular-nums">
+            <span>{dayMonth.format(new Date(first.date))}</span>
+            <span>тренировок: {data.length}</span>
+            <span>{dayMonth.format(new Date(last!.date))}</span>
+          </p>
+        </>
       )}
+
+      <div className="sr-only">
+        <table>
+          <caption>{config.value.label} по тренировкам</caption>
+          <tbody>
+            {data.map((p) => (
+              <tr key={p.workoutId}>
+                <th scope="row">{fullDate.format(new Date(p.date))}</th>
+                <td>
+                  {fmt(p.value)} {unit}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

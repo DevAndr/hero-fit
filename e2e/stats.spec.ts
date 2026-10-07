@@ -56,7 +56,11 @@ test("history → hint in editor, tiles, muscle groups, exercise progress", asyn
   const prs = page.getByRole("region", { name: "Личные рекорды" });
   await expect(prs).toContainText("Макс. вес100 кг");
   await expect(prs).toContainText("1RM (расчётный)116,7 кг");
-  await expect(page.getByRole("region", { name: "График прогресса" }).locator(".recharts-line-dot")).toHaveCount(4);
+  const progress = page.getByRole("region", { name: "График прогресса" });
+  await expect(progress.getByTestId("progress-value")).toHaveText("100 кг");
+  await expect(progress.getByTestId("progress-change")).toHaveText("0%"); // вес не менялся
+  await expect(progress.locator(".recharts-area")).toBeVisible();
+  await expect(progress.locator("table tr")).toHaveCount(4);
   await expect(page.getByRole("heading", { name: "Тренировки (4)" })).toBeVisible();
   // Калькулятор заполнен лучшим подходом
   await expect(page.getByRole("region", { name: "Калькулятор 1RM" }).getByTestId("one-rm-result")).toHaveText("116,7 кг");
