@@ -57,6 +57,7 @@ enum NotificationType {
   SYSTEM // тестовые и служебные
   SOCIAL // друзья: заявки и принятие
   PLAN // «Сегодня по плану»
+  RECAP // «Итоги недели» и «Новый старт»
 }
 
 enum FriendshipStatus {
@@ -119,10 +120,13 @@ model User {
   notifyAchievements Boolean   @default(true)
   notifySocial       Boolean   @default(true)
   notifyPlan         Boolean   @default(true)
+  notifyRecap        Boolean   @default(true)
   /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
   planReminderMin    Int       @default(60)
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
   streakReminderDay  String?
+  /// неделя (пн), за которую уже ушёл push «Новая неделя — новый старт»
+  recapNudgeWeek     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,6 +146,7 @@ model User {
   planSeries          PlanSeries[]
   planEntries         PlanEntry[]
   planReminders       PlanReminder[]
+  weeklyRecaps        WeeklyRecap[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
   kudos               Kudos[]
@@ -537,4 +542,19 @@ model PlanReminder {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, planKey])
+}
+
+/// Снимок итогов недели. data — RecapData (lib/recap/types.ts) с полем version.
+model WeeklyRecap {
+  id        String    @id @default(cuid())
+  userId    String
+  week      String // понедельник недели "YYYY-MM-DD" в поясе пользователя
+  data      Json
+  createdAt DateTime  @default(now())
+  pushedAt  DateTime? // push «Итоги недели» отправлен
+  seenAt    DateTime? // пользователь открыл страницу итогов
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, week])
 }
