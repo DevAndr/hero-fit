@@ -2,7 +2,7 @@ import "server-only";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
-import { addWeeks, localMidnight } from "@/lib/progress/weekly-streak";
+import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
@@ -75,7 +75,10 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
   const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
-    db.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } }),
+    db.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { currentStreak: true, lastStreakWeek: true, streakFreezes: true, weekWorkouts: true, weekWorkoutsKey: true, freezeGrantedAt: true },
+    }),
     db.streakCoverWeek.findUnique({ where: { userId_week: { userId, week } }, select: { reason: true } }),
     db.userAchievement.findMany({
       where: { userId, earnedAt: { gte: start, lt: end }, NOT: { code: { startsWith: "login:" } } },
@@ -122,7 +125,8 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     percentile: { value: percentile.percentile, xp: percentile.myXp },
     finishMetas,
     coveredByFreeze: cover?.reason === StreakCoverReason.FREEZE,
-    currentStreak: user.currentStreak,
+    // Серия на конец недели (момент перед следующим понедельником) — как её показывает дашборд
+    streakAtWeekEnd: streakValue(streakStatus(user, new Date(end.getTime() - 1), tz)),
     achievements,
     muscleSets: muscles,
     plan: occurrences.length ? { done: occurrences.filter((o) => o.status === "done").length, planned: occurrences.length } : null,
@@ -131,6 +135,10 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
 
 /** Создаёт снимок итогов недели (без проверки окна — для тика). true — строка создана сейчас. */
 export async function createRecap(userId: string, week: string, tz: string): Promise<boolean> {
+  // Дешёвая проверка до тяжёлого сбора (процентиль, лига, календарь): пустая неделя — итогов нет
+  const { start, end } = bounds(week, tz);
+  const any = await db.workout.findFirst({ where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: start, lt: end } }, select: { id: true } });
+  if (!any) return false;
   const data = buildRecap(await loadRecapInput(userId, week, tz));
   if (!data) return false;
   const { count } = await db.weeklyRecap.createMany({ data: [{ userId, week, data }], skipDuplicates: true });

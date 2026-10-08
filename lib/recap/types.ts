@@ -42,7 +42,8 @@ export type RecapInput = {
   /** meta WORKOUT_COMPLETED недели по возрастанию времени. */
   finishMetas: FinishMeta[];
   coveredByFreeze: boolean;
-  currentStreak: number;
+  /** Серия (недель), живая на конец недели: сгоревшая — 0. */
+  streakAtWeekEnd: number;
   achievements: { code: string; title: string }[];
   /** Подходы по основной группе: эта неделя и 5 предыдущих. */
   muscleSets: { group: MuscleGroup; week: string; sets: number }[];

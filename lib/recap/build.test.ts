@@ -39,7 +39,7 @@ const input = (o: Partial<RecapInput> = {}): RecapInput => ({
   percentile: { value: null, xp: 80 },
   finishMetas: [meta()],
   coveredByFreeze: false,
-  currentStreak: 1,
+  streakAtWeekEnd: 1,
   achievements: [],
   muscleSets: [],
   plan: null,
@@ -140,10 +140,14 @@ describe("buildRecap", () => {
     expect(buildRecap(input({ percentile: { value: null, xp: 120 } }))!.league).toBeUndefined();
   });
 
-  it("streak", () => {
-    const r = buildRecap(input({ finishMetas: [meta({ weekCount: 2 }), meta({ weekCount: 3 })], currentStreak: 5 }))!;
-    expect(r.streak).toEqual({ weekCount: 3, target: 3, credited: true, streak: 5, frozen: false });
-    expect(buildRecap(input({ finishMetas: [meta({ weekCount: 2 })] }))!.streak!.credited).toBe(false);
+  it("streak: credited week shows the series as of that week", () => {
+    const r = buildRecap(input({ finishMetas: [meta({ weekCount: 2, streak: 6 }), meta({ weekCount: 3, streak: 7 })], streakAtWeekEnd: 9 }))!;
+    expect(r.streak).toEqual({ weekCount: 3, target: 3, credited: true, streak: 7, frozen: false });
+  });
+
+  it("streak: uncredited week shows the series alive at the end of the week", () => {
+    const r = buildRecap(input({ finishMetas: [meta({ weekCount: 1, streak: 6 })], streakAtWeekEnd: 0 }))!;
+    expect(r.streak).toMatchObject({ weekCount: 1, credited: false, streak: 0 });
     expect(buildRecap(input({ coveredByFreeze: true }))!.streak!.frozen).toBe(true);
   });
 

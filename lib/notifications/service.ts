@@ -199,7 +199,15 @@ export async function processPlanReminders(now = new Date()) {
 
 /** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
 export async function runNotificationTick(now = new Date()) {
-  const reminders = (await processStreakReminders(now)) + (await processPlanReminders(now)) + (await processWeeklyRecaps(now));
-  const pushes = await processDuePushes();
+  // Сначала срочное (таймер отдыха и уже готовые push), итоги недели — после: их генерация не задерживает доставку
+  let pushes = await processDuePushes();
+  let reminders = (await processStreakReminders(now)) + (await processPlanReminders(now));
+  try {
+    const recaps = await processWeeklyRecaps(now);
+    reminders += recaps;
+    if (recaps) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[recap] шаг итогов недели упал", e);
+  }
   return { reminders, pushes };
 }

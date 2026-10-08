@@ -68,13 +68,9 @@ function bestSet(input: RecapInput): RecapData["bestSet"] {
 function streak(input: RecapInput): RecapData["streak"] {
   const last = input.finishMetas.at(-1);
   if (!last) return undefined;
-  return {
-    weekCount: last.weekCount,
-    target: STREAK_WEEK_TARGET,
-    credited: last.weekCount >= STREAK_WEEK_TARGET,
-    streak: input.currentStreak,
-    frozen: input.coveredByFreeze,
-  };
+  const credited = last.weekCount >= STREAK_WEEK_TARGET;
+  // Засчитанная неделя — серия на тот момент (из её тренировки); иначе — живая на конец недели (сгоревшая — 0)
+  return { weekCount: last.weekCount, target: STREAK_WEEK_TARGET, credited, streak: credited ? last.streak : input.streakAtWeekEnd, frozen: input.coveredByFreeze };
 }
 
 function records(input: RecapInput): RecapData["records"] {

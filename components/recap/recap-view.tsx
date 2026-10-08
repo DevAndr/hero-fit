@@ -120,7 +120,7 @@ function Streak({ streak }: { streak: NonNullable<RecapData["streak"]> }) {
         <span className="text-base font-semibold">{streak.credited ? "— неделя засчитана 🔥" : "тренировок"}</span>
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Серия: {streak.streak} {plural(streak.streak, "неделя", "недели", "недель")}
+        {streak.streak > 0 ? `Серия: ${streak.streak} ${plural(streak.streak, "неделя", "недели", "недель")}` : "Серия прервалась — начни новую"}
       </p>
       {streak.frozen ? (
         <p className="mt-1 flex items-center gap-1 text-sm">
