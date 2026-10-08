@@ -114,12 +114,13 @@ test("before 09:00 no push; seen recap → no push", async ({ page, request }) =
 });
 
 test("fresh start nudge once", async ({ page, request }) => {
+  // Свои недели: тренировки 9 недель назад, тики — пн 7 и 6 недель назад (соседние сценарии их не задевают)
   const me = await registerUser(page);
-  await seedRecapWeek(me.login, mondayWeeksAgo(4), [press({ day: 2 })]);
-  const now = mskAt(TICK_MONDAY, "09:30");
+  await seedRecapWeek(me.login, mondayWeeksAgo(9), [press({ day: 2 })]);
+  const now = mskAt(mondayWeeksAgo(7), "09:30");
   await runTick(request, now);
   await runTick(request, now);
-  await runTick(request, mskAt(TICK_MONDAY, "09:30", 7));
+  await runTick(request, mskAt(mondayWeeksAgo(6), "09:30"));
   const list = await recapNotifications(me.login);
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({ title: "Новая неделя — новый старт 💪", url: "/training" });
