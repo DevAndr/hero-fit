@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Dumbbell, Flame, Play } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { XpBar } from "@/components/progress/xp-bar";
 import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
 import type { CurrentUser } from "@/lib/auth/dal";
@@ -28,9 +29,7 @@ function LevelMeter({ xp }: { xp: number }) {
     <div className="flex min-w-0 items-center gap-2" title={`${current} / ${required} XP до уровня ${level + 1}`}>
       <span className="shrink-0 rounded-md bg-xp/15 px-1.5 py-0.5 text-xs font-bold text-xp">LVL {level}</span>
       <div className="hidden w-32 sm:block">
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-xp" style={{ width: `${percent}%` }} />
-        </div>
+        <XpBar level={level} percent={percent} size="sm" label={`Опыт уровня ${level}`} />
         <p className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">
           {current} / {required} XP
         </p>

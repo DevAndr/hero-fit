@@ -18,6 +18,7 @@ import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
+import { XpBar } from "@/components/progress/xp-bar";
 import { levelProgress } from "@/lib/progress/level";
 import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
@@ -148,9 +149,7 @@ export default async function DashboardPage() {
             Уровень
           </p>
           <p className="mt-1 text-5xl font-black text-xp">{level.level}</p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-xp" style={{ width: `${level.percent}%` }} />
-          </div>
+          <XpBar level={level.level} percent={level.percent} size="lg" delay={150} label={`Опыт уровня ${level.level}`} className="mt-2" />
           <p className="mt-1 text-xs text-muted-foreground" data-testid="xp-to-next">
             {level.current} / {level.required} XP · до уровня {level.level + 1}: {level.required - level.current} XP
           </p>

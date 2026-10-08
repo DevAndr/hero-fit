@@ -11,6 +11,7 @@ import { UpdateTemplateButton } from "@/components/workouts/update-template-butt
 import { buttonVariants } from "@/components/ui/button";
 import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
+import { XpBar } from "@/components/progress/xp-bar";
 import { levelProgress } from "@/lib/progress/level";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
@@ -110,9 +111,15 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
                 {level.current} / {level.required} XP
               </span>
             </div>
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-xp" style={{ width: `${level.percent}%` }} />
-            </div>
+            <XpBar
+              level={level.level}
+              percent={level.percent}
+              from={meta ? levelProgress(meta.xpBefore) : undefined}
+              size="lg"
+              delay={400}
+              label={`Опыт уровня ${level.level}`}
+              className="mt-1"
+            />
           </div>
         </div>
 
