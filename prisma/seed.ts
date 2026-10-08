@@ -5,7 +5,9 @@ import { PrismaClient } from "../generated/prisma/client";
 import type { MuscleGroup, RecordType } from "../generated/prisma/enums";
 import { levelProgress } from "../lib/progress/level";
 import { recomputeStreak } from "../lib/progress/streak-db";
-import { STREAK_WEEK_TARGET, weekKey, weeksBetween } from "../lib/progress/weekly-streak";
+import { epley1RM } from "../lib/progress/records";
+import { addWeeks, localMidnight, STREAK_WEEK_TARGET, weekKey, weeksBetween } from "../lib/progress/weekly-streak";
+import type { RecapData } from "../lib/recap/types";
 import { PR_XP, workoutXp } from "../lib/progress/xp";
 
 const db = new PrismaClient({
@@ -527,6 +529,127 @@ async function seedDemoFriends(exerciseIds: Map<string, string>, passwordHash: s
 }
 
 
+// ───────────── Архив «Итогов недели» для demo — готовые снимки, свои тренировки demo не трогаем ─────────────
+
+type SeedRecapWeek = {
+  workouts: number;
+  minutes: number;
+  volume: number;
+  sets: number;
+  /** XP за неделю: demo, Iron_Masha, Борис. */
+  league: [me: number, masha: number, boris: number];
+  best: [exercise: string, weight: number, reps: number, record: boolean];
+  streak: number;
+  frozen?: boolean;
+  prs?: [exercise: string, type: RecordType, value: number][];
+  achievements?: [code: string, title: string][];
+  level?: [from: number, to: number];
+  muscles: [MuscleGroup, number][];
+  forgotten?: MuscleGroup;
+  plan?: [done: number, planned: number];
+};
+
+/** От старой недели (9 недель назад) к новой (прошлая неделя) — рост, спад, заморозка, прерванная серия. */
+const DEMO_RECAP_WEEKS: SeedRecapWeek[] = [
+  { workouts: 3, minutes: 150, volume: 9800, sets: 42, league: [260, 310, 180], best: ["Жим штанги лёжа", 80, 6, false], streak: 1,
+    muscles: [["CHEST", 12], ["LEGS", 10], ["BACK", 9], ["SHOULDERS", 6]] },
+  { workouts: 3, minutes: 165, volume: 11200, sets: 46, league: [300, 280, 210], best: ["Приседания со штангой", 100, 5, true], streak: 2,
+    prs: [["Приседания со штангой", "MAX_WEIGHT", 100]], achievements: [["streakw:2", "В ударе: 2 недели"]],
+    muscles: [["LEGS", 14], ["CHEST", 11], ["BACK", 10], ["BICEPS", 5]] },
+  { workouts: 4, minutes: 210, volume: 13900, sets: 58, league: [380, 350, 190], best: ["Жим штанги лёжа", 85, 5, true], streak: 3,
+    prs: [["Жим штанги лёжа", "ONE_RM", 99.2]], plan: [3, 4],
+    muscles: [["CHEST", 15], ["LEGS", 14], ["BACK", 12], ["SHOULDERS", 9], ["TRICEPS", 8]] },
+  { workouts: 2, minutes: 95, volume: 7100, sets: 28, league: [170, 330, 240], best: ["Становая тяга", 120, 3, false], streak: 3, frozen: true,
+    muscles: [["BACK", 10], ["CHEST", 9], ["BICEPS", 6]] },
+  { workouts: 3, minutes: 160, volume: 12400, sets: 50, league: [310, 300, 260], best: ["Становая тяга", 130, 3, true], streak: 4,
+    prs: [["Становая тяга", "MAX_WEIGHT", 130]], achievements: [["streakw:4", "В ударе: 4 недели"], ["workouts:20", "20 тренировок"]],
+    muscles: [["BACK", 13], ["CHEST", 12], ["SHOULDERS", 10], ["ABS", 6]], forgotten: "LEGS" },
+  { workouts: 1, minutes: 55, volume: 3900, sets: 15, league: [90, 360, 200], best: ["Жим штанги лёжа", 85, 4, false], streak: 0,
+    muscles: [["CHEST", 8], ["TRICEPS", 7]], plan: [1, 3] },
+  { workouts: 3, minutes: 170, volume: 13100, sets: 52, league: [330, 320, 150], best: ["Приседания со штангой", 110, 4, true], streak: 1,
+    prs: [["Приседания со штангой", "MAX_WEIGHT", 110], ["Подтягивания", "MAX_REPS", 12]], level: [2, 3],
+    muscles: [["LEGS", 16], ["BACK", 12], ["CHEST", 10], ["BICEPS", 7]] },
+  { workouts: 4, minutes: 225, volume: 15800, sets: 64, league: [420, 390, 230], best: ["Жим штанги лёжа", 90, 5, true], streak: 2,
+    prs: [["Жим штанги лёжа", "MAX_WEIGHT", 90]], achievements: [["workouts:25", "25 тренировок"]], plan: [4, 4],
+    muscles: [["CHEST", 16], ["LEGS", 15], ["BACK", 14], ["SHOULDERS", 10], ["TRICEPS", 9]] },
+];
+
+function demoRecapData(week: string, w: SeedRecapWeek, prev: SeedRecapWeek | undefined, exerciseIds: Map<string, string>): RecapData {
+  const id = (name: string) => {
+    const exerciseId = exerciseIds.get(name);
+    if (!exerciseId) throw new Error(`Неизвестное упражнение в демо-итогах: ${name}`);
+    return exerciseId;
+  };
+  const members = [
+    { nickname: "Demo_Hero", xp: w.league[0], me: true },
+    { nickname: "Iron_Masha", xp: w.league[1], me: false },
+    { nickname: "Борис", xp: w.league[2], me: false },
+  ].sort((a, b) => b.xp - a.xp);
+  const rows = members.map((m, i) => ({ ...m, place: i + 1 }));
+  const me = rows.find((r) => r.me)!;
+  const [exercise, weight, reps, isRecord] = w.best;
+  const credited = w.workouts >= STREAK_WEEK_TARGET;
+  const hasRecords = w.prs || w.achievements || w.level;
+  return {
+    version: 1,
+    week,
+    totals: {
+      workouts: w.workouts,
+      minutes: w.minutes,
+      volume: w.volume,
+      sets: w.sets,
+      prev: prev ? { workouts: prev.workouts, minutes: prev.minutes, volume: prev.volume, sets: prev.sets } : null,
+    },
+    league: { place: me.place, of: rows.length, xp: me.xp, rows },
+    bestSet: { exerciseId: id(exercise), exerciseName: exercise, weight, reps, e1rm: epley1RM(weight, reps), isRecord },
+    streak: { weekCount: w.workouts, target: STREAK_WEEK_TARGET, credited, streak: w.streak, frozen: w.frozen ?? false },
+    ...(hasRecords
+      ? {
+          records: {
+            prs: (w.prs ?? []).map(([name, type, value]) => ({ exerciseId: id(name), exerciseName: name, type, value })),
+            achievements: (w.achievements ?? []).map(([code, title]) => ({ code, title })),
+            level: w.level ? { from: w.level[0], to: w.level[1] } : null,
+          },
+        }
+      : {}),
+    muscles: { groups: w.muscles.map(([group, sets]) => ({ group, sets })), forgotten: w.forgotten ?? null },
+    ...(w.plan ? { plan: { done: w.plan[0], planned: w.plan[1] } } : {}),
+  };
+}
+
+/**
+ * Снимки WeeklyRecap для demo за 8 недель (последняя — прошлая неделя). Помечены demo: true в JSON — повторный сид
+ * пересоздаёт только их; недели с настоящими итогами пропускаются. Прошлая неделя — только если у demo на ней
+ * нет своих тренировок (иначе итоги соберутся из реальных данных) и непросмотренная: карточка «новое» на дашборде.
+ */
+async function seedDemoRecaps(exerciseIds: Map<string, string>) {
+  const demo = await db.user.findUniqueOrThrow({ where: { login: DEMO_USER.login }, select: { id: true, timeZone: true } });
+  await db.$executeRaw`DELETE FROM "WeeklyRecap" WHERE "userId" = ${demo.id} AND (data->>'demo')::boolean IS TRUE`;
+  const real = new Set((await db.weeklyRecap.findMany({ where: { userId: demo.id }, select: { week: true } })).map((r) => r.week));
+  const lastWeek = addWeeks(weekKey(new Date(), demo.timeZone), -1);
+  const lastWeekWorkouts = await db.workout.count({
+    where: {
+      userId: demo.id,
+      status: "COMPLETED",
+      finishedAt: { gte: localMidnight(lastWeek, demo.timeZone), lt: localMidnight(addWeeks(lastWeek, 1), demo.timeZone) },
+    },
+  });
+  const now = new Date();
+  const rows = DEMO_RECAP_WEEKS.map((w, i) => {
+    const week = addWeeks(lastWeek, i - (DEMO_RECAP_WEEKS.length - 1));
+    const archived = week !== lastWeek;
+    return {
+      userId: demo.id,
+      week,
+      data: { ...demoRecapData(week, w, DEMO_RECAP_WEEKS[i - 1], exerciseIds), demo: true },
+      pushedAt: now,
+      seenAt: archived ? now : null,
+    };
+  }).filter((r) => !real.has(r.week) && (r.week !== lastWeek || lastWeekWorkouts === 0));
+  await db.weeklyRecap.createMany({ data: rows, skipDuplicates: true });
+  return rows.length;
+}
+
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
@@ -538,6 +661,7 @@ async function main() {
     // Серия demo — по его истории (недельный streak)
     const demo = await db.user.findUniqueOrThrow({ where: { login: DEMO_USER.login }, select: { id: true } });
     await recomputeStreak(db, demo.id, new Date());
+    console.log(`Demo weekly recaps: ${await seedDemoRecaps(exerciseIds)}`);
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
   }
 }
