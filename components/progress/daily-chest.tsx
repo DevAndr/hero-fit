@@ -204,11 +204,11 @@ export function DailyChest({
 
           <DialogFooter>
             {opened ? (
-              <Button ref={actionRef} className="w-full" onClick={() => setOpen(false)}>
+              <Button ref={actionRef} className="w-full bg-amber-400 hover:bg-amber-300" onClick={() => setOpen(false)}>
                 Забрать
               </Button>
             ) : (
-              <Button ref={actionRef} className="w-full" onClick={openChest} disabled={pending}>
+              <Button ref={actionRef} className="w-full bg-amber-400 hover:bg-amber-300" onClick={openChest} disabled={pending}>
                 {pending ? "Открываем…" : "Открыть"}
               </Button>
             )}
