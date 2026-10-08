@@ -73,7 +73,7 @@ export function StartScreen({
             variant="outline"
             className="h-auto w-full flex-col gap-1 py-4"
           >
-            <span className="flex items-center gap-2 text-base">
+            <span className="flex items-center gap-2 text-base text-wrap">
               <History />
               Повторить «{lastWorkout.name}»
             </span>
