@@ -59,10 +59,13 @@ function StreakBadge({ user }: { user: CurrentUser }) {
 
 export function AppShell({
   user,
+  chest,
   notifications,
   children,
 }: {
   user: CurrentUser;
+  /** Ежедневный сундук (значок, пока не открыт). */
+  chest?: ReactNode;
   notifications?: ReactNode;
   children: ReactNode;
 }) {
@@ -81,6 +84,7 @@ export function AppShell({
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <LevelMeter xp={user.xp} />
             <StreakBadge user={user} />
+            {chest}
             <Link href="/training" className={cn(buttonVariants(), "hidden sm:inline-flex")}>
               <Play />
               Начать тренировку

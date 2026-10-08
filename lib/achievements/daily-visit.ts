@@ -9,8 +9,12 @@ export const TIMEZONE_COOKIE = "hf_tz";
 /**
  * Засчитывает ежедневный вход (календарный день в поясе пользователя) и выдаёт ачивки за серию.
  * Вызывается из layout приватной части: на каждую загрузку — одно сравнение дат, запись — раз в день.
+ * Возвращает сегодняшний день и серию входов с его учётом (для ежедневного сундука).
  */
-export async function recordDailyVisit(user: CurrentUser, timeZone: string | undefined) {
+export async function recordDailyVisit(
+  user: CurrentUser,
+  timeZone: string | undefined,
+): Promise<{ today: string; loginStreak: number }> {
   const tz = safeTimeZone(timeZone);
   // Пояс нужен ачивкам за время суток и недели (считаются и вне запроса — при завершении тренировки).
   if (timeZone && tz !== user.timeZone) {
@@ -19,7 +23,7 @@ export async function recordDailyVisit(user: CurrentUser, timeZone: string | und
   const today = dayKey(new Date(), tz);
   const lastDay = user.lastLoginDay?.toISOString().slice(0, 10) ?? null;
   const streak = nextLoginStreak(lastDay, today, user.loginStreak);
-  if (streak === null) return;
+  if (streak === null) return { today, loginStreak: user.loginStreak };
 
   await db.$transaction(async (tx) => {
     // Условие по старому значению: два параллельных запроса не увеличат серию дважды.
@@ -29,4 +33,5 @@ export async function recordDailyVisit(user: CurrentUser, timeZone: string | und
     });
     if (count === 1) await evaluateAchievements(tx, user.id);
   });
+  return { today, loginStreak: streak };
 }

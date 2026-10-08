@@ -114,6 +114,8 @@ model User {
   // Ежедневный вход
   loginStreak  Int       @default(0)
   lastLoginDay DateTime? @db.Date
+  /// день, за который открыт ежедневный сундук (lib/progress/daily-chest.ts)
+  chestOpenedDay DateTime? @db.Date
 
   // Уведомления
   notifyRest         Boolean   @default(true)
