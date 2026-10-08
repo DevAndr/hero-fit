@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { addSubscription, createUserRow, makeFriends, mondayWeeksAgo, seedRecapWeek, userId, withDb } from "./db";
 import { registerUser, runTick, uniqueLogin } from "./helpers";
@@ -176,4 +177,29 @@ test("stats links to recaps", async ({ page }) => {
   await page.goto("/stats");
   await page.getByRole("link", { name: "Итоги недель" }).click();
   await expect(page).toHaveURL(/\/recap$/);
+});
+
+test("archive pages forward and back", async ({ page }) => {
+  const me = await registerUser(page);
+  await withDb(async (db) => {
+    const uid = await userId(db, me.login);
+    for (let i = 1; i <= 21; i++) {
+      const week = mondayWeeksAgo(i);
+      const data = { version: 1, week, totals: { workouts: 1, minutes: 30, volume: 1000, sets: 5, prev: null } };
+      await db.query(`insert into "WeeklyRecap" (id, "userId", week, data, "seenAt", "pushedAt") values ($1, $2, $3, $4, now(), now())`, [
+        randomUUID(),
+        uid,
+        week,
+        JSON.stringify(data),
+      ]);
+    }
+  });
+  await page.goto("/recap");
+  await expect(page.getByRole("link", { name: "Назад" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Ещё" }).click();
+  await expect(page).toHaveURL(/\/recap\?page=2$/);
+  await expect(page.getByRole("link", { name: /1 тренировка/ })).toHaveCount(1);
+  await page.getByRole("link", { name: "Назад" }).click();
+  await expect(page).toHaveURL(/\/recap(\?page=1)?$/);
+  await expect(page.getByRole("link", { name: /1 тренировка/ })).toHaveCount(20);
 });

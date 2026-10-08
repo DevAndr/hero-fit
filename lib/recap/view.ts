@@ -16,3 +16,11 @@ export function delta(cur: number, prev: number): { pct: number | null; sign: "u
   if (prev === 0) return { pct: cur === 0 ? 0 : null, sign };
   return { pct: Math.round((Math.abs(cur - prev) / prev) * 100), sign };
 }
+
+/** Подпись изменения к прошлой неделе: «+20%», «−50%», «впервые» (было 0), «как неделей ранее». */
+export function deltaLabel(cur: number, prev: number): string {
+  const d = delta(cur, prev);
+  if (d.sign === "same") return "как неделей ранее";
+  if (d.pct === null) return "впервые";
+  return `${d.sign === "up" ? "+" : "−"}${d.pct}%`;
+}

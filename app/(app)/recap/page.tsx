@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/dal";
 import { plural } from "@/lib/format";
 import { listRecaps } from "@/lib/recap/queries";
-import { delta, weekRangeLabel } from "@/lib/recap/view";
+import { delta, deltaLabel, weekRangeLabel } from "@/lib/recap/view";
 
 export const metadata: Metadata = { title: "Итоги недель" };
 
@@ -41,8 +41,7 @@ export default async function RecapsPage({ searchParams }: PageProps<"/recap">) 
                   ) : null}
                   {volume && volume.pct !== null && volume.sign !== "same" ? (
                     <span className={volume.sign === "up" ? "text-sm font-semibold text-primary" : "text-sm text-muted-foreground"}>
-                      объём {volume.sign === "up" ? "+" : "−"}
-                      {volume.pct}%
+                      объём {deltaLabel(data.totals.volume, data.totals.prev!.volume)}
                     </span>
                   ) : null}
                 </Link>
@@ -51,10 +50,19 @@ export default async function RecapsPage({ searchParams }: PageProps<"/recap">) 
           })}
         </ul>
       )}
-      {hasMore ? (
-        <Link href={`/recap?page=${page + 1}`} className={buttonVariants({ variant: "outline", className: "mt-4" })}>
-          Ещё
-        </Link>
+      {page > 1 || hasMore ? (
+        <nav aria-label="Страницы итогов" className="mt-4 flex gap-2">
+          {page > 1 ? (
+            <Link href={page === 2 ? "/recap" : `/recap?page=${page - 1}`} className={buttonVariants({ variant: "outline" })}>
+              Назад
+            </Link>
+          ) : null}
+          {hasMore ? (
+            <Link href={`/recap?page=${page + 1}`} className={buttonVariants({ variant: "outline" })}>
+              Ещё
+            </Link>
+          ) : null}
+        </nav>
       ) : null}
     </>
   );

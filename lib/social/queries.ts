@@ -90,7 +90,7 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
 
 /** Анонимный процентиль XP за текущую неделю среди тех, кто тренировался за последние 4 недели. */
 export async function getPercentile(userId: string, timeZone: string) {
-  return percentileQuery(userId, weekBounds(timeZone, 0), Prisma.sql`now() - make_interval(days => ${ACTIVE_DAYS})`);
+  return percentileQuery(userId, weekBounds(timeZone, 0), Prisma.sql`"finishedAt" >= now() - make_interval(days => ${ACTIVE_DAYS})`);
 }
 
 /** Процентиль XP за неделю [start, end) среди тех, кто тренировался за 4 недели до её конца (итоги недели). */
@@ -98,11 +98,13 @@ export async function weekPercentile(userId: string, start: Date, end: Date) {
   return percentileQuery(
     userId,
     Prisma.sql`SELECT ${start}::timestamptz AS start_at, ${end}::timestamptz AS end_at`,
-    Prisma.sql`${new Date(end.getTime() - ACTIVE_DAYS * 24 * 3600 * 1000)}::timestamptz AT TIME ZONE 'UTC'`,
+    // Активные — только за 4 недели до конца этой недели (не позже: старые итоги не учитывают будущих атлетов)
+    Prisma.sql`"finishedAt" >= ${new Date(end.getTime() - ACTIVE_DAYS * 24 * 3600 * 1000)}::timestamptz AT TIME ZONE 'UTC'
+      AND "finishedAt" < ${end}::timestamptz AT TIME ZONE 'UTC'`,
   );
 }
 
-async function percentileQuery(userId: string, bounds: Prisma.Sql, activeSince: Prisma.Sql) {
+async function percentileQuery(userId: string, bounds: Prisma.Sql, activeWhen: Prisma.Sql) {
   const [row] = await db.$queryRaw<{ myXp: number; below: number; others: number }[]>`
     WITH b AS (${bounds}),
     xp AS (
@@ -114,7 +116,7 @@ async function percentileQuery(userId: string, bounds: Prisma.Sql, activeSince: 
     ),
     active AS (
       SELECT DISTINCT "userId" FROM "Workout"
-      WHERE status = 'COMPLETED' AND "finishedAt" >= ${activeSince}
+      WHERE status = 'COMPLETED' AND ${activeWhen}
         AND "userId" <> ${userId}
     ),
     me AS (SELECT COALESCE((SELECT xp FROM xp WHERE "userId" = ${userId}), 0) AS xp)

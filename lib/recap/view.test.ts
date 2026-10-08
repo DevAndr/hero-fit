@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { delta, weekRangeLabel } from "./view";
+import { delta, deltaLabel, weekRangeLabel } from "./view";
 
 describe("weekRangeLabel", () => {
   it("same month", () => {
@@ -18,5 +18,14 @@ describe("delta", () => {
   });
   it("from zero", () => {
     expect(delta(5, 0)).toEqual({ pct: null, sign: "up" });
+  });
+});
+
+describe("deltaLabel", () => {
+  it("percent, from zero and unchanged", () => {
+    expect(deltaLabel(12, 10)).toBe("+20%");
+    expect(deltaLabel(5, 10)).toBe("−50%");
+    expect(deltaLabel(5, 0)).toBe("впервые");
+    expect(deltaLabel(3, 3)).toBe("как неделей ранее");
   });
 });

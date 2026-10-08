@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { plural } from "@/lib/format";
 import { recapHighlights } from "@/lib/recap/build";
 import type { RecapData, RecapTotals } from "@/lib/recap/types";
-import { delta } from "@/lib/recap/view";
+import { delta, deltaLabel } from "@/lib/recap/view";
 import { cn } from "@/lib/utils";
 
 const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
@@ -26,13 +26,12 @@ function Block({ label, icon: Icon, children, className }: { label: string; icon
 
 function Delta({ cur, prev }: { cur: number; prev: number }) {
   const d = delta(cur, prev);
-  if (d.sign === "same") return <span className="text-xs text-muted-foreground">как неделей ранее</span>;
+  if (d.sign === "same") return <span className="text-xs text-muted-foreground">{deltaLabel(cur, prev)}</span>;
   const Icon = d.sign === "up" ? ArrowUp : ArrowDown;
   return (
     <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold", d.sign === "up" ? "text-primary" : "text-muted-foreground")}>
       <Icon className="size-3" aria-hidden />
-      {d.sign === "up" ? "+" : "−"}
-      {d.pct === null ? "" : `${d.pct}%`}
+      {deltaLabel(cur, prev)}
       <span className="sr-only">{d.sign === "up" ? " больше" : " меньше"}, чем неделей ранее</span>
     </span>
   );
