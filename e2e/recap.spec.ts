@@ -100,13 +100,16 @@ test("monday tick creates recap and one notification", async ({ page, request })
 });
 
 test("before 09:00 no push; seen recap → no push", async ({ page, request }) => {
+  // Своя пара недель: тики соседних тестов (TICK_MONDAY) эти итоги не отправят
+  const tickMonday = mondayWeeksAgo(5);
+  const week = mondayWeeksAgo(6);
   const me = await registerUser(page);
-  await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
-  await runTick(request, mskAt(TICK_MONDAY, "08:30"));
+  await seedRecapWeek(me.login, week, [press({ day: 1 })]);
+  await runTick(request, mskAt(tickMonday, "08:30"));
   expect(await recapNotifications(me.login)).toHaveLength(0);
-  await page.goto(`/recap/${RECAP_WEEK}`);
+  await page.goto(`/recap/${week}`);
   await expect(page.getByTestId("recap-total-workouts")).toHaveText("1");
-  await runTick(request, mskAt(TICK_MONDAY, "09:30"));
+  await runTick(request, mskAt(tickMonday, "09:30"));
   expect(await recapNotifications(me.login)).toHaveLength(0);
 });
 
