@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,8 +32,9 @@ function markDismissed(day: string) {
 }
 
 /**
- * Ежедневный сундук: пока сегодняшний не открыт — значок в шапке, на дашборде диалог открывается сам
- * (раз за сессию браузера; `autoOpen = false` — только по значку, для e2e). XP считает сервер.
+ * Ежедневный сундук: пока сегодняшний не открыт — диалог открывается сам на любой странице и значок в шапке.
+ * Закрыли, не открыв, — до конца сессии браузера только значок (`autoOpen = false` — всегда только значок, для e2e).
+ * XP считает сервер.
  */
 export function DailyChest({
   day,
@@ -49,7 +49,6 @@ export function DailyChest({
   available: boolean;
   autoOpen: boolean;
 }) {
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState<Opened | null>(null);
   const [pending, startTransition] = useTransition();
@@ -61,8 +60,8 @@ export function DailyChest({
   useEffect(() => {
     // sessionStorage есть только в браузере — решение после гидрации
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (autoOpen && available && pathname === "/dashboard" && !wasDismissed(day)) setOpen(true);
-  }, [autoOpen, available, pathname, day]);
+    if (autoOpen && available && !wasDismissed(day)) setOpen(true);
+  }, [autoOpen, available, day]);
 
   // Покачивание закрытого сундука — конечное, чтобы не грузить страницу бесконечной анимацией
   useEffect(() => {
