@@ -89,7 +89,7 @@ export function pickInitial(server: { updatedAt: string }, rec: OfflineRecord | 
 
 // Имена кэшей — те же, что в public/sw.js
 export const PAGES_CACHE = "hf-pages-v1";
-const STATIC_CACHE = "hf-static-v1";
+const STATIC_CACHE = "hf-static-v2";
 
 /**
  * Обновить копию /training в кэше service worker'а (для открытия без сети): после создания тренировки
@@ -107,7 +107,8 @@ export function refreshTrainingCache() {
     .getEntriesByType("resource")
     .map((e) => e.name)
     .filter((u) => new URL(u).origin === location.origin && new URL(u).pathname.startsWith("/_next/static/"));
-  if (assets.length) {
+  // Только production: dev-чанки без хэша в имени устаревают при каждой правке (как и в public/sw.js)
+  if (assets.length && process.env.NODE_ENV === "production") {
     void caches
       .open(STATIC_CACHE)
       .then((cache) => cache.addAll([...new Set(assets)]))

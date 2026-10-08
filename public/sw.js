@@ -2,7 +2,8 @@
 
 // Версии кэшей — те же имена использует страница (components/training/offline-store.ts)
 const PAGES_CACHE = "hf-pages-v1";
-const STATIC_CACHE = "hf-static-v1";
+// v2: v1 мог хранить dev-чанки без хэша в имени — при активации удаляется
+const STATIC_CACHE = "hf-static-v2";
 const OFFLINE_PAGES = ["/training"];
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -35,13 +36,19 @@ async function networkFirstPage(request) {
   }
 }
 
-/** Хэшированная статика Next неизменна — из кэша, если есть. */
+/** Ответ можно кэшировать навсегда: хэшированная статика production-сборки (`Cache-Control: … immutable`). */
+const isImmutable = (response) => response.ok && (response.headers.get("Cache-Control") ?? "").includes("immutable");
+
+/**
+ * Хэшированная статика Next неизменна — из кэша, если есть. В dev у чанков нет хэша в имени и они меняются
+ * при каждой правке (Cache-Control: no-store) — такие не кэшируем, иначе браузер получал бы старый код.
+ */
 async function cacheFirst(request) {
   const cache = await caches.open(STATIC_CACHE);
   const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  if (isImmutable(response)) await cache.put(request, response.clone());
   return response;
 }
 
