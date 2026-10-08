@@ -2,9 +2,10 @@ import "server-only";
 import { NotificationType, RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
-import { bossName } from "@/lib/boss/bosses";
+import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
+import { titlesUnlockedByWin } from "@/lib/titles/catalog";
 import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
@@ -33,7 +34,18 @@ export type FinishMeta = {
   /** Тренировок за неделю этой тренировки (включая её). */
   weekCount: number;
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
-  boss?: { week: string; code: string; damage: number; crits: number; hpBefore: number; hpAfter: number; hp: number; defeated: boolean };
+  boss?: {
+    week: string;
+    code: string;
+    damage: number;
+    crits: number;
+    hpBefore: number;
+    hpAfter: number;
+    hp: number;
+    defeated: boolean;
+    /** Титулы, открытые этой победой (названия). */
+    titles?: string[];
+  };
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -188,6 +200,17 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         { push: prefs.notifyAchievements },
       );
     }
+    let titles: string[] = [];
+    if (defeated) {
+      // Победы до этой: текущая неделя уже помечена — исключаем её
+      const wins = await tx.bossWeek.groupBy({
+        by: ["bossCode"],
+        where: { userId, defeatedAt: { not: null }, id: { not: bossWeek.id } },
+        _count: { _all: true },
+      });
+      const winsBefore = Object.fromEntries(wins.map((w) => [w.bossCode, w._count._all]));
+      titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as BossCode).map((t) => t.label);
+    }
     const boss: FinishMeta["boss"] = {
       week,
       code: bossWeek.bossCode,
@@ -197,6 +220,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       hpAfter: Math.max(0, bossWeek.hp - before.damage - hit.damage),
       hp: bossWeek.hp,
       defeated,
+      ...(titles.length ? { titles } : {}),
     };
 
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.

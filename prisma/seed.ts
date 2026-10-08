@@ -450,6 +450,8 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
     };
     if (friend.bossWin && w === all.at(-1)) {
       await db.bossWeek.create({ data: { userId, week, bossCode: bossForWeek(week), hp: MIN_HP, defeatedAt: finishedAt } });
+      // Титул за эту победу — виден в лиге, ленте и списке друзей
+      await db.user.update({ where: { id: userId }, data: { titleCode: `boss:${bossForWeek(week)}:1` } });
     }
     await db.xpEvent.create({
       data: { userId, workoutId: workout.id, amount: baseXp, reason: "WORKOUT_COMPLETED", meta, createdAt: finishedAt },

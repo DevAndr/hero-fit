@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Swords } from "lucide-react";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { LottiePlayer, prefersReducedMotion } from "@/components/lottie/lottie-player";
@@ -81,6 +82,14 @@ export function BossDamage({
               <span className="ml-2 text-muted-foreground">Уже повержен на этой неделе</span>
             ) : null}
           </p>
+          {boss.titles?.length ? (
+            <p className="mt-1 text-sm" data-testid="boss-title-unlocked">
+              {boss.titles.map((t) => `Открыт титул «${t}»`).join(" · ")}{" "}
+              <Link href="/settings#title" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Выбрать
+              </Link>
+            </p>
+          ) : null}
           {boss.defeated && !taken ? (
             <Button size="sm" className="mt-2 bg-amber-400 hover:bg-amber-300" onClick={() => setChestOpen(true)}>
               Открыть сундук босса

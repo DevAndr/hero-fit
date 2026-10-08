@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { makeFriends, mondayWeeksAgo, seedWorkouts, userId, withDb } from "./db";
-import { pickOption, registerUser } from "./helpers";
+import { pickOption, quickWorkout, registerUser } from "./helpers";
 
 /** Победа над боссом `code` n недель назад (строка BossWeek напрямую). */
 const bossWin = (login: string, code: string, weeksAgo: number) =>
@@ -97,4 +97,37 @@ test("friend sees my title in the league, feed and friends list", async ({ page,
   await expect(page.getByRole("article", { name: new RegExp(`^${friend.login}:`) })).toContainText("Гроза Голема");
   await expect(page.getByRole("article", { name: new RegExp(`^${me.login}:`) })).toContainText("Гроза Голема");
   await expect(page.getByTestId("friend-row").filter({ hasText: friend.login })).toContainText("Гроза Голема");
+});
+
+/** Код босса текущей недели (BossWeek создаёт дашборд после регистрации). */
+const currentBoss = (login: string) =>
+  withDb(async (db) => {
+    const { rows } = await db.query<{ bossCode: string }>(
+      `SELECT "bossCode" FROM "BossWeek" WHERE "userId" = $1 ORDER BY week DESC LIMIT 1`,
+      [await userId(db, login)],
+    );
+    return rows[0].bossCode;
+  });
+
+test("first boss win unlocks a title in the summary", async ({ page }) => {
+  const { login } = await registerUser(page);
+  // 14 подходов этой недели + 1 в тренировке = 1500 HP
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  const unlocked = page.getByTestId("boss-title-unlocked");
+  await expect(unlocked).toContainText(/Открыт титул «Гроза .+»/);
+  await expect(unlocked.getByRole("link", { name: "Выбрать" })).toHaveAttribute("href", "/settings#title");
+
+  await page.reload();
+  await expect(page.getByTestId("boss-title-unlocked")).toContainText(/Открыт титул «Гроза .+»/);
+});
+
+test("second win over the same boss unlocks nothing", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await expect(page.getByTestId("boss-card")).toBeVisible();
+  await bossWin(login, await currentBoss(login), 5);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  await expect(page.getByTestId("boss-damage")).toContainText("Повержен!");
+  await expect(page.getByTestId("boss-title-unlocked")).toHaveCount(0);
 });
