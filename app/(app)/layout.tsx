@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { AppShell } from "@/components/app/app-shell";
@@ -9,6 +10,9 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { env } from "@/lib/env";
 import { getNotificationFeed } from "@/lib/notifications/queries";
+
+/** Личный кабинет — вне поиска (и так за входом, но ссылки могут утечь). */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();

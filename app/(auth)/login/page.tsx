@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormMessage, LoginForm } from "@/components/auth/auth-forms";
 
-export const metadata: Metadata = { title: "Вход" };
+export const metadata: Metadata = { title: "Вход", robots: { index: false, follow: true } };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next, reset } = await searchParams;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ForgotPasswordForm } from "@/components/auth/auth-forms";
 
-export const metadata: Metadata = { title: "Восстановление пароля" };
+export const metadata: Metadata = { title: "Восстановление пароля", robots: { index: false, follow: true } };
 
 export default function ForgotPasswordPage() {
   return (

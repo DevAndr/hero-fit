@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/app/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { env } from "@/lib/env";
+import { isIndexable, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,12 +17,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(env.APP_URL),
   title: {
-    default: "Hero Fit",
-    template: "%s · Hero Fit",
+    default: SITE_TITLE,
+    template: `%s · ${SITE_NAME}`,
   },
-  description: "Игровой трекер тренировок: уровни, ачивки, streak и прогресс",
-  appleWebApp: { capable: true, title: "Hero Fit", statusBarStyle: "black-translucent" },
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  category: "health & fitness",
+  // Превью и локальные сборки — вне поиска; в production на публичном домене индексируем
+  robots: isIndexable(env.NODE_ENV, env.APP_URL) ? { index: true, follow: true } : { index: false, follow: false },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  formatDetection: { telephone: false, email: false, address: false },
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "black-translucent" },
   icons: { apple: "/pwa-icon/180" },
 };
 

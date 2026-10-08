@@ -10,7 +10,9 @@ import { rotateRefreshToken } from "@/lib/auth/session";
 import { verifyAccessToken } from "@/lib/auth/tokens";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
-const PUBLIC_PAGES = ["/", "/reset-password", ...AUTH_PAGES];
+const PUBLIC_PAGES = ["/", "/reset-password", "/tools/1rm", "/tools/plates", ...AUTH_PAGES];
+/** Публичные файлы без расширения: PWA-иконки и картинка для соцсетей (opengraph-image?<hash>). */
+const PUBLIC_PREFIXES = ["/pwa-icon/", "/opengraph-image"];
 
 /**
  * Оптимистичная проверка по cookie + тихий refresh, когда access истёк.
@@ -45,7 +47,7 @@ export default async function proxy(req: NextRequest) {
       return passThrough();
     }
 
-    if (!authed && !PUBLIC_PAGES.includes(pathname) && !pathname.startsWith("/pwa-icon/")) {
+    if (!authed && !PUBLIC_PAGES.includes(pathname) && !PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
       const url = new URL("/login", req.nextUrl);
       url.searchParams.set("next", pathname + search);
       return NextResponse.redirect(url);

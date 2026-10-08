@@ -1,0 +1,352 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { connection } from "next/server";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Dumbbell, Play, Sparkles, Users, X } from "lucide-react";
+import { Faq, FAQ } from "@/components/marketing/faq";
+import { HeroHud } from "@/components/marketing/hero-hud";
+import {
+  BadgeRow,
+  FreezeChip,
+  LevelHud,
+  MiniCalendar,
+  MiniLeague,
+  MiniRecap,
+  MuscleBars,
+  OfflineBadge,
+  ProgressChart,
+  RestTimerRing,
+  StreakWeeks,
+} from "@/components/marketing/infographics";
+import { buttonVariants } from "@/components/ui/button";
+import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
+import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = {
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
+
+const STEPS = [
+  {
+    icon: ClipboardList,
+    title: "Собери тренировку",
+    text: "Выбери готовую программу или шаблон — или набери упражнения сам. Повторить прошлую тренировку — в один клик.",
+  },
+  {
+    icon: Play,
+    title: "Тренируйся с подсказками",
+    text: "Отмечай подходы, вес и повторы. Таймер отдыха напомнит о следующем подходе, а калькулятор блинов — что вешать на гриф.",
+  },
+  {
+    icon: Sparkles,
+    title: "Прокачивайся",
+    text: "Получай XP и уровни, бей рекорды, держи недельный streak. В понедельник — итоги недели и место в лиге друзей.",
+  },
+];
+
+type Feature = { title: string; text: string; visual: React.ReactNode; className?: string };
+
+const FEATURES: Feature[] = [
+  {
+    title: "Уровни и XP за реальную работу",
+    text: "Каждый подход, повтор и поднятый килограмм — это очки опыта. Рекорд добавляет +25 XP. Уровень растёт вместе с тобой.",
+    visual: <LevelHud className="shadow-none" />,
+    className: "lg:col-span-2",
+  },
+  {
+    title: "Недельный streak",
+    text: "3 тренировки в неделю — и серия растёт. Заболел или уехал — неделю спасёт заморозка.",
+    visual: (
+      <div className="space-y-3">
+        <StreakWeeks />
+        <FreezeChip />
+      </div>
+    ),
+  },
+  {
+    title: "Рекорды и подсказки прогрессии",
+    text: "Личные рекорды по 1ПМ, весу и повторам считаются сами. Когда пора добавить вес — приложение подскажет.",
+    visual: <ProgressChart />,
+  },
+  {
+    title: "Таймер отдыха",
+    text: "Обратный отсчёт со звуком, вибрацией и push-уведомлением — даже при заблокированном экране. ±15 секунд одним касанием.",
+    visual: <RestTimerRing />,
+  },
+  {
+    title: "Ачивки, которые хочется собрать",
+    text: "За количество тренировок, серию, рост веса в каждом упражнении, объём и рекорды. Генерируются по твоему прогрессу.",
+    visual: <BadgeRow />,
+  },
+  {
+    title: "Календарь тренировок",
+    text: "Планируй тренировки по дням и времени, повторяй их каждую неделю и получай напоминание «Сегодня по плану».",
+    visual: <MiniCalendar />,
+    className: "lg:col-span-2",
+  },
+  {
+    title: "Лига друзей",
+    text: "Соревнуйтесь по XP за неделю, поддерживайте друг друга 👊 в ленте. Веса можно скрыть.",
+    visual: <MiniLeague />,
+  },
+  {
+    title: "Итоги недели",
+    text: "Каждый понедельник — прирост, лучший подход, место в лиге и забытые группы мышц.",
+    visual: <MiniRecap />,
+  },
+  {
+    title: "Статистика и графики",
+    text: "Объём, время в зале, тренировки по группам мышц, тренды по неделям и график силы по каждому упражнению.",
+    visual: <MuscleBars />,
+  },
+  {
+    title: "Работает без интернета",
+    text: "Приложение в браузере, ставится на главный экран как обычное. Без сети всё сохраняется и синхронизируется позже.",
+    visual: <OfflineBadge />,
+  },
+];
+
+const COMPARE: [feature: string, notebook: boolean][] = [
+  ["Запись подходов, веса и повторов", true],
+  ["Личные рекорды и 1ПМ считаются сами", false],
+  ["Подсказка «пора увеличить вес»", false],
+  ["Таймер отдыха с уведомлением", false],
+  ["Графики прогресса по каждому упражнению", false],
+  ["Мотивация: уровни, ачивки, streak, лига", false],
+  ["Напоминания о тренировках по плану", false],
+];
+
+function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
+  return (
+    <div className="mx-auto max-w-2xl text-center">
+      <p className="text-sm font-semibold tracking-wide text-primary uppercase">{eyebrow}</p>
+      <h2 id={id} className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+        {title}
+      </h2>
+      {text ? <p className="mt-4 text-pretty text-muted-foreground">{text}</p> : null}
+    </div>
+  );
+}
+
+export default async function Home() {
+  await connection();
+  const [exercises, programs] = await Promise.all([
+    db.exercise.count({ where: { userId: null } }),
+    db.workoutTemplate.count({ where: { userId: null } }),
+  ]);
+  const site = env.APP_URL;
+  const structured = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: absoluteUrl(site, "/"),
+      inLanguage: "ru-RU",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      url: absoluteUrl(site, "/"),
+      description: SITE_DESCRIPTION,
+      applicationCategory: "HealthApplication",
+      applicationSubCategory: "Дневник тренировок",
+      operatingSystem: "Web, Android, iOS",
+      inLanguage: "ru-RU",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "RUB" },
+      featureList: FEATURES.map((f) => f.title),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+    },
+  ];
+
+  const stats = [
+    { value: String(exercises), label: "упражнений в базе" },
+    { value: String(programs), label: "готовых программ" },
+    { value: "10", label: "групп мышц" },
+    { value: "0 ₽", label: "все функции бесплатно" },
+  ];
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structured) }} />
+
+      {/* Герой */}
+      <section className="relative overflow-hidden">
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_80%_10%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_0%_90%,color-mix(in_oklch,var(--streak)_12%,transparent),transparent_40%)]" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[48px_48px] opacity-40 mask-[radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-16 px-4 pt-14 pb-24 lg:grid-cols-[1.05fr_1fr] lg:pt-20">
+          <div className="space-y-7">
+            <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
+              <Dumbbell className="size-4 text-primary" aria-hidden /> Бесплатно · в браузере и офлайн
+            </p>
+            <h1 className="hf-rise font-display text-4xl leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl" style={{ animationDelay: "0.05s" }}>
+              Дневник тренировок, который превращает зал в <span className="text-primary">игру</span>
+            </h1>
+            <p className="hf-rise max-w-xl text-lg text-pretty text-muted-foreground" style={{ animationDelay: "0.1s" }}>
+              Записывай подходы, вес и повторы — и получай XP, уровни и ачивки за реальный прогресс. Hero Fit помогает не бросить: недельный streak,
+              напоминания и итоги недели.
+            </p>
+            <div className="hf-rise flex flex-wrap gap-3" style={{ animationDelay: "0.15s" }}>
+              <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-6 text-base" })}>
+                Начать бесплатно <ArrowRight aria-hidden />
+              </Link>
+              <Link href="#features" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
+                Что умеет
+              </Link>
+            </div>
+            <ul className="hf-rise flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" style={{ animationDelay: "0.2s" }}>
+              {["Без установки", "Готовые программы", "Работает без сети"].map((t) => (
+                <li key={t} className="flex items-center gap-1.5">
+                  <Check className="size-4 text-primary" aria-hidden /> {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <HeroHud />
+        </div>
+      </section>
+
+      {/* Цифры */}
+      <section aria-label="Hero Fit в цифрах" className="border-y bg-card/40">
+        <dl className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 px-4 py-10 sm:grid-cols-4">
+          {stats.map((s) => (
+            <div key={s.label} className="text-center">
+              <dt className="sr-only">{s.label}</dt>
+              <dd className="font-display text-3xl font-extrabold text-primary sm:text-4xl">{s.value}</dd>
+              <dd className="mt-1 text-sm text-muted-foreground">{s.label}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* Как это работает */}
+      <section aria-labelledby="how" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-24">
+        <SectionTitle id="how" eyebrow="Как это работает" title="Три шага от первого подхода до нового уровня" />
+        <ol className="mt-14 grid gap-6 md:grid-cols-3">
+          {STEPS.map(({ icon: Icon, title, text }, i) => (
+            <li key={title} className="relative rounded-2xl border bg-card p-6">
+              <span className="font-display text-5xl font-extrabold text-primary/20" aria-hidden>
+                0{i + 1}
+              </span>
+              <Icon className="mt-2 size-6 text-primary" aria-hidden />
+              <h3 className="mt-3 text-lg font-bold">{title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* Возможности */}
+      <section aria-labelledby="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-24">
+        <SectionTitle
+          id="features"
+          eyebrow="Возможности"
+          title="Всё для прогресса — и немного игры"
+          text="Не просто блокнот с цифрами: Hero Fit считает рекорды, подсказывает следующий шаг и мотивирует возвращаться в зал."
+        />
+        <ul className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((f) => (
+            <li key={f.title} className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-6 transition-colors hover:border-primary/50", f.className)}>
+              <div>
+                <h3 className="text-lg font-bold">{f.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{f.text}</p>
+              </div>
+              {f.visual}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Сравнение */}
+      <section aria-labelledby="compare" className="border-y bg-card/40">
+        <div className="mx-auto w-full max-w-4xl px-4 py-24">
+          <SectionTitle id="compare" eyebrow="Почему не блокнот" title="Блокнот запоминает. Hero Fit — ведёт к результату" />
+          <div className="mt-12 overflow-hidden rounded-2xl border bg-card">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Сравнение Hero Fit и бумажного дневника тренировок</caption>
+              <thead>
+                <tr className="border-b text-left">
+                  <th scope="col" className="p-4 font-semibold">Возможность</th>
+                  <th scope="col" className="p-4 text-center font-semibold text-muted-foreground">Блокнот</th>
+                  <th scope="col" className="p-4 text-center font-semibold text-primary">Hero Fit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE.map(([feature, notebook]) => (
+                  <tr key={feature} className="border-b last:border-0">
+                    <th scope="row" className="p-4 text-left font-normal">{feature}</th>
+                    <td className="p-4 text-center">
+                      {notebook ? <Check className="mx-auto size-5 text-muted-foreground" aria-label="есть" /> : <X className="mx-auto size-5 text-muted-foreground/50" aria-label="нет" />}
+                    </td>
+                    <td className="p-4 text-center">
+                      <Check className="mx-auto size-5 text-primary" aria-label="есть" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Инструменты */}
+      <section aria-labelledby="tools" className="mx-auto w-full max-w-6xl px-4 py-24">
+        <SectionTitle id="tools" eyebrow="Бесплатные инструменты" title="Посчитай прямо сейчас — без регистрации" />
+        <div className="mt-12 grid gap-4 md:grid-cols-2">
+          {[
+            { href: "/tools/1rm", icon: Calculator, title: "Калькулятор 1ПМ", text: "Одноповторный максимум по формуле Эпли и таблица рабочих весов на 1–12 повторений." },
+            { href: "/tools/plates", icon: Dumbbell, title: "Калькулятор блинов и разминки", text: "Какие блины вешать на гриф для нужного веса и разминочные подходы к рабочему." },
+          ].map(({ href, icon: Icon, title, text }) => (
+            <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border bg-card p-6 transition-colors hover:border-primary/50">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Icon className="size-6" aria-hidden />
+              </span>
+              <span>
+                <span className="flex items-center gap-2 text-lg font-bold">
+                  {title} <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+                </span>
+                <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-24">
+        <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
+        <div className="mt-12">
+          <Faq />
+        </div>
+      </section>
+
+      {/* Финальный призыв */}
+      <section className="px-4 pb-24">
+        <div className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border bg-card px-6 py-16 text-center">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_22%,transparent),transparent_60%)]" />
+          <div className="relative space-y-6">
+            <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight text-balance sm:text-5xl">Первый уровень — уже после первой тренировки</h2>
+            <p className="mx-auto max-w-xl text-muted-foreground">Регистрация за минуту. Без карты и без установки.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-8 text-base" })}>
+                Создать аккаунт <ArrowRight aria-hidden />
+              </Link>
+            </div>
+            <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              <li className="flex items-center gap-1.5"><CalendarDays className="size-4 text-primary" aria-hidden /> Календарь и напоминания</li>
+              <li className="flex items-center gap-1.5"><Users className="size-4 text-primary" aria-hidden /> Лига друзей</li>
+              <li className="flex items-center gap-1.5"><BellRing className="size-4 text-primary" aria-hidden /> Push-уведомления</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

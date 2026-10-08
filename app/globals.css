@@ -10,6 +10,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --font-display: var(--font-unbounded), var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -169,4 +170,30 @@
   optgroup {
     @apply bg-popover text-popover-foreground;
   }
+}
+/* ───────── Лендинг: появление при загрузке и «живые» элементы инфографики ───────── */
+@keyframes hf-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hf-fill {
+  from { transform: scaleX(0); }
+}
+@keyframes hf-float {
+  50% { transform: translateY(-8px); }
+}
+@keyframes hf-flicker {
+  50% { transform: scale(1.08) rotate(-3deg); }
+}
+@keyframes hf-draw {
+  from { stroke-dashoffset: var(--hf-len, 400); }
+  to { stroke-dashoffset: 0; }
+}
+.hf-rise { animation: hf-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.hf-fill { transform-origin: left; animation: hf-fill 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.4s both; }
+.hf-float { animation: hf-float 6s ease-in-out infinite; }
+.hf-flicker { animation: hf-flicker 1.6s ease-in-out infinite; }
+.hf-draw { stroke-dasharray: var(--hf-len, 400); animation: hf-draw 1.8s ease-out 0.3s both; }
+@media (prefers-reduced-motion: reduce) {
+  .hf-rise, .hf-fill, .hf-float, .hf-flicker, .hf-draw { animation: none; }
 }
