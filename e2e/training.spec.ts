@@ -68,16 +68,16 @@ test("full workout: build, sets, rest timer, autosave, finish → summary with X
   await expect(page).toHaveURL(/\/workouts\/\w+$/);
   await expect(page.getByRole("heading", { name: "Грудь и спина — готово!" })).toBeVisible();
   // 3 подхода, 30 повторов, 600 + 500 = 1100 кг → 50 + 15 + 6 + 5 = 76 XP
-  // + 32 за ачивку «Жим лёжа: 60 кг» (рабочий вес 62,5 кг)
-  await expect(page.getByTestId("xp-earned")).toHaveText("+108 XP");
-  await expect(page.getByText("76 за тренировку + 32 за ачивки")).toBeVisible();
+  // + 32 за ачивку «Жим лёжа: 60 кг» (рабочий вес 62,5 кг) + 21 за «Первая тренировка»
+  await expect(page.getByTestId("xp-earned")).toHaveText("+129 XP");
+  await expect(page.getByText("76 за тренировку + 53 за ачивки")).toBeVisible();
   await expect(page.getByTestId("streak")).toContainText("0");
   await expect(page.getByText("Неделя: 1/3 — ещё 2 тренировки до +1 к серии")).toBeVisible();
   await expect(page.getByText("1 100 кг")).toBeVisible();
   // Невыполненные подходы в историю не попали
   await expect(page.getByText("60 × 10")).toBeVisible();
   await expect(page.getByText("12 повт.")).toBeVisible();
-  await expect(page.getByText("LVL 2")).toBeVisible(); // 108 XP ≥ 100 — переход на 2-й уровень
+  await expect(page.getByText("LVL 2")).toBeVisible(); // 129 XP ≥ 100 — переход на 2-й уровень
 });
 
 test("repeat last workout prefills sets; beating it gives a PR", async ({ page }) => {

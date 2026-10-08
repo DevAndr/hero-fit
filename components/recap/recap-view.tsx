@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Trophy, Users } from "lucide-react";
 import { RecapMuscles } from "@/components/recap/recap-muscles";
 import { buttonVariants } from "@/components/ui/button";
@@ -150,8 +151,9 @@ function Records({ records }: { records: NonNullable<RecapData["records"]> }) {
       {records.achievements.length ? (
         <ul className="mt-2 flex flex-wrap gap-2" aria-label="Ачивки">
           {records.achievements.map((a) => (
-            <li key={a.code} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-              🏅 {a.title}
+            <li key={a.code} className="flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pr-2.5 pl-1 text-xs font-semibold text-primary">
+              <AchievementIcon code={a.code} size={20} />
+              {a.title}
             </li>
           ))}
         </ul>

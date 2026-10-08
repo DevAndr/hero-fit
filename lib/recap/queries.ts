@@ -1,6 +1,7 @@
 import "server-only";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
 import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { addDays } from "@/lib/plans/expand";
@@ -142,6 +143,8 @@ export async function createRecap(userId: string, week: string, tz: string): Pro
   const data = buildRecap(await loadRecapInput(userId, week, tz));
   if (!data) return false;
   const { count } = await db.weeklyRecap.createMany({ data: [{ userId, week, data }], skipDuplicates: true });
+  // Место в лиге за неделю появляется только в снимке — сразу выдаём ачивки лиги
+  if (count === 1 && data.league && "place" in data.league) await evaluateAchievementsNow(userId);
   return count === 1;
 }
 

@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { seedWorkouts, userId, withDb } from "./db";
-import { quickWorkout, registerUser } from "./helpers";
+import { createUserRow, makeFriends, mondayWeeksAgo, seedRecapWeek, seedWorkouts, userId, withDb } from "./db";
+import { quickWorkout, registerUser, uniqueLogin } from "./helpers";
 
 test("new user sees goals with progress and an empty list", async ({ page }) => {
   await registerUser(page);
   await page.goto("/achievements");
   await expect(page.getByText("Получено: 0")).toBeVisible();
-  await expect(page.getByLabel("Цель: Разогрев")).toContainText("0 / 5");
+  await expect(page.getByLabel("Цель: Первая тренировка")).toContainText("0 / 1");
+  await expect(page.getByLabel("Цель: 3 тренировки в неделю")).toContainText("0 / 3");
   await expect(page.getByLabel("Цель: В ударе")).toContainText("0 / 2"); // 2 недели подряд
   await expect(page.getByText("Пока пусто")).toBeVisible();
 });
@@ -19,13 +20,14 @@ test("more than 4 sets in an exercise → achievement, toast once, XP added", as
   const section = page.locator("section").filter({ hasText: "Новые ачивки" });
   await expect(section).toContainText("Сет-герой: Шраги со штангой");
   await expect(section).toContainText("+15 XP");
-  // 5 подходов, 50 повторов, 3000 кг → 50 + 25 + 10 + 15 = 100 XP, + 15 за ачивку
-  await expect(page.getByTestId("xp-earned")).toHaveText("+115 XP");
-  await expect(page.getByText("100 за тренировку + 15 за ачивки")).toBeVisible();
+  await expect(section).toContainText("Первая тренировка");
+  // 5 подходов, 50 повторов, 3000 кг → 50 + 25 + 10 + 15 = 100 XP, + 15 «Сет-герой» + 21 «Первая тренировка»
+  await expect(page.getByTestId("xp-earned")).toHaveText("+136 XP");
+  await expect(page.getByText("100 за тренировку + 36 за ачивки")).toBeVisible();
 
   await expect(page.getByText("🏆 Сет-герой: Шраги со штангой")).toBeVisible();
   await page.goto("/achievements");
-  await expect(page.getByText("Получено: 1")).toBeVisible();
+  await expect(page.getByText("Получено: 2")).toBeVisible();
   await expect(page.getByRole("article", { name: "Сет-герой: Шраги со штангой" })).toBeVisible();
   await expect(page.getByText("🏆 Сет-герой")).toHaveCount(0); // уже просмотрена — тост не повторяется
 });
@@ -61,7 +63,9 @@ test("5th workout, weight progress and streak achievements are generated from hi
   // Старт 100 кг → 130 кг: по ачивке за каждые +5 кг (+5 … +30)
   const weightTitles = [5, 10, 15, 20, 25, 30].map((kg) => `Жим штанги лёжа: +${kg} кг`);
   const titles = [
+    "Первая тренировка",
     "Разогрев",
+    "3 тренировки в неделю", // первая засчитанная неделя
     ...weightTitles,
     "В ударе", // 2 недели подряд
     "Поднял слона", // 6,6 т за всё время
@@ -136,4 +140,22 @@ test("daily login streak in the user's time zone", async ({ page }) => {
   await page.reload();
   await page.goto("/achievements");
   await expect(page.getByLabel("Цель: Неделя в игре")).toContainText("3 / 7");
+});
+
+test("league place from the weekly recap → achievement", async ({ page }) => {
+  const me = await registerUser(page);
+  const friend = uniqueLogin();
+  await createUserRow(friend);
+  await makeFriends(me.login, `Me_${me.login.slice(-8)}`, friend, `Fr_${friend.slice(-8)}`);
+  const week = mondayWeeksAgo(3);
+  const press = (day: number, xp: number) => ({ day, time: "19:00", exercise: "Жим штанги лёжа", weight: 100, reps: 5, sets: 3, xp });
+  await seedRecapWeek(me.login, week, [press(0, 300), press(2, 300)]);
+  await seedRecapWeek(friend, week, [press(1, 100)]);
+
+  // Снимок итогов создаётся при открытии — вместе с ним выдаётся ачивка за место
+  await page.goto(`/recap/${week}`);
+  await expect(page.getByRole("region", { name: "Лига друзей" })).toContainText("1-е место");
+  await page.goto("/achievements");
+  await expect(page.getByRole("article", { name: "Чемпион лиги" })).toBeVisible();
+  await expect(page.getByLabel("Цель: Чемпион лиги ×5")).toContainText("1 / 5");
 });

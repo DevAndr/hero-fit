@@ -37,6 +37,8 @@ export type AchievementStats = {
   workouts: number;
   longestStreak: number;
   currentStreak: number;
+  /** Тренировок на текущей неделе (в поясе пользователя). */
+  weekWorkouts: number;
   loginStreak: number;
   exercises: ExerciseStats[];
   level: number;
@@ -70,12 +72,17 @@ export type AchievementStats = {
   // Вехи
   maxGapDays: number;
   freezeSaves: number;
+  // Лига друзей: сколько недель закончил на 1/2/3 месте (из итогов недели)
+  leaguePlaces: Record<LeaguePlace, number>;
 };
+
+export type LeaguePlace = 1 | 2 | 3;
 
 export const EMPTY_STATS: AchievementStats = {
   workouts: 0,
   longestStreak: 0,
   currentStreak: 0,
+  weekWorkouts: 0,
   loginStreak: 0,
   exercises: [],
   level: 1,
@@ -101,9 +108,12 @@ export const EMPTY_STATS: AchievementStats = {
   programs: [],
   maxGapDays: 0,
   freezeSaves: 0,
+  leaguePlaces: { 1: 0, 2: 0, 3: 0 },
 };
 
 export const WORKOUT_STEP = 5;
+/** Пороги числа тренировок: первая, затем каждые WORKOUT_STEP. */
+export const WORKOUT_THRESHOLDS = [1, WORKOUT_STEP];
 export const LOGIN_THRESHOLDS = [3, 7, 14, 30, 60, 100, 365];
 /** Ачивка за каждые +5 кг к рабочему весу первой тренировки. */
 export const WEIGHT_STEP_KG = 5;
@@ -127,6 +137,7 @@ export const PROGRAM_THRESHOLDS = [10, 25, 50];
 export const LEVEL_THRESHOLDS = [5, 10, 25, 50];
 export const COLLECTOR_THRESHOLDS = [10, 25, 50, 100];
 export const COMEBACK_DAYS = 14;
+export const LEAGUE_WIN_THRESHOLDS = [1, 5, 10, 25];
 
 /** Встроенные базовые упражнения (по названию из сида, userId = null). */
 export const LIFTS: Record<LiftKey, { exercise: string; label: string; milestones: number[]; ratios: number[] }> = {
@@ -136,6 +147,7 @@ export const LIFTS: Record<LiftKey, { exercise: string; label: string; milestone
 };
 
 const WORKOUT_TITLES: Record<number, string> = {
+  1: "Первая тренировка",
   5: "Разогрев",
   10: "Втянулся",
   25: "Завсегдатай",
@@ -323,7 +335,21 @@ function ladders(s: AchievementStats): Ladder[] {
     (n: number) => def(n, { code: `${code}:${n}`, category, title, description, xpReward });
 
   return [
-    { fixed: [WORKOUT_STEP], step: WORKOUT_STEP, value: s.workouts, def: workoutDef },
+    { fixed: WORKOUT_THRESHOLDS, step: WORKOUT_STEP, value: s.workouts, def: workoutDef },
+    // Первая засчитанная неделя; цель — тренировки текущей недели.
+    {
+      fixed: [STREAK_WEEK_TARGET],
+      value: s.longestStreak > 0 ? STREAK_WEEK_TARGET : 0,
+      goalValue: s.longestStreak > 0 ? STREAK_WEEK_TARGET : Math.min(s.weekWorkouts, STREAK_WEEK_TARGET),
+      def: (n) =>
+        def(n, {
+          code: `weekgoal:${n}`,
+          category: "STREAK",
+          title: `${workouts(n)} в неделю`,
+          description: `Провести ${workouts(n)} за одну неделю (пн–вс)`,
+          xpReward: 15,
+        }),
+    },
     // Получение — по максимальной серии (сохраняется после перерыва), цель — по текущей.
     { fixed: STREAK_WEEK_THRESHOLDS, step: STREAK_WEEK_STEP, value: s.longestStreak, goalValue: s.currentStreak, def: streakDef },
     { fixed: LOGIN_THRESHOLDS, step: 365, value: s.loginStreak, def: loginDef },
@@ -569,6 +595,37 @@ function ladders(s: AchievementStats): Ladder[] {
       value: s.freezeSaves,
       goal: false,
       def: single("freeze", "MILESTONE", "Второе дыхание", "Сохранить streak с помощью заморозки", 20),
+    },
+
+    // Лига друзей
+    {
+      fixed: LEAGUE_WIN_THRESHOLDS,
+      step: 25,
+      value: s.leaguePlaces[1],
+      goal: s.leaguePlaces[1] > 0, // без первой победы цель «0 / 1» ничего не говорит (может и не быть друзей)
+      def: (n) =>
+        def(n, {
+          code: `league1:${n}`,
+          category: "LEAGUE",
+          title: n === 1 ? "Чемпион лиги" : `Чемпион лиги ×${n}`,
+          description:
+            n === 1
+              ? "Закончить неделю на 1-м месте в лиге друзей"
+              : `Закончить ${n} ${plural(n, "неделю", "недели", "недель")} на 1-м месте в лиге друзей`,
+          xpReward: n === 1 ? 50 : 25 + n * 5,
+        }),
+    },
+    {
+      fixed: [1],
+      value: s.leaguePlaces[2],
+      goal: false,
+      def: single("league2", "LEAGUE", "Серебро лиги", "Закончить неделю на 2-м месте в лиге друзей", 30),
+    },
+    {
+      fixed: [1],
+      value: s.leaguePlaces[3],
+      goal: false,
+      def: single("league3", "LEAGUE", "Бронза лиги", "Закончить неделю на 3-м месте в лиге друзей", 20),
     },
   ];
 }

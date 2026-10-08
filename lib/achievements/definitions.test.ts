@@ -30,13 +30,23 @@ describe("earnedAchievements", () => {
     expect(earnedAchievements(empty)).toEqual([]);
   });
 
-  it("workout count — every multiple of 5", () => {
-    expect(codes({ ...empty, workouts: 4 })).toEqual([]);
-    expect(codes({ ...empty, workouts: 17 })).toEqual(["workouts:5", "workouts:10", "workouts:15"]);
+  it("workout count — the first one, then every multiple of 5", () => {
+    expect(codes({ ...empty, workouts: 4 })).toEqual(["workouts:1"]);
+    expect(codes({ ...empty, workouts: 17 })).toEqual(["workouts:1", "workouts:5", "workouts:10", "workouts:15"]);
+    expect(earnedAchievements({ ...empty, workouts: 1 })[0]).toMatchObject({ title: "Первая тренировка", xpReward: 21 });
+  });
+
+  it("3 workouts in a week — once, with the first credited week", () => {
+    expect(codesOf("weekgoal", { weekWorkouts: 2 })).toEqual([]);
+    expect(codesOf("weekgoal", { longestStreak: 1 })).toEqual(["weekgoal:3"]);
+    expect(codesOf("weekgoal", { longestStreak: 30 })).toEqual(["weekgoal:3"]);
+    expect(earnedAchievements({ ...empty, longestStreak: 1 })[0]).toMatchObject({ title: "3 тренировки в неделю", category: "STREAK" });
+    // Цель — тренировки текущей недели
+    expect(nextGoals({ ...empty, weekWorkouts: 2 }).find((g) => g.code === "weekgoal:3")).toMatchObject({ current: 2, target: 3 });
   });
 
   it("weekly streak achievements use the longest streak (kept after a break)", () => {
-    expect(codes({ ...empty, longestStreak: 9, currentStreak: 1 })).toEqual(["streakw:2", "streakw:4", "streakw:8"]);
+    expect(codesOf("streakw", { longestStreak: 9, currentStreak: 1 })).toEqual(["streakw:2", "streakw:4", "streakw:8"]);
     expect(codesOf("streakw", { longestStreak: 104 })).toContain("streakw:104");
   });
 
@@ -152,6 +162,26 @@ describe("earnedAchievements", () => {
     expect(codesOf("freeze", { freezeSaves: 1 })).toEqual(["freeze:1"]);
   });
 
+  it("league: wins ladder, silver and bronze once", () => {
+    expect(codes({ ...empty, leaguePlaces: { 1: 0, 2: 0, 3: 0 } })).toEqual([]);
+    expect(codes({ ...empty, leaguePlaces: { 1: 6, 2: 3, 3: 1 } })).toEqual(["league1:1", "league1:5", "league2:1", "league3:1"]);
+    expect(codesOf("league1", { leaguePlaces: { 1: 60, 2: 0, 3: 0 } })).toEqual([
+      "league1:1",
+      "league1:5",
+      "league1:10",
+      "league1:25",
+      "league1:50",
+    ]);
+    const first = earnedAchievements({ ...empty, leaguePlaces: { 1: 1, 2: 0, 3: 0 } })[0];
+    expect(first).toMatchObject({ title: "Чемпион лиги", category: "LEAGUE", xpReward: 50 });
+    // Цель по победам — только после первой
+    expect(nextGoals(empty).some((g) => g.code.startsWith("league"))).toBe(false);
+    expect(nextGoals({ ...empty, leaguePlaces: { 1: 2, 2: 0, 3: 0 } }).find((g) => g.code.startsWith("league1:"))).toMatchObject({
+      title: "Чемпион лиги ×5",
+      current: 2,
+    });
+  });
+
   it("every achievement has a title, description, positive integer XP and a unique code", () => {
     const all = earnedAchievements({
       ...empty,
@@ -186,6 +216,7 @@ describe("earnedAchievements", () => {
       programs: [{ program: "5×5", workouts: 60 }],
       maxGapDays: 30,
       freezeSaves: 2,
+      leaguePlaces: { 1: 30, 2: 4, 3: 2 },
     });
     for (const a of all) {
       expect(a.title).toBeTruthy();

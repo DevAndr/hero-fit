@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { formatClock, rirLabel } from "@/lib/format";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
@@ -137,8 +138,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
           </h2>
           <ul className="mt-2 space-y-1 text-sm">
             {meta.achievements.map((a) => (
-              <li key={a.code} className="flex flex-wrap justify-between gap-2">
-                <span>
+              <li key={a.code} className="flex items-center gap-3">
+                <AchievementIcon code={a.code} size={40} />
+                <span className="min-w-0 flex-1">
                   <span className="font-semibold">{a.title}</span>{" "}
                   <span className="text-muted-foreground">· {a.description}</span>
                 </span>

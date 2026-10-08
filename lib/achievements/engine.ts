@@ -10,13 +10,14 @@ import {
   type AchievementDef,
   type AchievementStats,
   type ExerciseStats,
+  type LeaguePlace,
   type LiftKey,
 } from "@/lib/achievements/definitions";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
-import { MAX_REWARD_FREEZES } from "@/lib/progress/weekly-streak";
+import { MAX_REWARD_FREEZES, weekKey } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
 
@@ -158,6 +159,26 @@ async function journalStats(client: Client, userId: string) {
   return row;
 }
 
+/**
+ * Места в лиге друзей по итогам недель — из снимков WeeklyRecap (лига там уже посчитана на конец недели).
+ * Место засчитывается, только если в лиге было не меньше max(2, место) участников; демо-снимки сида не считаются.
+ */
+async function leagueStats(client: Client, userId: string): Promise<AchievementStats["leaguePlaces"]> {
+  const rows = await client.$queryRaw<{ place: number; weeks: number }[]>`
+    SELECT (data->'league'->>'place')::int AS place, COUNT(*)::int AS weeks
+    FROM "WeeklyRecap"
+    WHERE "userId" = ${userId} AND data->'league' ? 'place'
+      AND (data->'league'->>'place')::int <= 3
+      AND (data->'league'->>'of')::int >= GREATEST(2, (data->'league'->>'place')::int)
+      AND (data->'league'->>'xp')::int > 0
+      AND NOT COALESCE((data->>'demo')::boolean, false)
+    GROUP BY 1
+  `;
+  const places: AchievementStats["leaguePlaces"] = { 1: 0, 2: 0, 3: 0 };
+  for (const r of rows) places[r.place as LeaguePlace] = r.weeks;
+  return places;
+}
+
 /** Тренировки по готовым программам (встроенные шаблоны с program). */
 function programStats(client: Client, userId: string) {
   return client.$queryRaw<{ program: string; workouts: number }[]>`
@@ -192,10 +213,20 @@ async function liftStats(client: Client, userId: string): Promise<AchievementSta
 export async function getAchievementStats(client: Client, userId: string): Promise<AchievementStats> {
   const { timeZone, ...user } = await client.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { longestStreak: true, currentStreak: true, loginStreak: true, level: true, bodyWeight: true, timeZone: true },
+    select: {
+      longestStreak: true,
+      currentStreak: true,
+      loginStreak: true,
+      level: true,
+      bodyWeight: true,
+      timeZone: true,
+      weekWorkouts: true,
+      weekWorkoutsKey: true,
+    },
   });
   const tz = safeTimeZone(timeZone);
-  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements] =
+  const { weekWorkouts, weekWorkoutsKey, ...rest } = user;
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces] =
     await Promise.all([
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
@@ -207,9 +238,12 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       client.exercise.count({ where: { userId } }), // вместе с архивными: ачивка за сам факт создания
       client.workoutTemplate.count({ where: { userId } }),
       client.userAchievement.count({ where: { userId } }),
+      leagueStats(client, userId),
     ]);
   return {
-    ...user,
+    ...rest,
+    weekWorkouts: weekWorkoutsKey === weekKey(new Date(), tz) ? weekWorkouts : 0,
+    leaguePlaces,
     workouts: totals.workouts,
     exercises,
     achievements,

@@ -7,7 +7,7 @@ export async function getUnseenAchievements(userId: string) {
   return db.userAchievement.findMany({
     where: { userId, seenAt: null },
     orderBy: { earnedAt: "asc" },
-    select: { id: true, title: true, description: true, xpReward: true },
+    select: { id: true, code: true, title: true, description: true, xpReward: true },
     take: 10,
   });
 }

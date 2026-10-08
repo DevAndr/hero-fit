@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Trophy } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
-import { CATEGORY_META, CATEGORY_ORDER } from "@/components/achievements/category";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
+import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/components/achievements/category";
 import { GoalCard } from "@/components/achievements/goal-card";
 import { requireUser } from "@/lib/auth/dal";
 import { getAchievementsOverview } from "@/lib/achievements/queries";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Ачивки" };
 
@@ -40,16 +40,13 @@ export default async function AchievementsPage() {
           </div>
         ) : (
           CATEGORY_ORDER.filter((c) => byCategory.has(c)).map((category) => {
-            const { label, icon: Icon, color } = CATEGORY_META[category];
             return (
               <div key={category} className="space-y-2">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{CATEGORY_LABELS[category]}</h3>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {byCategory.get(category)!.map((a) => (
-                    <article key={a.id} aria-label={a.title} className="flex gap-3 rounded-xl border bg-card p-4">
-                      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", color)}>
-                        <Icon className="size-5" />
-                      </span>
+                    <article key={a.id} aria-label={a.title} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                      <AchievementIcon code={a.code} size={64} />
                       <div className="min-w-0">
                         <p className="font-semibold">{a.title}</p>
                         <p className="text-xs text-muted-foreground">{a.description}</p>

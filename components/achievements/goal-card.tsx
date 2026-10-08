@@ -1,15 +1,11 @@
-import { CATEGORY_META } from "@/components/achievements/category";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import type { Goal } from "@/lib/achievements/definitions";
-import { cn } from "@/lib/utils";
 
 export function GoalCard({ goal }: { goal: Goal }) {
-  const { icon: Icon, color } = CATEGORY_META[goal.category];
   const { unit } = goal;
   return (
-    <div className="flex gap-3 rounded-xl border bg-card p-4" aria-label={`Цель: ${goal.title}`}>
-      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg opacity-70", color)}>
-        <Icon className="size-5" />
-      </span>
+    <div className="flex items-center gap-3 rounded-xl border bg-card p-3" aria-label={`Цель: ${goal.title}`}>
+      <AchievementIcon code={goal.code} size={56} locked />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold break-words">{goal.title}</p>

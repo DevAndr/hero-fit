@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { markAchievementsSeenAction } from "@/lib/achievements/actions";
 
-type Unseen = { id: string; title: string; description: string; xpReward: number };
+type Unseen = { id: string; code: string; title: string; description: string; xpReward: number };
 
 /** Показывает тосты о новых ачивках один раз и помечает их просмотренными. */
 export function AchievementToaster({ achievements }: { achievements: Unseen[] }) {
@@ -15,7 +16,11 @@ export function AchievementToaster({ achievements }: { achievements: Unseen[] })
     if (fresh.length === 0) return;
     for (const a of fresh) {
       shown.current.add(a.id);
-      toast.success(`🏆 ${a.title}`, { description: `${a.description} · +${a.xpReward} XP`, duration: 6000 });
+      toast.success(`🏆 ${a.title}`, {
+        description: `${a.description} · +${a.xpReward} XP`,
+        icon: <AchievementIcon code={a.code} size={40} />,
+        duration: 6000,
+      });
     }
     void markAchievementsSeenAction(fresh.map((a) => a.id));
   }, [achievements]);
