@@ -9,6 +9,7 @@ import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
+import { processWeeklyRecaps } from "@/lib/recap/tick";
 
 type Client = Prisma.TransactionClient;
 
@@ -198,7 +199,7 @@ export async function processPlanReminders(now = new Date()) {
 
 /** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
 export async function runNotificationTick(now = new Date()) {
-  const reminders = (await processStreakReminders(now)) + (await processPlanReminders(now));
+  const reminders = (await processStreakReminders(now)) + (await processPlanReminders(now)) + (await processWeeklyRecaps(now));
   const pushes = await processDuePushes();
   return { reminders, pushes };
 }

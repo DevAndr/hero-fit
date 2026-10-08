@@ -1,26 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext } from "@playwright/test";
-import { userId, withDb } from "./db";
-import { quickWorkout, registerUser } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { addSubscription, userId, withDb } from "./db";
+import { quickWorkout, registerUser, runTick } from "./helpers";
 import { startPushService } from "./push-server";
-
-/** now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts). */
-const runTick = (request: APIRequestContext, now?: Date) =>
-  request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
-    headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
-  });
-
-async function addSubscription(login: string, sub: { endpoint: string; p256dh: string; auth: string }) {
-  await withDb(async (db) => {
-    await db.query(`insert into "PushSubscription" (id, "userId", endpoint, p256dh, auth) values ($1, $2, $3, $4, $5)`, [
-      randomUUID(),
-      await userId(db, login),
-      sub.endpoint,
-      sub.p256dh,
-      sub.auth,
-    ]);
-  });
-}
 
 /** Суббота 15:00 UTC две-три недели назад: в «сейчас» такая серия уже сгорела — фоновый воркер её не тронет. */
 function pastSaturday() {

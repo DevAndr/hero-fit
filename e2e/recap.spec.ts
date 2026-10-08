@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { createUserRow, makeFriends, mondayWeeksAgo, seedRecapWeek, userId, withDb } from "./db";
-import { registerUser, uniqueLogin } from "./helpers";
+import { addSubscription, createUserRow, makeFriends, mondayWeeksAgo, seedRecapWeek, userId, withDb } from "./db";
+import { registerUser, runTick, uniqueLogin } from "./helpers";
+import { startPushService } from "./push-server";
 
 const press = (o: { day: number; time?: string; xp?: number }) => ({
   day: o.day,
@@ -63,4 +64,90 @@ test("archive lists recaps", async ({ page }) => {
   await expect(page).toHaveURL(/\/recap$/);
   await page.getByRole("link", { name: /1 тренировка/ }).click();
   await expect(page).toHaveURL(new RegExp(`/recap/${week}$`));
+});
+
+// Тестовый понедельник — две недели назад: фоновый воркер (реальное время) эти итоги не трогает.
+const TICK_MONDAY = mondayWeeksAgo(2);
+const RECAP_WEEK = mondayWeeksAgo(3);
+const mskAt = (day: string, time: string, plusDays = 0) => new Date(Date.parse(`${day}T${time}:00+03:00`) + plusDays * 86_400_000);
+
+async function recapNotifications(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string; url: string }>(
+      `select title, body, url from "Notification" where "userId" = $1 and type = 'RECAP' order by "createdAt"`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+test("monday tick creates recap and one notification", async ({ page, request }) => {
+  const me = await registerUser(page);
+  await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 0 }), press({ day: 3 })]);
+  const now = mskAt(TICK_MONDAY, "09:30");
+  await runTick(request, now);
+  await runTick(request, now);
+  await Promise.all([runTick(request, now), runTick(request, now)]);
+  const list = await recapNotifications(me.login);
+  expect(list).toHaveLength(1);
+  expect(list[0]).toMatchObject({ title: "Итоги недели 📊", url: `/recap/${RECAP_WEEK}` });
+  expect(list[0].body).toContain("лучший подход: Жим штанги лёжа 100×5");
+
+  await page.reload();
+  await page.getByRole("button", { name: /Уведомления/ }).click();
+  await page.getByRole("menuitem", { name: /Итоги недели/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/recap/${RECAP_WEEK}$`));
+});
+
+test("before 09:00 no push; seen recap → no push", async ({ page, request }) => {
+  const me = await registerUser(page);
+  await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
+  await runTick(request, mskAt(TICK_MONDAY, "08:30"));
+  expect(await recapNotifications(me.login)).toHaveLength(0);
+  await page.goto(`/recap/${RECAP_WEEK}`);
+  await expect(page.getByTestId("recap-total-workouts")).toHaveText("1");
+  await runTick(request, mskAt(TICK_MONDAY, "09:30"));
+  expect(await recapNotifications(me.login)).toHaveLength(0);
+});
+
+test("fresh start nudge once", async ({ page, request }) => {
+  const me = await registerUser(page);
+  await seedRecapWeek(me.login, mondayWeeksAgo(4), [press({ day: 2 })]);
+  const now = mskAt(TICK_MONDAY, "09:30");
+  await runTick(request, now);
+  await runTick(request, now);
+  await runTick(request, mskAt(TICK_MONDAY, "09:30", 7));
+  const list = await recapNotifications(me.login);
+  expect(list).toHaveLength(1);
+  expect(list[0]).toMatchObject({ title: "Новая неделя — новый старт 💪", url: "/training" });
+});
+
+test("notifyRecap off: recap is created, no notification", async ({ page, request }) => {
+  const me = await registerUser(page);
+  await page.goto("/settings");
+  const toggle = page.getByRole("switch", { name: "Итоги недели — в понедельник утром" });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
+  await runTick(request, mskAt(TICK_MONDAY, "09:30"));
+  expect(await recapNotifications(me.login)).toHaveLength(0);
+  const recaps = await withDb(async (db) => {
+    const { rows } = await db.query(`select 1 from "WeeklyRecap" where "userId" = $1 and week = $2`, [await userId(db, me.login), RECAP_WEEK]);
+    return rows.length;
+  });
+  expect(recaps).toBe(1);
+});
+
+test("recap push reaches the push service", async ({ page, request }) => {
+  const push = await startPushService();
+  try {
+    const me = await registerUser(page);
+    await addSubscription(me.login, push);
+    await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
+    await runTick(request, mskAt(TICK_MONDAY, "09:30"));
+    await expect.poll(() => push.received.length).toBe(1);
+    expect(push.received[0].payload).toMatchObject({ type: "RECAP", title: "Итоги недели 📊", url: `/recap/${RECAP_WEEK}` });
+  } finally {
+    await push.close();
+  }
 });

@@ -138,3 +138,15 @@ export async function seedRecapWeek(
     }
   });
 }
+
+export async function addSubscription(login: string, sub: { endpoint: string; p256dh: string; auth: string }) {
+  await withDb(async (db) => {
+    await db.query(`insert into "PushSubscription" (id, "userId", endpoint, p256dh, auth) values ($1, $2, $3, $4, $5)`, [
+      randomUUID(),
+      await userId(db, login),
+      sub.endpoint,
+      sub.p256dh,
+      sub.auth,
+    ]);
+  });
+}

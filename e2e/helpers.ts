@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 export const PASSWORD = "Secret123";
 
@@ -69,3 +69,9 @@ export async function pickOption(page: Page, trigger: Locator, option: string) {
   await page.getByRole("option", { name: option, exact: true }).click();
   await expect(page.getByRole("listbox")).toHaveCount(0);
 }
+
+/** Тик уведомлений; now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts). */
+export const runTick = (request: APIRequestContext, now?: Date) =>
+  request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
+    headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+  });

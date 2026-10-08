@@ -42,6 +42,7 @@ const settingsSchema = z
     notifyAchievements: z.boolean(),
     notifySocial: z.boolean(),
     notifyPlan: z.boolean(),
+    notifyRecap: z.boolean(),
     planReminderMin: z.union(PLAN_REMINDER_LEADS.map((m) => z.literal(m))),
   })
   .partial();
