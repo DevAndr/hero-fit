@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FinishMeta } from "@/lib/workouts/finish";
-import { buildRecap } from "./build";
-import type { RecapInput } from "./types";
+import { buildRecap, recapHighlights, recapPushBody } from "./build";
+import type { RecapData, RecapInput } from "./types";
 
 const WEEK = "2026-10-05";
 
@@ -188,5 +188,51 @@ describe("buildRecap", () => {
   it("plan", () => {
     expect(buildRecap(input({ plan: { done: 3, planned: 4 } }))!.plan).toEqual({ done: 3, planned: 4 });
     expect(buildRecap(input())!.plan).toBeUndefined();
+  });
+});
+
+describe("recapPushBody", () => {
+  const base = (o: Partial<RecapData> = {}): RecapData => ({
+    version: 1,
+    week: WEEK,
+    totals: { workouts: 3, minutes: 150, volume: 12000, sets: 50, prev: { workouts: 2, minutes: 120, volume: 10170, sets: 40 } },
+    ...o,
+  });
+  const press = { exerciseId: "p", exerciseName: "Жим лёжа", weight: 100, reps: 5, e1rm: 116.7, isRecord: false };
+  const league = { place: 2, of: 3, xp: 300, rows: [] };
+
+  it("league place, volume growth and best set", () => {
+    expect(recapPushBody(base({ league, bestSet: press }))).toBe("2-е место в лиге · объём +18% · лучший подход: Жим лёжа 100×5");
+  });
+
+  it("workouts growth when volume fell", () => {
+    const data = base({ bestSet: press, totals: { workouts: 3, minutes: 100, volume: 8000, sets: 30, prev: { workouts: 2, minutes: 90, volume: 9000, sets: 30 } } });
+    expect(recapPushBody(data)).toBe("тренировок +1 · лучший подход: Жим лёжа 100×5");
+  });
+
+  it("credited week without growth", () => {
+    const streak = { weekCount: 3, target: 3, credited: true, streak: 4, frozen: false };
+    const data = base({ bestSet: press, streak, totals: { workouts: 3, minutes: 100, volume: 8000, sets: 30, prev: null } });
+    expect(recapPushBody(data)).toBe("лучший подход: Жим лёжа 100×5 · неделя засчитана 🔥");
+  });
+
+  it("at most three facts", () => {
+    const streak = { weekCount: 3, target: 3, credited: true, streak: 4, frozen: false };
+    expect(recapHighlights(base({ league, bestSet: press, streak }))).toHaveLength(3);
+  });
+
+  it("fallback fact", () => {
+    expect(recapPushBody(base({ totals: { workouts: 1, minutes: 40, volume: 0, sets: 5, prev: null } }))).toBe("1 тренировка за неделю");
+  });
+
+  it("bodyweight best set", () => {
+    const pullups = { exerciseId: "u", exerciseName: "Подтягивания", weight: 0, reps: 15, e1rm: null, isRecord: false };
+    expect(recapPushBody(base({ bestSet: pullups, totals: { workouts: 2, minutes: 60, volume: 0, sets: 10, prev: null } }))).toBe(
+      "лучший подход: Подтягивания ×15",
+    );
+  });
+
+  it("percentile league is not a push fact", () => {
+    expect(recapHighlights(base({ league: { percentile: 80, xp: 100 } }))[0]).toBe("объём +18%");
   });
 });

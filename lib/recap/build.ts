@@ -1,4 +1,5 @@
 import type { MuscleGroup } from "@/generated/prisma/enums";
+import { plural } from "@/lib/format";
 import { addWeeks, STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 import { epley1RM } from "@/lib/progress/records";
 import { rankLeague } from "@/lib/social/league";
@@ -130,4 +131,32 @@ export function buildRecap(input: RecapInput): RecapData | null {
   };
   for (const [key, value] of Object.entries(blocks)) if (value !== undefined) Object.assign(data, { [key]: value });
   return data;
+}
+
+const formatKg = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+
+/** Самое яркое за неделю — 2–3 факта по приоритету: место в лиге → рост → лучший подход → засчитанная неделя. */
+export function recapHighlights(data: RecapData): string[] {
+  const facts: string[] = [];
+  if (data.league && "place" in data.league && data.league.of >= 2) facts.push(`${data.league.place}-е место в лиге`);
+  const { totals } = data;
+  if (totals.prev) {
+    if (totals.prev.volume > 0 && totals.volume > totals.prev.volume) {
+      facts.push(`объём +${Math.round((totals.volume / totals.prev.volume - 1) * 100)}%`);
+    } else if (totals.workouts > totals.prev.workouts) {
+      facts.push(`тренировок +${totals.workouts - totals.prev.workouts}`);
+    }
+  }
+  if (data.bestSet) {
+    const { exerciseName, weight, reps } = data.bestSet;
+    facts.push(`лучший подход: ${exerciseName} ${weight > 0 ? `${formatKg(weight)}×${reps}` : `×${reps}`}`);
+  }
+  if (data.streak?.credited) facts.push("неделя засчитана 🔥");
+  if (!facts.length) facts.push(`${totals.workouts} ${plural(totals.workouts, "тренировка", "тренировки", "тренировок")} за неделю`);
+  return facts.slice(0, 3);
+}
+
+/** Текст push «Итоги недели». */
+export function recapPushBody(data: RecapData): string {
+  return recapHighlights(data).join(" · ");
 }
