@@ -21,7 +21,10 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
 
 test("SEO files: robots closed outside public production, sitemap, OG image", async ({ request }) => {
   const robots = await (await request.get("/robots.txt")).text();
-  expect(robots).toContain("Disallow: /");
+  // Ровно «Disallow: /» (весь сайт), а не «Disallow: /api/» из боевых правил
+  expect(robots).toMatch(/^Disallow: \/$/m);
+  expect(robots).not.toMatch(/^Allow:/m);
+  expect(robots).not.toContain("hero-fit.ru");
   const sitemap = await (await request.get("/sitemap.xml")).text();
   for (const path of ["/tools/1rm", "/tools/plates", "/register"]) expect(sitemap).toContain(`${path}</loc>`);
   const og = await request.get("/opengraph-image");
