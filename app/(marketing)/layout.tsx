@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { Unbounded } from "next/font/google";
+import { MotionProvider } from "@/components/marketing/motion";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { ACCESS_COOKIE } from "@/lib/auth/cookies";
@@ -13,7 +14,9 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
   return (
     <div className={`${unbounded.variable} flex min-h-full flex-1 flex-col`}>
       <SiteHeader authed={authed} />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        <MotionProvider>{children}</MotionProvider>
+      </main>
       <SiteFooter />
     </div>
   );

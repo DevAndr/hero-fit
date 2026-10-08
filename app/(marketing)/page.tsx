@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Dumbbell, Play, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
 import { HeroHud } from "@/components/marketing/hero-hud";
+import { CountUp, Reveal } from "@/components/marketing/motion";
 import {
   BadgeRow,
   FreezeChip,
@@ -168,11 +169,11 @@ export default async function Home() {
     },
   ];
 
-  const stats = [
-    { value: String(exercises), label: "упражнений в базе" },
-    { value: String(programs), label: "готовых программ" },
-    { value: "10", label: "групп мышц" },
-    { value: "0 ₽", label: "все функции бесплатно" },
+  const stats: { value: number; from?: number; suffix?: string; label: string }[] = [
+    { value: exercises, label: "упражнений в базе" },
+    { value: programs, label: "готовых программ" },
+    { value: 10, label: "групп мышц" },
+    { value: 0, from: 990, suffix: " ₽", label: "все функции бесплатно" },
   ];
 
   return (
@@ -218,10 +219,18 @@ export default async function Home() {
       {/* Цифры */}
       <section aria-label="Hero Fit в цифрах" className="border-y bg-card/40">
         <dl className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 px-4 py-10 sm:grid-cols-4">
-          {stats.map((s) => (
+          {stats.map((s, i) => (
             <div key={s.label} className="text-center">
               <dt className="sr-only">{s.label}</dt>
-              <dd className="font-display text-3xl font-extrabold text-primary sm:text-4xl">{s.value}</dd>
+              <dd className="font-display text-3xl font-extrabold text-primary tabular-nums sm:text-4xl">
+                <span className="sr-only">
+                  {s.value}
+                  {s.suffix}
+                </span>
+                <span aria-hidden>
+                  <CountUp value={s.value} from={s.from} suffix={s.suffix} delay={i * 0.12} />
+                </span>
+              </dd>
               <dd className="mt-1 text-sm text-muted-foreground">{s.label}</dd>
             </div>
           ))}
@@ -233,7 +242,7 @@ export default async function Home() {
         <SectionTitle id="how" eyebrow="Как это работает" title="Три шага от первого подхода до нового уровня" />
         <ol className="mt-12 grid gap-4 sm:gap-6 lg:mt-14 lg:grid-cols-3">
           {STEPS.map(({ icon: Icon, title, text }, i) => (
-            <li key={title} className="relative rounded-2xl border bg-card p-5 sm:flex sm:items-start sm:gap-6 sm:p-6 lg:block">
+            <Reveal as="li" delay={i * 0.1} key={title} className="relative rounded-2xl border bg-card p-5 sm:flex sm:items-start sm:gap-6 sm:p-6 lg:block">
               <div className="flex items-center gap-3 sm:w-24 sm:shrink-0 sm:flex-col sm:items-start sm:gap-2 lg:w-auto">
                 <span className="font-display text-5xl font-extrabold text-primary/20" aria-hidden>
                   0{i + 1}
@@ -244,7 +253,7 @@ export default async function Home() {
                 <h3 className="mt-3 text-lg font-bold sm:mt-1 lg:mt-3">{title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{text}</p>
               </div>
-            </li>
+            </Reveal>
           ))}
         </ol>
       </section>
@@ -258,14 +267,19 @@ export default async function Home() {
           text="Не просто блокнот с цифрами: Hero Fit считает рекорды, подсказывает следующий шаг и мотивирует возвращаться в зал."
         />
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
-          {FEATURES.map((f) => (
-            <li key={f.title} className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6", f.className)}>
+          {FEATURES.map((f, i) => (
+            <Reveal
+              as="li"
+              delay={(i % 4) * 0.08}
+              key={f.title}
+              className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6", f.className)}
+            >
               <div>
                 <h3 className="text-lg font-bold">{f.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{f.text}</p>
               </div>
               {f.visual}
-            </li>
+            </Reveal>
           ))}
         </ul>
       </section>
