@@ -1,14 +1,9 @@
 import Link from "next/link";
 import { Flame } from "lucide-react";
+import { PlaceBadge } from "@/components/social/place-badge";
 import type { RankedMember } from "@/lib/social/league";
 import { cn } from "@/lib/utils";
 
-/** Призовые места — кружок с номером в цветах темы (эмодзи медалей на Windows мелкие и размытые). */
-const PODIUM: Record<number, string> = {
-  1: "bg-xp text-background",
-  2: "bg-muted-foreground/70 text-background",
-  3: "bg-streak/80 text-background",
-};
 const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 
@@ -67,16 +62,7 @@ export function LeagueTable({
             className={cn("rounded-lg px-3 py-2", m.me ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/50")}
           >
             <div className="flex items-center gap-3">
-              <span className="flex w-7 shrink-0 justify-center" aria-label={`${m.place} место`}>
-                <span
-                  className={cn(
-                    "flex size-6 items-center justify-center rounded-full text-xs font-black tabular-nums",
-                    PODIUM[m.place] ?? "text-muted-foreground",
-                  )}
-                >
-                  {m.place}
-                </span>
-              </span>
+              <PlaceBadge place={m.place} xp={m.xp} size={36} />
               <span
                 aria-hidden
                 className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary uppercase"
@@ -103,7 +89,7 @@ export function LeagueTable({
                 {m.xp.toLocaleString("ru-RU")} XP
               </span>
             </div>
-            <div className="mt-1.5 ml-10 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <div className="mt-1.5 ml-12 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
               <div className="h-full rounded-full bg-xp" style={{ width: `${(m.xp / leaderXp) * 100}%` }} />
             </div>
           </li>

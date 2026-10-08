@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Trophy, Users } from "lucide-react";
 import { RecapMuscles } from "@/components/recap/recap-muscles";
+import { PlaceBadge } from "@/components/social/place-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { plural } from "@/lib/format";
 import { recapHighlights } from "@/lib/recap/build";
@@ -102,7 +103,7 @@ function League({ league }: { league: RecapData["league"] }) {
       <ol className="mt-3 grid gap-1 text-sm">
         {league.rows.map((r, i) => (
           <li key={`${r.place}-${r.nickname}-${i}`} className={cn("flex items-center gap-3 rounded-lg px-2 py-1", r.me && "bg-primary/10 font-semibold")}>
-            <span className="w-6 tabular-nums text-muted-foreground">{r.place}</span>
+            <PlaceBadge place={r.place} xp={r.xp} size={26} />
             <span className="flex-1 truncate">{r.me ? "Вы" : r.nickname || "Атлет"}</span>
             <span className="tabular-nums text-xp">{r.xp} XP</span>
           </li>
