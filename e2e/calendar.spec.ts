@@ -1,14 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { userId, withDb } from "./db";
-import { registerUser } from "./helpers";
+import { pickOption, registerUser } from "./helpers";
 
 // Неделя 7–13 января 2030 (пн–вс) — всегда в будущем: статусы «запланировано»
 const THURSDAY = "/calendar?date=2030-01-10";
 
 async function fillPlan(page: Page, { repeat }: { repeat: string[] }) {
   const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
-  await dialog.getByLabel("Шаблон").selectOption({ label: "Push" });
+  await pickOption(page, dialog.getByLabel("Шаблон"), "Push");
   await dialog.getByRole("checkbox", { name: "Повторять каждую неделю" }).check();
   for (const day of repeat) await dialog.getByRole("button", { name: day, exact: true }).click();
   await dialog.getByRole("button", { name: "Сохранить" }).click();
@@ -115,7 +115,7 @@ test("drag a plan to another day and time (mouse and keyboard)", async ({ page, 
   // Клавиатура: разовая тренировка вт 07:00 → ср 08:00 (без вопроса о повторе)
   await page.getByRole("button", { name: "Запланировать", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
-  await dialog.getByLabel("Шаблон").selectOption({ label: "Pull" });
+  await pickOption(page, dialog.getByLabel("Шаблон"), "Pull");
   await dialog.getByLabel("Дата").fill("2030-01-08");
   await dialog.getByLabel("Начало").fill("07:00");
   await dialog.getByRole("button", { name: "Сохранить" }).click();
@@ -157,7 +157,7 @@ test("today's plan: dashboard card → start → finish → done in the calendar
   await page.goto("/calendar");
   await page.getByRole("button", { name: "Запланировать", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
-  await dialog.getByLabel("Шаблон").selectOption({ label: "Push" });
+  await pickOption(page, dialog.getByLabel("Шаблон"), "Push");
   await dialog.getByLabel("Начало").fill("23:30"); // сегодня, позже «сейчас»
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(dialog).toBeHidden();

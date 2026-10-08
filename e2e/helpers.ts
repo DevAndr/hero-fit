@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const PASSWORD = "Secret123";
 
@@ -61,4 +61,11 @@ export async function quickWorkout(page: Page, exercise: string, sets: { weight:
   await page.getByRole("button", { name: "Завершить тренировку" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
   await expect(page).toHaveURL(/\/workouts\//);
+}
+
+/** Выбор в Select (Base UI): открыть список по триггеру и кликнуть опцию — selectOption тут не работает. */
+export async function pickOption(page: Page, trigger: Locator, option: string) {
+  await trigger.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
 }

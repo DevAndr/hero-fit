@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createPlanAction, updatePlanAction } from "@/lib/plans/actions";
 import type { PlanScope } from "@/lib/plans/edit";
 import { weekdayOf } from "@/lib/plans/expand";
@@ -19,8 +20,7 @@ import { cn } from "@/lib/utils";
 export type TemplateOption = { id: string; name: string };
 export type PlanDialogState = { mode: "create"; date: string; time: string } | { mode: "edit"; event: CalendarEvent };
 
-const selectClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+const durationLabel = (m: number) => (m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ""}`);
 
 /** Форма «Новая тренировка» / «Изменить тренировку». Ключ по состоянию — поля сбрасываются при каждом открытии. */
 export function PlanDialog({
@@ -68,6 +68,7 @@ function PlanForm({
   const [askScope, setAskScope] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const durations = [...new Set([...PLAN_DURATIONS, initial.durationMin])].sort((a, b) => a - b);
   const chosen = all.find((t) => t.id === templateId);
   const finalTitle = chosen?.name ?? title.trim();
 
@@ -109,25 +110,40 @@ function PlanForm({
       </DialogHeader>
       <div className="grid gap-1.5">
         <Label htmlFor="plan-template">Шаблон</Label>
-        <select id="plan-template" className={selectClass} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-          <option value="">Без шаблона</option>
-          {templates.mine.length ? (
-            <optgroup label="Мои шаблоны">
-              {templates.mine.map((t) => (
-                <option key={t.id} value={t.id}>
+        <Select
+          items={[{ value: null, label: "Без шаблона" }, ...all.map((t) => ({ value: t.id, label: t.name }))]}
+          value={templateId || null}
+          onValueChange={(v: string | null) => setTemplateId(v ?? "")}
+        >
+          <SelectTrigger id="plan-template" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={null}>Без шаблона</SelectItem>
+            {templates.mine.length ? (
+              <>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel>Мои шаблоны</SelectLabel>
+                  {templates.mine.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </>
+            ) : null}
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>Готовые программы</SelectLabel>
+              {templates.programs.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
                   {t.name}
-                </option>
+                </SelectItem>
               ))}
-            </optgroup>
-          ) : null}
-          <optgroup label="Готовые программы">
-            {templates.programs.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
       {templateId ? null : (
         <div className="grid gap-1.5">
@@ -146,13 +162,22 @@ function PlanForm({
         </div>
         <div className="grid gap-1.5 max-sm:col-span-2">
           <Label htmlFor="plan-duration">Длительность</Label>
-          <select id="plan-duration" className={selectClass} value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value))}>
-            {[...new Set([...PLAN_DURATIONS, initial.durationMin])].sort((a, b) => a - b).map((m) => (
-              <option key={m} value={m}>
-                {m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ""}`}
-              </option>
-            ))}
-          </select>
+          <Select
+            items={durations.map((m) => ({ value: m, label: durationLabel(m) }))}
+            value={durationMin}
+            onValueChange={(v: number | null) => v !== null && setDurationMin(v)}
+          >
+            <SelectTrigger id="plan-duration" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {durations.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {durationLabel(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       {state.mode === "create" ? (

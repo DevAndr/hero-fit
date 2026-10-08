@@ -51,6 +51,8 @@
 }
 
 :root {
+  /* Нативные контролы (список <select>, иконки даты/времени, скроллбары) — в цвет темы */
+  color-scheme: light;
   /* Сила свечения карточек card-glow (эксперимент) — на светлом фоне тише */
   --glow-primary: 10%;
   --glow-accent: 8%;
@@ -97,6 +99,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --glow-primary: 16%;
   --glow-accent: 12%;
   --background: oklch(0.145 0 0);
@@ -160,5 +163,10 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Список нативного <select> рисует браузер: у select фон прозрачный, опции наследуют только цвет текста */
+  option,
+  optgroup {
+    @apply bg-popover text-popover-foreground;
   }
 }
