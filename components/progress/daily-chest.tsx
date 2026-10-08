@@ -56,6 +56,7 @@ export function DailyChest({
   const chestRef = useRef<HTMLButtonElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const rewardRef = useRef<HTMLParagraphElement>(null);
+  const actionRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     // sessionStorage есть только в браузере — решение после гидрации
@@ -153,7 +154,7 @@ export function DailyChest({
       )}
 
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-sm" data-testid="chest-dialog">
+        <DialogContent className="sm:max-w-sm" initialFocus={actionRef} data-testid="chest-dialog">
           <DialogHeader className="items-center text-center">
             <DialogTitle>{opened ? (opened.rare ? "Редкий сундук!" : "Награда получена") : "Ежедневный сундук"}</DialogTitle>
             <DialogDescription>
@@ -179,7 +180,7 @@ export function DailyChest({
               disabled={pending || !!opened}
               aria-label={opened ? `Сундук открыт: +${opened.amount} XP` : "Открыть сундук"}
               aria-busy={pending}
-              className="relative flex h-full w-full origin-bottom items-end justify-center rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:cursor-pointer"
+              className="relative flex h-full w-full origin-bottom items-end justify-center outline-none focus-visible:brightness-110 enabled:cursor-pointer"
               data-testid="chest-open"
             >
               {/* Открытый выше закрытого (поднята крышка) — обе картинки стоят на одном «полу» */}
@@ -204,11 +205,11 @@ export function DailyChest({
 
           <DialogFooter>
             {opened ? (
-              <Button className="w-full" onClick={() => setOpen(false)}>
+              <Button ref={actionRef} className="w-full" onClick={() => setOpen(false)}>
                 Забрать
               </Button>
             ) : (
-              <Button className="w-full" onClick={openChest} disabled={pending}>
+              <Button ref={actionRef} className="w-full" onClick={openChest} disabled={pending}>
                 {pending ? "Открываем…" : "Открыть"}
               </Button>
             )}
