@@ -29,6 +29,7 @@ export function XpBar({
   delay = 0,
   label,
   className,
+  onLevelUp,
 }: {
   level: number;
   percent: number;
@@ -39,7 +40,13 @@ export function XpBar({
   delay?: number;
   label: string;
   className?: string;
+  /** Момент «вспышки» нового уровня (вызывается на каждый взятый уровень). */
+  onLevelUp?: () => void;
 }) {
+  const onLevelUpRef = useRef(onLevelUp);
+  useEffect(() => {
+    onLevelUpRef.current = onLevelUp;
+  });
   const trackRef = useRef<HTMLDivElement>(null);
   const fillRef = useRef<HTMLDivElement>(null);
   const shown = useRef<Point | null>(null);
@@ -79,6 +86,7 @@ export function XpBar({
           wait = 0;
           if (cancelled) return;
           set(100);
+          onLevelUpRef.current?.();
           await run(
             [
               { boxShadow: "0 0 0 0 var(--xp)", filter: "brightness(1)" },

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
+import { StreakFlame } from "@/components/lottie/streak-flame";
 import { PageHeader } from "@/components/app/app-shell";
 import { formatClock, rirLabel } from "@/lib/format";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
@@ -11,7 +12,7 @@ import { UpdateTemplateButton } from "@/components/workouts/update-template-butt
 import { buttonVariants } from "@/components/ui/button";
 import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
-import { XpBar } from "@/components/progress/xp-bar";
+import { LevelUpBar } from "@/components/progress/level-up-bar";
 import { levelProgress } from "@/lib/progress/level";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
@@ -20,6 +21,8 @@ import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
+
+const CELEBRATE_WINDOW_MS = 15 * 60_000;
 
 
 const RECORD_LABELS: Record<RecordType, string> = {
@@ -54,6 +57,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const xpAfter = meta ? meta.xpBefore + totalXp : user.xp;
   const level = levelProgress(xpAfter);
   const leveledUp = meta ? meta.levelAfter > meta.levelBefore : false;
+  // Салют — только сразу после тренировки, а не при просмотре истории
+  const freshFinish = workout.finishedAt !== null && new Date().getTime() - workout.finishedAt.getTime() < CELEBRATE_WINDOW_MS;
+  const streakNow = meta?.weekCount !== undefined ? meta.streak : user.currentStreak;
   const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
   const canUpdateTemplate = ownTemplate ? differsFromTemplate(workout.exercises, ownTemplate.exercises) : false;
 
@@ -111,7 +117,8 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
                 {level.current} / {level.required} XP
               </span>
             </div>
-            <XpBar
+            <LevelUpBar
+              celebrate={leveledUp && freshFinish}
               level={level.level}
               percent={level.percent}
               from={meta ? levelProgress(meta.xpBefore) : undefined}
@@ -128,8 +135,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
             <Flame className="size-4 text-streak" />
             Streak
           </p>
-          <p className="mt-1 text-3xl font-black text-streak" data-testid="streak">
-            {meta?.weekCount !== undefined ? meta.streak : user.currentStreak} 🔥
+          <p className="mt-1 flex items-center gap-1.5 text-3xl font-black text-streak" data-testid="streak">
+            {streakNow}
+            <StreakFlame active={streakNow > 0} className="size-8" />
           </p>
           <p className="text-xs text-muted-foreground">
             {workoutStreakCaption(meta)}

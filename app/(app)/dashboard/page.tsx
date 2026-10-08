@@ -18,6 +18,7 @@ import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
+import { StreakFlame } from "@/components/lottie/streak-flame";
 import { XpBar } from "@/components/progress/xp-bar";
 import { levelProgress } from "@/lib/progress/level";
 import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
@@ -72,9 +73,12 @@ function StreakCard({
         <Flame className="size-4 text-streak" />
         Режим «в ударе»
       </p>
-      <p className={cn("mt-1 text-5xl font-black", alive ? "text-streak" : "text-muted-foreground")} data-testid="streak-value">
-        {value}
-      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className={cn("text-5xl font-black", alive ? "text-streak" : "text-muted-foreground")} data-testid="streak-value">
+          {value}
+        </p>
+        {alive ? <StreakFlame active className="size-11" /> : null}
+      </div>
       <p className="text-xs text-muted-foreground">{plural(value, "неделя", "недели", "недель")} подряд</p>
       {/* Прогресс недели: точка — тренировка, на третьей неделя засчитывается */}
       <div className="mt-2 flex items-center gap-2">

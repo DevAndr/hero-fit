@@ -29,6 +29,9 @@ export default defineConfig({
     locale: "ru-RU",
     timezoneId: "Europe/Moscow",
     trace: "retain-on-failure",
+    // Декоративные анимации (Lottie, полоса опыта) выключены — «уменьшить движение»: десятки параллельных
+    // браузеров с салютом и SVG-анимациями перегружают машину. Ветка без движения — штатная, её и проверяем.
+    contextOptions: { reducedMotion: "reduce" },
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

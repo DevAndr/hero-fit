@@ -193,14 +193,19 @@
   background: linear-gradient(90deg, color-mix(in oklch, var(--xp) 65%, var(--streak)), var(--xp) 60%, color-mix(in oklch, var(--xp) 75%, white));
   box-shadow: 0 0 10px -2px color-mix(in oklch, var(--xp) 70%, transparent);
 }
-/* Глянец сверху + бегущий блик */
+/* Глянец сверху + блик: сдвиг через transform (без перерисовки), несколько проходов и стоп */
 .xp-shine {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.35), transparent 55%),
-    linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.45) 50%, transparent 70%) no-repeat;
-  background-size: 100% 100%, 50% 100%;
-  background-position: 0 0, -150% 0;
-  animation: xp-shimmer 3.2s ease-in-out 1.2s infinite;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.35), transparent 55%);
+}
+.xp-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.45) 50%, transparent);
+  transform: translateX(-100%);
+  animation: xp-shimmer 3.2s ease-in-out 1.2s 3;
 }
 /* «Искра» на конце заливки */
 .xp-spark {
@@ -208,15 +213,15 @@
   aspect-ratio: 1;
   translate: 35% -50%;
   background: radial-gradient(circle, white, color-mix(in oklch, var(--xp) 80%, white) 45%, transparent 70%);
-  animation: xp-spark 1.8s ease-in-out infinite;
+  animation: xp-spark 1.8s ease-in-out 4;
 }
 @keyframes xp-shimmer {
-  0% { background-position: 0 0, -150% 0; }
-  60%, 100% { background-position: 0 0, 250% 0; }
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(200%); }
 }
 @keyframes xp-spark {
   50% { opacity: 0.55; scale: 0.7; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .xp-shine, .xp-spark { animation: none; }
+  .xp-shine::after, .xp-spark { animation: none; }
 }

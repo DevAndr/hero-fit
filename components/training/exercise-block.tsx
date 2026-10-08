@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Check, EllipsisVertical, Minus, Plus, Timer, Trash2, X } from "lucide-react";
-import { Fragment, type Dispatch, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { HintBadge } from "@/components/stats/hint-badge";
+import { LottiePlayer, preloadLottie, prefersReducedMotion } from "@/components/lottie/lottie-player";
 import { PlateTools } from "@/components/training/plate-tools";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
@@ -45,6 +46,15 @@ export function ExerciseBlock({
 }) {
   const { exercise } = item;
   const doneCount = item.sets.filter((s) => s.completedAt).length;
+  // Подходы, у которых сейчас играет анимация «готово» вместо кнопки
+  const [celebrating, setCelebrating] = useState<ReadonlySet<string>>(new Set());
+  const stopCelebrating = (setKey: string) =>
+    setCelebrating((prev) => {
+      const next = new Set(prev);
+      next.delete(setKey);
+      return next;
+    });
+  useEffect(() => preloadLottie("success"), []);
 
   return (
     <section className="rounded-xl border bg-card" aria-label={exercise.name}>
@@ -169,11 +179,28 @@ export function ExerciseBlock({
                   aria-label={`Подход ${i + 1} выполнен`}
                   onClick={() => {
                     dispatch({ type: "toggleComplete", key: item.key, setKey: set.key, now: new Date().toISOString() });
-                    if (!done) onComplete(item, set);
+                    if (done) stopCelebrating(set.key);
+                    else {
+                      onComplete(item, set);
+                      if (!prefersReducedMotion()) setCelebrating((prev) => new Set(prev).add(set.key));
+                    }
                   }}
-                  className="size-9"
+                  className={cn(
+                    "relative size-9",
+                    done && celebrating.has(set.key) && "border-transparent bg-transparent hover:bg-transparent",
+                  )}
                 >
-                  <Check />
+                  {done && celebrating.has(set.key) ? (
+                    <LottiePlayer
+                      name="success"
+                      speed={1.4}
+                      onComplete={() => stopCelebrating(set.key)}
+                      fallback={<Check className="text-primary" />}
+                      className="pointer-events-none absolute -inset-3"
+                    />
+                  ) : (
+                    <Check />
+                  )}
                 </Button>
                 <button
                   type="button"

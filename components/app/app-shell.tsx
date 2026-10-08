@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Dumbbell, Flame, Play } from "lucide-react";
+import { Dumbbell, Play } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { StreakFlame } from "@/components/lottie/streak-flame";
 import { XpBar } from "@/components/progress/xp-bar";
 import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
@@ -50,7 +51,7 @@ function StreakBadge({ user }: { user: CurrentUser }) {
       title={streakHint(status)}
       data-testid="header-streak"
     >
-      <Flame className="size-3.5" />
+      <StreakFlame active={weeks > 0} loop={3} className="size-3.5" />
       {weeks}
     </span>
   );
