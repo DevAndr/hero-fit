@@ -14,6 +14,7 @@ export const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   DAILY_LOGIN: "Каждый день",
   MILESTONE: "Вехи",
   LEAGUE: "Лига",
+  BOSS: "Боссы",
 };
 
 export const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as AchievementCategory[];

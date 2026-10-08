@@ -49,6 +49,7 @@ enum AchievementCategory {
   PROGRAMS // свои шаблоны и готовые программы
   MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
   LEAGUE // места в недельной лиге друзей (из итогов недели)
+  BOSS // победы над боссом недели
 }
 
 enum NotificationType {
@@ -59,6 +60,7 @@ enum NotificationType {
   SOCIAL // друзья: заявки и принятие
   PLAN // «Сегодня по плану»
   RECAP // «Итоги недели» и «Новый старт»
+  BOSS // босс недели повержен
 }
 
 enum FriendshipStatus {
@@ -73,6 +75,7 @@ enum XpReason {
   STREAK_BONUS
   DAILY_LOGIN
   STREAK_RESTORE // выкуп сгоревшей серии (отрицательная сумма)
+  BOSS_REWARD // сундук за победу над боссом недели (lib/boss)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -146,6 +149,7 @@ model User {
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
+  bossWeeks           BossWeek[]
   planSeries          PlanSeries[]
   planEntries         PlanEntry[]
   planReminders       PlanReminder[]
@@ -556,6 +560,25 @@ model WeeklyRecap {
   createdAt DateTime  @default(now())
   pushedAt  DateTime? // push «Итоги недели» отправлен
   seenAt    DateTime? // пользователь открыл страницу итогов
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, week])
+}
+
+// ───────────────────────────── Босс недели ─────────────────────────────
+
+/// Босс недели пользователя (lib/boss). Урон не хранится — считается из подходов недели.
+model BossWeek {
+  id             String    @id @default(cuid())
+  userId         String
+  /// дата понедельника в поясе пользователя, как lastStreakWeek
+  week           String
+  bossCode       String
+  hp             Int
+  defeatedAt     DateTime?
+  rewardOpenedAt DateTime?
+  createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

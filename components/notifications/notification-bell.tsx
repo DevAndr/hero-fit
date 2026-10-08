@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Bell, CalendarDays, Flame, Info, Timer, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Flame, Info, Swords, Timer, Trophy, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +26,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; color: string }> = {
   SOCIAL: { icon: Users, color: "text-chart-2" },
   PLAN: { icon: CalendarDays, color: "text-primary" },
   RECAP: { icon: BarChart3, color: "text-primary" },
+  BOSS: { icon: Swords, color: "text-streak" },
 };
 
 const relative = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
