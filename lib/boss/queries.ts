@@ -5,6 +5,7 @@ import { dayKey } from "@/lib/daily-login";
 import { addWeeks, weekKey } from "@/lib/progress/weekly-streak";
 import { bossForWeek, bossName } from "@/lib/boss/bosses";
 import { bossHp, CRIT_DAMAGE, FAILURE_BONUS, rewardXp, SET_DAMAGE } from "@/lib/boss/damage";
+import { bestiary } from "@/lib/boss/bestiary";
 
 type Client = Prisma.TransactionClient | typeof db;
 
@@ -113,4 +114,15 @@ export async function bossRewardTaken(userId: string, week: string) {
 export async function bossChestAvailable(userId: string, week: string) {
   const boss = await db.bossWeek.findUnique({ where: { userId_week: { userId, week } }, select: { defeatedAt: true, rewardOpenedAt: true } });
   return !!boss?.defeatedAt && !boss.rewardOpenedAt;
+}
+
+/** Бестиарий: все недели с боссом — победы и лучший урон по каждому боссу. */
+export async function getBestiary(userId: string, tz: string, now = new Date()) {
+  const week = weekKey(now, tz);
+  const weeks = await db.bossWeek.findMany({ where: { userId }, select: { week: true, bossCode: true, defeatedAt: true }, orderBy: { week: "asc" } });
+  const damage = weeks.length ? await damageByWeek(db, userId, tz, weeks[0].week, week) : new Map<string, { damage: number }>();
+  return bestiary(
+    weeks.map((w) => ({ week: w.week, code: w.bossCode, defeatedAt: w.defeatedAt, damage: damage.get(w.week)?.damage ?? 0 })),
+    week,
+  );
 }

@@ -1,24 +1,59 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/components/achievements/category";
 import { GoalCard } from "@/components/achievements/goal-card";
+import { Bestiary } from "@/components/boss/bestiary";
 import { requireUser } from "@/lib/auth/dal";
 import { getAchievementsOverview } from "@/lib/achievements/queries";
+import { getBestiary } from "@/lib/boss/queries";
+import { safeTimeZone } from "@/lib/daily-login";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Ачивки" };
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-export default async function AchievementsPage() {
+const TABS = [
+  { tab: "achievements", label: "Ачивки", href: "/achievements" },
+  { tab: "bestiary", label: "Бестиарий", href: "/achievements?tab=bestiary" },
+] as const;
+
+export default async function AchievementsPage({ searchParams }: PageProps<"/achievements">) {
   const user = await requireUser();
+  const tab = (await searchParams).tab === "bestiary" ? "bestiary" : "achievements";
   const { earned, goals } = await getAchievementsOverview(user.id);
-  const byCategory = Map.groupBy(earned, (a) => a.category);
 
   return (
     <>
       <PageHeader title="Ачивки" description={`Получено: ${earned.length}`} />
+      <nav aria-label="Разделы" className="mb-6 flex w-fit rounded-lg bg-muted p-0.5">
+        {TABS.map((t) => (
+          <Link
+            key={t.tab}
+            href={t.href}
+            aria-current={tab === t.tab ? "page" : undefined}
+            className={cn("rounded-md px-3 py-1 text-sm font-medium text-muted-foreground", tab === t.tab && "bg-background text-foreground shadow-sm")}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+      {tab === "bestiary" ? (
+        <Bestiary entries={await getBestiary(user.id, safeTimeZone(user.timeZone))} />
+      ) : (
+        <AchievementsTab earned={earned} goals={goals} />
+      )}
+    </>
+  );
+}
+
+function AchievementsTab({ earned, goals }: Awaited<ReturnType<typeof getAchievementsOverview>>) {
+  const byCategory = Map.groupBy(earned, (a) => a.category);
+  return (
+    <>
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Ближайшие цели</h2>

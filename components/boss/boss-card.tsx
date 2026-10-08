@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Swords } from "lucide-react";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { ChestDialog } from "@/components/progress/chest-dialog";
@@ -45,11 +46,12 @@ export function BossCard({ boss }: { boss: BossView }) {
           <Swords className="size-4 text-streak" />
           Босс недели
         </p>
-        {defeated ? null : (
-          <p className="text-xs">
-            {boss.daysLeft <= 1 ? "последний день недели" : `до конца недели ${boss.daysLeft} ${plural(boss.daysLeft, "день", "дня", "дней")}`}
-          </p>
-        )}
+        <p className="text-xs">
+          {defeated ? null : boss.daysLeft <= 1 ? "последний день недели · " : `до конца недели ${boss.daysLeft} ${plural(boss.daysLeft, "день", "дня", "дней")} · `}
+          <Link href="/achievements?tab=bestiary" className="underline-offset-2 hover:underline">
+            Бестиарий
+          </Link>
+        </p>
       </div>
 
       <div className="mt-3 flex items-center gap-4">
