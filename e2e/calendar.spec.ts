@@ -6,6 +6,13 @@ import { pickOption, registerUser } from "./helpers";
 // Неделя 7–13 января 2030 (пн–вс) — всегда в будущем: статусы «запланировано»
 const THURSDAY = "/calendar?date=2030-01-10";
 
+/**
+ * KeyboardSensor (dnd-kit) вешает обработчик клавиш через setTimeout после старта переноса, а Chrome обрабатывает
+ * ввод раньше таймеров — стрелки, нажатые сразу после пробела, могут потеряться. Таймер страницы, поставленный
+ * после пробела, сработает только после таймера сенсора: к его ответу обработчик уже на месте.
+ */
+const keyboardDragReady = (page: Page) => page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve)));
+
 async function fillPlan(page: Page, { repeat }: { repeat: string[] }) {
   const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
   await pickOption(page, dialog.getByLabel("Шаблон"), "Push");
@@ -126,6 +133,7 @@ test("drag a plan to another day and time (mouse and keyboard)", async ({ page, 
   await pull.focus();
   await expect(pull).toBeFocused();
   await page.keyboard.press("Space");
+  await keyboardDragReady(page);
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
