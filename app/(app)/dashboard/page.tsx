@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
+import { BossCard } from "@/components/boss/boss-card";
 import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { TodayPlan } from "@/components/dashboard/today-plan";
 import { RecapCard } from "@/components/recap/recap-card";
@@ -13,6 +14,7 @@ import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
+import { getBossView } from "@/lib/boss/queries";
 import { getTodayPlan } from "@/lib/plans/queries";
 import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
@@ -112,13 +114,14 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
     getOrCreateRecap(user.id, recapWeekFor(new Date(), userTz), userTz),
     getMuscleRecovery(user.id),
     getMuscleBalance(user.id),
+    getBossView(user.id, userTz),
   ]);
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
@@ -182,6 +185,8 @@ export default async function DashboardPage() {
           {data.nearestGoal ? <GoalCard goal={data.nearestGoal} /> : null}
         </section>
       </div>
+
+      <BossCard boss={boss} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
