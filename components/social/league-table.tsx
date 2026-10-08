@@ -74,6 +74,11 @@ export function LeagueTable({
                   {m.nickname || "—"}
                   {m.me ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">это вы</span> : null}
                 </span>
+                {m.title ? (
+                  <span className="block truncate text-xs text-muted-foreground" data-testid="member-title">
+                    {m.title}
+                  </span>
+                ) : null}
                 <span className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
                   LVL {m.level}
                   {m.streak > 0 ? (

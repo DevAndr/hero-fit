@@ -28,6 +28,8 @@ export function normalizeFriendCode(input: string) {
 export type LeagueMember = {
   id: string;
   nickname: string;
+  /** Титул (уже название); у снимков итогов недели нет. */
+  title?: string | null;
   level: number;
   streak: number;
   xp: number;

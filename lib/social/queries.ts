@@ -6,6 +6,7 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { streakStatus, streakValue, type StreakUserFields } from "@/lib/progress/weekly-streak";
 import { decodeCursor, encodeCursor, toFeedEntry, type FeedRow } from "@/lib/social/feed";
 import { generateFriendCode, percentile, rankLeague, type LeagueMember } from "@/lib/social/league";
+import { titleLabel } from "@/lib/titles/catalog";
 
 /** XP лиги — только за тренировки и побитые рекорды (ачивки и ежедневный вход не дают форы). */
 export const LEAGUE_REASONS = Prisma.sql`('WORKOUT_COMPLETED', 'PERSONAL_RECORD')`;
@@ -50,7 +51,7 @@ const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
          (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}) + interval '7 days') AT TIME ZONE ${timeZone} AS end_at
 `;
 
-type LeagueRow = Omit<LeagueMember, "streak"> & StreakUserFields & { timeZone: string };
+type LeagueRow = Omit<LeagueMember, "streak" | "title"> & StreakUserFields & { timeZone: string; titleCode: string | null };
 
 /** Лига: я и мои друзья — XP за тренировки и число тренировок за неделю. */
 export async function getLeague(userId: string, timeZone: string, offset: 0 | 1) {
@@ -58,7 +59,7 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
   const [rows, [week]] = await Promise.all([
     db.$queryRaw<LeagueRow[]>`
       WITH b AS (${weekBounds(timeZone, offset)})
-      SELECT u.id, COALESCE(u.nickname, '') AS nickname, u.level,
+      SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u.level,
              u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."freezeGrantedAt", u."timeZone",
              COALESCE((
                SELECT SUM(x.amount) FROM "XpEvent" x
@@ -84,10 +85,10 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
   ]);
   const now = new Date();
   const members: LeagueMember[] = rows.map(
-    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt, timeZone: tz, ...m }) => {
+    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt, timeZone: tz, titleCode, ...m }) => {
       // Серия «на сейчас» в поясе участника: потерянная не показывается.
       const user = { currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt };
-      return { ...m, streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
+      return { ...m, title: titleLabel(titleCode), streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
     },
   );
   return { weekStart: week.start, members: rankLeague(members, userId), friends: ids.length - 1 };
@@ -142,13 +143,13 @@ export async function getFriends(userId: string) {
       id: true,
       status: true,
       requesterId: true,
-      requester: { select: { nickname: true, level: true } },
-      addressee: { select: { nickname: true, level: true } },
+      requester: { select: { nickname: true, level: true, titleCode: true } },
+      addressee: { select: { nickname: true, level: true, titleCode: true } },
     },
   });
   const view = (r: (typeof rows)[number]) => {
     const other = r.requesterId === userId ? r.addressee : r.requester;
-    return { id: r.id, nickname: other.nickname ?? "—", level: other.level };
+    return { id: r.id, nickname: other.nickname ?? "—", level: other.level, title: titleLabel(other.titleCode) };
   };
   return {
     friends: rows.filter((r) => r.status === FriendshipStatus.ACCEPTED).map(view),
@@ -159,7 +160,7 @@ export async function getFriends(userId: string) {
 
 /** Кто пригласил по ссылке ?invite=CODE (без ника приглашать нельзя — не показываем). */
 export async function getInviter(code: string, userId: string) {
-  const user = await db.user.findUnique({ where: { friendCode: code }, select: { id: true, nickname: true, level: true } });
+  const user = await db.user.findUnique({ where: { friendCode: code }, select: { id: true, nickname: true, level: true, titleCode: true } });
   if (!user || user.id === userId || !user.nickname) return null;
   const relation = await db.friendship.findFirst({
     where: {
@@ -170,7 +171,7 @@ export async function getInviter(code: string, userId: string) {
     },
     select: { status: true },
   });
-  return { nickname: user.nickname, level: user.level, status: relation?.status ?? null };
+  return { nickname: user.nickname, level: user.level, title: titleLabel(user.titleCode), status: relation?.status ?? null };
 }
 
 export type League = Awaited<ReturnType<typeof getLeague>>;
@@ -201,7 +202,7 @@ export async function getFeed(userId: string, cursor: string | null, limit = FEE
   const ids = await feedAuthorIds(userId);
   const after = decodeCursor(cursor);
   const rows = await db.$queryRaw<FeedRow[]>`
-    SELECT w.id, w."userId", u.nickname, u."hideWeights", w.name, w."finishedAt", w."durationSec",
+    SELECT w.id, w."userId", u.nickname, u."titleCode", u."hideWeights", w.name, w."finishedAt", w."durationSec",
            w."totalVolume", w."totalSets", w."totalReps", x.meta,
            (
              SELECT json_agg(json_build_object('name', e.name, 'top', t.top) ORDER BY we."order")

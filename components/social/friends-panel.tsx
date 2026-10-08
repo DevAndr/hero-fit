@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { removeFriendshipAction, respondFriendRequestAction, sendFriendRequestAction } from "@/lib/social/actions";
 
-type Person = { id: string; nickname: string; level: number };
+type Person = { id: string; nickname: string; level: number; title: string | null };
 
 /** Код в группах по 4 — легче продиктовать. */
 const pretty = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
@@ -107,14 +107,17 @@ export function AddFriendForm() {
 
 function PersonRow({ person, children }: { person: Person; children: React.ReactNode }) {
   return (
-    <li className="flex items-center gap-3 py-2">
+    <li className="flex items-center gap-3 py-2" data-testid="friend-row">
       <span
         aria-hidden
         className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary uppercase"
       >
         {person.nickname.slice(0, 1)}
       </span>
-      <span className="min-w-0 flex-1 truncate font-medium">{person.nickname}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{person.nickname}</span>
+        {person.title ? <span className="block truncate text-xs text-muted-foreground">{person.title}</span> : null}
+      </span>
       <span className="text-xs text-muted-foreground tabular-nums">LVL {person.level}</span>
       <span className="flex gap-1">{children}</span>
     </li>
@@ -245,7 +248,7 @@ export function FriendsPanel({ friends, incoming, outgoing }: { friends: Person[
 }
 
 /** Баннер по ссылке-приглашению ?invite=CODE. */
-export function InviteBanner({ code, nickname, level }: { code: string; nickname: string; level: number }) {
+export function InviteBanner({ code, nickname, level, title }: { code: string; nickname: string; level: number; title?: string | null }) {
   const { pending, run } = useAction();
   return (
     <section
@@ -253,7 +256,8 @@ export function InviteBanner({ code, nickname, level }: { code: string; nickname
       className="card-glow flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
     >
       <p>
-        <span className="font-bold">{nickname}</span> <span className="text-muted-foreground">(LVL {level})</span> зовёт вас
+        <span className="font-bold">{nickname}</span>
+        {title ? <span className="text-muted-foreground"> · {title}</span> : null} <span className="text-muted-foreground">(LVL {level})</span> зовёт вас
         в недельную лигу
       </p>
       <Button disabled={pending} onClick={() => run(() => sendFriendRequestAction(code), `Заявка отправлена: ${nickname}`)}>

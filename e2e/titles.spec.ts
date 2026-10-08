@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mondayWeeksAgo, userId, withDb } from "./db";
+import { makeFriends, mondayWeeksAgo, seedWorkouts, userId, withDb } from "./db";
 import { pickOption, registerUser } from "./helpers";
 
 /** Победа над боссом `code` n недель назад (строка BossWeek напрямую). */
@@ -70,4 +70,31 @@ test("title: nothing unlocked yet", async ({ page }) => {
   const block = page.locator("#title");
   await expect(block).toContainText("Титулы открываются за победы над боссами и вершины ачивок");
   await expect(block.getByRole("link", { name: "Бестиарий" })).toHaveAttribute("href", "/achievements?tab=bestiary");
+});
+
+const setTitle = (login: string, code: string) =>
+  withDb((db) => db.query(`UPDATE "User" SET "titleCode" = $2 WHERE login = $1`, [login, code]));
+
+test("friend sees my title in the league, feed and friends list", async ({ page, browser }) => {
+  const me = await registerUser(page);
+  const friendContext = await browser.newContext();
+  const friendPage = await friendContext.newPage();
+  const friend = await registerUser(friendPage);
+  await makeFriends(me.login, me.login, friend.login, friend.login);
+  await bossWin(friend.login, "golem", 2);
+  await setTitle(friend.login, "boss:golem:1");
+  await setTitle(me.login, "boss:golem:1");
+  await seedWorkouts(friend.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 0);
+  await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 0);
+  await friendContext.close();
+
+  await page.goto("/leaderboard");
+  const friendRow = page.getByRole("listitem").filter({ hasText: friend.login });
+  await expect(friendRow.getByTestId("member-title")).toHaveText("Гроза Голема");
+  await expect(page.getByRole("listitem").filter({ hasText: "это вы" }).getByTestId("member-title")).toHaveText("Гроза Голема");
+
+  await page.goto("/friends");
+  await expect(page.getByRole("article", { name: new RegExp(`^${friend.login}:`) })).toContainText("Гроза Голема");
+  await expect(page.getByRole("article", { name: new RegExp(`^${me.login}:`) })).toContainText("Гроза Голема");
+  await expect(page.getByTestId("friend-row").filter({ hasText: friend.login })).toContainText("Гроза Голема");
 });

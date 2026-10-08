@@ -47,7 +47,7 @@ export default async function FriendsPage({ searchParams }: PageProps<"/friends"
     <div className="space-y-4">
       <PageHeader title="Друзья" description={`Вы — ${me.nickname}`} />
       {inviteCode && inviter && inviter.status === null ? (
-        <InviteBanner code={inviteCode} nickname={inviter.nickname} level={inviter.level} />
+        <InviteBanner code={inviteCode} nickname={inviter.nickname} level={inviter.level} title={inviter.title} />
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

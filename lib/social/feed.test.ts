@@ -5,6 +5,7 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
   id: "w1",
   userId: "owner",
   nickname: "Маша",
+  titleCode: null,
   hideWeights: false,
   name: "Push",
   finishedAt: new Date("2026-10-07T10:00:00Z"),
@@ -109,5 +110,13 @@ describe("boss victory in the feed", () => {
     expect(toFeedEntry(row({ meta: { boss: { code: "golem", defeated: true } } }), "viewer").bossDefeated).toBe("Железный Голем");
     expect(toFeedEntry(row({ meta: { boss: { code: "golem", defeated: false } } }), "viewer").bossDefeated).toBeNull();
     expect(toFeedEntry(row({ meta: null }), "viewer").bossDefeated).toBeNull();
+  });
+});
+
+describe("toFeedEntry: титул", () => {
+  it("название по коду; без титула и неизвестный — null", () => {
+    expect(toFeedEntry(row({ titleCode: "boss:golem:1" }), "viewer").title).toBe("Гроза Голема");
+    expect(toFeedEntry(row({ titleCode: "nope" }), "viewer").title).toBeNull();
+    expect(toFeedEntry(row(), "viewer").title).toBeNull();
   });
 });

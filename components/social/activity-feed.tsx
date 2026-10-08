@@ -115,9 +115,12 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
               <span className={cn("font-medium", compact && "block truncate text-sm")}>«{entry.name}»</span>
             )}
           </p>
-          <time dateTime={entry.finishedAt} className="text-xs text-muted-foreground" suppressHydrationWarning>
-            {ago(entry.finishedAt)}
-          </time>
+          <p className="truncate text-xs text-muted-foreground">
+            <time dateTime={entry.finishedAt} suppressHydrationWarning>
+              {ago(entry.finishedAt)}
+            </time>
+            {entry.title && !compact ? <span data-testid="feed-title"> · {entry.title}</span> : null}
+          </p>
         </div>
       </header>
 

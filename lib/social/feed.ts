@@ -1,12 +1,14 @@
 import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
+import { titleLabel } from "@/lib/titles/catalog";
 
 /** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
 export type FeedRow = {
   id: string;
   userId: string;
   nickname: string | null;
+  titleCode: string | null;
   hideWeights: boolean;
   name: string;
   finishedAt: Date;
@@ -34,6 +36,8 @@ export type FeedRow = {
 export type FeedEntry = {
   id: string;
   nickname: string;
+  /** Титул автора (уже название). */
+  title: string | null;
   me: boolean;
   name: string;
   finishedAt: string;
@@ -75,6 +79,7 @@ export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
   return {
     id: row.id,
     nickname: row.nickname ?? "—",
+    title: titleLabel(row.titleCode),
     me,
     name: row.name,
     finishedAt: row.finishedAt.toISOString(),
