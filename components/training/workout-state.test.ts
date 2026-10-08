@@ -6,7 +6,7 @@ const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: [
 const NOW = "2026-10-06T10:00:00.000Z";
 
 function empty(): WorkoutState {
-  return initState({ id: "w", name: "Push", status: "PLANNED", startedAt: null, updatedAt: NOW, exercises: [] });
+  return initState({ id: "w", name: "Push", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, exercises: [] });
 }
 
 describe("workout reducer", () => {

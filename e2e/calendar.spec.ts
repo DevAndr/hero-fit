@@ -204,3 +204,54 @@ test("today's plan: dashboard card → start → finish → done in the calendar
   await page.goto("/dashboard");
   await expect(page.getByRole("region", { name: "План на сегодня" })).toContainText("Вчера были Ноги — сделать сегодня?");
 });
+
+test("cancelling a workout started from today's plan skips the plan unless unchecked", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addPlan(login, "Утро", 0, "23:30");
+  const card = page.getByRole("region", { name: "План на сегодня" });
+  const cancelWorkout = async (skip: boolean) => {
+    await page.getByRole("button", { name: "Действия с тренировкой" }).click();
+    await page.getByRole("menuitem", { name: "Отменить тренировку" }).click();
+    const confirm = page.getByRole("alertdialog");
+    const box = confirm.getByRole("checkbox", { name: /Пропустить .* на сегодня/ });
+    await expect(box).toBeChecked();
+    if (!skip) await box.uncheck();
+    await confirm.getByRole("button", { name: "Отменить тренировку" }).click();
+    await expect(page).toHaveURL(/\/training$/);
+    await expect(page.getByLabel("Название тренировки")).toHaveCount(0);
+  };
+
+  // Сняли галочку — план остаётся
+  await page.goto("/dashboard");
+  await card.getByRole("button", { name: "Начать" }).click();
+  await expect(page.getByLabel("Название тренировки")).toHaveValue("Утро");
+  await cancelWorkout(false);
+  await page.goto("/dashboard");
+  await expect(card).toContainText("Сегодня по плану: Утро · 23:30");
+
+  // По умолчанию — план на сегодня пропущен, карточка его больше не показывает
+  await card.getByRole("button", { name: "Начать" }).click();
+  await expect(page.getByLabel("Название тренировки")).toHaveValue("Утро");
+  await cancelWorkout(true);
+  await expect(page.getByRole("button", { name: /По плану: Утро/ })).toHaveCount(0);
+  await page.goto("/dashboard");
+  await expect(card).not.toContainText("Утро");
+});
+
+test("skip today's plan from the dashboard card and the training shortcut", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addPlan(login, "Ноги", 0, "23:00");
+  await addPlan(login, "Спина", 0, "23:30");
+
+  await page.goto("/dashboard");
+  const card = page.getByRole("region", { name: "План на сегодня" });
+  await expect(card).toContainText("Сегодня по плану: Ноги · 23:00, Спина · 23:30");
+  await card.getByRole("button", { name: "Пропустить «Ноги»" }).click();
+  await expect(card).toContainText("Сегодня по плану: Спина · 23:30");
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: "Пропустить «Спина»" }).click();
+  await expect(page.getByRole("button", { name: /По плану:/ })).toHaveCount(0);
+  await page.goto("/dashboard");
+  await expect(card).not.toContainText("Сегодня по плану");
+});

@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
-import { planEdit, type PlanOp, type PlanScope, type PlanTarget } from "@/lib/plans/edit";
+import { planEdit, type PlanScope } from "@/lib/plans/edit";
 import { addDays, weekdayOf } from "@/lib/plans/expand";
-import { getOccurrence } from "@/lib/plans/queries";
+import { applyPlanOps as apply, planTarget as target, skipOccurrence } from "@/lib/plans/mutations";
 import { planInputSchema, planPatchSchema, planScopeSchema, type PlanInput } from "@/lib/plans/schema";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -47,47 +47,6 @@ export async function createPlanAction(input: PlanInput): Promise<Result> {
   return { ok: true };
 }
 
-async function target(userId: string, key: string): Promise<PlanTarget | null> {
-  const found = await getOccurrence(userId, key);
-  if (!found) return null;
-  if (!found.series) return { kind: "entry", entryId: found.occurrence.key.slice(2) };
-  return { kind: "series", series: found.series, originalDate: key.slice(-10), occurrence: found.occurrence };
-}
-
-async function apply(userId: string, ops: PlanOp[]) {
-  await db.$transaction(async (tx) => {
-    for (const o of ops) {
-      switch (o.op) {
-        case "upsertException":
-          await tx.planEntry.upsert({
-            where: { seriesId_originalDate: { seriesId: o.seriesId, originalDate: o.originalDate } },
-            create: { userId, seriesId: o.seriesId, originalDate: o.originalDate, cancelled: o.cancelled, ...o.data },
-            update: { cancelled: o.cancelled, ...o.data },
-          });
-          break;
-        case "endSeries":
-          await tx.planSeries.updateMany({ where: { id: o.seriesId, userId }, data: { endDate: o.endDate } });
-          break;
-        case "deleteSeries":
-          await tx.planSeries.deleteMany({ where: { id: o.seriesId, userId } });
-          break;
-        case "deleteExceptionsFrom":
-          await tx.planEntry.deleteMany({ where: { seriesId: o.seriesId, userId, originalDate: { gte: o.fromDate } } });
-          break;
-        case "createSeries":
-          await tx.planSeries.create({ data: { userId, ...o.data } });
-          break;
-        case "updateEntry":
-          await tx.planEntry.updateMany({ where: { id: o.entryId, userId, seriesId: null }, data: o.data });
-          break;
-        case "deleteEntry":
-          await tx.planEntry.deleteMany({ where: { id: o.entryId, userId, seriesId: null } });
-          break;
-      }
-    }
-  });
-}
-
 /** Правка или перенос (перетаскивание): scope — «только это» / «это и следующие». */
 export async function updatePlanAction(key: string, scope: PlanScope, patch: unknown): Promise<Result> {
   const user = await requireUser();
@@ -109,6 +68,14 @@ export async function deletePlanAction(key: string, scope: PlanScope): Promise<R
   const t = await target(user.id, key);
   if (!t) return { ok: false, error: "Тренировка в календаре не найдена" };
   await apply(user.id, planEdit(t, parsedScope.data, null));
+  revalidate();
+  return { ok: true };
+}
+
+/** «Пропустить» план на сегодня из карточки: только это вхождение (у серии — исключение на этот день). */
+export async function skipPlanAction(key: string): Promise<Result> {
+  const user = await requireUser();
+  if (!(await skipOccurrence(user.id, key))) return { ok: false, error: "Тренировка в календаре не найдена" };
   revalidate();
   return { ok: true };
 }

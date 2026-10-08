@@ -1,4 +1,5 @@
 import { CalendarDays, History, Play, Plus } from "lucide-react";
+import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { Button } from "@/components/ui/button";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 import type { StartOptions } from "@/lib/workouts/queries";
@@ -30,13 +31,18 @@ export function StartScreen({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       {plan ? (
-        <StartForm source={`plan:${plan.key}`} size="lg" className="h-auto w-full flex-col gap-1 py-4">
-          <span className="flex items-center gap-2 text-base">
-            <CalendarDays />
-            По плану: {plan.title} · {plan.time}
-          </span>
-          <span className="text-xs font-normal opacity-80">Запланировано в календаре на сегодня</span>
-        </StartForm>
+        <div className="space-y-1">
+          <StartForm source={`plan:${plan.key}`} size="lg" className="h-auto w-full flex-col gap-1 py-4">
+            <span className="flex items-center gap-2 text-base">
+              <CalendarDays />
+              По плану: {plan.title} · {plan.time}
+            </span>
+            <span className="text-xs font-normal opacity-80">Запланировано в календаре на сегодня</span>
+          </StartForm>
+          <div className="flex justify-end">
+            <SkipPlanButton planKey={plan.key} title={plan.title} className="text-muted-foreground" />
+          </div>
+        </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <StartForm source="empty" size="lg" className="h-auto w-full flex-col gap-1 py-4">

@@ -14,6 +14,8 @@ export type ActiveWorkout = {
   startedAt: string | null;
   /** Когда сервер последний раз сохранял тренировку — сравнивается с черновиком на устройстве. */
   updatedAt: string;
+  /** Ключ вхождения календаря, из которого начата тренировка. */
+  planKey: string | null;
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
@@ -38,6 +40,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
 
   return {
     id: workout.id,
+    planKey: workout.planKey,
     name: workout.name,
     status: workout.status as ActiveWorkout["status"],
     startedAt: workout.startedAt?.toISOString() ?? null,

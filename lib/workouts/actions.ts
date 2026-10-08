@@ -10,6 +10,7 @@ import { getOccurrence } from "@/lib/plans/queries";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
+import { skipOccurrence } from "@/lib/plans/mutations";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -222,9 +223,19 @@ export async function finishWorkoutAction(
   redirect(`/workouts/${workoutId}`);
 }
 
-export async function cancelWorkoutAction(workoutId: string) {
+/** Отмена активной тренировки; skipPlan — заодно пропустить вхождение календаря, из которого она начата. */
+export async function cancelWorkoutAction(workoutId: string, skipPlan = false) {
   const user = await requireUser();
-  await db.workout.deleteMany({ where: { id: workoutId, userId: user.id, status: { in: ACTIVE_STATUSES } } });
+  const workout = await db.workout.findFirst({
+    where: { id: workoutId, userId: user.id, status: { in: ACTIVE_STATUSES } },
+    select: { planKey: true },
+  });
+  if (workout) {
+    await db.workout.deleteMany({ where: { id: workoutId, userId: user.id, status: { in: ACTIVE_STATUSES } } });
+    if (skipPlan === true && workout.planKey) await skipOccurrence(user.id, workout.planKey);
+  }
+  revalidatePath("/calendar");
+  revalidatePath("/dashboard");
   redirect("/training");
 }
 

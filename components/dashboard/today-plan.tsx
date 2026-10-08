@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, Play } from "lucide-react";
+import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Occurrence } from "@/lib/plans/expand";
 import { dayLabel } from "@/lib/plans/view";
@@ -44,7 +45,12 @@ export function TodayPlan({
   let action: React.ReactNode;
   if (first) {
     text = `Сегодня по плану: ${today.map((p) => `${p.title} · ${p.time}`).join(", ")}`;
-    action = <StartButton plan={first} activePlanKey={activePlanKey} />;
+    action = (
+      <div className="flex items-center gap-1">
+        {activePlanKey === first.key ? null : <SkipPlanButton planKey={first.key} title={first.title} />}
+        <StartButton plan={first} activePlanKey={activePlanKey} />
+      </div>
+    );
   } else if (missedYesterday) {
     text = `Вчера были ${missedYesterday.title} — сделать сегодня?`;
     action = <StartButton plan={missedYesterday} activePlanKey={activePlanKey} />;
