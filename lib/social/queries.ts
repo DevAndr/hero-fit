@@ -8,7 +8,7 @@ import { decodeCursor, encodeCursor, toFeedEntry, type FeedRow } from "@/lib/soc
 import { generateFriendCode, percentile, rankLeague, type LeagueMember } from "@/lib/social/league";
 
 /** XP лиги — только за тренировки и побитые рекорды (ачивки и ежедневный вход не дают форы). */
-const LEAGUE_REASONS = Prisma.sql`('WORKOUT_COMPLETED', 'PERSONAL_RECORD')`;
+export const LEAGUE_REASONS = Prisma.sql`('WORKOUT_COMPLETED', 'PERSONAL_RECORD')`;
 const ACTIVE_DAYS = 28;
 
 /** Личный код для приглашений: создаётся при первом заходе в рейтинг. */
@@ -33,7 +33,7 @@ export async function ensureFriendCode(userId: string): Promise<string> {
   return saved.friendCode;
 }
 
-async function friendIds(userId: string) {
+export async function friendIds(userId: string) {
   const rows = await db.friendship.findMany({
     where: { status: FriendshipStatus.ACCEPTED, OR: [{ requesterId: userId }, { addresseeId: userId }] },
     select: { requesterId: true, addresseeId: true },
@@ -90,8 +90,21 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
 
 /** Анонимный процентиль XP за текущую неделю среди тех, кто тренировался за последние 4 недели. */
 export async function getPercentile(userId: string, timeZone: string) {
+  return percentileQuery(userId, weekBounds(timeZone, 0), Prisma.sql`now() - make_interval(days => ${ACTIVE_DAYS})`);
+}
+
+/** Процентиль XP за неделю [start, end) среди тех, кто тренировался за 4 недели до её конца (итоги недели). */
+export async function weekPercentile(userId: string, start: Date, end: Date) {
+  return percentileQuery(
+    userId,
+    Prisma.sql`SELECT ${start}::timestamptz AS start_at, ${end}::timestamptz AS end_at`,
+    Prisma.sql`${new Date(end.getTime() - ACTIVE_DAYS * 24 * 3600 * 1000)}::timestamptz AT TIME ZONE 'UTC'`,
+  );
+}
+
+async function percentileQuery(userId: string, bounds: Prisma.Sql, activeSince: Prisma.Sql) {
   const [row] = await db.$queryRaw<{ myXp: number; below: number; others: number }[]>`
-    WITH b AS (${weekBounds(timeZone, 0)}),
+    WITH b AS (${bounds}),
     xp AS (
       SELECT x."userId", SUM(x.amount) AS xp
       FROM "XpEvent" x, b
@@ -101,7 +114,7 @@ export async function getPercentile(userId: string, timeZone: string) {
     ),
     active AS (
       SELECT DISTINCT "userId" FROM "Workout"
-      WHERE status = 'COMPLETED' AND "finishedAt" >= now() - make_interval(days => ${ACTIVE_DAYS})
+      WHERE status = 'COMPLETED' AND "finishedAt" >= ${activeSince}
         AND "userId" <> ${userId}
     ),
     me AS (SELECT COALESCE((SELECT xp FROM xp WHERE "userId" = ${userId}), 0) AS xp)
