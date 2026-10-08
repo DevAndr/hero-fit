@@ -7,12 +7,11 @@ import { RECAP_VERSION, type RecapData, type RecapInput, type RecapTotals } from
 const EPS = 0.01;
 
 function sumTotals(rows: { minutes: number; volume: number; sets: number }[]): RecapTotals {
-  return rows.reduce((t, r) => ({ workouts: t.workouts + 1, minutes: t.minutes + r.minutes, volume: t.volume + r.volume, sets: t.sets + r.sets }), {
-    workouts: 0,
-    minutes: 0,
-    volume: 0,
-    sets: 0,
-  });
+  const zero: RecapTotals = { workouts: 0, minutes: 0, volume: 0, sets: 0 };
+  return rows.reduce<RecapTotals>(
+    (t, r) => ({ workouts: t.workouts + 1, minutes: t.minutes + r.minutes, volume: t.volume + r.volume, sets: t.sets + r.sets }),
+    zero,
+  );
 }
 
 function league(input: RecapInput): RecapData["league"] {
