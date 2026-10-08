@@ -155,3 +155,25 @@ test("recap push reaches the push service", async ({ page, request }) => {
     await push.close();
   }
 });
+
+test("dashboard card → recap; seen card loses the badge", async ({ page }) => {
+  const me = await registerUser(page);
+  await seedRecapWeek(me.login, mondayWeeksAgo(1), [press({ day: 0 }), press({ day: 2 })]);
+  await page.goto("/dashboard");
+  const card = page.getByRole("region", { name: "Итоги недели" });
+  await expect(card).toContainText("новое");
+  await expect(card).toContainText("лучший подход: Жим штанги лёжа 100×5");
+  await card.getByRole("link", { name: "Смотреть итоги" }).click();
+  await expect(page).toHaveURL(new RegExp(`/recap/${mondayWeeksAgo(1)}$`));
+  await page.goto("/dashboard");
+  await expect(page.getByRole("region", { name: "Итоги недели" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Итоги недели" })).not.toContainText("новое");
+});
+
+test("stats links to recaps", async ({ page }) => {
+  const me = await registerUser(page);
+  await seedRecapWeek(me.login, mondayWeeksAgo(1), [press({ day: 0 })]);
+  await page.goto("/stats");
+  await page.getByRole("link", { name: "Итоги недель" }).click();
+  await expect(page).toHaveURL(/\/recap$/);
+});

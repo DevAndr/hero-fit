@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ChartColumn } from "lucide-react";
+import { BarChart3, ChartColumn } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
+import { buttonVariants } from "@/components/ui/button";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { MuscleChart } from "@/components/stats/muscle-chart";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
@@ -62,7 +63,16 @@ export default async function StatsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Статистика" description={`Дни считаются по часовому поясу ${timeZone}`} />
+      <PageHeader
+        title="Статистика"
+        description={`Дни считаются по часовому поясу ${timeZone}`}
+        actions={
+          <Link href="/recap" className={buttonVariants({ variant: "outline" })}>
+            <BarChart3 />
+            Итоги недель
+          </Link>
+        }
+      />
 
       <section aria-label="Тренировки" className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Тренировки</h2>

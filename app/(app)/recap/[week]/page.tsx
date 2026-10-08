@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RecapView } from "@/components/recap/recap-view";
 import { buttonVariants } from "@/components/ui/button";
-import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { adjacentRecaps, getOrCreateRecap, getRecap, markRecapSeen } from "@/lib/recap/queries";
@@ -19,7 +17,8 @@ export const metadata: Metadata = { title: "Итоги недели" };
 export default async function RecapPage({ params }: PageProps<"/recap/[week]">) {
   const { week } = await params;
   const user = await requireUser();
-  const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
+  // Пояс пользователя — как у тика, создающего итоги (неделя считается одинаково)
+  const timeZone = safeTimeZone(user.timeZone);
 
   const check = isRecapWeek(week, new Date(), timeZone);
   if (check === "invalid") notFound();

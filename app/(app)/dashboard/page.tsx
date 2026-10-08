@@ -5,6 +5,7 @@ import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } 
 import { GoalCard } from "@/components/achievements/goal-card";
 import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { TodayPlan } from "@/components/dashboard/today-plan";
+import { RecapCard } from "@/components/recap/recap-card";
 import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getTodayPlan } from "@/lib/plans/queries";
+import { getOrCreateRecap } from "@/lib/recap/queries";
+import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
@@ -101,15 +104,17 @@ function StreakCard({
 export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
-  const [data, feed, plan] = await Promise.all([
+  const userTz = safeTimeZone(user.timeZone);
+  const [data, feed, plan, recap] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
-    getTodayPlan(user.id, safeTimeZone(user.timeZone)),
+    getTodayPlan(user.id, userTz),
+    getOrCreateRecap(user.id, recapWeekFor(new Date(), userTz), userTz),
   ]);
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
   const now = new Date();
-  const streakTz = safeTimeZone(user.timeZone);
+  const streakTz = userTz;
   const status = streakStatus(data.streak, now, streakTz);
   const offer = restoreOffer(data.streak, now, streakTz);
 
@@ -134,6 +139,7 @@ export default async function DashboardPage() {
       </section>
 
       <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey} />
+      {recap ? <RecapCard recap={recap} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <section aria-label="Уровень" className="rounded-xl border bg-card p-4">
