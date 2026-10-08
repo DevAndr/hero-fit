@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame } from "lucide-react";
+import { Flame, Swords } from "lucide-react";
 import { PlaceBadge } from "@/components/social/place-badge";
 import type { RankedMember } from "@/lib/social/league";
 import { cn } from "@/lib/utils";
@@ -83,6 +83,12 @@ export function LeagueTable({
                     </span>
                   ) : null}
                   <span>· тренировок: {m.workouts}</span>
+                  {m.bossDefeated ? (
+                    <span className="flex items-center gap-0.5 text-streak" title="Босс недели повержен" data-testid="league-boss">
+                      <Swords className="size-3" aria-hidden />
+                      <span className="sr-only">Босс недели повержен</span>
+                    </span>
+                  ) : null}
                 </span>
               </span>
               <span className="text-right font-bold text-xp tabular-nums" data-testid="league-xp">

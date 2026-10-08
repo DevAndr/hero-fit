@@ -124,6 +124,7 @@ export function buildRecap(input: RecapInput): RecapData | null {
     records: records(input),
     muscles: muscles(input),
     plan: input.plan ?? undefined,
+    boss: input.boss ?? undefined,
   };
   for (const [key, value] of Object.entries(blocks)) if (value !== undefined) Object.assign(data, { [key]: value });
   return data;

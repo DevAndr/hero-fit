@@ -32,6 +32,8 @@ export type LeagueMember = {
   streak: number;
   xp: number;
   workouts: number;
+  /** Босс этой недели повержен (неделя — по поясу смотрящего). */
+  bossDefeated?: boolean;
 };
 
 export type RankedMember = LeagueMember & { place: number; me: boolean };

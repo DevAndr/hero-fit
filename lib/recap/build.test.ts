@@ -240,3 +240,13 @@ describe("recapPushBody", () => {
     expect(recapHighlights(base({ league: { percentile: 80, xp: 100 } }))[0]).toBe("объём +18%");
   });
 });
+
+describe("boss block", () => {
+  it("босс недели — как есть; без босса — блока нет", () => {
+    const boss = { code: "golem", hp: 1500, damage: 1100, defeatedAt: null };
+    expect(buildRecap(input({ boss }))?.boss).toEqual(boss);
+    const won = { code: "troll", hp: 1800, damage: 1900, defeatedAt: "2026-10-07T15:00:00.000Z" };
+    expect(buildRecap(input({ boss: won }))?.boss).toEqual(won);
+    expect(buildRecap(input({ boss: null }))).not.toHaveProperty("boss");
+  });
+});

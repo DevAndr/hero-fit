@@ -69,7 +69,12 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
                SELECT COUNT(*) FROM "Workout" w
                WHERE w."userId" = u.id AND w.status = 'COMPLETED'
                  AND (w."finishedAt" AT TIME ZONE 'UTC') >= b.start_at AND (w."finishedAt" AT TIME ZONE 'UTC') < b.end_at
-             )::int AS workouts
+             )::int AS workouts,
+             EXISTS (
+               SELECT 1 FROM "BossWeek" bw
+               WHERE bw."userId" = u.id AND bw."defeatedAt" IS NOT NULL
+                 AND bw.week = to_char(date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}), 'YYYY-MM-DD')
+             ) AS "bossDefeated"
       FROM "User" u, b
       WHERE u.id = ANY(${ids})
     `,

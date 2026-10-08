@@ -27,7 +27,11 @@ export type RecapData = {
   };
   muscles?: { groups: { group: MuscleGroup; sets: number }[]; forgotten: MuscleGroup | null };
   plan?: { done: number; planned: number };
+  /** Босс недели (lib/boss): урон за неделю, победа — время. */
+  boss?: RecapBoss;
 };
+
+export type RecapBoss = { code: string; hp: number; damage: number; defeatedAt: string | null };
 
 /** Всё, что buildRecap нужно о неделе; собирает loadRecapInput. */
 export type RecapInput = {
@@ -49,4 +53,6 @@ export type RecapInput = {
   muscleSets: { group: MuscleGroup; week: string; sets: number }[];
   /** null — планов не было. */
   plan: { done: number; planned: number } | null;
+  /** null — босса той недели не было (не открывали приложение). */
+  boss?: RecapBoss | null;
 };

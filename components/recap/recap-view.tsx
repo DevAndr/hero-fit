@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
-import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Trophy, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Swords, Trophy, Users } from "lucide-react";
+import { BossSprite } from "@/components/boss/boss-sprite";
+import { bossName } from "@/lib/boss/bosses";
 import { RecapMuscles } from "@/components/recap/recap-muscles";
 import { PlaceBadge } from "@/components/social/place-badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -177,6 +179,24 @@ function Plan({ plan, week }: { plan: NonNullable<RecapData["plan"]>; week: stri
   );
 }
 
+function Boss({ boss }: { boss: NonNullable<RecapData["boss"]> }) {
+  const name = bossName(boss.code);
+  const defeated = boss.defeatedAt !== null;
+  return (
+    <Block label="Босс недели" icon={Swords}>
+      <div className="flex items-center gap-3" data-testid="recap-boss">
+        <BossSprite code={boss.code} defeated={defeated} size={48} />
+        <div>
+          <p className="text-xl font-black">{defeated ? `Повержен: ${name}` : `${name} ушёл`}</p>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {defeated ? `Урон за неделю: ${boss.damage} при ${boss.hp} HP` : `Урон: ${boss.damage} из ${boss.hp}`}
+          </p>
+        </div>
+      </div>
+    </Block>
+  );
+}
+
 /** Полные итоги недели: герой, прирост и блоки (пустые не показываются). */
 export function RecapView({ data }: { data: RecapData }) {
   return (
@@ -198,6 +218,7 @@ export function RecapView({ data }: { data: RecapData }) {
         {data.records ? <Records records={data.records} /> : null}
         {data.muscles ? <RecapMuscles muscles={data.muscles} /> : null}
         {data.plan ? <Plan plan={data.plan} week={data.week} /> : null}
+        {data.boss ? <Boss boss={data.boss} /> : null}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import type { RecordType } from "@/generated/prisma/enums";
+import { bossName } from "@/lib/boss/bosses";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 
 /** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
@@ -22,6 +23,7 @@ export type FeedRow = {
     streak?: number;
     streakExtended?: boolean;
     weekCount?: number;
+    boss?: { code: string; defeated: boolean };
   } | null;
   kudos: number;
   byMe: boolean;
@@ -46,6 +48,8 @@ export type FeedEntry = {
   achievements: string[];
   levelUp: number | null;
   streakMilestone: number | null;
+  /** Имя босса недели, повергнутого этой тренировкой. */
+  bossDefeated: string | null;
   kudos: { count: number; byMe: boolean; names: string[] };
 };
 
@@ -88,6 +92,7 @@ export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
     achievements: (meta.achievements ?? []).filter((a) => !QUIET_ACHIEVEMENTS.test(a.code)).map((a) => a.title),
     levelUp: meta.levelAfter && meta.levelBefore && meta.levelAfter > meta.levelBefore ? meta.levelAfter : null,
     streakMilestone: streakMilestone(row.meta),
+    bossDefeated: meta.boss?.defeated ? bossName(meta.boss.code) : null,
     kudos: { count: row.kudos, byMe: row.byMe, names: row.kudosNames ?? [] },
   };
 }

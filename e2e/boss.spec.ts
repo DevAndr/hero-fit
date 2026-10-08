@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { seedWorkouts, userId, withDb } from "./db";
+import { makeFriends, mondayWeeksAgo, seedRecapWeek, seedWorkouts, userId, withDb } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 
 const count = (sql: string, login: string) =>
@@ -113,4 +113,36 @@ test("set confirm hits the boss, unconfirm heals it, warmup does nothing", async
   await expect(bench.getByLabel("Подход 1: разминка")).toBeVisible();
   await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
   await expect(bar).toContainText("1500 / 1500 HP");
+});
+
+test("friend sees the boss victory in the feed and league", async ({ page, browser }) => {
+  const me = await registerUser(page);
+  const friendContext = await browser.newContext();
+  const friendPage = await friendContext.newPage();
+  const friend = await registerUser(friendPage);
+  await makeFriends(me.login, me.login, friend.login, friend.login);
+  await seedWorkouts(friend.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await quickWorkout(friendPage, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  await friendContext.close();
+
+  await page.goto("/friends");
+  await expect(page.getByText(/^Босс повержен: /).first()).toBeVisible();
+  await page.goto("/leaderboard");
+  const row = page.getByRole("listitem").filter({ hasText: friend.login });
+  await expect(row.getByTestId("league-boss")).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "это вы" }).getByTestId("league-boss")).toHaveCount(0);
+});
+
+test("weekly recap shows the boss block", async ({ page }) => {
+  const me = await registerUser(page);
+  const week = mondayWeeksAgo(2);
+  await seedRecapWeek(me.login, week, [{ day: 1, time: "19:00", exercise: "Жим штанги лёжа", weight: 60, reps: 8, sets: 3, xp: 80 }]);
+  await withDb(async (db) => {
+    const id = await userId(db, me.login);
+    await db.query(`INSERT INTO "BossWeek" (id, "userId", week, "bossCode", hp) VALUES (gen_random_uuid()::text, $1, $2, 'golem', 1500)`, [id, week]);
+  });
+  await page.goto(`/recap/${week}`);
+  const block = page.getByTestId("recap-boss");
+  await expect(block).toContainText("Железный Голем ушёл");
+  await expect(block).toContainText("Урон: 300 из 1500");
 });

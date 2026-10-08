@@ -9,6 +9,8 @@ import { epley1RM } from "../lib/progress/records";
 import { addWeeks, localMidnight, STREAK_WEEK_TARGET, weekKey, weeksBetween } from "../lib/progress/weekly-streak";
 import type { RecapData } from "../lib/recap/types";
 import { PR_XP, workoutXp } from "../lib/progress/xp";
+import { bossForWeek } from "../lib/boss/bosses";
+import { MIN_HP, SET_DAMAGE } from "../lib/boss/damage";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -231,6 +233,8 @@ type SeedFriend = {
   accepted: boolean;
   /** Сколько прошлых недель перед текущей добить «пн/ср/пт» тренировками — для недельной серии. */
   fillerWeeks?: number;
+  /** Самая свежая тренировка побеждает босса недели («⚔ Босс повержен» в ленте, ⚔ в лиге). */
+  bossWin?: boolean;
   workouts: SeedWorkout[];
 };
 
@@ -262,6 +266,7 @@ const DEMO_FRIENDS: SeedFriend[] = [
     accepted: true,
     // 3 недели по 3 тренировки + 3 на этой неделе: свежая Push засчитывает 4-ю неделю — веха серии в ленте
     fillerWeeks: 3,
+    bossWin: true,
     workouts: [
       {
         name: "Legs",
@@ -353,6 +358,7 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
   // XpEvent при удалении тренировки остаётся (workoutId = null) — без чистки XP задвоился бы в лиге
   await db.xpEvent.deleteMany({ where: { userId } });
   await db.personalRecord.deleteMany({ where: { userId } });
+  await db.bossWeek.deleteMany({ where: { userId } });
 
   let xp = 0;
   const workoutIds: string[] = [];
@@ -360,8 +366,8 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
   const weekCounts = new Map<string, number>();
   let streak = 0;
   let lastWeek: string | null = null;
-  const all = [...fillerWorkouts(friend.fillerWeeks ?? 0), ...friend.workouts];
-  for (const w of all.sort((a, b) => b.hoursAgo - a.hoursAgo)) {
+  const all = [...fillerWorkouts(friend.fillerWeeks ?? 0), ...friend.workouts].sort((a, b) => b.hoursAgo - a.hoursAgo);
+  for (const w of all) {
     const finishedAt = new Date(Date.now() - w.hoursAgo * HOUR);
     const startedAt = new Date(finishedAt.getTime() - w.minutes * 60_000);
     const week = weekKey(finishedAt, "UTC");
@@ -437,7 +443,14 @@ async function seedFriendHistory(userId: string, friend: SeedFriend, exerciseIds
       streakReset: false,
       usedFreezes: 0,
       weekCount,
+      // Победа над боссом — свежей тренировкой (форма FinishMeta.boss); сама BossWeek — ниже
+      ...(friend.bossWin && w === all.at(-1)
+        ? { boss: { week, code: bossForWeek(week), damage: totals.sets * SET_DAMAGE, crits: 0, hpBefore: totals.sets * SET_DAMAGE, hpAfter: 0, hp: MIN_HP, defeated: true } }
+        : {}),
     };
+    if (friend.bossWin && w === all.at(-1)) {
+      await db.bossWeek.create({ data: { userId, week, bossCode: bossForWeek(week), hp: MIN_HP, defeatedAt: finishedAt } });
+    }
     await db.xpEvent.create({
       data: { userId, workoutId: workout.id, amount: baseXp, reason: "WORKOUT_COMPLETED", meta, createdAt: finishedAt },
     });

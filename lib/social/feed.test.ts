@@ -103,3 +103,11 @@ describe("cursor", () => {
     expect(decodeCursor(null)).toBeNull();
   });
 });
+
+describe("boss victory in the feed", () => {
+  it("имя босса — только если он повержен этой тренировкой", () => {
+    expect(toFeedEntry(row({ meta: { boss: { code: "golem", defeated: true } } }), "viewer").bossDefeated).toBe("Железный Голем");
+    expect(toFeedEntry(row({ meta: { boss: { code: "golem", defeated: false } } }), "viewer").bossDefeated).toBeNull();
+    expect(toFeedEntry(row({ meta: null }), "viewer").bossDefeated).toBeNull();
+  });
+});

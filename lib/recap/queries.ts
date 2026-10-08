@@ -1,4 +1,5 @@
 import "server-only";
+import { weekDamage } from "@/lib/boss/queries";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
@@ -73,7 +74,7 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
 export async function loadRecapInput(userId: string, week: string, tz: string): Promise<RecapInput> {
   const { start, end } = bounds(week, tz);
   const prev = bounds(addWeeks(week, -1), tz);
-  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar] = await Promise.all([
+  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
     db.user.findUniqueOrThrow({
@@ -90,6 +91,8 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     weekPercentile(userId, start, end),
     muscleSets(userId, week, tz),
     getCalendar(userId, week, addDays(week, 6), tz, end),
+    db.bossWeek.findUnique({ where: { userId_week: { userId, week } } }),
+    weekDamage(db, userId, week, tz),
   ]);
 
   const ids = workouts.map((w) => w.id);
@@ -130,6 +133,9 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     streakAtWeekEnd: streakValue(streakStatus(user, new Date(end.getTime() - 1), tz)),
     achievements,
     muscleSets: muscles,
+    boss: bossWeek
+      ? { code: bossWeek.bossCode, hp: bossWeek.hp, damage: bossHit.damage, defeatedAt: bossWeek.defeatedAt?.toISOString() ?? null }
+      : null,
     plan: occurrences.length ? { done: occurrences.filter((o) => o.status === "done").length, planned: occurrences.length } : null,
   };
 }
