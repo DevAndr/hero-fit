@@ -1,12 +1,21 @@
-import { CalendarDays, History, Play, Plus } from "lucide-react";
+import { Activity, CalendarDays, History, Play, Plus } from "lucide-react";
 import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { Button } from "@/components/ui/button";
+import type { MuscleGroup } from "@/generated/prisma/enums";
+import { plural } from "@/lib/format";
+import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { cn } from "@/lib/utils";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 import type { StartOptions } from "@/lib/workouts/queries";
 
-function StartForm({ source, children, ...button }: { source: string } & React.ComponentProps<typeof Button>) {
+function StartForm({
+  source,
+  children,
+  wrapperClassName,
+  ...button
+}: { source: string; wrapperClassName?: string } & React.ComponentProps<typeof Button>) {
   return (
-    <form action={createWorkoutAction}>
+    <form action={createWorkoutAction} className={wrapperClassName}>
       <input type="hidden" name="source" value={source} />
       <Button type="submit" {...button}>
         {children}
@@ -21,7 +30,12 @@ export function StartScreen({
   templates,
   lastWorkout,
   plan,
-}: StartOptions & { plan?: { key: string; title: string; time: string } | null }) {
+  recovery,
+}: StartOptions & {
+  plan?: { key: string; title: string; time: string } | null;
+  /** Что соберёт «По восстановлению» (`getRecoveryPlan`). */
+  recovery: { groups: MuscleGroup[]; exercises: number };
+}) {
   const mine = templates.filter((t) => t.userId);
   const programs = Map.groupBy(
     templates.filter((t) => !t.userId),
@@ -69,6 +83,24 @@ export function StartScreen({
             </span>
           </StartForm>
         ) : null}
+        <StartForm
+          source="recovery"
+          size="lg"
+          variant="outline"
+          disabled={!recovery.exercises}
+          className="h-auto w-full flex-col gap-1 py-4"
+          wrapperClassName={cn(lastWorkout && "sm:col-span-2")}
+        >
+          <span className="flex items-center gap-2 text-base">
+            <Activity />
+            Собрать по восстановлению
+          </span>
+          <span className="text-xs font-normal text-muted-foreground" data-testid="recovery-plan-preview">
+            {recovery.exercises
+              ? `${recovery.groups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")} — ${recovery.exercises} ${plural(recovery.exercises, "упражнение", "упражнения", "упражнений")}`
+              : "Все группы мышц ещё восстанавливаются"}
+          </span>
+        </StartForm>
       </div>
 
       {mine.length ? <TemplateSection title="Мои шаблоны" items={mine} /> : null}

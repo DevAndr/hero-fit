@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getOccurrence, getTodayPlan } from "@/lib/plans/queries";
 import { listExercises } from "@/lib/exercises/queries";
-import { getMuscleRecovery } from "@/lib/progress/recovery-queries";
+import { getMuscleRecovery, getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { getProgressionHints } from "@/lib/stats/queries";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
 
@@ -19,13 +19,17 @@ export default async function TrainingPage() {
   const workout = await getActiveWorkout(user.id);
 
   if (!workout) {
-    const [options, plans] = await Promise.all([getStartOptions(user.id), getTodayPlan(user.id, safeTimeZone(user.timeZone))]);
+    const [options, plans, recovery] = await Promise.all([
+      getStartOptions(user.id),
+      getTodayPlan(user.id, safeTimeZone(user.timeZone)),
+      getRecoveryPlan(user.id),
+    ]);
     // Невыполненный план на сегодня (или пропущенный вчера) — первым вариантом
     const plan = plans.today[0] ?? plans.missedYesterday;
     return (
       <>
         <PageHeader title="Новая тренировка" description="Начните с нуля, с шаблона или повторите прошлую" />
-        <StartScreen {...options} plan={plan} />
+        <StartScreen {...options} plan={plan} recovery={{ groups: recovery.groups, exercises: recovery.exercises.length }} />
         <OfflineCleanup />
       </>
     );

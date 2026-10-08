@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { getOccurrence } from "@/lib/plans/queries";
+import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
+import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
@@ -83,6 +85,18 @@ export async function createWorkoutAction(formData: FormData) {
       // Шаблон удалён или недоступен — пустая тренировка с названием плана
       const fromTpl = found.occurrence.templateId ? await fromTemplate(user.id, found.occurrence.templateId) : null;
       if (fromTpl) ({ templateId, planned } = fromTpl);
+    }
+  } else if (kind === "recovery") {
+    const plan = await getRecoveryPlan(user.id);
+    if (plan.exercises.length) {
+      name = recoveryWorkoutName(plan.groups);
+      const last = await getLastPerformance(user.id, plan.exercises.map((e) => e.id));
+      // Подходы, веса и повторы — из прошлого раза; без истории — 3 × 10, вес пустой
+      planned = plan.exercises.map((e) => ({
+        exerciseId: e.id,
+        restSec: e.restSec,
+        sets: last[e.id]?.sets.length ? last[e.id].sets : Array.from({ length: 3 }, () => ({ weight: 0, reps: 10 })),
+      }));
     }
   } else if (kind === "repeat" && id) {
     const previous = await db.workout.findFirst({
