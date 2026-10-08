@@ -94,6 +94,7 @@ model User {
   nickname    String?
   nicknameKey String? @unique // ник в нижнем регистре — уникальность без учёта регистра
   friendCode  String? @unique
+  titleCode   String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
 
   // Лента активности: видят только друзья. Настройки применяются при чтении — действуют и на прошлые тренировки.
   shareActivity Boolean @default(true) // показывать мои тренировки друзьям
