@@ -19,8 +19,10 @@ import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
+import { BodyMap } from "@/components/progress/body-map";
 import { XpBar } from "@/components/progress/xp-bar";
 import { levelProgress } from "@/lib/progress/level";
+import { getMuscleRecovery } from "@/lib/progress/recovery-queries";
 import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
@@ -110,11 +112,12 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap] = await Promise.all([
+  const [data, feed, plan, recap, recovery] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
     getOrCreateRecap(user.id, recapWeekFor(new Date(), userTz), userTz),
+    getMuscleRecovery(user.id),
   ]);
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
@@ -228,6 +231,8 @@ export default async function DashboardPage() {
           )}
         </section>
       </div>
+
+      <BodyMap recovery={recovery} />
 
       <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile label="Тренировок всего" value={data.counts.total.toLocaleString("ru-RU")} />

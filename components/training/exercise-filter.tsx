@@ -1,12 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import type { ExerciseItem } from "@/lib/exercises/queries";
+import { RECOVERY_DOT } from "@/components/progress/body-map";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
+import { recoveryHint, type GroupRecovery } from "@/lib/progress/recovery";
 import { cn } from "@/lib/utils";
+
+const RecoveryContext = createContext<Map<MuscleGroup, GroupRecovery> | null>(null);
+
+/** Восстановление мышц для фильтра групп (точка и подсказка у каждой группы); без провайдера — без точек. */
+export function MuscleRecoveryProvider({ recovery, children }: { recovery: GroupRecovery[]; children: ReactNode }) {
+  const value = useMemo(() => new Map(recovery.map((r) => [r.group, r])), [recovery]);
+  return <RecoveryContext value={value}>{children}</RecoveryContext>;
+}
 
 /** Поиск по названию + фильтр по группе мышц — общий для диалога выбора и каталога на ПК. */
 export function useExerciseFilter(exercises: ExerciseItem[]) {
@@ -35,6 +45,7 @@ export function ExerciseFilterControls({
   filter: ReturnType<typeof useExerciseFilter>;
   className?: string;
 }) {
+  const recovery = useContext(RecoveryContext);
   return (
     <>
       <div className="relative">
@@ -48,20 +59,27 @@ export function ExerciseFilterControls({
         />
       </div>
       <div className={cn("flex gap-1.5 overflow-x-auto pb-1", className)}>
-        {[null, ...MUSCLE_GROUPS].map((g) => (
-          <button
-            key={g ?? "all"}
-            type="button"
-            onClick={() => filter.setGroup(g)}
-            aria-pressed={g === filter.group}
-            className={cn(
-              "shrink-0 rounded-full border px-2.5 py-0.5 text-xs",
-              g === filter.group ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
-            )}
-          >
-            {g ? MUSCLE_GROUP_LABELS[g] : "Все"}
-          </button>
-        ))}
+        {[null, ...MUSCLE_GROUPS].map((g) => {
+          const r = g ? recovery?.get(g) : undefined;
+          return (
+            <button
+              key={g ?? "all"}
+              type="button"
+              onClick={() => filter.setGroup(g)}
+              aria-pressed={g === filter.group}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
+                g === filter.group ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
+              )}
+              // title — описание кнопки для скринридеров, имя («Грудь») не меняется
+              title={r ? recoveryHint(r) : undefined}
+              data-recovery={r?.state}
+            >
+              {r ? <span aria-hidden className={cn("size-2 rounded-full", RECOVERY_DOT[r.state])} /> : null}
+              {g ? MUSCLE_GROUP_LABELS[g] : "Все"}
+            </button>
+          );
+        })}
       </div>
     </>
   );

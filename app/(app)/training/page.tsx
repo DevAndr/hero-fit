@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
+import { MuscleRecoveryProvider } from "@/components/training/exercise-filter";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import { StartScreen } from "@/components/training/start-screen";
 import { WorkoutEditor } from "@/components/training/workout-editor";
@@ -7,6 +8,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getOccurrence, getTodayPlan } from "@/lib/plans/queries";
 import { listExercises } from "@/lib/exercises/queries";
+import { getMuscleRecovery } from "@/lib/progress/recovery-queries";
 import { getProgressionHints } from "@/lib/stats/queries";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
 
@@ -31,13 +33,18 @@ export default async function TrainingPage() {
 
   const exercises = await listExercises(user.id);
   const ids = [...new Set([...exercises.map((e) => e.id), ...workout.exercises.map((e) => e.exercise.id)])];
-  const [last, hints, occurrence] = await Promise.all([
+  const [last, hints, occurrence, recovery] = await Promise.all([
     getLastPerformance(user.id, ids),
     getProgressionHints(user.id, ids),
     workout.planKey ? getOccurrence(user.id, workout.planKey) : null,
+    getMuscleRecovery(user.id),
   ]);
   const plan = occurrence ? { key: occurrence.occurrence.key, title: occurrence.occurrence.title } : null;
 
   // key: после отмены/новой тренировки редактор монтируется с чистым состоянием.
-  return <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} plan={plan} />;
+  return (
+    <MuscleRecoveryProvider recovery={recovery}>
+      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} plan={plan} />
+    </MuscleRecoveryProvider>
+  );
 }
