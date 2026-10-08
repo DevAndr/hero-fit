@@ -29,6 +29,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+const NBSP = " ";
+
 const STEPS = [
   {
     icon: ClipboardList,
@@ -181,7 +183,7 @@ export default async function Home() {
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_80%_10%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_0%_90%,color-mix(in_oklch,var(--streak)_12%,transparent),transparent_40%)]" />
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[48px_48px] opacity-40 mask-[radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-16 px-4 pt-14 pb-24 lg:grid-cols-[1.05fr_1fr] lg:pt-20">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-28 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20 lg:pb-32">
           <div className="space-y-7">
             <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
               <Dumbbell className="size-4 text-primary" aria-hidden /> Бесплатно · в браузере и офлайн
@@ -227,33 +229,37 @@ export default async function Home() {
       </section>
 
       {/* Как это работает */}
-      <section aria-labelledby="how" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-24">
+      <section aria-labelledby="how" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-20 sm:py-24">
         <SectionTitle id="how" eyebrow="Как это работает" title="Три шага от первого подхода до нового уровня" />
-        <ol className="mt-14 grid gap-6 md:grid-cols-3">
+        <ol className="mt-12 grid gap-4 sm:gap-6 lg:mt-14 lg:grid-cols-3">
           {STEPS.map(({ icon: Icon, title, text }, i) => (
-            <li key={title} className="relative rounded-2xl border bg-card p-6">
-              <span className="font-display text-5xl font-extrabold text-primary/20" aria-hidden>
-                0{i + 1}
-              </span>
-              <Icon className="mt-2 size-6 text-primary" aria-hidden />
-              <h3 className="mt-3 text-lg font-bold">{title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+            <li key={title} className="relative rounded-2xl border bg-card p-5 sm:flex sm:items-start sm:gap-6 sm:p-6 lg:block">
+              <div className="flex items-center gap-3 sm:w-24 sm:shrink-0 sm:flex-col sm:items-start sm:gap-2 lg:w-auto">
+                <span className="font-display text-5xl font-extrabold text-primary/20" aria-hidden>
+                  0{i + 1}
+                </span>
+                <Icon className="size-6 text-primary" aria-hidden />
+              </div>
+              <div>
+                <h3 className="mt-3 text-lg font-bold sm:mt-1 lg:mt-3">{title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+              </div>
             </li>
           ))}
         </ol>
       </section>
 
       {/* Возможности */}
-      <section aria-labelledby="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-24">
+      <section aria-labelledby="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle
           id="features"
           eyebrow="Возможности"
-          title="Всё для прогресса — и немного игры"
+          title="Всё для прогресса — и немного игры"
           text="Не просто блокнот с цифрами: Hero Fit считает рекорды, подсказывает следующий шаг и мотивирует возвращаться в зал."
         />
-        <ul className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
           {FEATURES.map((f) => (
-            <li key={f.title} className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-6 transition-colors hover:border-primary/50", f.className)}>
+            <li key={f.title} className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6", f.className)}>
               <div>
                 <h3 className="text-lg font-bold">{f.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{f.text}</p>
@@ -266,26 +272,26 @@ export default async function Home() {
 
       {/* Сравнение */}
       <section aria-labelledby="compare" className="border-y bg-card/40">
-        <div className="mx-auto w-full max-w-4xl px-4 py-24">
-          <SectionTitle id="compare" eyebrow="Почему не блокнот" title="Блокнот запоминает. Hero Fit — ведёт к результату" />
-          <div className="mt-12 overflow-hidden rounded-2xl border bg-card">
+        <div className="mx-auto w-full max-w-4xl px-4 py-20 sm:py-24">
+          <SectionTitle id="compare" eyebrow="Почему не блокнот" title="Блокнот запоминает. Hero Fit — ведёт к результату" />
+          <div className="mt-10 overflow-hidden rounded-2xl border bg-card sm:mt-12">
             <table className="w-full text-sm">
               <caption className="sr-only">Сравнение Hero Fit и бумажного дневника тренировок</caption>
               <thead>
                 <tr className="border-b text-left">
-                  <th scope="col" className="p-4 font-semibold">Возможность</th>
-                  <th scope="col" className="p-4 text-center font-semibold text-muted-foreground">Блокнот</th>
-                  <th scope="col" className="p-4 text-center font-semibold text-primary">Hero Fit</th>
+                  <th scope="col" className="p-3 font-semibold sm:p-4">Возможность</th>
+                  <th scope="col" className="p-3 text-center font-semibold whitespace-nowrap text-muted-foreground sm:p-4">Блокнот</th>
+                  <th scope="col" className="p-3 text-center font-semibold whitespace-nowrap text-primary sm:p-4">Hero Fit</th>
                 </tr>
               </thead>
               <tbody>
                 {COMPARE.map(([feature, notebook]) => (
                   <tr key={feature} className="border-b last:border-0">
-                    <th scope="row" className="p-4 text-left font-normal">{feature}</th>
-                    <td className="p-4 text-center">
+                    <th scope="row" className="p-3 text-left font-normal sm:p-4">{feature}</th>
+                    <td className="p-3 text-center sm:p-4">
                       {notebook ? <Check className="mx-auto size-5 text-muted-foreground" aria-label="есть" /> : <X className="mx-auto size-5 text-muted-foreground/50" aria-label="нет" />}
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-3 text-center sm:p-4">
                       <Check className="mx-auto size-5 text-primary" aria-label="есть" />
                     </td>
                   </tr>
@@ -297,20 +303,22 @@ export default async function Home() {
       </section>
 
       {/* Инструменты */}
-      <section aria-labelledby="tools" className="mx-auto w-full max-w-6xl px-4 py-24">
-        <SectionTitle id="tools" eyebrow="Бесплатные инструменты" title="Посчитай прямо сейчас — без регистрации" />
+      <section aria-labelledby="tools" className="mx-auto w-full max-w-6xl px-4 py-20 sm:py-24">
+        <SectionTitle id="tools" eyebrow="Бесплатные инструменты" title="Посчитай прямо сейчас — без регистрации" />
         <div className="mt-12 grid gap-4 md:grid-cols-2">
           {[
             { href: "/tools/1rm", icon: Calculator, title: "Калькулятор 1ПМ", text: "Одноповторный максимум по формуле Эпли и таблица рабочих весов на 1–12 повторений." },
             { href: "/tools/plates", icon: Dumbbell, title: "Калькулятор блинов и разминки", text: "Какие блины вешать на гриф для нужного веса и разминочные подходы к рабочему." },
           ].map(({ href, icon: Icon, title, text }) => (
-            <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border bg-card p-6 transition-colors hover:border-primary/50">
+            <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
                 <Icon className="size-6" aria-hidden />
               </span>
               <span>
-                <span className="flex items-center gap-2 text-lg font-bold">
-                  {title} <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+                <span className="block text-lg font-bold">
+                  {title}
+                  {NBSP}
+                  <ArrowRight className="inline size-4 align-[-2px] transition-transform group-hover:translate-x-1" aria-hidden />
                 </span>
                 <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
               </span>
@@ -320,7 +328,7 @@ export default async function Home() {
       </section>
 
       {/* FAQ */}
-      <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-24">
+      <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
         <div className="mt-12">
           <Faq />
@@ -328,11 +336,11 @@ export default async function Home() {
       </section>
 
       {/* Финальный призыв */}
-      <section className="px-4 pb-24">
-        <div className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border bg-card px-6 py-16 text-center">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-24">
+        <div className="relative overflow-hidden rounded-3xl border bg-card px-5 py-14 text-center sm:px-10 sm:py-16">
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_22%,transparent),transparent_60%)]" />
           <div className="relative space-y-6">
-            <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight text-balance sm:text-5xl">Первый уровень — уже после первой тренировки</h2>
+            <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight text-balance sm:text-5xl">Первый уровень — уже после первой тренировки</h2>
             <p className="mx-auto max-w-xl text-muted-foreground">Регистрация за минуту. Без карты и без установки.</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-8 text-base" })}>

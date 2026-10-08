@@ -41,8 +41,8 @@ export function HeroHud() {
         </div>
       </div>
 
-      <LevelHud className="hf-rise absolute -bottom-10 left-4 w-56 sm:-left-8" />
-      <div className="hf-float absolute -top-12 left-1/3 sm:-top-10">
+      <LevelHud className="hf-rise absolute -bottom-12 left-3 w-52 sm:-left-8 sm:w-56" />
+      <div className="hf-float absolute -top-12 left-3 sm:left-1/3 sm:-top-10">
         <div className="hf-rise flex items-center gap-2 rounded-xl border bg-card/95 px-3 py-2 shadow-lg" style={{ animationDelay: "0.5s" }}>
           <Trophy className="size-5 text-xp" />
           <div className="text-xs">
@@ -51,7 +51,7 @@ export function HeroHud() {
           </div>
         </div>
       </div>
-      <div className="hf-rise absolute -bottom-5 right-4 flex items-center gap-1.5 rounded-full border bg-card/95 px-3 py-1.5 text-sm font-semibold shadow-lg sm:-right-6" style={{ animationDelay: "0.7s" }}>
+      <div className="hf-rise absolute -top-4 right-3 flex sm:top-auto sm:-bottom-5 items-center gap-1.5 rounded-full border bg-card/95 px-3 py-1.5 text-sm font-semibold shadow-lg sm:-right-6" style={{ animationDelay: "0.7s" }}>
         <Flame className="hf-flicker size-4 text-streak" /> 4 недели в ударе
       </div>
     </div>
