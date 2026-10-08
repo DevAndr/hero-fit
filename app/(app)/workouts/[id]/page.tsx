@@ -13,6 +13,8 @@ import { buttonVariants } from "@/components/ui/button";
 import type { RecordType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
+import { BossDamage } from "@/components/boss/boss-damage";
+import { bossRewardTaken } from "@/lib/boss/queries";
 import { levelProgress } from "@/lib/progress/level";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
@@ -62,6 +64,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const streakNow = meta?.weekCount !== undefined ? meta.streak : user.currentStreak;
   const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
   const canUpdateTemplate = ownTemplate ? differsFromTemplate(workout.exercises, ownTemplate.exercises) : false;
+  const bossTaken = meta?.boss ? await bossRewardTaken(user.id, meta.boss.week) : true;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -144,6 +147,10 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
           </p>
         </div>
       </div>
+
+      {meta?.boss ? (
+        <BossDamage boss={meta.boss} rewardOpened={bossTaken} celebrate={freshFinish} />
+      ) : null}
 
       {meta?.achievements?.length ? (
         <section className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-4">

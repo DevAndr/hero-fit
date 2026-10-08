@@ -102,3 +102,9 @@ export async function getBossView(userId: string, tz: string, now = new Date(), 
 export function bossWins(client: Client, userId: string) {
   return client.bossWeek.count({ where: { userId, defeatedAt: { not: null } } });
 }
+
+/** Сундук босса недели уже забран (или босса той недели нет). */
+export async function bossRewardTaken(userId: string, week: string) {
+  const boss = await db.bossWeek.findUnique({ where: { userId_week: { userId, week } }, select: { rewardOpenedAt: true } });
+  return !boss || boss.rewardOpenedAt !== null;
+}

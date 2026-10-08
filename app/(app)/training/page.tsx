@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getOccurrence, getTodayPlan } from "@/lib/plans/queries";
 import { listExercises } from "@/lib/exercises/queries";
+import { getBossView } from "@/lib/boss/queries";
 import { getMuscleRecovery, getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { getProgressionHints } from "@/lib/stats/queries";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
@@ -37,18 +38,20 @@ export default async function TrainingPage() {
 
   const exercises = await listExercises(user.id);
   const ids = [...new Set([...exercises.map((e) => e.id), ...workout.exercises.map((e) => e.exercise.id)])];
-  const [last, hints, occurrence, recovery] = await Promise.all([
+  const [last, hints, occurrence, recovery, boss] = await Promise.all([
     getLastPerformance(user.id, ids),
     getProgressionHints(user.id, ids),
     workout.planKey ? getOccurrence(user.id, workout.planKey) : null,
     getMuscleRecovery(user.id),
+    // Урон этой тренировки досчитывает редактор
+    getBossView(user.id, safeTimeZone(user.timeZone), new Date(), workout.id),
   ]);
   const plan = occurrence ? { key: occurrence.occurrence.key, title: occurrence.occurrence.title } : null;
 
   // key: после отмены/новой тренировки редактор монтируется с чистым состоянием.
   return (
     <MuscleRecoveryProvider recovery={recovery}>
-      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} plan={plan} />
+      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} plan={plan} boss={boss} />
     </MuscleRecoveryProvider>
   );
 }

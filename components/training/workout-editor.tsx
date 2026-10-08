@@ -24,7 +24,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExerciseBlock } from "@/components/training/exercise-block";
+import { BossBar } from "@/components/boss/boss-bar";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
+import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
 import {
   NotificationToggle,
@@ -52,6 +54,8 @@ type Props = {
   hints: Record<string, ProgressionHint>;
   /** План календаря, из которого начата тренировка (если он ещё есть). */
   plan?: { key: string; title: string } | null;
+  /** Босс недели (урон без этой тренировки). */
+  boss?: BossView;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -125,7 +129,7 @@ function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone:
   return next?.exercise.name ?? null;
 }
 
-function Editor({ workout, exercises, last, hints, plan }: Props) {
+function Editor({ workout, exercises, last, hints, plan, boss }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   const draft = useMemo(() => toDraft(state), [state]);
   const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
@@ -263,6 +267,8 @@ function Editor({ workout, exercises, last, hints, plan }: Props) {
                   Объём: <b className="text-foreground">{totals.volume.toLocaleString("ru-RU")} кг</b>
                 </span>
               </div>
+
+              {boss ? <BossBar boss={boss} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {state.status === "PLANNED" ? (

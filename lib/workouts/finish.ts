@@ -33,7 +33,7 @@ export type FinishMeta = {
   /** Тренировок за неделю этой тренировки (включая её). */
   weekCount: number;
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
-  boss?: { code: string; damage: number; crits: number; hpBefore: number; hpAfter: number; hp: number; defeated: boolean };
+  boss?: { week: string; code: string; damage: number; crits: number; hpBefore: number; hpAfter: number; hp: number; defeated: boolean };
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -188,6 +188,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       );
     }
     const boss: FinishMeta["boss"] = {
+      week,
       code: bossWeek.bossCode,
       damage: hit.damage,
       crits: hit.crits,

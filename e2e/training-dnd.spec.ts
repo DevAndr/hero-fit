@@ -32,6 +32,8 @@ test.beforeEach(async ({ page }) => {
 
 test("desktop: build workout by dragging from catalog, reorder by handle (mouse + keyboard)", async ({ page, isMobile }) => {
   test.skip(isMobile, "перетаскивание — только на ПК");
+  // Ручки и цели — вне зоны автопрокрутки dnd-kit у краёв окна (иначе координаты «уезжают» под нагрузкой)
+  await page.setViewportSize({ width: 1280, height: 1000 });
   await expect(page.getByRole("button", { name: "Добавить упражнение" })).toBeHidden();
   await expect(list(page)).toContainText("Перетащите упражнения сюда");
 

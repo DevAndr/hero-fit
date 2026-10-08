@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { seedWorkouts, userId, withDb } from "./db";
-import { quickWorkout, registerUser } from "./helpers";
+import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 
 const count = (sql: string, login: string) =>
   withDb(async (db) => {
@@ -29,6 +29,10 @@ test("defeating the boss: finish → victory, chest pays once", async ({ page, c
   // 14 подходов этой недели + 1 в тренировке = 1500
   await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  // Сводка: урон этой тренировки и победа
+  const summary = page.getByTestId("boss-damage");
+  await expect(summary).toContainText("Урон боссу: −100");
+  await expect(summary).toContainText("Повержен!");
 
   await page.goto("/dashboard");
   const card = page.getByTestId("boss-card");
@@ -82,4 +86,31 @@ test.describe("week bounds", () => {
     // Засчитан только понедельник: 3 подхода
     await expect(page.getByTestId("boss-card")).toContainText("1200 / 1500 HP · осталось ~12 подходов");
   });
+});
+
+test("set confirm hits the boss, unconfirm heals it, warmup does nothing", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const bench = page.getByRole("region", { name: "Жим штанги лёжа" });
+  for (const i of [1, 2, 3]) {
+    await bench.getByLabel(`Вес, подход ${i}`).fill("60");
+    await bench.getByLabel(`Повторы, подход ${i}`).fill("8");
+  }
+  const bar = page.getByTestId("boss-bar");
+  await expect(bar).toContainText("1500 / 1500 HP");
+
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect(bar).toContainText("1400 / 1500 HP");
+  await bench.getByRole("group", { name: "Запас повторов, подход 1" }).getByRole("button", { name: "Запас: до отказа" }).click();
+  await expect(bar).toContainText("1350 / 1500 HP");
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect(bar).toContainText("1500 / 1500 HP");
+
+  // Разминка встаёт перед рабочими подходами — подход 1 теперь разминочный
+  await bench.getByRole("button", { name: "Разминка", exact: true }).click();
+  await expect(bench.getByLabel("Подход 1: разминка")).toBeVisible();
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect(bar).toContainText("1500 / 1500 HP");
 });
