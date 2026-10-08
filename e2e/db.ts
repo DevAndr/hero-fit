@@ -74,3 +74,67 @@ export async function makeFriends(loginA: string, nickA: string, loginB: string,
     );
   });
 }
+
+/** Пользователь без регистрации через UI (без argon2) — для друзей в лиге. Пароль не подходит для входа. */
+export async function createUserRow(login: string) {
+  await withDb((db) =>
+    db.query(
+      `insert into "User" (id, login, email, "passwordHash", "timeZone", "updatedAt") values ($1, $2, $3, 'x', 'Europe/Moscow', now())`,
+      [randomUUID(), login, `${login}@test.local`],
+    ),
+  );
+}
+
+/** Понедельник n недель назад по Москве (пояс браузера в e2e), «YYYY-MM-DD». */
+export function mondayWeeksAgo(n: number, now = new Date()) {
+  const msk = new Date(now.getTime() + 3 * 3600_000); // Europe/Moscow — UTC+3 без перехода на летнее время
+  const weekday = (msk.getUTCDay() + 6) % 7;
+  return new Date(msk.getTime() - (weekday + 7 * n) * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Тренировки недели weekStart (по Москве) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
+ * day: 0 = пн … 6 = вс, time — местное «HH:MM» начала-конца не важно: тренировка длится 60 мин и заканчивается в time.
+ */
+export async function seedRecapWeek(
+  login: string,
+  weekStart: string,
+  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number }[],
+) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(`update "User" set "timeZone" = 'Europe/Moscow' where id = $1`, [uid]);
+    for (const [i, w] of workouts.entries()) {
+      const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [w.exercise]);
+      const date = new Date(Date.parse(`${weekStart}T12:00:00Z`) + w.day * 86_400_000).toISOString().slice(0, 10);
+      const finished = new Date(`${date}T${w.time}:00+03:00`);
+      const started = new Date(finished.getTime() - 3600_000);
+      const workoutId = randomUUID();
+      const weId = randomUUID();
+      await db.query(
+        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "xpEarned", "createdAt", "updatedAt")
+         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $8, $3, $4)`,
+        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets, w.xp],
+      );
+      await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [
+        weId,
+        workoutId,
+        rows[0].id,
+      ]);
+      for (let s = 0; s < w.sets; s++) {
+        await db.query(
+          `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, $3, $4, $5, false, $6)`,
+          [randomUUID(), weId, s, w.weight, w.reps, finished],
+        );
+      }
+      const meta = {
+        xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: w.xp, recordsXp: 0, achievementsXp: 0,
+        records: [], achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+      };
+      await db.query(
+        `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
+        [randomUUID(), uid, w.xp, workoutId, JSON.stringify(meta), finished],
+      );
+    }
+  });
+}
