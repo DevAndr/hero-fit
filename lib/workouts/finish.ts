@@ -181,8 +181,9 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         {
           type: NotificationType.BOSS,
           title: `⚔ Босс повержен: ${bossName(bossWeek.bossCode)}`,
-          body: `Сундук ждёт на дашборде · +${rewardXp(bossWeek.hp)} XP`,
-          url: "/dashboard",
+          // Сводка победной тренировки: сундук там есть и после смены недели (дашборд показывает уже нового босса)
+          body: `Сундук ждёт в сводке тренировки · +${rewardXp(bossWeek.hp)} XP`,
+          url: `/workouts/${workoutId}`,
         },
         { push: prefs.notifyAchievements },
       );

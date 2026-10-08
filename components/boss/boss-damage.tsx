@@ -75,7 +75,11 @@ export function BossDamage({
             <span className="whitespace-nowrap">
               {boss.hpAfter} / {boss.hp} HP
             </span>
-            {boss.defeated ? <span className="ml-2 font-bold text-primary">Повержен!</span> : null}
+            {boss.defeated ? (
+              <span className="ml-2 font-bold text-primary">Повержен!</span>
+            ) : boss.hpBefore === 0 ? (
+              <span className="ml-2 text-muted-foreground">Уже повержен на этой неделе</span>
+            ) : null}
           </p>
           {boss.defeated && !taken ? (
             <Button size="sm" className="mt-2 bg-amber-400 hover:bg-amber-300" onClick={() => setChestOpen(true)}>

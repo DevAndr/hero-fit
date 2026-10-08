@@ -53,6 +53,8 @@ test("defeating the boss: finish → victory, chest pays once", async ({ page, c
 
   expect(await count(`SELECT COUNT(*) n FROM "XpEvent" WHERE "userId" = $1 AND reason = 'BOSS_REWARD'`, login)).toBe(1);
   expect(await count(`SELECT COUNT(*) n FROM "Notification" WHERE "userId" = $1 AND type = 'BOSS'`, login)).toBe(1);
+  // Уведомление ведёт в сводку победной тренировки — там сундук есть и после смены недели
+  expect(await count(`SELECT COUNT(*) n FROM "Notification" WHERE "userId" = $1 AND type = 'BOSS' AND url LIKE '/workouts/%'`, login)).toBe(1);
   expect(await count(`SELECT COUNT(*) n FROM "BossWeek" WHERE "userId" = $1 AND "defeatedAt" IS NOT NULL`, login)).toBe(1);
   // Ачивка за первую победу
   expect(await count(`SELECT COUNT(*) n FROM "UserAchievement" WHERE "userId" = $1 AND code = 'boss:1'`, login)).toBe(1);
@@ -145,4 +147,40 @@ test("weekly recap shows the boss block", async ({ page }) => {
   const block = page.getByTestId("recap-boss");
   await expect(block).toContainText("Железный Голем ушёл");
   await expect(block).toContainText("Урон: 300 из 1500");
+});
+
+test("boss already defeated this week: the summary says so", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 16 }], 0);
+  await withDb(async (db) => {
+    const id = await userId(db, login);
+    await db.query(`UPDATE "BossWeek" SET "defeatedAt" = now() WHERE "userId" = $1`, [id]);
+  });
+  await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  const summary = page.getByTestId("boss-damage");
+  await expect(summary).toContainText("Урон боссу: −100");
+  await expect(summary).toContainText("Уже повержен на этой неделе");
+});
+
+test("weekly recap: the chest of a defeated boss can be claimed there", async ({ page }) => {
+  const me = await registerUser(page);
+  const week = mondayWeeksAgo(2);
+  await seedRecapWeek(me.login, week, [{ day: 1, time: "19:00", exercise: "Жим штанги лёжа", weight: 60, reps: 8, sets: 15, xp: 80 }]);
+  await withDb(async (db) => {
+    const id = await userId(db, me.login);
+    await db.query(
+      `INSERT INTO "BossWeek" (id, "userId", week, "bossCode", hp, "defeatedAt") VALUES (gen_random_uuid()::text, $1, $2, 'golem', 1500, now())`,
+      [id, week],
+    );
+  });
+  await page.goto(`/recap/${week}`);
+  const block = page.getByTestId("recap-boss");
+  await expect(block).toContainText("Повержен: Железный Голем");
+  await block.getByRole("button", { name: "Открыть сундук босса" }).click();
+  await page.getByRole("button", { name: "Открыть сундук", exact: true }).click();
+  await expect(page.getByTestId("chest-reward")).toHaveText("+75 XP");
+  await page.getByRole("button", { name: "Забрать" }).click();
+  await expect(block.getByRole("button", { name: "Открыть сундук босса" })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("recap-boss").getByRole("button", { name: "Открыть сундук босса" })).toHaveCount(0);
 });

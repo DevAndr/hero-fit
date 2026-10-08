@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Swords, Trophy, Users } from "lucide-react";
+import { BossChestButton } from "@/components/boss/boss-chest-button";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { bossName } from "@/lib/boss/bosses";
 import { RecapMuscles } from "@/components/recap/recap-muscles";
@@ -179,7 +180,7 @@ function Plan({ plan, week }: { plan: NonNullable<RecapData["plan"]>; week: stri
   );
 }
 
-function Boss({ boss }: { boss: NonNullable<RecapData["boss"]> }) {
+function Boss({ boss, week, chest }: { boss: NonNullable<RecapData["boss"]>; week: string; chest: boolean }) {
   const name = bossName(boss.code);
   const defeated = boss.defeatedAt !== null;
   return (
@@ -191,6 +192,7 @@ function Boss({ boss }: { boss: NonNullable<RecapData["boss"]> }) {
           <p className="text-sm text-muted-foreground tabular-nums">
             {defeated ? `Урон за неделю: ${boss.damage} при ${boss.hp} HP` : `Урон: ${boss.damage} из ${boss.hp}`}
           </p>
+          {defeated ? <BossChestButton week={week} name={name} available={chest} className="mt-2" /> : null}
         </div>
       </div>
     </Block>
@@ -198,7 +200,7 @@ function Boss({ boss }: { boss: NonNullable<RecapData["boss"]> }) {
 }
 
 /** Полные итоги недели: герой, прирост и блоки (пустые не показываются). */
-export function RecapView({ data }: { data: RecapData }) {
+export function RecapView({ data, bossChest = false }: { data: RecapData; /** Сундук босса этой недели можно забрать. */ bossChest?: boolean }) {
   return (
     <div className="grid gap-4">
       <section aria-label="Главное за неделю" className="card-glow rounded-xl border p-5">
@@ -218,7 +220,7 @@ export function RecapView({ data }: { data: RecapData }) {
         {data.records ? <Records records={data.records} /> : null}
         {data.muscles ? <RecapMuscles muscles={data.muscles} /> : null}
         {data.plan ? <Plan plan={data.plan} week={data.week} /> : null}
-        {data.boss ? <Boss boss={data.boss} /> : null}
+        {data.boss ? <Boss boss={data.boss} week={data.week} chest={bossChest} /> : null}
       </div>
     </div>
   );

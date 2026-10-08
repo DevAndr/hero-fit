@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RecapView } from "@/components/recap/recap-view";
+import { bossChestAvailable } from "@/lib/boss/queries";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
@@ -51,7 +52,7 @@ export default async function RecapPage({ params }: PageProps<"/recap/[week]">) 
           </div>
         }
       />
-      <RecapView data={recap.data} />
+      <RecapView data={recap.data} bossChest={await bossChestAvailable(user.id, week)} />
     </>
   );
 }

@@ -108,3 +108,9 @@ export async function bossRewardTaken(userId: string, week: string) {
   const boss = await db.bossWeek.findUnique({ where: { userId_week: { userId, week } }, select: { rewardOpenedAt: true } });
   return !boss || boss.rewardOpenedAt !== null;
 }
+
+/** Босс недели повержен, а сундук ещё не забран (итоги недели — место, где его можно открыть позже). */
+export async function bossChestAvailable(userId: string, week: string) {
+  const boss = await db.bossWeek.findUnique({ where: { userId_week: { userId, week } }, select: { defeatedAt: true, rewardOpenedAt: true } });
+  return !!boss?.defeatedAt && !boss.rewardOpenedAt;
+}
