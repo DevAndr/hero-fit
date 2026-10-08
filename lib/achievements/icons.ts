@@ -9,6 +9,8 @@ export type AchievementIconKey =
   | "number_two_in_league"
   | "number_three_in_league"
   | "100_weigth_push"
+  | "push_100_kg"
+  | "visit"
   | "add_5_kg"
   | "many_set"
   | "first_template"
@@ -32,7 +34,9 @@ export function achievementIconKey(code: string): AchievementIconKey {
     case "league3":
       return "number_three_in_league";
     case "lift":
-      return n === 100 ? "100_weigth_push" : "default";
+      return n === 100 ? "100_weigth_push" : "push_100_kg";
+    case "login":
+      return "visit";
     case "weightkg":
       return "add_5_kg";
     case "sets":

@@ -13,7 +13,9 @@ import league1 from "@/assets/icons/achievements/number_one_in_league.png";
 import league3 from "@/assets/icons/achievements/number_three_in_league.png";
 import league2 from "@/assets/icons/achievements/number_two_in_league.png";
 import progress from "@/assets/icons/achievements/progress_in_training.png";
+import push100 from "@/assets/icons/achievements/push_100_kg.png";
 import stableStreak from "@/assets/icons/achievements/stable_in_streak.png";
+import visit from "@/assets/icons/achievements/visit.png";
 
 const ICONS: Record<AchievementIconKey, StaticImageData> = {
   default: fallback,
@@ -23,6 +25,8 @@ const ICONS: Record<AchievementIconKey, StaticImageData> = {
   number_two_in_league: league2,
   number_three_in_league: league3,
   "100_weigth_push": badge100,
+  push_100_kg: push100,
+  visit,
   add_5_kg: add5,
   many_set: manySet,
   first_template: firstTemplate,

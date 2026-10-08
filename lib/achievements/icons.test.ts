@@ -5,6 +5,10 @@ describe("achievementIconKey", () => {
   it("maps achievement families to their badges", () => {
     expect(achievementIconKey("lift:bench:100")).toBe("100_weigth_push");
     expect(achievementIconKey("lift:squat:100")).toBe("100_weigth_push");
+    expect(achievementIconKey("lift:bench:80")).toBe("push_100_kg");
+    expect(achievementIconKey("lift:deadlift:140")).toBe("push_100_kg");
+    expect(achievementIconKey("login:7")).toBe("visit");
+    expect(achievementIconKey("login:30")).toBe("visit");
     expect(achievementIconKey("weightkg:abc:15")).toBe("add_5_kg");
     expect(achievementIconKey("sets:abc")).toBe("many_set");
     expect(achievementIconKey("template:1")).toBe("first_template");
@@ -25,9 +29,7 @@ describe("achievementIconKey", () => {
   });
 
   it("falls back to default", () => {
-    expect(achievementIconKey("lift:bench:80")).toBe("default");
     expect(achievementIconKey("workouts:5")).toBe("default");
-    expect(achievementIconKey("login:7")).toBe("default");
     expect(achievementIconKey("streak:7")).toBe("default"); // прежний дневной streak
     expect(achievementIconKey("unknown")).toBe("default");
   });
