@@ -1,7 +1,11 @@
 import "server-only";
-import { RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { NotificationType, RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
+import { bossName } from "@/lib/boss/bosses";
+import { rewardXp, workoutDamage } from "@/lib/boss/damage";
+import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
+import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
 import { safeTimeZone } from "@/lib/daily-login";
@@ -28,6 +32,8 @@ export type FinishMeta = {
   usedFreezes: number;
   /** Тренировок за неделю этой тренировки (включая её). */
   weekCount: number;
+  /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
+  boss?: { code: string; damage: number; crits: number; hpBefore: number; hpAfter: number; hp: number; defeated: boolean };
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -154,7 +160,44 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       },
     });
 
-    // Ачивки считаются по уже обновлённым данным (новая тренировка, streak) и сами начисляют свой XP.
+    // Босс недели этой тренировки (неделя — по её finishedAt): урон прошлых тренировок недели + этой
+    const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
+    const before = await weekDamage(tx, userId, week, tz, workoutId);
+    const hit = workoutDamage(
+      workout.exercises.flatMap((we) => we.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0)),
+      new Set(records.map((r) => r.exerciseId)).size,
+    );
+    let defeated = false;
+    if (before.damage + hit.damage >= bossWeek.hp) {
+      // Условие по defeatedAt — повтор или параллельная тренировка не засчитают победу дважды
+      const { count } = await tx.bossWeek.updateMany({ where: { id: bossWeek.id, defeatedAt: null }, data: { defeatedAt: now } });
+      defeated = count === 1;
+    }
+    if (defeated) {
+      const prefs = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
+      await notify(
+        tx,
+        userId,
+        {
+          type: NotificationType.BOSS,
+          title: `⚔ Босс повержен: ${bossName(bossWeek.bossCode)}`,
+          body: `Сундук ждёт на дашборде · +${rewardXp(bossWeek.hp)} XP`,
+          url: "/dashboard",
+        },
+        { push: prefs.notifyAchievements },
+      );
+    }
+    const boss: FinishMeta["boss"] = {
+      code: bossWeek.bossCode,
+      damage: hit.damage,
+      crits: hit.crits,
+      hpBefore: Math.max(0, bossWeek.hp - before.damage),
+      hpAfter: Math.max(0, bossWeek.hp - before.damage - hit.damage),
+      hp: bossWeek.hp,
+      defeated,
+    };
+
+    // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
     const unlocked = await evaluateAchievements(tx, userId);
 
     const meta: FinishMeta = {
@@ -171,6 +214,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       streakReset: streak.reset,
       usedFreezes: streak.frozenWeeks.length,
       weekCount,
+      boss,
     };
 
     await tx.xpEvent.create({

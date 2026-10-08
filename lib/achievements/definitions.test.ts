@@ -280,3 +280,19 @@ describe("nextGoals", () => {
     });
   });
 });
+
+describe("boss hunter", () => {
+  it("лестница побед над боссом: 1, 5, 10, 25, 50", () => {
+    expect(codesOf("boss", { bossWins: 5 })).toEqual(["boss:1", "boss:5"]);
+    expect(codesOf("boss", { bossWins: 0 })).toEqual([]);
+    const first = earnedAchievements({ ...empty, bossWins: 1 }).find((a) => a.code === "boss:1");
+    expect(first).toMatchObject({ category: "BOSS", title: "Победитель босса", xpReward: 35 });
+  });
+
+  it("цель — первая победа", () => {
+    expect(nextGoals({ ...empty, bossWins: 0 }).find((g) => g.code.startsWith("boss:"))).toMatchObject({
+      code: "boss:1",
+      target: 1,
+    });
+  });
+});

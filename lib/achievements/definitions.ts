@@ -74,6 +74,8 @@ export type AchievementStats = {
   freezeSaves: number;
   // Лига друзей: сколько недель закончил на 1/2/3 месте (из итогов недели)
   leaguePlaces: Record<LeaguePlace, number>;
+  /** Побед над боссом недели (BossWeek с defeatedAt). */
+  bossWins: number;
 };
 
 export type LeaguePlace = 1 | 2 | 3;
@@ -109,6 +111,7 @@ export const EMPTY_STATS: AchievementStats = {
   maxGapDays: 0,
   freezeSaves: 0,
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
+  bossWins: 0,
 };
 
 export const WORKOUT_STEP = 5;
@@ -595,6 +598,20 @@ function ladders(s: AchievementStats): Ladder[] {
       value: s.freezeSaves,
       goal: false,
       def: single("freeze", "MILESTONE", "Второе дыхание", "Сохранить streak с помощью заморозки", 20),
+    },
+
+    // Босс недели
+    {
+      fixed: [1, 5, 10, 25, 50],
+      value: s.bossWins,
+      def: (n) =>
+        def(n, {
+          code: `boss:${n}`,
+          category: "BOSS",
+          title: n === 1 ? "Победитель босса" : `Охотник на боссов ×${n}`,
+          description: n === 1 ? "Победить босса недели" : `Победить ${n} ${plural(n, "босса", "боссов", "боссов")} недели`,
+          xpReward: 30 + n * 5,
+        }),
     },
 
     // Лига друзей

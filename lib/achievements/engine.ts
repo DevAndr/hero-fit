@@ -1,4 +1,5 @@
 import "server-only";
+import { bossWins } from "@/lib/boss/queries";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, RecordType, XpReason, type MuscleGroup } from "@/generated/prisma/enums";
 import {
@@ -226,7 +227,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
   });
   const tz = safeTimeZone(timeZone);
   const { weekWorkouts, weekWorkoutsKey, ...rest } = user;
-  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces] =
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins] =
     await Promise.all([
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
@@ -239,11 +240,13 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       client.workoutTemplate.count({ where: { userId } }),
       client.userAchievement.count({ where: { userId } }),
       leagueStats(client, userId),
+      bossWins(client, userId),
     ]);
   return {
     ...rest,
     weekWorkouts: weekWorkoutsKey === weekKey(new Date(), tz) ? weekWorkouts : 0,
     leaguePlaces,
+    bossWins: wins,
     workouts: totals.workouts,
     exercises,
     achievements,
