@@ -52,6 +52,7 @@ export function WorkoutSummaryView({
   readOnly,
   bossTaken,
   exerciseHref,
+  renderComment,
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -62,6 +63,8 @@ export function WorkoutSummaryView({
   readOnly: boolean;
   bossTaken: boolean;
   exerciseHref: (exerciseId: string) => string;
+  /** Комментарии тренера: заметка упражнения (id упражнения тренировки) и общий блок (null) — показ или редактор. */
+  renderComment?: (workoutExerciseId: string | null) => ReactNode;
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const achievementsXp = meta?.achievementsXp ?? 0;
@@ -210,10 +213,12 @@ export function WorkoutSummaryView({
                 </li>
               ))}
             </ol>
+            {renderComment?.(we.id)}
           </div>
         ))}
       </section>
 
+      {renderComment?.(null)}
       {footer ? <div className="mt-6 flex flex-wrap gap-2">{footer}</div> : null}
     </div>
   );

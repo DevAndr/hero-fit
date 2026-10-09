@@ -79,7 +79,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
       </nav>
       {tab === "overview" ? <Overview clientId={client.id} streak={clientWeek(client, new Date(), tz).streak} tz={tz} xp={client.xp} base={base} /> : null}
       {tab === "plan" ? <Plan coachId={coach.id} clientId={client.id} tz={tz} base={base} /> : null}
-      {tab === "workouts" ? <Workouts clientId={client.id} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
+      {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
   );
@@ -159,8 +159,8 @@ async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId
   );
 }
 
-async function Workouts({ clientId, base, cursor }: { clientId: string; base: string; cursor: string | null }) {
-  const { workouts, next } = await getClientWorkouts(clientId, cursor);
+async function Workouts({ clientId, coachId, base, cursor }: { clientId: string; coachId: string; base: string; cursor: string | null }) {
+  const { workouts, next } = await getClientWorkouts(clientId, coachId, cursor);
   if (!workouts.length) return <p className="text-sm text-muted-foreground">Клиент ещё не завершил ни одной тренировки.</p>;
   return (
     <div className="space-y-3">
@@ -169,7 +169,15 @@ async function Workouts({ clientId, base, cursor }: { clientId: string; base: st
           <li key={w.id}>
             <Link href={`${base}/workouts/${w.id}`} className="flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-muted/40">
               <span>
-                <span className="block font-semibold">{w.name}</span>
+                <span className="block font-semibold">
+                  {w.name}
+                  {w._count.comments ? (
+                    <span className="ml-1.5" title="Есть комментарий">
+                      <span aria-hidden>💬</span>
+                      <span className="sr-only">есть комментарий</span>
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-xs text-muted-foreground">{w.finishedAt ? day.format(w.finishedAt) : ""}</span>
               </span>
               <span className="text-sm text-muted-foreground tabular-nums">

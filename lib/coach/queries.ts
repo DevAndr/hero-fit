@@ -100,8 +100,8 @@ export async function getCoachClients(coachId: string, now = new Date()): Promis
   );
 }
 
-/** Завершённые тренировки клиента, новые сверху; курсор — (finishedAt, id), как в ленте. */
-export async function getClientWorkouts(clientId: string, cursor: string | null, limit = CLIENT_WORKOUTS_PAGE) {
+/** Завершённые тренировки клиента, новые сверху; курсор — (finishedAt, id), как в ленте. comments — комментарии этого тренера. */
+export async function getClientWorkouts(clientId: string, coachId: string, cursor: string | null, limit = CLIENT_WORKOUTS_PAGE) {
   const after = decodeCursor(cursor);
   const rows = await db.workout.findMany({
     where: {
@@ -111,7 +111,15 @@ export async function getClientWorkouts(clientId: string, cursor: string | null,
     },
     orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
     take: limit + 1,
-    select: { id: true, name: true, finishedAt: true, durationSec: true, totalSets: true, totalVolume: true, _count: { select: { exercises: true } } },
+    select: {
+      id: true,
+      name: true,
+      finishedAt: true,
+      durationSec: true,
+      totalSets: true,
+      totalVolume: true,
+      _count: { select: { exercises: true, comments: { where: { coachId } } } },
+    },
   });
   const page = rows.slice(0, limit);
   const lastRow = page.at(-1);
