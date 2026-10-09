@@ -3,6 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Dumbbell, Play, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
+import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
 import { CountUp, Reveal } from "@/components/marketing/motion";
 import {
@@ -46,7 +47,7 @@ const STEPS = [
   {
     icon: Sparkles,
     title: "Прокачивайся",
-    text: "Получай XP и уровни, бей рекорды, держи недельный streak. В понедельник — итоги недели и место в лиге друзей.",
+    text: "Получай XP и уровни, бей рекорды и босса недели, держи недельный streak. В понедельник — итоги недели и место в лиге друзей.",
   },
 ];
 
@@ -55,19 +56,31 @@ type Feature = { title: string; text: string; visual: React.ReactNode; className
 const FEATURES: Feature[] = [
   {
     title: "Уровни и XP за реальную работу",
-    text: "Каждый подход, повтор и поднятый килограмм — это очки опыта. Рекорд добавляет +25 XP. Уровень растёт вместе с тобой.",
+    text: "Каждый подход, повтор и поднятый килограмм — это очки опыта. Рекорд добавляет +25 XP, а ежедневный сундук — бонус за то, что заглянул. Уровень растёт вместе с тобой.",
     visual: <LevelHud className="shadow-none" />,
     className: "lg:col-span-2",
   },
   {
     title: "Недельный streak",
-    text: "3 тренировки в неделю — и серия растёт. Заболел или уехал — неделю спасёт заморозка.",
+    text: "3 тренировки в неделю — и серия растёт. Заболел или уехал — неделю спасёт заморозка, а сгоревшую серию можно выкупить за XP.",
     visual: (
       <div className="space-y-3">
         <StreakWeeks />
         <FreezeChip />
       </div>
     ),
+  },
+  {
+    title: "Босс недели",
+    text: "Каждую неделю — новый босс. Подходы бьют его по HP, подход до отказа — сильнее, рекорд — критический удар. Победил — открывай сундук с XP.",
+    visual: <BossFight />,
+    className: "sm:col-span-2",
+  },
+  {
+    title: "Карта мышц",
+    text: "Видно, какие мышцы ещё восстанавливаются, а какие можно нагружать, и где перекос за месяц. Тренировку по восстановлению соберёт одно касание.",
+    visual: <MuscleMapMini />,
+    className: "sm:col-span-2",
   },
   {
     title: "Рекорды и подсказки прогрессии",
@@ -119,6 +132,8 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Таймер отдыха с уведомлением", false],
   ["Графики прогресса по каждому упражнению", false],
   ["Мотивация: уровни, ачивки, streak, лига", false],
+  ["Босс недели, сундуки и титулы", false],
+  ["Восстановление мышц и баланс нагрузки", false],
   ["Напоминания о тренировках по плану", false],
 ];
 
@@ -266,7 +281,8 @@ export default async function Home() {
           title="Всё для прогресса — и немного игры"
           text="Не просто блокнот с цифрами: Hero Fit считает рекорды, подсказывает следующий шаг и мотивирует возвращаться в зал."
         />
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
+        {/* dense — узкие карточки заполняют дыры рядом с широкими (col-span-2) на любой ширине */}
+        <ul className="mt-12 grid grid-flow-dense gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
           {FEATURES.map((f, i) => (
             <Reveal
               as="li"
@@ -282,6 +298,25 @@ export default async function Home() {
             </Reveal>
           ))}
         </ul>
+      </section>
+
+      {/* Бестиарий */}
+      <section aria-labelledby="bestiary" className="relative overflow-hidden border-t">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_0%,color-mix(in_oklch,var(--streak)_14%,transparent),transparent_60%)]"
+        />
+        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:py-24">
+          <SectionTitle
+            id="bestiary"
+            eyebrow="Бестиарий"
+            title="12 боссов. Собери всех"
+            text="Боссы приходят по кругу — каждую неделю новый. Победы дают звёзды, звёзды открывают титулы рядом с твоим ником в лиге и ленте друзей."
+          />
+          <Reveal className="mt-12 lg:mt-14">
+            <BestiaryStrip />
+          </Reveal>
+        </div>
       </section>
 
       {/* Сравнение */}
