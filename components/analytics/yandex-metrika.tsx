@@ -38,7 +38,7 @@ export function YandexMetrika({ id }: { id: number }) {
     window.ym = stub;
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://mc.yandex.ru/metrika/tag.js";
+    script.src = `https://mc.yandex.ru/metrika/tag.js?id=${id}`;
     document.head.appendChild(script);
     window.ym(id, "init", { defer: true, clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
   }, [id]);
