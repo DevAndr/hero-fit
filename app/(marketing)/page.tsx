@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Dumbbell, Play, Sparkles, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
@@ -137,6 +137,26 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Напоминания о тренировках по плану", false],
 ];
 
+/** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
+const FREE_PLAN = [
+  "Тренировки без ограничений, шаблоны и готовые программы",
+  "Своя база упражнений, таймер отдыха, калькуляторы",
+  "Работа без интернета и push-уведомления",
+  "Уровни, XP, ачивки, недельный streak и сундуки",
+  "Босс недели, бестиарий и титулы",
+  "Друзья, лента и недельная лига",
+  "Рекорды, подсказки прогрессии и основная статистика",
+];
+
+/** Станет платным после запуска Премиума — только то, что уже есть в приложении. */
+const PREMIUM_PLAN = [
+  "Тренды по неделям и расширенная статистика",
+  "Архив итогов недели",
+  "Баланс мышц за 30 дней",
+  "Тренировка «по восстановлению» одним касанием",
+  "Новые функции — первыми",
+];
+
 function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
@@ -188,7 +208,7 @@ export default async function Home() {
     { value: exercises, label: "упражнений в базе" },
     { value: programs, label: "готовых программ" },
     { value: 10, label: "групп мышц" },
-    { value: 0, from: 990, suffix: " ₽", label: "все функции бесплатно" },
+    { value: 0, from: 990, suffix: " ₽", label: "ранний доступ: всё бесплатно" },
   ];
 
   return (
@@ -373,6 +393,52 @@ export default async function Home() {
               </span>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Тарифы */}
+      <section aria-labelledby="pricing" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-20 sm:pb-24">
+        <SectionTitle
+          id="pricing"
+          eyebrow="Тарифы"
+          title="Сейчас всё бесплатно"
+          text="Идёт ранний доступ — открыты все функции. Позже появится Премиум, а основное останется бесплатным навсегда."
+        />
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:mt-14">
+          <Reveal className="flex flex-col rounded-2xl border bg-card p-5 sm:p-6">
+            <h3 className="text-lg font-bold">Бесплатно</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Навсегда</p>
+            <ul className="mt-5 space-y-3 text-sm">
+              {FREE_PLAN.map((t) => (
+                <li key={t} className="flex gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+          <Reveal delay={0.08} className="relative flex flex-col rounded-2xl border border-primary/50 bg-card p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-lg font-bold">
+                <Crown className="size-5 text-primary" aria-hidden /> Премиум
+              </h3>
+              <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">Скоро</span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Всё из бесплатного, плюс</p>
+            <ul className="mt-5 space-y-3 text-sm">
+              {PREMIUM_PLAN.map((t) => (
+                <li key={t} className="flex gap-2">
+                  <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 flex gap-3 rounded-xl bg-primary/10 p-4 text-sm">
+              <Gift className="size-5 shrink-0 text-primary" aria-hidden />
+              <span>
+                <span className="font-semibold">Год Премиума в подарок.</span> Всем, кто зарегистрируется до запуска Премиума, — 12 месяцев бесплатно с
+                момента запуска. А пока всё это доступно и так.
+              </span>
+            </p>
+          </Reveal>
         </div>
       </section>
 

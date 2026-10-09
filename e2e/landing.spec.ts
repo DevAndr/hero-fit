@@ -6,8 +6,10 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Дневник тренировок, который превращает зал в игру/);
   await expect(page.getByRole("heading", { name: "Всё для прогресса — и немного игры" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Недельный streak", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Сейчас всё бесплатно" })).toBeVisible();
+  await expect(page.getByText("Год Премиума в подарок.")).toBeVisible();
   await page.getByText("Hero Fit бесплатный?").click();
-  await expect(page.getByText("Регистрация и все функции")).toBeVisible();
+  await expect(page.getByText("останутся бесплатными навсегда")).toBeVisible();
 
   const ld = await page.locator('script[type="application/ld+json"]').first().textContent();
   const types = (JSON.parse(ld!) as { "@type": string }[]).map((x) => x["@type"]);

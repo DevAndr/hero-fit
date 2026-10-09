@@ -7,6 +7,7 @@ const NAV = [
   { href: "/#how", label: "Как это работает" },
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
   { href: "/tools/plates", label: "Калькулятор блинов" },
+  { href: "/#pricing", label: "Тарифы" },
   { href: "/#faq", label: "Вопросы" },
 ];
 
@@ -21,7 +22,7 @@ export function SiteHeader({ authed }: { authed: boolean }) {
           </span>
           Hero Fit
         </Link>
-        <nav aria-label="Разделы сайта" className="hidden items-center gap-6 text-sm text-muted-foreground lg:flex">
+        <nav aria-label="Разделы сайта" className="hidden items-center gap-6 text-sm whitespace-nowrap text-muted-foreground xl:flex">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">
               {n.label}
