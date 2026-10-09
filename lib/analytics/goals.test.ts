@@ -27,6 +27,7 @@ describe("очередь целей в cookie", () => {
     expect(parseGoals("signup.first_workout")).toEqual(["signup", "first_workout"]);
     expect(parseGoals("signup.evil<script>.signup")).toEqual(["signup"]);
     expect(parseGoals("onboarding_done.onboarding_skip")).toEqual(["onboarding_done", "onboarding_skip"]);
+    expect(parseGoals("share_story")).toEqual(["share_story"]);
   });
 
   it("не тащит мусор из старого значения при добавлении", () => {

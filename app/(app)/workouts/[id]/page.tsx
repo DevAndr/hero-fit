@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/app/app-shell";
 import { formatClock, rirLabel } from "@/lib/format";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
+import { ShareStoryButton } from "@/components/workouts/share-story-button";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
 import { buttonVariants } from "@/components/ui/button";
 import type { RecordType } from "@/generated/prisma/enums";
@@ -79,6 +81,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
               <UpdateTemplateButton workoutId={workout.id} templateName={ownTemplate.name} />
             ) : null}
             <SaveTemplateButton workoutId={workout.id} defaultName={workout.name} />
+            {workout.finishedAt ? (
+              <ShareStoryButton workoutId={workout.id} day={dayKey(workout.finishedAt, safeTimeZone(user.timeZone))} />
+            ) : null}
           </>
         }
       />
