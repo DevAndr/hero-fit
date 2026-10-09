@@ -170,6 +170,8 @@ model User {
   coachLinks          CoachLink[]          @relation("CoachLinkClient")
   coachPlanSeries     PlanSeries[]         @relation("PlanSeriesCoach")
   coachPlanEntries    PlanEntry[]          @relation("PlanEntryCoach")
+  coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
+  coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
   kudos               Kudos[]
 }
 
@@ -206,6 +208,29 @@ model CoachLink {
 
   @@index([coachId, endedAt])
   @@index([clientId, endedAt])
+}
+
+/// Комментарий тренера к завершённой тренировке клиента: общий (workoutExerciseId = null) или к упражнению.
+/// Один общий на тренировку — частичный уникальный индекс "CoachComment_workout_general" в миграции (Prisma его не видит).
+model CoachComment {
+  id                String    @id @default(cuid())
+  /// null — аккаунт тренера удалён, комментарий у клиента остаётся
+  coachId           String?
+  clientId          String
+  workoutId         String
+  workoutExerciseId String?   @unique
+  text              String
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  coach           User?            @relation("CoachCommentCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  client          User             @relation("CoachCommentClient", fields: [clientId], references: [id], onDelete: Cascade)
+  workout         Workout          @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  workoutExercise WorkoutExercise? @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
+  @@index([clientId, readAt])
 }
 
 /// Сессия = семейство refresh-токенов одного устройства.
@@ -342,6 +367,7 @@ model Workout {
   exercises WorkoutExercise[]
   xpEvents  XpEvent[]
   kudos     Kudos[]
+  comments  CoachComment[]
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -357,6 +383,7 @@ model WorkoutExercise {
   workout  Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   sets     WorkoutSet[]
+  comment  CoachComment?
 
   @@index([workoutId])
   @@index([exerciseId])
