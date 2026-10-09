@@ -58,7 +58,8 @@ export function ExerciseFilterControls({
           aria-label="Поиск упражнения"
         />
       </div>
-      <div className={cn("flex gap-1.5 overflow-x-auto pb-1", className)}>
+      {/* shrink-0: в диалоге (flex-колонка) строка иначе сжимается и полоса прокрутки ложится на чипы */}
+      <div className={cn("flex shrink-0 gap-1.5 overflow-x-auto pb-2 [scrollbar-width:thin]", className)}>
         {[null, ...MUSCLE_GROUPS].map((g) => {
           const r = g ? recovery?.get(g) : undefined;
           return (
@@ -68,7 +69,7 @@ export function ExerciseFilterControls({
               onClick={() => filter.setGroup(g)}
               aria-pressed={g === filter.group}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
+                "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm",
                 g === filter.group ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
               )}
               // title — описание кнопки для скринридеров, имя («Грудь») не меняется
