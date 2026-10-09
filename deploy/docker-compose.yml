@@ -1,0 +1,81 @@
+# Прод на сервере: Postgres + миграции + приложение + Caddy (HTTPS) + ежедневный бэкап.
+# Лежит в /opt/hero-fit рядом с Caddyfile и .env (пример — deploy/.env.example).
+# Образы собирает GitHub Actions (.github/workflows/deploy.yml), тег — IMAGE_TAG (sha коммита).
+name: hero-fit
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-herofit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-herofit}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: ${IMAGE_REPO:-ghcr.io/devandr/hero-fit}-migrate:${IMAGE_TAG:-latest}
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: ${IMAGE_REPO:-ghcr.io/devandr/hero-fit}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  # pg_dump раз в сутки в ./backups, хранится 14 дней.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-herofit}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-herofit}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          pg_dump -Fc > /backups/herofit-$$(date +%Y%m%d-%H%M).dump && echo "backup ok"
+          find /backups -name 'herofit-*.dump' -mtime +14 -delete
+          sleep 86400
+        done
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

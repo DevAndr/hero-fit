@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Docker (Dockerfile, BUILD_STANDALONE=1): .next/standalone — сервер с минимумом node_modules. Локально и в CI — `next start`.
+  output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   serverExternalPackages: ["web-push"],
   async headers() {
     return [

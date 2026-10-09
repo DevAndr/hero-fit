@@ -1,0 +1,9 @@
+# HTTPS: сертификат Let's Encrypt Caddy получает и продлевает сам (DNS домена должен указывать на сервер, порты 80/443 открыты).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

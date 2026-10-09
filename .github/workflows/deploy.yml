@@ -1,0 +1,103 @@
+name: Deploy
+
+# Прод обновляется после зелёного CI на main (или вручную). Образы — GHCR, сервер — docker compose в DEPLOY_PATH.
+# Секреты репозитория: SSH_HOST, SSH_USER, SSH_KEY (приватный ключ), SSH_PORT (необязательно).
+# Переменные репозитория: APP_URL (https://домен — вшивается в сборку), DEPLOY_PATH (по умолчанию /opt/hero-fit).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    # Пока деплой не настроен (нет переменной APP_URL) — пропускается.
+    if: vars.APP_URL != '' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/hero-fit' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: true
+          build-args: APP_URL=${{ vars.APP_URL }}
+          tags: ${{ env.IMAGE }}:${{ env.SHA }},${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build migrate image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrate
+          push: true
+          build-args: APP_URL=${{ vars.APP_URL }}
+          tags: ${{ env.IMAGE }}-migrate:${{ env.SHA }},${{ env.IMAGE }}-migrate:latest
+          cache-from: type=gha
+
+      - name: Copy compose files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: deploy/docker-compose.yml,deploy/Caddyfile
+          target: ${{ env.DEPLOY_PATH }}
+          strip_components: 1
+
+      - name: Roll out
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: SHA,IMAGE,DEPLOY_PATH,GHCR_TOKEN,GHCR_USER
+          script_stop: true
+          script: |
+            cd "$DEPLOY_PATH"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            export IMAGE_REPO="$IMAGE" IMAGE_TAG="$SHA"
+            docker compose pull migrate app
+            docker compose up -d --remove-orphans
+            docker logout ghcr.io
+            for i in $(seq 1 30); do
+              [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)")" = healthy ] && break
+              sleep 5
+            done
+            docker compose ps
+            [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)")" = healthy ]
+            docker image prune -f
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
