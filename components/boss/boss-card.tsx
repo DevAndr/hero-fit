@@ -40,7 +40,7 @@ export function BossCard({ boss }: { boss: BossView }) {
   const setsLeft = Math.ceil(left / SET_DAMAGE);
 
   return (
-    <section aria-label="Босс недели" className="rounded-xl border bg-card p-4" data-testid="boss-card">
+    <section aria-label="Босс недели" className="rounded-xl border bg-card p-4" data-testid="boss-card" data-tour="boss">
       <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
         <p className="flex items-center gap-2">
           <Swords className="size-4 text-streak" />

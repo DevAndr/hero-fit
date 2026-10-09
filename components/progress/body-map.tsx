@@ -130,7 +130,7 @@ export function BodyMap({
   const state = (g: MuscleGroup) => (mode === "recovery" ? byGroup.get(g)!.state : `level-${balanceBy.get(g)!.level}`);
 
   return (
-    <section aria-labelledby="recovery-title" className={cn("rounded-xl border bg-card p-4", className)} data-testid="body-map">
+    <section aria-labelledby="recovery-title" className={cn("rounded-xl border bg-card p-4", className)} data-testid="body-map" data-tour="body-map">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="recovery-title" className="flex items-center gap-2 font-bold">
           <Activity className="size-4 text-primary" />

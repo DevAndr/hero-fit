@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
+import { OnboardingTour } from "@/components/onboarding/tour";
 import { BossCard } from "@/components/boss/boss-card";
 import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { TodayPlan } from "@/components/dashboard/today-plan";
@@ -15,6 +16,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getBossView } from "@/lib/boss/queries";
+import { getOnboardingPrograms } from "@/lib/onboarding/queries";
 import { getTodayPlan } from "@/lib/plans/queries";
 import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
@@ -71,6 +73,7 @@ function StreakCard({
   return (
     <section
       aria-label="Streak"
+      data-tour="streak"
       className={cn("rounded-xl border p-4", urgent ? "border-streak/60 bg-streak/10" : "bg-card")}
     >
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -123,6 +126,8 @@ export default async function DashboardPage() {
     getMuscleBalance(user.id),
     getBossView(user.id, userTz),
   ]);
+  // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
+  const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
   const level = levelProgress(user.xp);
   const now = new Date();
@@ -132,6 +137,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
+      {programs ? <OnboardingTour programs={programs} /> : null}
       {/* Главное действие — самое заметное на странице */}
       <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -154,7 +160,7 @@ export default async function DashboardPage() {
       {recap ? <RecapCard recap={recap} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <section aria-label="Уровень" className="rounded-xl border bg-card p-4">
+        <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="size-4 text-xp" />
             Уровень

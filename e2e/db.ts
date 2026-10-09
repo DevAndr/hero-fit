@@ -150,3 +150,8 @@ export async function addSubscription(login: string, sub: { endpoint: string; p2
     ]);
   });
 }
+
+/** Экскурсию снова показать (в e2e ONBOARDING_TOUR=off — новые пользователи её уже «прошли»). */
+export async function resetOnboarding(login: string) {
+  await withDb((db) => db.query(`update "User" set "onboardedAt" = null where login = $1`, [login]));
+}

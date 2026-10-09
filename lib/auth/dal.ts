@@ -26,6 +26,8 @@ export type CurrentUser = {
   freezeGrantedAt: Date | null;
   bodyWeight: number | null;
   timeZone: string;
+  /** Экскурсия по дашборду пройдена; null — показать. */
+  onboardedAt: Date | null;
 };
 
 /**

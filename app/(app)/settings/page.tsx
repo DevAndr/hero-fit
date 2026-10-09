@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
+import { RestartTourButton } from "@/components/onboarding/restart-button";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { PrivacySettings } from "@/components/social/privacy-settings";
 import { TitleSelect } from "@/components/social/title-select";
@@ -29,6 +30,7 @@ export default async function SettingsPage() {
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
       <PushDeviceCard devices={_count.pushSubscriptions} />
       <NotificationPrefs initial={prefs} />
+      <RestartTourButton />
     </div>
   );
 }

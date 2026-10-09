@@ -1,3 +1,4 @@
+import { chestAutoOpen } from "@/lib/onboarding/tour";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
@@ -31,7 +32,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             day={visit.today}
             streak={visit.loginStreak}
             available={!chestOpened}
-            autoOpen={env.DAILY_CHEST_AUTOOPEN === "on"}
+            autoOpen={chestAutoOpen(env.DAILY_CHEST_AUTOOPEN === "on", user.onboardedAt)}
           />
         }
         // key: новые уведомления сбрасывают локальное «прочитано»
