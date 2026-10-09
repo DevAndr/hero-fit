@@ -13,6 +13,8 @@ export type PlanSeriesRow = {
   durationMin: number;
   startDate: string;
   endDate: string | null;
+  /** Назначил тренер (этап 2 режима тренера); null — свой план. */
+  coachId: string | null;
 };
 
 export type PlanEntryRow = {
@@ -25,6 +27,8 @@ export type PlanEntryRow = {
   time: string;
   durationMin: number;
   cancelled: boolean;
+  /** У разовой — кто назначил; у исключения серии не читается (берётся из серии). */
+  coachId: string | null;
 };
 
 export type Occurrence = {
@@ -37,6 +41,8 @@ export type Occurrence = {
   templateId: string | null;
   title: string;
   recurring: boolean;
+  /** Назначил тренер: у вхождения серии и её исключения — из серии, у разовой — из записи. */
+  coachId: string | null;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -63,14 +69,14 @@ export function expandPlans(series: PlanSeriesRow[], entries: PlanEntryRow[], fr
     for (let date = addDays(first, (s.weekday - weekdayOf(first) + 7) % 7); date <= last; date = addDays(date, 7)) {
       const key = seriesKey(s.id, date);
       if (exceptions.has(key)) continue; // исключение разворачивается ниже — по своей новой дате
-      result.push({ key, seriesId: s.id, date, time: s.time, durationMin: s.durationMin, templateId: s.templateId, title: s.title, recurring: true });
+      result.push({ key, seriesId: s.id, date, time: s.time, durationMin: s.durationMin, templateId: s.templateId, title: s.title, recurring: true, coachId: s.coachId });
     }
   }
-  const known = new Set(series.map((s) => s.id));
+  const coachOf = new Map(series.map((s) => [s.id, s.coachId]));
   for (const e of entries) {
     if (e.cancelled || !inRange(e.date)) continue;
     const exception = e.seriesId !== null && e.originalDate !== null;
-    if (exception && !known.has(e.seriesId!)) continue;
+    if (exception && !coachOf.has(e.seriesId!)) continue;
     result.push({
       key: exception ? seriesKey(e.seriesId!, e.originalDate!) : entryKey(e.id),
       seriesId: e.seriesId,
@@ -80,6 +86,7 @@ export function expandPlans(series: PlanSeriesRow[], entries: PlanEntryRow[], fr
       templateId: e.templateId,
       title: e.title,
       recurring: exception,
+      coachId: exception ? coachOf.get(e.seriesId!)! : e.coachId,
     });
   }
   return result.sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));

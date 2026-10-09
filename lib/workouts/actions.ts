@@ -10,6 +10,7 @@ import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { getOccurrence } from "@/lib/plans/queries";
 import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
 import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
+import { templateAccessible } from "@/lib/coach/templates";
 import { markOnboarded } from "@/lib/onboarding/complete";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
@@ -22,10 +23,11 @@ type PlannedExercise = { exerciseId: string; restSec: number; sets: { weight: nu
 
 // ───────────────────────────── Старт ─────────────────────────────
 
-/** Упражнения из шаблона (свой или встроенный); вес — из прошлой тренировки. */
+/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из прошлой тренировки. */
 async function fromTemplate(userId: string, id: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
-  const template = await db.workoutTemplate.findFirst({
-    where: { id, OR: [{ userId }, { userId: null }] },
+  if (!(await templateAccessible(userId, id))) return null;
+  const template = await db.workoutTemplate.findUnique({
+    where: { id },
     include: {
       exercises: {
         orderBy: { order: "asc" },

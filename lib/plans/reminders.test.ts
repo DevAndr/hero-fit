@@ -11,6 +11,7 @@ const occ = (key: string, date: string, time: string): Occurrence => ({
   templateId: null,
   title: "Ноги",
   recurring: false,
+  coachId: null,
 });
 // 2026-10-08 15:30 МСК
 const now = new Date("2026-10-08T12:30:00Z");

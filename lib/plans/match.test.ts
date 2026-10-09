@@ -11,6 +11,7 @@ const occ = (key: string, date: string, time = "18:00"): Occurrence => ({
   templateId: null,
   title: "Ноги",
   recurring: false,
+  coachId: null,
 });
 const workout = (id: string, finishedAt: string, planKey: string | null = null): DoneWorkout => ({
   id,

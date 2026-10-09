@@ -45,15 +45,24 @@ export async function applyPlanOps(userId: string, ops: PlanOp[]) {
         case "deleteEntry":
           await tx.planEntry.deleteMany({ where: { id: o.entryId, userId, seriesId: null } });
           break;
+        case "cancelEntry":
+          await tx.planEntry.updateMany({ where: { id: o.entryId, userId, seriesId: null }, data: { cancelled: true } });
+          break;
       }
     }
   });
 }
 
-/** Пропустить одно вхождение (разовое — удаляется, у серии — отменённое исключение на этот день). false — не найдено. */
+/**
+ * Пропустить одно вхождение (разовое — удаляется, от тренера — отменяется; у серии — отменённое исключение на этот день).
+ * false — не найдено.
+ */
 export async function skipOccurrence(userId: string, key: string): Promise<boolean> {
+  const found = await getOccurrence(userId, key);
+  if (!found) return false;
   const t = await planTarget(userId, key);
   if (!t) return false;
-  await applyPlanOps(userId, planEdit(t, "one", null));
+  const ops = t.kind === "entry" && found.occurrence.coachId ? [{ op: "cancelEntry" as const, entryId: t.entryId }] : planEdit(t, "one", null);
+  await applyPlanOps(userId, ops);
   return true;
 }

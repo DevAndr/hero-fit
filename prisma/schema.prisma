@@ -160,14 +160,16 @@ model User {
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
   bossWeeks           BossWeek[]
-  planSeries          PlanSeries[]
-  planEntries         PlanEntry[]
+  planSeries          PlanSeries[]         @relation("PlanSeriesUser")
+  planEntries         PlanEntry[]          @relation("PlanEntryUser")
   planReminders       PlanReminder[]
   weeklyRecaps        WeeklyRecap[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
   coachClients        CoachLink[]          @relation("CoachLinkCoach")
   coachLinks          CoachLink[]          @relation("CoachLinkClient")
+  coachPlanSeries     PlanSeries[]         @relation("PlanSeriesCoach")
+  coachPlanEntries    PlanEntry[]          @relation("PlanEntryCoach")
   kudos               Kudos[]
 }
 
@@ -536,14 +538,18 @@ model PlanSeries {
   durationMin Int      @default(60)
   startDate   String // первое вхождение не раньше
   endDate     String? // последнее возможное вхождение (включительно)
+  /// назначил тренер (режим тренера, этап 2); null — свой план
+  coachId     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation("PlanSeriesUser", fields: [userId], references: [id], onDelete: Cascade)
+  coach    User?            @relation("PlanSeriesCoach", fields: [coachId], references: [id], onDelete: SetNull)
   template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   entries  PlanEntry[]
 
   @@index([userId])
+  @@index([userId, coachId])
 }
 
 /// Разовая тренировка или исключение из серии (перенос / отмена одной даты).
@@ -558,15 +564,19 @@ model PlanEntry {
   time         String
   durationMin  Int      @default(60)
   cancelled    Boolean  @default(false)
+  /// назначил тренер (у разовой); у исключения серии не читается — принадлежность по серии
+  coachId      String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation("PlanEntryUser", fields: [userId], references: [id], onDelete: Cascade)
+  coach    User?            @relation("PlanEntryCoach", fields: [coachId], references: [id], onDelete: SetNull)
   series   PlanSeries?      @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@unique([seriesId, originalDate])
   @@index([userId, date])
+  @@index([userId, coachId])
 }
 
 /// Напоминание «Сегодня по плану» по вхождению отправлено (одно на вхождение).

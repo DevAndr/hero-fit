@@ -17,6 +17,7 @@ const seriesSelect = {
   durationMin: true,
   startDate: true,
   endDate: true,
+  coachId: true,
 } as const;
 const entrySelect = {
   id: true,
@@ -28,6 +29,7 @@ const entrySelect = {
   time: true,
   durationMin: true,
   cancelled: true,
+  coachId: true,
 } as const;
 
 /** Серии и записи, нужные для вхождений в [from, to] (включая перенесённые в диапазон и из него). */
@@ -78,8 +80,10 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
   const names = new Map(workouts.map((w) => [w.id, w.name]));
 
   const templateIds = [...new Set(matched.occurrences.map((o) => o.templateId).filter((id): id is string => id !== null))];
+  // Шаблоны тренера видны только через его назначения — вхождения с coachId есть лишь у активного (разрыв их удаляет)
+  const coachIds = [...new Set(matched.occurrences.map((o) => o.coachId).filter((id): id is string => id !== null))];
   const templates = await db.workoutTemplate.findMany({
-    where: { id: { in: templateIds }, OR: [{ userId }, { userId: null }] },
+    where: { id: { in: templateIds }, OR: [{ userId }, { userId: null }, { userId: { in: coachIds } }] },
     select: { id: true, name: true, _count: { select: { exercises: true } } },
   });
 
@@ -122,7 +126,7 @@ export async function getOccurrence(userId: string, key: string): Promise<{ occu
     where: { seriesId: series.id, originalDate: parsed.date },
     select: entrySelect,
   });
-  const base = { key: seriesKey(series.id, parsed.date), seriesId: series.id, recurring: true };
+  const base = { key: seriesKey(series.id, parsed.date), seriesId: series.id, recurring: true, coachId: series.coachId };
   if (exception) {
     if (exception.cancelled) return null;
     const { date, time, durationMin, templateId, title } = exception;

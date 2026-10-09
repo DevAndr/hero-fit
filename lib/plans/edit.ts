@@ -25,7 +25,9 @@ export type PlanOp =
   | { op: "deleteExceptionsFrom"; seriesId: string; fromDate: string }
   | { op: "createSeries"; data: SeriesData }
   | { op: "updateEntry"; entryId: string; data: PlanPatch }
-  | { op: "deleteEntry"; entryId: string };
+  | { op: "deleteEntry"; entryId: string }
+  /** Пропуск разовой от тренера: запись остаётся отменённой — тренер видит «пропущено клиентом». */
+  | { op: "cancelEntry"; entryId: string };
 
 export type PlanTarget =
   | { kind: "series"; series: PlanSeriesRow; originalDate: string; occurrence: Occurrence }
@@ -71,6 +73,7 @@ export function planEdit(target: PlanTarget, scope: PlanScope, patch: PlanPatch 
       durationMin: patch.durationMin ?? series.durationMin,
       startDate,
       endDate: series.endDate,
+      coachId: series.coachId,
     },
   });
   return ops;

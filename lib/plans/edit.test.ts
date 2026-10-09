@@ -11,6 +11,7 @@ const series: PlanSeriesRow = {
   durationMin: 60,
   startDate: "2026-09-07",
   endDate: null,
+  coachId: null,
 };
 const occurrence = (date: string, patch: Partial<Occurrence> = {}): Occurrence => ({
   key: `s:s1:${date}`,
@@ -21,6 +22,7 @@ const occurrence = (date: string, patch: Partial<Occurrence> = {}): Occurrence =
   templateId: "t1",
   title: "Ноги",
   recurring: true,
+  coachId: null,
   ...patch,
 });
 const target = (date: string, patch: Partial<Occurrence> = {}) =>
@@ -74,7 +76,7 @@ describe("planEdit — this and following", () => {
       { op: "deleteExceptionsFrom", seriesId: "s1", fromDate: "2026-10-05" },
       {
         op: "createSeries",
-        data: { templateId: "t1", title: "Ноги", weekday: 2, time: "07:00", durationMin: 60, startDate: "2026-10-07", endDate: null },
+        data: { templateId: "t1", title: "Ноги", weekday: 2, time: "07:00", durationMin: 60, startDate: "2026-10-07", endDate: null, coachId: null },
       },
     ]);
   });
@@ -100,5 +102,13 @@ describe("planEdit — single entry", () => {
       { op: "updateEntry", entryId: "e1", data: { time: "08:00" } },
     ]);
     expect(planEdit({ kind: "entry", entryId: "e1" }, "following", null)).toEqual([{ op: "deleteEntry", entryId: "e1" }]);
+  });
+});
+
+describe("planEdit — coach series", () => {
+  it("«this and following» keeps the coach on the new series", () => {
+    const t = { kind: "series", series: { ...series, coachId: "c1" }, originalDate: "2026-10-12", occurrence: occurrence("2026-10-12", { coachId: "c1" }) } as const;
+    const create = planEdit(t, "following", { time: "09:00" }).find((o) => o.op === "createSeries");
+    expect(create?.op === "createSeries" && create.data.coachId).toBe("c1");
   });
 });

@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { planEdit, type PlanScope } from "@/lib/plans/edit";
 import { addDays, weekdayOf } from "@/lib/plans/expand";
 import { applyPlanOps as apply, planTarget as target, skipOccurrence } from "@/lib/plans/mutations";
+import { getOccurrence } from "@/lib/plans/queries";
 import { planInputSchema, planPatchSchema, planScopeSchema, type PlanInput } from "@/lib/plans/schema";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -14,6 +15,13 @@ type Result = { ok: true } | { ok: false; error: string };
 async function templateAllowed(userId: string, templateId: string | null | undefined) {
   if (!templateId) return true;
   return (await db.workoutTemplate.count({ where: { id: templateId, OR: [{ userId }, { userId: null }] } })) > 0;
+}
+
+const COACH_PLAN_ERROR = "Назначено тренером — изменить может только он";
+
+/** Назначенное тренером клиент не меняет и не удаляет — только запускает или пропускает. */
+async function isCoachPlan(userId: string, key: string) {
+  return (await getOccurrence(userId, key))?.occurrence.coachId != null;
 }
 
 function revalidate() {
@@ -54,6 +62,7 @@ export async function updatePlanAction(key: string, scope: PlanScope, patch: unk
   const parsedScope = planScopeSchema.safeParse(scope);
   if (!parsedPatch.success || !parsedScope.success) return { ok: false, error: "Проверьте поля" };
   if (!(await templateAllowed(user.id, parsedPatch.data.templateId))) return { ok: false, error: "Шаблон не найден" };
+  if (await isCoachPlan(user.id, key)) return { ok: false, error: COACH_PLAN_ERROR };
   const t = await target(user.id, key);
   if (!t) return { ok: false, error: "Тренировка в календаре не найдена" };
   await apply(user.id, planEdit(t, parsedScope.data, parsedPatch.data));
@@ -65,6 +74,7 @@ export async function deletePlanAction(key: string, scope: PlanScope): Promise<R
   const user = await requireUser();
   const parsedScope = planScopeSchema.safeParse(scope);
   if (!parsedScope.success) return { ok: false, error: "Проверьте поля" };
+  if (await isCoachPlan(user.id, key)) return { ok: false, error: COACH_PLAN_ERROR };
   const t = await target(user.id, key);
   if (!t) return { ok: false, error: "Тренировка в календаре не найдена" };
   await apply(user.id, planEdit(t, parsedScope.data, null));

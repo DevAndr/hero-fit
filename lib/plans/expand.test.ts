@@ -10,6 +10,7 @@ const series = (patch: Partial<PlanSeriesRow> = {}): PlanSeriesRow => ({
   durationMin: 60,
   startDate: "2026-09-01",
   endDate: null,
+  coachId: null,
   ...patch,
 });
 const entry = (patch: Partial<PlanEntryRow> = {}): PlanEntryRow => ({
@@ -22,6 +23,7 @@ const entry = (patch: Partial<PlanEntryRow> = {}): PlanEntryRow => ({
   time: "07:30",
   durationMin: 45,
   cancelled: false,
+  coachId: null,
   ...patch,
 });
 
@@ -64,6 +66,7 @@ describe("expandPlans", () => {
         templateId: null,
         title: "Ноги",
         recurring: true,
+        coachId: null,
       },
     ]);
   });
@@ -100,5 +103,25 @@ describe("expandPlans", () => {
   it("weeks across the DST change keep the weekday", () => {
     const occ = expandPlans([series({ weekday: 6, startDate: "2026-01-01" })], [], "2026-03-23", "2026-04-05");
     expect(occ.map((o) => o.date)).toEqual(["2026-03-29", "2026-04-05"]);
+  });
+});
+
+describe("expandPlans — coachId", () => {
+  it("series occurrences and their exceptions take coachId from the series, one-offs from the entry", () => {
+    const occ = expandPlans(
+      [series({ coachId: "c1" })],
+      [
+        entry({ id: "x1", seriesId: "s1", originalDate: "2026-10-05", date: "2026-10-06" }),
+        entry({ id: "e2", coachId: "c2", date: "2026-10-08" }),
+        entry({ id: "e3", date: "2026-10-09" }),
+      ],
+      "2026-10-05",
+      "2026-10-13",
+    );
+    const by = (key: string) => occ.find((o) => o.key === key)?.coachId;
+    expect(by("s:s1:2026-10-05")).toBe("c1"); // перенесённое исключение
+    expect(by("s:s1:2026-10-12")).toBe("c1");
+    expect(by("e:e2")).toBe("c2");
+    expect(by("e:e3")).toBeNull();
   });
 });
