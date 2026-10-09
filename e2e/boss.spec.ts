@@ -118,6 +118,7 @@ test("set confirm hits the boss, unconfirm heals it, warmup does nothing", async
 });
 
 test("friend sees the boss victory in the feed and league", async ({ page, browser }) => {
+  test.slow(); // две регистрации (argon2) + тренировка — как в leaderboard.spec; под параллельной нагрузкой не укладывается в 30 с
   const me = await registerUser(page);
   const friendContext = await browser.newContext();
   const friendPage = await friendContext.newPage();
