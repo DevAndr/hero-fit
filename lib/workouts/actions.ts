@@ -156,9 +156,12 @@ async function writeDraft(userId: string, workoutId: string, draft: WorkoutDraft
   });
   if (!workout) return { ok: false, error: "Тренировка не найдена или уже завершена" };
 
-  // Упражнения должны быть видны пользователю (встроенные или свои, в т.ч. архивные — для истории).
+  // Упражнения должны быть видны пользователю (встроенные или свои, в т.ч. архивные — для истории)
+  // или уже стоять в этой тренировке — их положил сервер из шаблона тренера (там бывают упражнения тренера).
   const ids = [...new Set(draft.exercises.map((e) => e.exerciseId))];
-  const allowed = await db.exercise.count({ where: { id: { in: ids }, OR: [{ userId: null }, { userId }] } });
+  const allowed = await db.exercise.count({
+    where: { id: { in: ids }, OR: [{ userId: null }, { userId }, { workoutExercises: { some: { workoutId } } }] },
+  });
   if (allowed !== ids.length) return { ok: false, error: "Неизвестное упражнение" };
 
   // Тренировка маленькая (≤ 30 × 50) — проще и надёжнее заменить содержимое целиком.

@@ -201,3 +201,58 @@ test("deleting an assigned template warns how many clients have it", async ({ pa
     await client.context.close();
   }
 });
+
+test("a coach template with the coach's own exercise can be finished by the client", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  await enableCoach(coach.login, nickOf(coach.login, "Coach"));
+  const templateId = await coachTemplate(coach.login, "Ноги — авторская", "Гоблет-присед тренера");
+  const client = await another(browser);
+  try {
+    await linkCoach(coach.login, client.login);
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — авторская", localDate(2));
+    await client.page.goto("/training");
+    await client.page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — авторская»" }).click();
+    const own = client.page.getByRole("region", { name: "Гоблет-присед тренера" });
+    await own.getByLabel("Вес, подход 1").fill("20");
+    await own.getByRole("button", { name: "Подход 1 выполнен" }).click();
+    await client.page.getByRole("button", { name: "Завершить тренировку" }).click();
+    await client.page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+    await expect(client.page).toHaveURL(/\/workouts\/\w+$/);
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("coach swaps the template for one occurrence of a series; the client starts the new one", async ({ page, browser }) => {
+  test.slow();
+  const { coach, client, clientId } = await setup(page, browser);
+  try {
+    await coachTemplate(coach.login, "Спина — база");
+    await page.goto(`/coach/clients/${clientId}?tab=plan`);
+    await page.getByRole("button", { name: "Назначить" }).click();
+    const dialog = page.getByRole("dialog");
+    await pickOption(page, dialog.getByLabel("Шаблон"), "Ноги — база");
+    await dialog.getByLabel("Дата").fill(localDate(0));
+    await dialog.getByLabel("Начало").fill("23:30");
+    await dialog.getByRole("checkbox", { name: "Повторять каждую неделю" }).click();
+    await dialog.getByRole("button", { name: "Назначить" }).click();
+    await expect(dialog).toHaveCount(0);
+
+    const upcoming = page.getByRole("region", { name: "Ближайшие 2 недели" });
+    await upcoming.getByRole("listitem").first().getByRole("button", { name: "Изменить" }).click();
+    await pickOption(page, dialog.getByLabel("Шаблон"), "Спина — база");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await dialog.getByRole("button", { name: "Только эту" }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await client.page.goto("/dashboard");
+    const card = client.page.getByRole("region", { name: "План на сегодня" });
+    await expect(card).toContainText("Спина — база");
+    await card.getByRole("button", { name: "Начать" }).click();
+    await expect(client.page.getByLabel("Название тренировки")).toHaveValue("Спина — база");
+    await expect(client.page.locator("main section[aria-label]")).toHaveCount(2);
+  } finally {
+    await client.context.close();
+  }
+});

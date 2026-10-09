@@ -5,7 +5,12 @@ import { db } from "@/lib/db";
 function assignedWhere(clientId: string, coachId: string) {
   return {
     userId: coachId,
-    OR: [{ planSeries: { some: { userId: clientId, coachId } } }, { planEntries: { some: { userId: clientId, coachId, seriesId: null } } }],
+    OR: [
+      { planSeries: { some: { userId: clientId, coachId } } },
+      { planEntries: { some: { userId: clientId, coachId, seriesId: null } } },
+      // «Только эту» с другим шаблоном — исключение серии тренера (принадлежность по серии)
+      { planEntries: { some: { userId: clientId, cancelled: false, series: { coachId } } } },
+    ],
   };
 }
 

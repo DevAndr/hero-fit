@@ -197,8 +197,8 @@ export async function idOf(login: string) {
   return withDb((db) => userId(db, login));
 }
 
-/** Шаблон тренера из двух встроенных упражнений; возвращает id. */
-export async function coachTemplate(coachLogin: string, name: string) {
+/** Шаблон тренера из двух встроенных упражнений (+ своё упражнение тренера ownExercise); возвращает id. */
+export async function coachTemplate(coachLogin: string, name: string, ownExercise?: string) {
   return withDb(async (db) => {
     const id = randomUUID();
     await db.query(`insert into "WorkoutTemplate" (id, "userId", name, "updatedAt") values ($1, $2, $3, now())`, [
@@ -209,6 +209,15 @@ export async function coachTemplate(coachLogin: string, name: string) {
     const { rows } = await db.query<{ id: string }>(
       `select id from "Exercise" where "userId" is null and name in ('Приседания со штангой', 'Жим ногами') order by name desc`,
     );
+    if (ownExercise) {
+      const exId = randomUUID();
+      await db.query(`insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") values ($1, $2, $3, '{LEGS}', now())`, [
+        exId,
+        await userId(db, coachLogin),
+        ownExercise,
+      ]);
+      rows.push({ id: exId });
+    }
     for (const [order, ex] of rows.entries()) {
       await db.query(
         `insert into "TemplateExercise" (id, "templateId", "exerciseId", "order", "targetSets", "targetReps") values ($1, $2, $3, $4, 3, 10)`,
