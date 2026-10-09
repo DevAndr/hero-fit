@@ -78,4 +78,14 @@ docker compose start app
 ## После запуска
 
 - Яндекс.Вебмастер и Google Search Console: добавить сайт, отправить `https://домен/sitemap.xml`.
-- Почта: без `SMTP_HOST` письма восстановления пароля не уходят (только в лог `app`).
+- Почта: без `SMTP_HOST` письма восстановления пароля не уходят (только в лог `app`). Почта Timeweb для домена
+  (DNS у Timeweb — MX `mx1/mx2.timeweb.ru` и SPF `include:_spf.timeweb.ru` ставятся сами, DKIM — автоматически после
+  создания ящика и первого письма; DMARC добавить вручную: TXT `_dmarc` → `v=DMARC1; p=none`). Создать ящик
+  (например, `no-reply@домен`). В `.env`: `SMTP_HOST=smtp.timeweb.ru`, `SMTP_PORT=465`, `SMTP_USER=no-reply@домен`,
+  `SMTP_PASSWORD=<пароль ящика>`, `MAIL_FROM="Hero Fit <no-reply@домен>"` — отправитель обязан совпадать с ящиком
+  (Timeweb запрещает подмену). Затем `docker compose up -d app` и проверка через «Забыли пароль».
+  Облачные серверы по умолчанию закрывают исходящие SMTP-порты (25/465/587/2525) — открыть через поддержку провайдера
+  сервера; проверка: `timeout 6 bash -c '</dev/tcp/smtp.timeweb.ru/465' && echo open`.
+- Яндекс.Метрика: создать счётчик на metrika.yandex.ru, номер — в переменную репозитория `YM_ID` (вшивается при
+  сборке; следующий деплой включит счётчик и уведомление о cookies). Цели (тип «JavaScript-событие») — `signup`,
+  `workout_start`, `workout_finish`, `first_workout`. Вебвизор не записывает текст кабинета (`ym-hide-content`).

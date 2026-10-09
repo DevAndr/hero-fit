@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { queueGoal } from "@/lib/analytics/queue";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
@@ -83,7 +84,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   let userId: string;
   try {
     const user = await db.user.create({
-      data: { login, email, name, passwordHash: await hashPassword(password) },
+      data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date() },
       select: { id: true },
     });
     userId = user.id;
@@ -96,6 +97,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   }
 
   await startSession(userId);
+  await queueGoal("signup");
   redirect("/dashboard");
 }
 

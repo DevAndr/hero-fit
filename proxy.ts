@@ -10,7 +10,7 @@ import { rotateRefreshToken } from "@/lib/auth/session";
 import { verifyAccessToken } from "@/lib/auth/tokens";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
-const PUBLIC_PAGES = ["/", "/reset-password", "/tools/1rm", "/tools/plates", ...AUTH_PAGES];
+const PUBLIC_PAGES = ["/", "/privacy", "/reset-password", "/tools/1rm", "/tools/plates", ...AUTH_PAGES];
 /** Публичные файлы без расширения: PWA-иконки и картинка для соцсетей (opengraph-image?<hash>). */
 const PUBLIC_PREFIXES = ["/pwa-icon/", "/opengraph-image"];
 

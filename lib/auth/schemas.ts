@@ -33,6 +33,8 @@ export const registerSchema = z
       .transform((v) => v || undefined),
     password,
     confirmPassword: z.string(),
+    // 152-ФЗ: отдельное согласие на обработку персональных данных (галочка на форме)
+    consent: z.literal("on", { error: "Без согласия на обработку данных зарегистрироваться нельзя" }),
   })
   .refine(passwordsMatch, mismatch);
 

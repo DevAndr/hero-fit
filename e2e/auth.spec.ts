@@ -31,6 +31,18 @@ test("registration shows validation errors", async ({ page }) => {
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
   await expect(page.getByText("Логин — минимум 3 символа")).toBeVisible();
   await expect(page.getByText("Пароль — минимум 8 символов")).toBeVisible();
+  await expect(page.getByText("Без согласия на обработку данных зарегистрироваться нельзя")).toBeVisible();
   // Введённый логин не теряется после ошибки.
   await expect(page.getByLabel("Логин")).toHaveValue("ab");
+});
+
+test("consent checkbox survives a failed submit and links to the privacy policy", async ({ page }) => {
+  await page.goto("/register");
+  const consent = page.getByRole("checkbox", { name: /согласие на обработку персональных данных/ });
+  await consent.click();
+  await page.getByRole("button", { name: "Создать аккаунт" }).click();
+  await expect(page.getByText("Логин — минимум 3 символа")).toBeVisible();
+  await expect(consent).toBeChecked();
+  await expect(page.getByText("Без согласия на обработку данных зарегистрироваться нельзя")).toBeHidden();
+  await expect(page.getByRole("link", { name: "политике конфиденциальности" })).toHaveAttribute("href", "/privacy");
 });

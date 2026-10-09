@@ -21,6 +21,7 @@ const COLUMNS = [
     links: [
       { href: "/register", label: "Регистрация" },
       { href: "/login", label: "Вход" },
+      { href: "/privacy", label: "Политика конфиденциальности" },
     ],
   },
 ];

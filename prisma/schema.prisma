@@ -81,14 +81,16 @@ enum XpReason {
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
 
 model User {
-  id           String  @id @default(cuid())
-  login        String  @unique
-  email        String  @unique
-  passwordHash String
-  name         String?
-  bodyWeight   Float? // кг; для ачивок «1RM к весу тела»
+  id                String    @id @default(cuid())
+  login             String    @unique
+  email             String    @unique
+  passwordHash      String
+  name              String?
+  bodyWeight        Float? // кг; для ачивок «1RM к весу тела»
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
-  timeZone     String  @default("UTC")
+  timeZone          String    @default("UTC")
+  /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
+  privacyAcceptedAt DateTime?
 
   // Рейтинг: публичный ник (логин никому не показываем) и личный код для приглашения в друзья.
   nickname    String?
@@ -105,31 +107,31 @@ model User {
   level Int @default(1) // денормализовано для быстрых выборок
 
   // Streak «в ударе» — недели подряд с 3+ тренировками (lib/progress/weekly-streak.ts)
-  currentStreak   Int       @default(0)
-  longestStreak   Int       @default(0)
-  streakFreezes   Int       @default(1) // доступные заморозки
-  freezeGrantedAt DateTime? // когда последний раз выдана плановая заморозка (раз в 4 недели)
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  streakFreezes    Int       @default(1) // доступные заморозки
+  freezeGrantedAt  DateTime? // когда последний раз выдана плановая заморозка (раз в 4 недели)
   streakRestoredAt DateTime? // когда последний раз выкупили сгоревшую серию (повторно — только после новой засчитанной недели)
   // Неделя — «YYYY-MM-DD» понедельника в поясе пользователя
-  lastStreakWeek  String? // последняя засчитанная неделя
-  weekWorkouts    Int     @default(0) // тренировок за неделю weekWorkoutsKey (для шапки без лишнего SQL)
-  weekWorkoutsKey String?
+  lastStreakWeek   String? // последняя засчитанная неделя
+  weekWorkouts     Int       @default(0) // тренировок за неделю weekWorkoutsKey (для шапки без лишнего SQL)
+  weekWorkoutsKey  String?
 
   // Ежедневный вход
-  loginStreak  Int       @default(0)
-  lastLoginDay DateTime? @db.Date
+  loginStreak    Int       @default(0)
+  lastLoginDay   DateTime? @db.Date
   /// день, за который открыт ежедневный сундук (lib/progress/daily-chest.ts)
   chestOpenedDay DateTime? @db.Date
 
   // Уведомления
-  notifyRest         Boolean   @default(true)
-  notifyStreak       Boolean   @default(true)
-  notifyAchievements Boolean   @default(true)
-  notifySocial       Boolean   @default(true)
-  notifyPlan         Boolean   @default(true)
-  notifyRecap        Boolean   @default(true)
+  notifyRest         Boolean @default(true)
+  notifyStreak       Boolean @default(true)
+  notifyAchievements Boolean @default(true)
+  notifySocial       Boolean @default(true)
+  notifyPlan         Boolean @default(true)
+  notifyRecap        Boolean @default(true)
   /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
-  planReminderMin    Int       @default(60)
+  planReminderMin    Int     @default(60)
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
   streakReminderDay  String?
   /// неделя (пн), за которую уже ушёл push «Новая неделя — новый старт»
@@ -260,7 +262,7 @@ model WorkoutTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises   TemplateExercise[]
   workouts    Workout[]
   planSeries  PlanSeries[]

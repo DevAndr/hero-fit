@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { CircleAlert, CircleCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FieldGroup } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { FormField } from "@/components/auth/form-field";
 import {
   forgotPasswordAction,
@@ -77,6 +78,27 @@ export function LoginForm({ next }: { next?: string }) {
   );
 }
 
+/** 152-ФЗ: согласие на обработку персональных данных — отдельной галочкой (key — восстановить её после ошибки). */
+function ConsentField({ checked, errors }: { checked: boolean; errors?: string[] }) {
+  const invalid = Boolean(errors?.length);
+  return (
+    <Field orientation="horizontal" data-invalid={invalid || undefined}>
+      <Checkbox id="field-consent" name="consent" defaultChecked={checked} aria-invalid={invalid || undefined} />
+      <FieldContent>
+        <FieldLabel htmlFor="field-consent" className="font-normal">
+          <span>
+            Даю согласие на обработку персональных данных по{" "}
+            <Link href="/privacy" target="_blank" className="underline underline-offset-4 hover:text-primary">
+              политике конфиденциальности
+            </Link>
+          </span>
+        </FieldLabel>
+        <FieldError errors={errors?.map((message) => ({ message }))} />
+      </FieldContent>
+    </Field>
+  );
+}
+
 export function RegisterForm() {
   const [state, action, pending] = useActionState(registerAction, initial);
 
@@ -123,6 +145,7 @@ export function RegisterForm() {
           autoComplete="new-password"
           errors={state.errors?.confirmPassword}
         />
+        <ConsentField key={state.values?.consent ?? "off"} checked={state.values?.consent === "on"} errors={state.errors?.consent} />
         <SubmitButton pending={pending}>Создать аккаунт</SubmitButton>
       </FieldGroup>
     </form>

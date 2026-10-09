@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { WorkoutStatus } from "@/generated/prisma/enums";
+import { queueGoal, YM_ID } from "@/lib/analytics/queue";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
@@ -208,6 +209,7 @@ export async function startWorkoutAction(
     data: { status: WorkoutStatus.IN_PROGRESS, startedAt },
   });
   if (count === 0) return { ok: false, error: "Тренировку нельзя начать" };
+  await queueGoal("workout_start");
   return { ok: true, startedAt: startedAt.toISOString() };
 }
 
@@ -231,6 +233,11 @@ export async function finishWorkoutAction(
     const finishedAt = clampClientTime(clientFinishedAt, new Date(), workout?.startedAt ?? null, 24 * H);
     const result = await finishWorkout(user.id, workoutId, finishedAt);
     if (!result.ok) return result;
+    if (YM_ID) {
+      await queueGoal("workout_finish");
+      const completed = await db.workout.count({ where: { userId: user.id, status: WorkoutStatus.COMPLETED } });
+      if (completed === 1) await queueGoal("first_workout");
+    }
   }
 
   revalidatePath("/", "layout");

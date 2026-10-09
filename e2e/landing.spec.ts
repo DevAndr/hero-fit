@@ -21,6 +21,17 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
   await expect(page).toHaveURL(/\/register$/);
 });
 
+test("privacy policy is public and linked from the footer", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("contentinfo").getByRole("link", { name: "Политика конфиденциальности" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Политика конфиденциальности" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "5. Cookies и Яндекс.Метрика" })).toBeVisible();
+  // Без номера счётчика в сборке Метрика не подключается и уведомления о cookies нет
+  await expect(page.getByRole("region", { name: "Уведомление о cookies" })).toHaveCount(0);
+  expect(await page.evaluate(() => "ym" in window)).toBe(false);
+});
+
 test("SEO files: robots closed outside public production, sitemap, OG image", async ({ request }) => {
   const robots = await (await request.get("/robots.txt")).text();
   // Ровно «Disallow: /» (весь сайт), а не «Disallow: /api/» из боевых правил
@@ -28,7 +39,7 @@ test("SEO files: robots closed outside public production, sitemap, OG image", as
   expect(robots).not.toMatch(/^Allow:/m);
   expect(robots).not.toContain("hero-fit.ru");
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  for (const path of ["/tools/1rm", "/tools/plates", "/register"]) expect(sitemap).toContain(`${path}</loc>`);
+  for (const path of ["/tools/1rm", "/tools/plates", "/register", "/privacy"]) expect(sitemap).toContain(`${path}</loc>`);
   const og = await request.get("/opengraph-image");
   expect(og.status()).toBe(200);
   expect(og.headers()["content-type"]).toBe("image/png");

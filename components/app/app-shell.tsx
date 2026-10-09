@@ -70,7 +70,8 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-full flex-1">
+    // ym-hide-content — вебвизор Метрики не записывает текст кабинета (веса, ники, почта)
+    <div className="ym-hide-content flex min-h-full flex-1">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-6 border-r p-4 lg:flex">
         <Logo />
         <SidebarNav />
