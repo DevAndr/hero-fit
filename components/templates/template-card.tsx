@@ -6,7 +6,8 @@ import { copyTemplateAction } from "@/lib/templates/actions";
 import type { TemplateListItem } from "@/lib/templates/queries";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 
-export function TemplateCard({ template }: { template: TemplateListItem }) {
+/** assignedClients — скольким клиентам тренер назначил шаблон (предупреждение при удалении). */
+export function TemplateCard({ template, assignedClients = 0 }: { template: TemplateListItem; assignedClients?: number }) {
   const own = template.userId !== null;
   const exercises = template.exercises.filter((e) => !e.exercise.archivedAt);
 
@@ -15,7 +16,7 @@ export function TemplateCard({ template }: { template: TemplateListItem }) {
       <div className="flex-1">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold">{template.name}</h3>
-          {own ? <DeleteTemplateButton id={template.id} name={template.name} /> : null}
+          {own ? <DeleteTemplateButton id={template.id} name={template.name} assignedClients={assignedClients} /> : null}
         </div>
         {template.description ? <p className="text-sm text-muted-foreground">{template.description}</p> : null}
         <ol className="mt-2 space-y-0.5 text-sm">

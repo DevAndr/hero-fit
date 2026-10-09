@@ -43,3 +43,18 @@ export async function templateAccessible(userId: string, templateId: string): Pr
   if (!coachId) return false;
   return (await db.workoutTemplate.count({ where: { id: templateId, ...assignedWhere(userId, coachId) } })) > 0;
 }
+
+/** Скольким клиентам назначен каждый шаблон тренера (предупреждение при удалении). */
+export async function assignedClientCounts(coachId: string): Promise<Record<string, number>> {
+  const [series, entries] = await Promise.all([
+    db.planSeries.findMany({ where: { coachId, templateId: { not: null } }, select: { templateId: true, userId: true }, distinct: ["templateId", "userId"] }),
+    db.planEntry.findMany({ where: { coachId, seriesId: null, templateId: { not: null } }, select: { templateId: true, userId: true }, distinct: ["templateId", "userId"] }),
+  ]);
+  const clients = new Map<string, Set<string>>();
+  for (const r of [...series, ...entries]) {
+    const set = clients.get(r.templateId!) ?? new Set<string>();
+    set.add(r.userId);
+    clients.set(r.templateId!, set);
+  }
+  return Object.fromEntries([...clients].map(([id, set]) => [id, set.size]));
+}

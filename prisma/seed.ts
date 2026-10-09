@@ -10,6 +10,7 @@ import { addWeeks, localMidnight, STREAK_WEEK_TARGET, weekKey, weeksBetween } fr
 import type { RecapData } from "../lib/recap/types";
 import { PR_XP, workoutXp } from "../lib/progress/xp";
 import { bossForWeek } from "../lib/boss/bosses";
+import { addDays } from "../lib/plans/expand";
 import { MIN_HP, SET_DAMAGE } from "../lib/boss/damage";
 
 const db = new PrismaClient({
@@ -670,7 +671,48 @@ async function seedDemoRecaps(exerciseIds: Map<string, string>) {
 /** Постоянный код приглашения demo.coach: /coach/join/DEMXTRNR (алфавит кода — без 0/O/1/I/L). */
 const DEMO_COACH = { login: "demo.coach", name: "Тренер", nickname: "Coach_Demo", code: "DEMXTRNR", clients: ["demo.masha", "demo.boris"] };
 
-async function seedDemoCoach(passwordHash: string) {
+/** Шаблон тренера и его назначение Маше: пн/ср/пт 19:00 с понедельника прошлой недели на 8 недель. */
+const COACH_TEMPLATE = {
+  name: "Ноги — база",
+  exercises: [
+    { name: "Приседания со штангой", sets: 3, reps: 8 },
+    { name: "Румынская тяга", sets: 3, reps: 10 },
+    { name: "Жим ногами", sets: 3, reps: 12 },
+    { name: "Подъём на носки стоя", sets: 4, reps: 15 },
+  ],
+};
+
+async function seedCoachPlans(coachId: string, exerciseIds: Map<string, string>) {
+  await db.workoutTemplate.deleteMany({ where: { userId: coachId, name: COACH_TEMPLATE.name } });
+  const template = await db.workoutTemplate.create({
+    data: {
+      userId: coachId,
+      name: COACH_TEMPLATE.name,
+      exercises: {
+        create: COACH_TEMPLATE.exercises.map((e, order) => ({ exerciseId: exerciseIds.get(e.name)!, order, targetSets: e.sets, targetReps: e.reps })),
+      },
+    },
+  });
+  const masha = await db.user.findUniqueOrThrow({ where: { login: "demo.masha" }, select: { id: true, timeZone: true } });
+  await db.planSeries.deleteMany({ where: { userId: masha.id, coachId } });
+  await db.planEntry.deleteMany({ where: { userId: masha.id, coachId, seriesId: null } });
+  const monday = addWeeks(weekKey(new Date(), masha.timeZone), -1);
+  const endDate = addDays(monday, 8 * 7 - 1);
+  await db.planSeries.createMany({
+    data: [0, 2, 4].map((weekday) => ({
+      userId: masha.id,
+      coachId,
+      templateId: template.id,
+      title: template.name,
+      weekday,
+      time: "19:00",
+      startDate: addDays(monday, weekday),
+      endDate,
+    })),
+  });
+}
+
+async function seedDemoCoach(passwordHash: string, exerciseIds: Map<string, string>) {
   const profile = { name: DEMO_COACH.name, nickname: DEMO_COACH.nickname, nicknameKey: DEMO_COACH.nickname.toLowerCase(), isCoach: true, coachCode: DEMO_COACH.code };
   const coach = await db.user.upsert({
     where: { login: DEMO_COACH.login },
@@ -686,6 +728,7 @@ async function seedDemoCoach(passwordHash: string) {
   await db.coachLink.createMany({
     data: clientIds.map((clientId, i) => ({ coachId: coach.id, clientId, createdAt: new Date(Date.now() - (14 + i * 7) * day) })),
   });
+  await seedCoachPlans(coach.id, exerciseIds);
 }
 
 async function main() {
@@ -701,8 +744,8 @@ async function main() {
     await recomputeStreak(db, demo.id, new Date());
     console.log(`Demo weekly recaps: ${await seedDemoRecaps(exerciseIds)}`);
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
-    await seedDemoCoach(demoHash);
-    console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")}, приглашение /coach/join/${DEMO_COACH.code}`);
+    await seedDemoCoach(demoHash, exerciseIds);
+    console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")} (Маше назначен «${COACH_TEMPLATE.name}» пн/ср/пт), приглашение /coach/join/${DEMO_COACH.code}`);
   }
 }
 

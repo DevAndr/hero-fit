@@ -15,9 +15,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { plural } from "@/lib/format";
 import { deleteTemplateAction } from "@/lib/templates/actions";
 
-export function DeleteTemplateButton({ id, name }: { id: string; name: string }) {
+export function DeleteTemplateButton({ id, name, assignedClients = 0 }: { id: string; name: string; assignedClients?: number }) {
   const [pending, startTransition] = useTransition();
 
   return (
@@ -30,7 +31,12 @@ export function DeleteTemplateButton({ id, name }: { id: string; name: string })
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Удалить шаблон «{name}»?</AlertDialogTitle>
-          <AlertDialogDescription>Прошедшие тренировки по этому шаблону останутся в истории.</AlertDialogDescription>
+          <AlertDialogDescription>
+            Прошедшие тренировки по этому шаблону останутся в истории.
+            {assignedClients
+              ? ` Назначен ${assignedClients} ${plural(assignedClients, "клиенту", "клиентам", "клиентам")} — в их календаре останется только название, упражнений не будет.`
+              : ""}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Отмена</AlertDialogCancel>

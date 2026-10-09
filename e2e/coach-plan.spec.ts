@@ -189,3 +189,15 @@ test("«От тренера» start gives the template's exercises", async ({ pa
     await client.context.close();
   }
 });
+
+test("deleting an assigned template warns how many clients have it", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await page.goto("/templates");
+    await page.getByRole("button", { name: "Удалить «Ноги — база»" }).click();
+    await expect(page.getByRole("alertdialog")).toContainText("Назначен 1 клиенту");
+  } finally {
+    await client.context.close();
+  }
+});

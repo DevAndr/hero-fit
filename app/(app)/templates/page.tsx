@@ -5,13 +5,14 @@ import { PageHeader } from "@/components/app/app-shell";
 import { TemplateCard } from "@/components/templates/template-card";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/dal";
+import { assignedClientCounts } from "@/lib/coach/templates";
 import { listTemplates } from "@/lib/templates/queries";
 
 export const metadata: Metadata = { title: "Шаблоны" };
 
 export default async function TemplatesPage() {
   const user = await requireUser();
-  const { mine, programs } = await listTemplates(user.id);
+  const [{ mine, programs }, assigned] = await Promise.all([listTemplates(user.id), user.isCoach ? assignedClientCounts(user.id) : Promise.resolve<Record<string, number>>({})]);
   const byProgram = Map.groupBy(programs, (t) => t.program ?? "Программы");
 
   return (
@@ -32,7 +33,7 @@ export default async function TemplatesPage() {
         {mine.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {mine.map((t) => (
-              <TemplateCard key={t.id} template={t} />
+              <TemplateCard key={t.id} template={t} assignedClients={assigned[t.id] ?? 0} />
             ))}
           </div>
         ) : (
