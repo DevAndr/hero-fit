@@ -13,6 +13,8 @@ export type ClientRow = {
   streak: number;
   /** Упражнений с подсказкой «пора увеличить вес». */
   hints: number;
+  /** Пояс клиента: «вчера» и неделя — по его календарю. */
+  timeZone: string;
 };
 
 export type ClientFlags = { inactive: boolean; hints: number };

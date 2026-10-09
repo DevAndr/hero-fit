@@ -14,6 +14,7 @@ const row = (id: string, over: Partial<ClientRow> = {}): ClientRow => ({
   weekCount: 0,
   streak: 0,
   hints: 0,
+  timeZone: "Europe/Moscow",
   ...over,
 });
 
