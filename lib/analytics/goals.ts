@@ -2,7 +2,7 @@
  * Цели Яндекс.Метрики. Сервер не может вызвать ym() — после регистрации или завершения тренировки
  * он кладёт цель в cookie `hf_goals` (queueGoal), а счётчик на клиенте отправляет и чистит её.
  */
-export const GOALS = ["signup", "workout_start", "workout_finish", "first_workout", "onboarding_done", "onboarding_skip", "share_story", "coach_enabled", "coach_client_joined"] as const;
+export const GOALS = ["signup", "workout_start", "workout_finish", "first_workout", "onboarding_done", "onboarding_skip", "share_story", "coach_enabled", "coach_client_joined", "coach_assign"] as const;
 export type Goal = (typeof GOALS)[number];
 
 export const GOAL_COOKIE = "hf_goals";

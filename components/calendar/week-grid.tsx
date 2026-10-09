@@ -35,7 +35,7 @@ export function EventBlock({
       ref={buttonRef}
       {...dragProps}
       type="button"
-      aria-label={eventLabel(event, event.status)}
+      aria-label={`${eventLabel(event, event.status)}${event.coachName ? `, от тренера · ${event.coachName}` : ""}`}
       onClick={() => onOpen(event)}
       style={style}
       className={cn(
@@ -55,6 +55,7 @@ export function EventBlock({
             {event.time}–{endTime(event.time, event.durationMin)}
             {event.exercises ? ` · ${event.exercises} упр.` : ""}
           </span>
+          {event.coachName ? <span className="block truncate text-muted-foreground">{`от тренера · ${event.coachName}`}</span> : null}
         </>
       )}
     </button>

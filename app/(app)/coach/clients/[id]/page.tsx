@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RemoveClientButton } from "@/components/coach/client-header";
+import { ClientPlan } from "@/components/coach/client-plan";
 import { BodyMap } from "@/components/progress/body-map";
 import { HintBadge } from "@/components/stats/hint-badge";
 import { StatsView } from "@/components/stats/stats-view";
@@ -10,9 +11,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
+import { getClientPlan } from "@/lib/coach/plan-queries";
 import { getClientWorkouts } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
-import { safeTimeZone } from "@/lib/daily-login";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-queries";
@@ -23,6 +25,7 @@ export const metadata: Metadata = { title: "Клиент" };
 
 const TABS = [
   { id: "overview", label: "Обзор" },
+  { id: "plan", label: "План" },
   { id: "workouts", label: "Тренировки" },
   { id: "stats", label: "Статистика" },
 ] as const;
@@ -45,7 +48,7 @@ function Tile({ label, value }: { label: string; value: string }) {
 /** Карточка клиента у тренера — только чтение, доступ проверяет requireClientOf. */
 export default async function CoachClientPage({ params, searchParams }: PageProps<"/coach/clients/[id]">) {
   const { id } = await params;
-  const { client, linkedAt } = await requireClientOf(id);
+  const { coach, client, linkedAt } = await requireClientOf(id);
   const query = await searchParams;
   const tab: Tab = TABS.find((t) => t.id === query.tab)?.id ?? "overview";
   const tz = safeTimeZone(client.timeZone);
@@ -75,6 +78,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
         ))}
       </nav>
       {tab === "overview" ? <Overview clientId={client.id} streak={clientWeek(client, new Date(), tz).streak} tz={tz} xp={client.xp} base={base} /> : null}
+      {tab === "plan" ? <Plan coachId={coach.id} clientId={client.id} tz={tz} base={base} /> : null}
       {tab === "workouts" ? <Workouts clientId={client.id} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
@@ -123,6 +127,35 @@ async function Overview({ clientId, streak, tz, xp, base }: { clientId: string; 
         </section>
       ) : null}
     </div>
+  );
+}
+
+async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId: string; tz: string; base: string }) {
+  const now = new Date();
+  const [{ upcoming, past }, templates] = await Promise.all([
+    getClientPlan(coachId, clientId, tz, now),
+    db.workoutTemplate.findMany({ where: { userId: coachId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+  const strip = ({ key, title, date, time, durationMin, templateId, recurring, status, workoutId }: (typeof upcoming)[number]) => ({
+    key,
+    title,
+    date,
+    time,
+    durationMin,
+    templateId,
+    recurring,
+    status,
+    workoutId,
+  });
+  return (
+    <ClientPlan
+      clientId={clientId}
+      today={dayKey(now, tz)}
+      base={base}
+      templates={templates}
+      upcoming={upcoming.map(strip)}
+      past={past.map(strip)}
+    />
   );
 }
 

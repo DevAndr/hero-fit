@@ -30,6 +30,8 @@ export type CalendarEvent = {
   recurring: boolean;
   workoutId: string | null;
   exercises: number | null;
+  /** Назначил тренер — его ник; клиент такое не меняет и не перетаскивает. */
+  coachName: string | null;
 };
 
 export type CalendarActions = {

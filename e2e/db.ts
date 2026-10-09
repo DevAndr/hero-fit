@@ -192,3 +192,42 @@ export async function activeCoachLinks(clientLogin: string) {
     return rows.map((r) => r.coach);
   });
 }
+
+export async function idOf(login: string) {
+  return withDb((db) => userId(db, login));
+}
+
+/** Шаблон тренера из двух встроенных упражнений; возвращает id. */
+export async function coachTemplate(coachLogin: string, name: string) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "WorkoutTemplate" (id, "userId", name, "updatedAt") values ($1, $2, $3, now())`, [
+      id,
+      await userId(db, coachLogin),
+      name,
+    ]);
+    const { rows } = await db.query<{ id: string }>(
+      `select id from "Exercise" where "userId" is null and name in ('Приседания со штангой', 'Жим ногами') order by name desc`,
+    );
+    for (const [order, ex] of rows.entries()) {
+      await db.query(
+        `insert into "TemplateExercise" (id, "templateId", "exerciseId", "order", "targetSets", "targetReps") values ($1, $2, $3, $4, 3, 10)`,
+        [randomUUID(), id, ex.id, order],
+      );
+    }
+    return id;
+  });
+}
+
+/** Разовое назначение тренера клиенту на дату (минуя UI); возвращает ключ вхождения `e:<id>`. */
+export async function coachAssignOnce(coachLogin: string, clientLogin: string, templateId: string, title: string, date: string, time = "19:00") {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "PlanEntry" (id, "userId", "coachId", "templateId", title, date, time, "durationMin", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, 60, now())`,
+      [id, await userId(db, clientLogin), await userId(db, coachLogin), templateId, title, date, time],
+    );
+    return `e:${id}`;
+  });
+}

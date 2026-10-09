@@ -1,0 +1,220 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { ScopeChoice } from "@/components/calendar/plan-dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { assignWorkoutAction, updateAssignmentAction } from "@/lib/coach/plan-actions";
+import type { PlanScope } from "@/lib/plans/edit";
+import { addDays, weekdayOf } from "@/lib/plans/expand";
+import { PLAN_DURATIONS } from "@/lib/plans/schema";
+import { WEEKDAYS_SHORT } from "@/lib/plans/view";
+import { cn } from "@/lib/utils";
+
+export type AssignTemplate = { id: string; name: string };
+export type AssignEditItem = { key: string; templateId: string | null; date: string; time: string; durationMin: number; recurring: boolean };
+export type AssignDialogState = { mode: "create"; date: string } | { mode: "edit"; item: AssignEditItem };
+
+const durationLabel = (m: number) => (m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ""}`);
+/** «До» по умолчанию — 8 недель. */
+const WEEKS = 8;
+
+/** «Назначить тренировку» / «Изменить назначение» — даты в поясе клиента. */
+export function AssignDialog({
+  clientId,
+  state,
+  templates,
+  onClose,
+}: {
+  clientId: string;
+  state: AssignDialogState | null;
+  templates: AssignTemplate[];
+  onClose: () => void;
+}) {
+  const [shown, setShown] = useState(state);
+  if (state && state !== shown) setShown(state);
+  return (
+    <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        {shown ? (
+          <AssignForm
+            key={shown.mode === "edit" ? shown.item.key : shown.date}
+            clientId={clientId}
+            state={shown}
+            templates={templates}
+            onClose={onClose}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AssignForm({ clientId, state, templates, onClose }: { clientId: string; state: AssignDialogState; templates: AssignTemplate[]; onClose: () => void }) {
+  const initial = state.mode === "edit" ? state.item : { templateId: templates[0]?.id ?? null, date: state.date, time: "19:00", durationMin: 60, recurring: false };
+  const [templateId, setTemplateId] = useState(initial.templateId ?? "");
+  const [date, setDate] = useState(initial.date);
+  const [time, setTime] = useState(initial.time);
+  const [durationMin, setDurationMin] = useState(initial.durationMin);
+  const [repeat, setRepeat] = useState(false);
+  const [days, setDays] = useState<number[]>([weekdayOf(initial.date)]);
+  const [until, setUntil] = useState(addDays(initial.date, WEEKS * 7 - 1));
+  const [askScope, setAskScope] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const durations = [...new Set([...PLAN_DURATIONS, initial.durationMin])].sort((a, b) => a - b);
+
+  const done = (result: { ok: true } | { ok: false; error: string }) => {
+    if (result.ok) onClose();
+    else toast.error(result.error);
+  };
+  const update = (scope: PlanScope) =>
+    startTransition(async () => {
+      if (state.mode !== "edit") return;
+      done(await updateAssignmentAction(clientId, state.item.key, scope, { templateId, date, time, durationMin }));
+    });
+  const submit = () => {
+    if (!templateId) return toast.error("Выберите шаблон");
+    if (state.mode === "edit") {
+      if (state.item.recurring) setAskScope(true);
+      else update("one");
+      return;
+    }
+    startTransition(async () =>
+      done(
+        await assignWorkoutAction(clientId, {
+          templateId,
+          date,
+          time,
+          durationMin,
+          repeatWeekdays: repeat ? days : [],
+          endDate: repeat ? until : null,
+        }),
+      ),
+    );
+  };
+
+  if (askScope) return <ScopeChoice pending={pending} onChoose={update} onCancel={() => setAskScope(false)} />;
+
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>{state.mode === "edit" ? "Изменить назначение" : "Назначить тренировку"}</DialogTitle>
+      </DialogHeader>
+      {templates.length ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor="assign-template">Шаблон</Label>
+          <Select
+            items={templates.map((t) => ({ value: t.id, label: t.name }))}
+            value={templateId || null}
+            onValueChange={(v: string | null) => setTemplateId(v ?? "")}
+          >
+            <SelectTrigger id="assign-template" aria-label="Шаблон" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Сначала создайте шаблон тренировки в разделе «Шаблоны».</p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-3 grid gap-1.5 sm:col-span-1">
+          <Label htmlFor="assign-date">Дата</Label>
+          <Input id="assign-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div className="grid gap-1.5 max-sm:col-span-1">
+          <Label htmlFor="assign-time">Начало</Label>
+          <Input id="assign-time" type="time" required step={900} value={time} onChange={(e) => setTime(e.target.value)} />
+        </div>
+        <div className="grid gap-1.5 max-sm:col-span-2">
+          <Label htmlFor="assign-duration">Длительность</Label>
+          <Select
+            items={durations.map((m) => ({ value: m, label: durationLabel(m) }))}
+            value={durationMin}
+            onValueChange={(v: number | null) => v !== null && setDurationMin(v)}
+          >
+            <SelectTrigger id="assign-duration" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {durations.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {durationLabel(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {state.mode === "create" ? (
+        <div className="grid gap-2">
+          <Label className="flex items-center gap-2 font-normal">
+            <Checkbox
+              checked={repeat}
+              onCheckedChange={(v) => {
+                setRepeat(v === true);
+                // Отмечаем день выбранной даты (не той, с которой открыт диалог)
+                if (v === true) setDays([weekdayOf(date)]);
+              }}
+            />
+            Повторять каждую неделю
+          </Label>
+          {repeat ? (
+            <>
+              <div className="flex gap-1" role="group" aria-label="Дни недели">
+                {WEEKDAYS_SHORT.map((w, i) => {
+                  const on = days.includes(i);
+                  return (
+                    <button
+                      key={w}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setDays(on ? days.filter((d) => d !== i) : [...days, i].sort())}
+                      className={cn(
+                        "size-9 rounded-full text-xs font-semibold",
+                        on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {w}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid gap-1.5 sm:w-1/2">
+                <Label htmlFor="assign-until">До</Label>
+                <Input id="assign-until" type="date" required min={date} value={until} onChange={(e) => setUntil(e.target.value)} />
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
+          Отмена
+        </Button>
+        <Button type="submit" disabled={pending || !templates.length || (repeat && !days.length)}>
+          {pending ? <Loader2 className="animate-spin" /> : null}
+          {state.mode === "edit" ? "Сохранить" : "Назначить"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}

@@ -16,6 +16,14 @@ type Result = { ok: true } | { ok: false; error: string };
 
 const nameSelect = { nickname: true, name: true } as const;
 
+type Tx = Prisma.TransactionClient;
+
+/** Связь закрыта — назначения этого тренера уходят из календаря клиента (тренировки остаются). */
+async function dropAssignments(tx: Tx, coachId: string, clientId: string) {
+  await tx.planSeries.deleteMany({ where: { userId: clientId, coachId } });
+  await tx.planEntry.deleteMany({ where: { userId: clientId, coachId, seriesId: null } });
+}
+
 /** Включить/выключить режим тренера. Выключение не разрывает связи — только скрывает раздел. */
 export async function setCoachModeAction(on: boolean): Promise<Result> {
   const user = await requireUser();
@@ -48,6 +56,7 @@ export async function acceptCoachAction(code: string): Promise<never> {
       if (current?.coachId === coach.id) return; // уже связаны — повтор без ошибки
       if (current) {
         await tx.coachLink.update({ where: { id: current.id }, data: { endedAt: new Date(), endedBy: "switch" } });
+        await dropAssignments(tx, current.coachId, user.id);
         await notify(
           tx,
           current.coachId,
@@ -82,6 +91,7 @@ export async function endCoachLinkAction(): Promise<void> {
   await db.$transaction(async (tx) => {
     const { count } = await tx.coachLink.updateMany({ where: { id: link.id, endedAt: null }, data: { endedAt: new Date(), endedBy: "client" } });
     if (!count) return;
+    await dropAssignments(tx, link.coachId, user.id);
     await notify(
       tx,
       link.coachId,
@@ -102,6 +112,7 @@ export async function removeClientAction(clientId: string): Promise<never> {
       data: { endedAt: new Date(), endedBy: "coach" },
     });
     if (!count) return;
+    await dropAssignments(tx, coach.id, clientId);
     await notify(
       tx,
       clientId,

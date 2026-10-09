@@ -16,6 +16,8 @@ export type ClientRow = {
   hints: number;
   /** Пояс клиента: «вчера» и неделя — по его календарю. */
   timeZone: string;
+  /** Назначения тренера на эту неделю клиента: выполнено / всего; null — назначений нет. */
+  plan: { done: number; total: number } | null;
 };
 
 export type ClientFlags = { inactive: boolean; hints: number };

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarClock, Check, Pencil, Play, Repeat, Trash2 } from "lucide-react";
+import { CalendarClock, Check, Pencil, Play, Repeat, Trash2, UserRound } from "lucide-react";
+import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { toast } from "sonner";
 import type { CalendarEvent } from "@/components/calendar/calendar-view";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
@@ -85,6 +86,12 @@ function CardBody({
             {event.exercises} упр. в шаблоне
           </li>
         ) : null}
+        {event.coachName ? (
+          <li className="flex items-center gap-2">
+            <UserRound className="size-4 text-muted-foreground" />
+            {`от тренера · ${event.coachName}`}
+          </li>
+        ) : null}
         <li className="flex items-center gap-2">
           <Check className="size-4 text-muted-foreground" />
           {plan ? `Статус: ${STATUS_LABEL[event.status]}` : "Тренировка вне плана"}
@@ -109,7 +116,12 @@ function CardBody({
             </Button>
           </form>
         )}
-        {plan && event.status !== "done" ? (
+        {plan && event.status !== "done" && event.coachName ? (
+          <>
+            <SkipPlanButton planKey={event.key} title={event.title} />
+            <p className="w-full text-sm text-muted-foreground">Назначено тренером</p>
+          </>
+        ) : plan && event.status !== "done" ? (
           <>
             <Button variant="outline" onClick={() => onEdit(event)}>
               <Pencil />

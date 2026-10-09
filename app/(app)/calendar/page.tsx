@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
 import { CalendarView, type CalendarEvent } from "@/components/calendar/calendar-view";
 import { requireUser } from "@/lib/auth/dal";
+import { activeCoachOf } from "@/lib/coach/access";
+import { clientDisplayName } from "@/lib/coach/clients";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { getCalendar } from "@/lib/plans/queries";
 import { planDateSchema } from "@/lib/plans/schema";
@@ -24,7 +26,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const date = params.date && planDateSchema.safeParse(params.date).success ? params.date : today;
   const range = viewRange(view, date);
 
-  const [calendar, templates] = await Promise.all([getCalendar(user.id, range.from, range.to, tz, now), listTemplates(user.id)]);
+  const [calendar, templates, coach] = await Promise.all([
+    getCalendar(user.id, range.from, range.to, tz, now),
+    listTemplates(user.id),
+    activeCoachOf(user.id),
+  ]);
+  // Назначения есть только от активного тренера — разрыв связи их удаляет
+  const coachName = coach ? clientDisplayName(coach) : null;
 
   const events: CalendarEvent[] = [
     ...calendar.occurrences.map((o) => ({
@@ -39,6 +47,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       recurring: o.recurring,
       workoutId: o.workoutId ?? null,
       exercises: o.templateId ? (calendar.templates[o.templateId]?.exercises ?? null) : null,
+      coachName: o.coachId ? coachName : null,
     })),
     // Тренировки вне плана — по фактическому времени
     ...calendar.extra.map((w) => ({
@@ -53,6 +62,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       recurring: false,
       workoutId: w.id,
       exercises: null,
+      coachName: null,
     })),
   ];
   const [hh, mm] = localTime(now, tz).split(":").map(Number);

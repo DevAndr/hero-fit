@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CircleAlert, Flame, TrendingUp } from "lucide-react";
+import { CalendarCheck, CircleAlert, Flame, TrendingUp } from "lucide-react";
 import { clientFlags, lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 
@@ -30,6 +30,12 @@ export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
                 <span className="flex items-center gap-1 rounded-full bg-xp/10 px-2 py-0.5 font-semibold text-xp">
                   <TrendingUp className="size-3.5" aria-hidden />
                   Пора увеличить вес: {flags.hints}
+                </span>
+              ) : null}
+              {r.plan ? (
+                <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary tabular-nums">
+                  <CalendarCheck className="size-3.5" aria-hidden />
+                  план {r.plan.done}/{r.plan.total}
                 </span>
               ) : null}
               <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">

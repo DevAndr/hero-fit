@@ -25,7 +25,7 @@ import { dayLabel } from "@/lib/plans/view";
 const SLOT_MIN = 30;
 
 /** Можно ли таскать: только планы, не выполненные. */
-export const canDrag = (e: CalendarEvent) => e.kind === "plan" && e.status !== "done";
+export const canDrag = (e: CalendarEvent) => e.kind === "plan" && e.status !== "done" && !e.coachName;
 
 /** По вертикали — шаг слота (30 мин). */
 const snapToSlots =

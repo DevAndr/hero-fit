@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
+import { getClientWeekPlan } from "@/lib/coach/plan-queries";
 import { db } from "@/lib/db";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { clientDisplayName, clientWeek, type ClientRow } from "@/lib/coach/clients";
@@ -80,7 +81,10 @@ export async function getCoachClients(coachId: string, now = new Date()): Promis
         select: { exerciseId: true },
         distinct: ["exerciseId"],
       });
-      const hints = await getProgressionHints(c.id, recent.map((r) => r.exerciseId));
+      const [hints, plan] = await Promise.all([
+        getProgressionHints(c.id, recent.map((r) => r.exerciseId)),
+        getClientWeekPlan(coachId, c.id, tz, now),
+      ]);
       return {
         id: c.id,
         name: clientDisplayName(c),
@@ -90,6 +94,7 @@ export async function getCoachClients(coachId: string, now = new Date()): Promis
         ...clientWeek(c, now, tz),
         hints: Object.keys(hints).length,
         timeZone: tz,
+        plan,
       };
     }),
   );
