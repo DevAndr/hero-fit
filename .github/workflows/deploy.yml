@@ -83,20 +83,28 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           envs: SHA,IMAGE,DEPLOY_PATH,GHCR_TOKEN,GHCR_USER
-          script_stop: true
+          # Без script_stop: он проверяет каждую строку отдельно и обрывает цикл ожидания на первой же итерации.
           script: |
+            set -eu
             cd "$DEPLOY_PATH"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             export IMAGE_REPO="$IMAGE" IMAGE_TAG="$SHA"
-            docker compose pull migrate app
+            docker compose pull --quiet migrate app
             docker compose up -d --remove-orphans
             docker logout ghcr.io
-            for i in $(seq 1 30); do
-              [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)")" = healthy ] && break
+            health() { docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)"; }
+            i=0
+            until [ "$(health)" = healthy ]; do
+              i=$((i + 1))
+              if [ "$i" -ge 30 ]; then
+                docker compose ps
+                docker compose logs --tail 50 app
+                echo "app is not healthy after 150s" >&2
+                exit 1
+              fi
               sleep 5
             done
             docker compose ps
-            [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)")" = healthy ]
             docker image prune -f
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
