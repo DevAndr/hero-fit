@@ -28,6 +28,7 @@ const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "lo
 
 export function StartScreen({
   templates,
+  coachTemplates,
   lastWorkout,
   plan,
   recovery,
@@ -103,6 +104,7 @@ export function StartScreen({
         </StartForm>
       </div>
 
+      {coachTemplates.length ? <TemplateSection title="От тренера" items={coachTemplates} /> : null}
       {mine.length ? <TemplateSection title="Мои шаблоны" items={mine} /> : null}
       {[...programs].map(([program, items]) => (
         <TemplateSection key={program} title={program} items={items} />
@@ -113,7 +115,7 @@ export function StartScreen({
 
 function TemplateSection({ title, items }: { title: string; items: StartOptions["templates"] }) {
   return (
-    <section className="space-y-3">
+    <section aria-label={title} className="space-y-3">
       <h2 className="text-lg font-bold">{title}</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((t) => (

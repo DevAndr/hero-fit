@@ -13,6 +13,8 @@ import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
+import { activeCoachOf } from "@/lib/coach/access";
+import { clientDisplayName } from "@/lib/coach/clients";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getBossView } from "@/lib/boss/queries";
@@ -117,7 +119,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss, coach] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -125,6 +127,7 @@ export default async function DashboardPage() {
     getMuscleRecovery(user.id),
     getMuscleBalance(user.id),
     getBossView(user.id, userTz),
+    activeCoachOf(user.id),
   ]);
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
@@ -156,7 +159,9 @@ export default async function DashboardPage() {
         </Link>
       </section>
 
-      <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey} />
+      <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey}
+        coachName={coach ? clientDisplayName(coach) : null}
+      />
       {recap ? <RecapCard recap={recap} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">

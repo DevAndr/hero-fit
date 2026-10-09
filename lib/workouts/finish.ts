@@ -6,6 +6,7 @@ import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
 import { titlesUnlockedByWin } from "@/lib/titles/catalog";
+import { notifyCoachOnFinish } from "@/lib/coach/finish-notify";
 import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
@@ -251,6 +252,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         data: { userId, workoutId, amount: recordsXp, reason: XpReason.PERSONAL_RECORD, meta: { records } },
       });
     }
+    await notifyCoachOnFinish(tx, userId, workout);
 
     return { ok: true };
   }, { timeout: 15_000 });

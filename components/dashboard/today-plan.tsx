@@ -6,7 +6,7 @@ import type { Occurrence } from "@/lib/plans/expand";
 import { dayLabel } from "@/lib/plans/view";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 
-type Plan = Pick<Occurrence, "key" | "title" | "time" | "date">;
+type Plan = Pick<Occurrence, "key" | "title" | "time" | "date" | "coachId">;
 
 function StartButton({ plan, activePlanKey }: { plan: Plan; activePlanKey: string | null }) {
   if (activePlanKey === plan.key) {
@@ -34,13 +34,17 @@ export function TodayPlan({
   next,
   missedYesterday,
   activePlanKey,
+  coachName = null,
 }: {
   today: Plan[];
   next: Plan | null;
   missedYesterday: Plan | null;
   activePlanKey: string | null;
+  /** Ник активного тренера — пометка у назначенного им. */
+  coachName?: string | null;
 }) {
   const [first] = today;
+  const fromCoach = coachName && [first, missedYesterday, next].find((p) => p)?.coachId ? `от тренера · ${coachName}` : null;
   let text: string;
   let action: React.ReactNode;
   if (first) {
@@ -72,7 +76,10 @@ export function TodayPlan({
   return (
     <section aria-label="План на сегодня" className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4">
       <CalendarDays className="size-5 shrink-0 text-primary" />
-      <p className="min-w-0 flex-1 font-medium">{text}</p>
+      <p className="min-w-0 flex-1 font-medium">
+        {text}
+        {fromCoach ? <span className="block text-xs font-normal text-muted-foreground">{fromCoach}</span> : null}
+      </p>
       {action}
     </section>
   );

@@ -1,5 +1,6 @@
 import "server-only";
 import { WorkoutStatus, type MuscleGroup } from "@/generated/prisma/enums";
+import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
@@ -84,7 +85,7 @@ export async function getLastPerformance(userId: string, exerciseIds: string[]):
 }
 
 export async function getStartOptions(userId: string) {
-  const [templates, lastWorkout] = await Promise.all([
+  const [templates, lastWorkout, coachTemplates] = await Promise.all([
     db.workoutTemplate.findMany({
       where: { OR: [{ userId }, { userId: null }] },
       orderBy: [{ userId: { sort: "desc", nulls: "last" } }, { program: "asc" }, { name: "asc" }],
@@ -105,8 +106,9 @@ export async function getStartOptions(userId: string) {
       orderBy: { finishedAt: "desc" },
       select: { id: true, name: true, finishedAt: true, _count: { select: { exercises: true } } },
     }),
+    getAssignedTemplates(userId),
   ]);
-  return { templates, lastWorkout };
+  return { templates, lastWorkout, coachTemplates };
 }
 
 export type StartOptions = Awaited<ReturnType<typeof getStartOptions>>;

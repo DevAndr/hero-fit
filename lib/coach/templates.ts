@@ -14,6 +14,24 @@ async function activeCoachId(clientId: string): Promise<string | null> {
   return link?.coachId ?? null;
 }
 
+/** Раздел «От тренера» в /training: назначенные клиенту шаблоны активного тренера (форма — как у getStartOptions). */
+export async function getAssignedTemplates(clientId: string) {
+  const coachId = await activeCoachId(clientId);
+  if (!coachId) return [];
+  return db.workoutTemplate.findMany({
+    where: assignedWhere(clientId, coachId),
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      program: true,
+      description: true,
+      exercises: { orderBy: { order: "asc" }, select: { targetSets: true, exercise: { select: { name: true } } } },
+    },
+  });
+}
+
 /**
  * Единая проверка доступа к шаблону для запуска тренировки: свой, встроенный или шаблон
  * активного тренера, назначенный этому пользователю. Разрыв связи закрывает доступ сразу.
