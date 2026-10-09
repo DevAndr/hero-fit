@@ -19,6 +19,8 @@ const schema = z.object({
   NOTIFICATIONS_WORKER: z.enum(["on", "off"]).default("on"),
   /** off — ежедневный сундук не открывается сам (e2e: диалог не мешает остальным сценариям). */
   DAILY_CHEST_AUTOOPEN: z.enum(["on", "off"]).default("on"),
+  /** off — регистрация сразу отмечает экскурсию пройденной (e2e: экскурсия не мешает остальным сценариям). */
+  ONBOARDING_TOUR: z.enum(["on", "off"]).default("on"),
   CRON_SECRET: z.string().optional(),
   /** Только e2e: cron-эндпоинт принимает ?now= (тестовые часы для напоминаний). */
   E2E_TEST_CLOCK: z.enum(["1"]).optional(),

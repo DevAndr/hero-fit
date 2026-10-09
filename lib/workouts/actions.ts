@@ -10,6 +10,7 @@ import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { getOccurrence } from "@/lib/plans/queries";
 import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
 import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
+import { markOnboarded } from "@/lib/onboarding/complete";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
@@ -59,6 +60,8 @@ async function fromTemplate(userId: string, id: string): Promise<{ name: string;
  */
 export async function createWorkoutAction(formData: FormData) {
   const user = await requireUser();
+  // Программа из финала экскурсии: экскурсия пройдена, даже если дальше уведёт на активную тренировку
+  if (formData.get("onboarding") === "1" && (await markOnboarded(user.id))) await queueGoal("onboarding_done");
   const active = await db.workout.findFirst({
     where: { userId: user.id, status: { in: ACTIVE_STATUSES } },
     select: { id: true },

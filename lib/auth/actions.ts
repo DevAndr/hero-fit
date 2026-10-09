@@ -84,7 +84,9 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   let userId: string;
   try {
     const user = await db.user.create({
-      data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date() },
+      data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date(),
+        onboardedAt: env.ONBOARDING_TOUR === "off" ? new Date() : null,
+      },
       select: { id: true },
     });
     userId = user.id;

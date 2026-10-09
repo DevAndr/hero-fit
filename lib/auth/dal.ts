@@ -61,6 +61,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           freezeGrantedAt: true,
           bodyWeight: true,
           timeZone: true,
+          onboardedAt: true,
         },
       },
     },

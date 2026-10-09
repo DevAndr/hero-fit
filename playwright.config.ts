@@ -44,9 +44,10 @@ export default defineConfig({
     reuseExistingServer: false,
     // Сервер доверяет сертификату фейкового push-сервиса из e2e/push-server.ts и работает с тестовой базой.
     // E2E_TEST_CLOCK — cron-эндпоинт принимает ?now= (напоминания по дням недели).
-    // DAILY_CHEST_AUTOOPEN=off — диалог ежедневного сундука не перекрывает дашборд (сам сундук — e2e/daily-chest.spec.ts)
+    // DAILY_CHEST_AUTOOPEN=off — диалог ежедневного сундука не перекрывает дашборд (сам сундук — e2e/daily-chest.spec.ts);
+    // ONBOARDING_TOUR=off — новые пользователи уже прошли экскурсию (сама экскурсия — e2e/onboarding.spec.ts)
     // APP_URL — локальный: иначе из .env подтянется боевой домен (canonical, индексация)
-    env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", APP_URL: `http://localhost:${PORT}` },
+    env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", APP_URL: `http://localhost:${PORT}` },
     timeout: 60_000,
   },
 });
