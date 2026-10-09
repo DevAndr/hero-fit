@@ -61,6 +61,7 @@ enum NotificationType {
   PLAN // «Сегодня по плану»
   RECAP // «Итоги недели» и «Новый старт»
   BOSS // босс недели повержен
+  COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
 }
 
 enum FriendshipStatus {
@@ -98,7 +99,11 @@ model User {
   nickname    String?
   nicknameKey String? @unique // ник в нижнем регистре — уникальность без учёта регистра
   friendCode  String? @unique
-  titleCode   String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
+
+  // Режим тренера: раздел «Клиенты» и личный код приглашения (формат как у friendCode)
+  isCoach   Boolean @default(false)
+  coachCode String? @unique
+  titleCode String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
 
   // Лента активности: видят только друзья. Настройки применяются при чтении — действуют и на прошлые тренировки.
   shareActivity Boolean @default(true) // показывать мои тренировки друзьям
@@ -161,6 +166,8 @@ model User {
   weeklyRecaps        WeeklyRecap[]
   friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
   friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
+  coachClients        CoachLink[]          @relation("CoachLinkCoach")
+  coachLinks          CoachLink[]          @relation("CoachLinkClient")
   kudos               Kudos[]
 }
 
@@ -179,6 +186,24 @@ model Friendship {
 
   @@unique([requesterId, addresseeId])
   @@index([addresseeId, status])
+}
+
+/// Тренер ↔ клиент. Активная связь — endedAt = null; у клиента не больше одной
+/// (частичный уникальный индекс "CoachLink_active_client" в миграции). Разорванные храним — история.
+model CoachLink {
+  id        String    @id @default(cuid())
+  coachId   String
+  clientId  String
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
+  /// "client" — отключил клиент, "coach" — удалил тренер, "switch" — клиент перешёл к другому тренеру
+  endedBy   String?
+
+  coach  User @relation("CoachLinkCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  client User @relation("CoachLinkClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, endedAt])
+  @@index([clientId, endedAt])
 }
 
 /// Сессия = семейство refresh-токенов одного устройства.

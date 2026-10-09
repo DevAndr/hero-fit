@@ -28,6 +28,8 @@ export type CurrentUser = {
   timeZone: string;
   /** Экскурсия по дашборду пройдена; null — показать. */
   onboardedAt: Date | null;
+  /** Режим тренера: раздел «Клиенты». */
+  isCoach: boolean;
 };
 
 /**
@@ -64,6 +66,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           bodyWeight: true,
           timeZone: true,
           onboardedAt: true,
+          isCoach: true,
         },
       },
     },
