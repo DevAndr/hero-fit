@@ -71,7 +71,7 @@
 - `lib/onboarding/queries.ts` — `getOnboardingPrograms()`: id, имя и число упражнений встроенных шаблонов Full Body, Push, 5×5 — день A, в этом порядке.
 - `components/onboarding/tour.tsx` — клиентский компонент экскурсии (подсветка, карточка, клавиатура, вызов `completeOnboardingAction`).
 - `components/onboarding/first-workout.tsx` — финальная карточка с программами.
-- `app/(app)/dashboard/page.tsx` — `data-tour` на карточках, `<OnboardingTour programs=… />` при `onboardedAt = null` и `ONBOARDING_TOUR = on`.
+- `app/(app)/dashboard/page.tsx` — `data-tour` на карточках, `<OnboardingTour programs=… />` при `onboardedAt = null` (переменная `ONBOARDING_TOUR` влияет только на регистрацию).
 - `components/app/nav-links.tsx` — `data-tour="nav"` на оба меню.
 - `app/(app)/layout.tsx` — ежедневный сундук не открывается сам, пока `onboardedAt = null` (значок остаётся).
 - `lib/env.ts` — `ONBOARDING_TOUR: on | off` (по умолчанию `on`): `off` — регистрация сразу ставит `onboardedAt`, экскурсия не мешает остальным e2e; `playwright.config.ts` ставит `off`.
