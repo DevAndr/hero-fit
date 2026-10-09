@@ -70,8 +70,14 @@ export async function pickOption(page: Page, trigger: Locator, option: string) {
   await expect(page.getByRole("listbox")).toHaveCount(0);
 }
 
-/** Тик уведомлений; now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts). */
-export const runTick = (request: APIRequestContext, now?: Date) =>
-  request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
+/**
+ * Тик уведомлений; now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts).
+ * Нужен CRON_SECRET (в .env, в CI — env в ci.yml); без него ручка отвечает 401 — падаем сразу, а не таймаутом ожидания push.
+ */
+export async function runTick(request: APIRequestContext, now?: Date) {
+  const res = await request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   });
+  expect(res.status(), "тик уведомлений: задан ли CRON_SECRET?").toBe(200);
+  return res;
+}
