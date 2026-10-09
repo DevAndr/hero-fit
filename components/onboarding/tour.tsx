@@ -73,7 +73,11 @@ export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) 
   // Закрываемся только после ответа сервера: иначе быстрая перезагрузка обрывает запрос и экскурсия вернётся
   const finish = useCallback((reason: "done" | "skip", then?: () => void) => {
     startTransition(async () => {
-      await completeOnboardingAction(reason);
+      try {
+        await completeOnboardingAction(reason);
+      } catch {
+        // Нет сети или сервер не ответил: закрываемся всё равно — экскурсия просто покажется в следующий раз
+      }
       setOpen(false);
       then?.();
     });
@@ -89,14 +93,15 @@ export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) 
   // Шаг сменился: прокрутить к элементу и следить за ним при прокрутке и смене размера окна
   useEffect(() => {
     if (!open || !mounted) return;
-    const el = step.target ? findTarget(step.target) : null;
-    if (el) scrollToTarget(el);
+    const first = step.target ? findTarget(step.target) : null;
+    if (first) scrollToTarget(first);
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         setSheet(innerWidth < SHEET_MAX);
-        const r = el?.getBoundingClientRect();
+        // Ищем заново: после смены ширины видимым может стать другое меню, а прежний элемент — скрыться
+        const r = step.target ? findTarget(step.target)?.getBoundingClientRect() : undefined;
         setRect(r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null);
       });
     };
@@ -151,6 +156,7 @@ export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) 
       {!centered ? (
         <div
           aria-hidden
+          data-testid="tour-highlight"
           className="pointer-events-none fixed rounded-xl ring-2 ring-primary motion-safe:transition-all motion-safe:duration-200"
           style={{
             top: rect.top - PAD,

@@ -95,3 +95,28 @@ test("restart from settings shows the tour again", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(tour(page, "Добро пожаловать в Hero Fit")).toBeVisible();
 });
+
+test("element hidden mid-step (resize across lg) — no zero-size highlight in the corner", async ({ page }, info) => {
+  test.skip(info.project.name === "mobile", "нужна смена с ПК на телефон");
+  await freshUser(page);
+  await page.getByRole("button", { name: "Поехали" }).click();
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Далее" }).click();
+  await expect(tour(page, "Разделы")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const box = await page.getByTestId("tour-highlight").boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThan(100);
+  expect(box?.y ?? 0).toBeGreaterThan(400);
+});
+
+test("offline skip does not crash the page", async ({ page, context }) => {
+  await freshUser(page);
+  await page.getByRole("button", { name: "Поехали" }).click();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Пропустить" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText(/Application error/)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Привет, Герой!" })).toBeVisible();
+  await page.screenshot({ path: "test-results/offline-skip.png" });
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await context.setOffline(false);
+});
