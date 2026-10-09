@@ -148,7 +148,7 @@ export function WorkoutSummaryView({
       </div>
 
       {meta?.boss ? (
-        <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} />
+        <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
       ) : null}
 
       {meta?.achievements?.length ? (

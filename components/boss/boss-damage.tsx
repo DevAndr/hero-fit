@@ -17,12 +17,15 @@ export function BossDamage({
   boss,
   rewardOpened,
   celebrate,
+  readOnly = false,
 }: {
   boss: NonNullable<FinishMeta["boss"]>;
   /** Сундук босса уже забран (или босса той недели нет). */
   rewardOpened: boolean;
   /** Салют — только сразу после тренировки. */
   celebrate: boolean;
+  /** Чужая тренировка (тренер смотрит клиента): без «Выбрать» — титул выбирает только владелец. */
+  readOnly?: boolean;
 }) {
   const name = bossName(boss.code);
   const fillRef = useRef<HTMLDivElement>(null);
@@ -84,10 +87,15 @@ export function BossDamage({
           </p>
           {boss.titles?.length ? (
             <p className="mt-1 text-sm" data-testid="boss-title-unlocked">
-              {boss.titles.map((t) => `Открыт титул «${t}»`).join(" · ")}{" "}
-              <Link href="/settings#title" className="font-semibold text-primary underline-offset-2 hover:underline">
-                Выбрать
-              </Link>
+              {boss.titles.map((t) => `Открыт титул «${t}»`).join(" · ")}
+              {readOnly ? null : (
+                <>
+                  {" "}
+                  <Link href="/settings#title" className="font-semibold text-primary underline-offset-2 hover:underline">
+                    Выбрать
+                  </Link>
+                </>
+              )}
             </p>
           ) : null}
           {boss.defeated && !taken ? (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CoachCommentSection, CoachExerciseNote, coachCommentCaption } from "@/components/coach/coach-comment-note";
+import { CoachCommentSection, CoachExerciseNote } from "@/components/coach/coach-comment-note";
 import { buttonVariants } from "@/components/ui/button";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
 import { ShareStoryButton } from "@/components/workouts/share-story-button";
@@ -9,6 +9,7 @@ import { UpdateTemplateButton } from "@/components/workouts/update-template-butt
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
 import { bossRewardTaken } from "@/lib/boss/queries";
+import { commentCaption } from "@/lib/coach/comments";
 import { getWorkoutComments, markCommentsRead } from "@/lib/coach/comments-queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { differsFromTemplate } from "@/lib/templates/from-workout";
@@ -45,7 +46,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
         if (!comment) return null;
         if (workoutExerciseId) return <CoachExerciseNote comment={comment} />;
         return (
-          <CoachCommentSection caption={coachCommentCaption(comment)}>
+          <CoachCommentSection caption={commentCaption(comment.coachName, comment.updatedAt, safeTimeZone(user.timeZone))}>
             <p className="mt-2 whitespace-pre-line text-sm">{comment.text}</p>
           </CoachCommentSection>
         );

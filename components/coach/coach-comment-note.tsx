@@ -1,8 +1,6 @@
 import { MessageSquareText } from "lucide-react";
 import type { CommentView } from "@/lib/coach/comments-queries";
 
-const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
-
 /** Клиенту: заметка тренера в блоке упражнения. */
 export function CoachExerciseNote({ comment }: { comment: CommentView }) {
   return (
@@ -24,8 +22,4 @@ export function CoachCommentSection({ children, caption }: { children: React.Rea
       {children}
     </section>
   );
-}
-
-export function coachCommentCaption(comment: CommentView) {
-  return `Комментарий тренера · ${comment.coachName}, ${dateFormat.format(comment.updatedAt)}`;
 }

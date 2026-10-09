@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { makeFriends, mondayWeeksAgo, seedWorkouts, userId, withDb } from "./db";
+import { enableCoach, idOf, linkCoach, makeFriends, mondayWeeksAgo, seedWorkouts, userId, withDb } from "./db";
 import { pickOption, quickWorkout, registerUser } from "./helpers";
 
 /** Победа над боссом `code` n недель назад (строка BossWeek напрямую). */
@@ -175,4 +175,27 @@ test("second win over the same boss unlocks nothing", async ({ page }) => {
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   await expect(page.getByTestId("boss-damage")).toContainText("Повержен!");
   await expect(page.getByTestId("boss-title-unlocked")).toHaveCount(0);
+});
+
+test("a coach viewing the client's boss win sees the unlocked title without «Выбрать»", async ({ page, browser }) => {
+  test.slow();
+  const client = await registerUser(page);
+  await seedWorkouts(client.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
+  await expect(page.getByTestId("boss-title-unlocked")).toBeVisible();
+  const workoutId = page.url().split("/").at(-1)!;
+
+  const context = await browser.newContext();
+  const coachPage = await context.newPage();
+  try {
+    const coach = await registerUser(coachPage, "Тренер");
+    await enableCoach(coach.login, `Ttl_${coach.login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`);
+    await linkCoach(coach.login, client.login);
+    await coachPage.goto(`/coach/clients/${await idOf(client.login)}/workouts/${workoutId}`);
+    const unlocked = coachPage.getByTestId("boss-title-unlocked");
+    await expect(unlocked).toContainText(/Открыт титул «Гроза .+»/);
+    await expect(unlocked.getByRole("link", { name: "Выбрать" })).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });

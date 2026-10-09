@@ -32,7 +32,6 @@ const TABS = [
 type Tab = (typeof TABS)[number]["id"];
 
 const since = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
-const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
 const hours = (sec: number) => `${(sec / 3600).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
 const compactKg = (n: number) => `${new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(n)} кг`;
 
@@ -79,7 +78,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
       </nav>
       {tab === "overview" ? <Overview clientId={client.id} streak={clientWeek(client, new Date(), tz).streak} tz={tz} xp={client.xp} base={base} /> : null}
       {tab === "plan" ? <Plan coachId={coach.id} clientId={client.id} tz={tz} base={base} /> : null}
-      {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
+      {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} tz={tz} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
   );
@@ -159,7 +158,9 @@ async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId
   );
 }
 
-async function Workouts({ clientId, coachId, base, cursor }: { clientId: string; coachId: string; base: string; cursor: string | null }) {
+async function Workouts({ clientId, coachId, tz, base, cursor }: { clientId: string; coachId: string; tz: string; base: string; cursor: string | null }) {
+  // День тренировки — по календарю клиента (сервер живёт по UTC)
+  const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: tz });
   const { workouts, next } = await getClientWorkouts(clientId, coachId, cursor);
   if (!workouts.length) return <p className="text-sm text-muted-foreground">Клиент ещё не завершил ни одной тренировки.</p>;
   return (
