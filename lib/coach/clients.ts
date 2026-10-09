@@ -1,6 +1,7 @@
 /** Список клиентов тренера: имя, метки внимания, сортировка (чистые функции). */
 import { dayKey } from "@/lib/daily-login";
 import { plural } from "@/lib/format";
+import { streakStatus, streakValue, weekKey, type StreakUserFields } from "@/lib/progress/weekly-streak";
 
 export type ClientRow = {
   id: string;
@@ -54,4 +55,12 @@ export function lastWorkoutLabel(at: Date | null, now: Date, timeZone: string): 
   if (days <= 0) return "сегодня";
   if (days === 1) return "вчера";
   return `${days} ${plural(days, "день", "дня", "дней")} назад`;
+}
+
+/** Тренировок на этой неделе и живая серия — по календарю клиента (не тренера и не сервера). */
+export function clientWeek(fields: StreakUserFields, now: Date, timeZone: string): { weekCount: number; streak: number } {
+  return {
+    weekCount: fields.weekWorkoutsKey === weekKey(now, timeZone) ? fields.weekWorkouts : 0,
+    streak: streakValue(streakStatus(fields, now, timeZone)),
+  };
 }

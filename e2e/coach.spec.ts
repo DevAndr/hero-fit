@@ -298,3 +298,23 @@ test("coach mode off hides the clients section; on again restores it", async ({ 
     await client.context.close();
   }
 });
+
+test("disconnecting the coach offline does not crash the page", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  await enableCoach(coach.login, nickOf(coach.login, "Coach"));
+  const client = await another(browser);
+  try {
+    await linkCoach(coach.login, client.login);
+    await client.page.goto("/settings");
+    await client.page.getByRole("button", { name: "Отключить тренера" }).click();
+    await client.context.setOffline(true);
+    await client.page.getByRole("alertdialog").getByRole("button", { name: "Отключить" }).click();
+    await expect(client.page.getByText("Не удалось отключить тренера — проверьте связь")).toBeVisible();
+    await expect(client.page.getByRole("heading", { level: 1, name: "Настройки" })).toBeVisible();
+    await client.context.setOffline(false);
+    expect(await activeCoachLinks(client.login)).toEqual([coach.login]);
+  } finally {
+    await client.context.close();
+  }
+});

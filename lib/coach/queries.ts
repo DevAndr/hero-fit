@@ -2,10 +2,9 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { WorkoutStatus } from "@/generated/prisma/enums";
-import { clientDisplayName, type ClientRow } from "@/lib/coach/clients";
+import { clientDisplayName, clientWeek, type ClientRow } from "@/lib/coach/clients";
 import { safeTimeZone } from "@/lib/daily-login";
 import { levelProgress } from "@/lib/progress/level";
-import { streakStatus, streakValue, weekKey } from "@/lib/progress/weekly-streak";
 import { decodeCursor, encodeCursor } from "@/lib/social/feed";
 import { getProgressionHints } from "@/lib/stats/queries";
 import { generateFriendCode, normalizeFriendCode } from "@/lib/social/league";
@@ -88,8 +87,7 @@ export async function getCoachClients(coachId: string, now = new Date()): Promis
         level: levelProgress(c.xp).level,
         lastWorkoutAt: lastBy.get(c.id) ?? null,
         linkedAt: createdAt,
-        weekCount: c.weekWorkoutsKey === weekKey(now, tz) ? c.weekWorkouts : 0,
-        streak: streakValue(streakStatus(c, now, tz)),
+        ...clientWeek(c, now, tz),
         hints: Object.keys(hints).length,
         timeZone: tz,
       };

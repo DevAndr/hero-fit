@@ -73,9 +73,15 @@ export function MyCoachCard({ name, since }: { name: string; since: Date }) {
 
   const disconnect = () =>
     startTransition(async () => {
-      await endCoachLinkAction();
-      setOpen(false);
-      toast.success("Тренер больше не видит ваши тренировки");
+      try {
+        await endCoachLinkAction();
+        setOpen(false);
+        toast.success("Тренер больше не видит ваши тренировки");
+      } catch {
+        // Нет сети — без падения страницы, связь не тронута
+        setOpen(false);
+        toast.error("Не удалось отключить тренера — проверьте связь");
+      }
     });
 
   return (

@@ -9,8 +9,8 @@ import { StatsView } from "@/components/stats/stats-view";
 import { buttonVariants } from "@/components/ui/button";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
-import { clientDisplayName } from "@/lib/coach/clients";
-import { getClientWorkouts, getCoachClients } from "@/lib/coach/queries";
+import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
+import { getClientWorkouts } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
 import { safeTimeZone } from "@/lib/daily-login";
 import { formatClock, plural } from "@/lib/format";
@@ -45,7 +45,7 @@ function Tile({ label, value }: { label: string; value: string }) {
 /** Карточка клиента у тренера — только чтение, доступ проверяет requireClientOf. */
 export default async function CoachClientPage({ params, searchParams }: PageProps<"/coach/clients/[id]">) {
   const { id } = await params;
-  const { client, linkedAt, coach } = await requireClientOf(id);
+  const { client, linkedAt } = await requireClientOf(id);
   const query = await searchParams;
   const tab: Tab = TABS.find((t) => t.id === query.tab)?.id ?? "overview";
   const tz = safeTimeZone(client.timeZone);
@@ -74,27 +74,25 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
           </Link>
         ))}
       </nav>
-      {tab === "overview" ? <Overview clientId={client.id} coachId={coach.id} tz={tz} xp={client.xp} base={base} /> : null}
+      {tab === "overview" ? <Overview clientId={client.id} streak={clientWeek(client, new Date(), tz).streak} tz={tz} xp={client.xp} base={base} /> : null}
       {tab === "workouts" ? <Workouts clientId={client.id} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
   );
 }
 
-async function Overview({ clientId, coachId, tz, xp, base }: { clientId: string; coachId: string; tz: string; xp: number; base: string }) {
+async function Overview({ clientId, streak, tz, xp, base }: { clientId: string; streak: number; tz: string; xp: number; base: string }) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, rows, recent] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
-    getCoachClients(coachId, now),
     db.workoutExercise.findMany({
       where: { workout: { userId: clientId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } } },
       select: { exerciseId: true, exercise: { select: { name: true } } },
       distinct: ["exerciseId"],
     }),
   ]);
-  const streak = rows.find((r) => r.id === clientId)?.streak ?? 0;
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
   const hinted = recent.filter((r) => hints[r.exerciseId]);
 

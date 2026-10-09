@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientDisplayName, clientFlags, lastWorkoutLabel, sortClients, type ClientRow } from "./clients";
+import { clientDisplayName, clientFlags, clientWeek, lastWorkoutLabel, sortClients, type ClientRow } from "./clients";
 
 const NOW = new Date("2026-10-09T12:00:00Z");
 const DAY = 86_400_000;
@@ -69,5 +69,21 @@ describe("lastWorkoutLabel", () => {
     expect(lastWorkoutLabel(ago(3 * DAY), NOW, tz)).toBe("3 дня назад");
     expect(lastWorkoutLabel(ago(5 * DAY), NOW, tz)).toBe("5 дней назад");
     expect(lastWorkoutLabel(ago(21 * DAY), NOW, tz)).toBe("21 день назад");
+  });
+});
+
+describe("clientWeek — неделя и серия в поясе клиента", () => {
+  const fields = { currentStreak: 3, lastStreakWeek: "2026-10-05", streakFreezes: 0, weekWorkouts: 2, weekWorkoutsKey: "2026-10-05", freezeGrantedAt: null };
+  it("тренировки этой недели и живая серия", () => {
+    expect(clientWeek(fields, NOW, "Europe/Moscow")).toEqual({ weekCount: 2, streak: 3 });
+  });
+  it("счётчик другой недели не считается", () => {
+    expect(clientWeek({ ...fields, weekWorkoutsKey: "2026-09-28" }, NOW, "Europe/Moscow").weekCount).toBe(0);
+  });
+  it("понедельник у клиента наступил раньше, чем на сервере (UTC)", () => {
+    // вс 22:30 UTC = пн 01:30 во Владивостоке: у клиента уже новая неделя
+    const sundayNight = new Date("2026-10-11T22:30:00Z");
+    expect(clientWeek(fields, sundayNight, "Asia/Vladivostok").weekCount).toBe(0);
+    expect(clientWeek(fields, sundayNight, "UTC").weekCount).toBe(2);
   });
 });

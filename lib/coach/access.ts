@@ -20,7 +20,21 @@ export async function requireClientOf(clientId: string) {
     where: { coachId: coach.id, clientId, endedAt: null },
     select: {
       createdAt: true,
-      client: { select: { id: true, nickname: true, name: true, timeZone: true, xp: true, currentStreak: true } },
+      client: {
+        select: {
+          id: true,
+          nickname: true,
+          name: true,
+          timeZone: true,
+          xp: true,
+          currentStreak: true,
+          lastStreakWeek: true,
+          streakFreezes: true,
+          weekWorkouts: true,
+          weekWorkoutsKey: true,
+          freezeGrantedAt: true,
+        },
+      },
     },
   });
   if (!link) notFound();
