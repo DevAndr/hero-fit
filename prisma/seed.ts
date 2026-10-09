@@ -665,6 +665,29 @@ async function seedDemoRecaps(exerciseIds: Map<string, string>) {
   return rows.length;
 }
 
+// ───────────── Тестовый тренер (режим тренера) — только для разработки ─────────────
+
+/** Постоянный код приглашения demo.coach: /coach/join/DEMXTRNR (алфавит кода — без 0/O/1/I/L). */
+const DEMO_COACH = { login: "demo.coach", name: "Тренер", nickname: "Coach_Demo", code: "DEMXTRNR", clients: ["demo.masha", "demo.boris"] };
+
+async function seedDemoCoach(passwordHash: string) {
+  const profile = { name: DEMO_COACH.name, nickname: DEMO_COACH.nickname, nicknameKey: DEMO_COACH.nickname.toLowerCase(), isCoach: true, coachCode: DEMO_COACH.code };
+  const coach = await db.user.upsert({
+    where: { login: DEMO_COACH.login },
+    create: { login: DEMO_COACH.login, email: `${DEMO_COACH.login}@hero-fit.local`, passwordHash, onboardedAt: new Date(), ...profile },
+    update: { passwordHash, ...profile },
+    select: { id: true },
+  });
+  const clients = await db.user.findMany({ where: { login: { in: DEMO_COACH.clients } }, select: { id: true } });
+  const clientIds = clients.map((c) => c.id);
+  // Пересоздаём: связи тренера и активные связи его клиентов с другими (у клиента одна активная)
+  await db.coachLink.deleteMany({ where: { OR: [{ coachId: coach.id }, { clientId: { in: clientIds }, endedAt: null }] } });
+  const day = 86_400_000;
+  await db.coachLink.createMany({
+    data: clientIds.map((clientId, i) => ({ coachId: coach.id, clientId, createdAt: new Date(Date.now() - (14 + i * 7) * day) })),
+  });
+}
+
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
@@ -678,6 +701,8 @@ async function main() {
     await recomputeStreak(db, demo.id, new Date());
     console.log(`Demo weekly recaps: ${await seedDemoRecaps(exerciseIds)}`);
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
+    await seedDemoCoach(demoHash);
+    console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")}, приглашение /coach/join/${DEMO_COACH.code}`);
   }
 }
 
