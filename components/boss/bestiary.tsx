@@ -1,4 +1,5 @@
 import { Star } from "lucide-react";
+import { BossDetails } from "@/components/boss/boss-details";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import type { BestiaryEntry } from "@/lib/boss/bestiary";
 import { BOSSES } from "@/lib/boss/bosses";
@@ -22,7 +23,12 @@ function Stars({ stars }: { stars: number }) {
 function BossEntry({ entry }: { entry: BestiaryEntry }) {
   const open = entry.wins > 0;
   return (
-    <article className="flex gap-4 rounded-xl border bg-card p-4" data-testid={`bestiary-${entry.code}`} aria-label={open ? entry.name : "Неизвестный босс"}>
+    <article
+      className={cn(
+        "relative flex gap-4 rounded-xl border bg-card p-4",
+        open && "transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+      )}
+      data-testid={`bestiary-${entry.code}`} aria-label={open ? entry.name : "Неизвестный босс"}>
       <BossSprite code={entry.code} size={72} className={cn(!open && "brightness-0 opacity-40")} />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -57,6 +63,7 @@ function BossEntry({ entry }: { entry: BestiaryEntry }) {
           )}
         </ul>
       </div>
+      {open ? <BossDetails entry={entry} /> : null}
     </article>
   );
 }

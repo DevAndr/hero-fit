@@ -5,7 +5,8 @@ describe("bossForWeek", () => {
   it("по кругу по номеру недели", () => {
     expect(bossForWeek("2024-01-01")).toBe("golem");
     expect(bossForWeek("2024-01-08")).toBe("troll");
-    expect(bossForWeek("2024-01-29")).toBe("golem");
+    expect(bossForWeek("2024-03-18")).toBe("void");
+    expect(bossForWeek("2024-03-25")).toBe("golem");
   });
 });
 

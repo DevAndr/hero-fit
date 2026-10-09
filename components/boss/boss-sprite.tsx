@@ -2,12 +2,42 @@ import Image, { type StaticImageData } from "next/image";
 import { Skull } from "lucide-react";
 import type { BossCode } from "@/lib/boss/bosses";
 import { cn } from "@/lib/utils";
+import boneLich from "@/assets/icons/game/bosses/bone_lich.png";
+import crystalGuardian from "@/assets/icons/game/bosses/crystal_guardian.png";
+import fireDragon from "@/assets/icons/game/bosses/fire_dragon.png";
+import forestTree from "@/assets/icons/game/bosses/forest_tree.png";
+import guardianRunes from "@/assets/icons/game/bosses/guardian_runes.png";
+import iceTroll from "@/assets/icons/game/bosses/ice_troll.png";
+import ironGolem from "@/assets/icons/game/bosses/iron_golem.png";
+import poisonousQueen from "@/assets/icons/game/bosses/poisonous_queen.png";
+import sandSpike from "@/assets/icons/game/bosses/sand_spike.png";
+import shadowKnight from "@/assets/icons/game/bosses/shadow_knight.png";
+import thunderstormTitan from "@/assets/icons/game/bosses/thunderstorm_titan.png";
+import voidTitan from "@/assets/icons/game/bosses/void_titan.png";
 
 /**
- * Спрайты боссов: `assets/icons/game/boss_<code>.png`, статический импорт (next/image ужимает в WebP).
- * Добавить: `import golem from "@/assets/icons/game/boss_golem.png"` и `golem` в SPRITES. Без спрайта — заглушка.
+ * Спрайты боссов: `assets/icons/game/bosses/*.png`, статический импорт (next/image ужимает в WebP).
+ * Новый босс — импорт и строка в SPRITES. Без спрайта (неизвестный код) — заглушка.
  */
-const SPRITES: Partial<Record<BossCode, StaticImageData>> = {};
+const SPRITES: Record<BossCode, StaticImageData> = {
+  golem: ironGolem,
+  troll: iceTroll,
+  dragon: fireDragon,
+  knight: shadowKnight,
+  lich: boneLich,
+  treant: forestTree,
+  colossus: sandSpike,
+  crystal: crystalGuardian,
+  storm: thunderstormTitan,
+  queen: poisonousQueen,
+  runes: guardianRunes,
+  void: voidTitan,
+};
+
+/** Картинка босса целиком (бестиарий); неизвестный код — null. */
+export function bossImage(code: string): StaticImageData | null {
+  return SPRITES[code as BossCode] ?? null;
+}
 
 /** Декоративно: имя босса всегда рядом текстом. */
 export function BossSprite({
@@ -21,7 +51,7 @@ export function BossSprite({
   size: number;
   className?: string;
 }) {
-  const sprite = SPRITES[code as BossCode];
+  const sprite = bossImage(code);
   return (
     <span
       aria-hidden

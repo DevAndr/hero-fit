@@ -28,7 +28,52 @@ test("bestiary: one golem win", async ({ page }) => {
   await expect(golem.getByTestId("title-earned")).toHaveText(["Гроза Голема"]);
   await expect(page.getByTestId("bestiary-troll")).toContainText("???");
   await expect(page.getByText("На арене сейчас")).toHaveCount(1);
-  await expect(page.getByTestId("bestiary-legend")).toContainText("звёзды у 1 из 4 боссов");
+  await expect(page.getByTestId("bestiary-legend")).toContainText("звёзды у 1 из 12 боссов");
+});
+
+test("bestiary: a defeated boss opens details, an unknown one does not", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await bossWin(login, "golem", 2);
+  await page.goto("/achievements?tab=bestiary");
+
+  await expect(page.getByTestId("bestiary-troll").getByRole("button")).toHaveCount(0);
+  await page.getByRole("button", { name: "Железный Голем: подробнее" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Железный Голем" });
+  await expect(dialog).toContainText("ржавых грифов");
+  await expect(dialog).toContainText("Побед1");
+  await expect(dialog.getByRole("list", { name: "История боёв" }).getByRole("listitem")).toHaveCount(1);
+  await expect(dialog.getByRole("listitem").filter({ hasText: "Гроза Голема" })).toContainText("получен");
+  await expect(dialog.getByRole("listitem").filter({ hasText: "Кошмар Голема" })).toContainText("1 / 3 победы");
+
+  const viewer = dialog.getByRole("button", { name: "Рассмотреть поближе" });
+  await viewer.click();
+  await expect(dialog.getByRole("button", { name: "Уменьшить картинку" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Enter");
+  await expect(viewer).toHaveAttribute("aria-pressed", "false");
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test.describe("with motion", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("bestiary: the boss picture tilts after the mouse", async ({ page, isMobile }) => {
+    test.skip(isMobile, "наклон — только мышью");
+    const { login } = await registerUser(page);
+    await bossWin(login, "golem", 2);
+    await page.goto("/achievements?tab=bestiary");
+    await page.getByRole("button", { name: "Железный Голем: подробнее" }).click();
+
+    const viewer = page.getByTestId("boss-viewer");
+    const box = (await viewer.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.1);
+    await expect(viewer).toHaveAttribute("data-tilt", "");
+    await expect(viewer).toHaveCSS("transform", /matrix3d/);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height + 200);
+    await expect(viewer).not.toHaveAttribute("data-tilt");
+  });
 });
 
 const titleCode = (login: string) =>

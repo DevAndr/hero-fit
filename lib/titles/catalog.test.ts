@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BOSSES } from "@/lib/boss/bosses";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import type { BossWins } from "@/lib/titles/catalog";
 import { availableTitles, bossStars, bossTitles, titleForAchievement, titleLabel, titlesUnlockedByWin } from "@/lib/titles/catalog";
@@ -21,9 +22,10 @@ describe("availableTitles", () => {
     expect(labels({ golem: 3 })).toEqual(["Гроза Голема", "Кошмар Голема"]);
   });
 
-  it("«Легенда бестиария» — только при победе над всеми четырьмя", () => {
-    expect(labels({ golem: 1, troll: 1, dragon: 1 })).not.toContain("Легенда бестиария");
-    expect(labels({ golem: 1, troll: 1, dragon: 1, knight: 1 })).toContain("Легенда бестиария");
+  it("«Легенда бестиария» — только при победе над всеми боссами", () => {
+    const all = Object.fromEntries(BOSSES.map((b) => [b.code, 1]));
+    expect(labels({ ...all, void: 0 })).not.toContain("Легенда бестиария");
+    expect(labels(all)).toContain("Легенда бестиария");
   });
 
   it("порядок: боссы, легенда, ачивки по каталогу", () => {
@@ -70,7 +72,9 @@ describe("titlesUnlockedByWin", () => {
   });
 
   it("последняя недостающая первая звезда открывает легенду", () => {
-    expect(codes(titlesUnlockedByWin({ golem: 4, troll: 1, dragon: 2 }, "knight"))).toEqual(["boss:knight:1", "legend"]);
+    const others = Object.fromEntries(BOSSES.filter((b) => b.code !== "knight").map((b) => [b.code, 2]));
+    expect(codes(titlesUnlockedByWin(others, "knight"))).toEqual(["boss:knight:1", "legend"]);
+    expect(codes(titlesUnlockedByWin({ golem: 4, troll: 1, dragon: 2 }, "knight"))).toEqual(["boss:knight:1"]);
   });
 });
 

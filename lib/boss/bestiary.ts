@@ -16,7 +16,11 @@ export type BestiaryEntry = {
   bestDamage: number;
   /** Через сколько недель снова на арене; 0 — босс текущей недели. */
   weeksUntil: number;
+  /** Недели с боем (урон или победа), от новых к старым, не больше `HISTORY_LIMIT`. */
+  history: { week: string; damage: number; won: boolean; current: boolean }[];
 };
+
+const HISTORY_LIMIT = 10;
 
 /** Бестиарий: по карточке на каждого босса в порядке ротации. */
 export function bestiary(rows: BestiaryRow[], currentWeek: string): BestiaryEntry[] {
@@ -33,6 +37,11 @@ export function bestiary(rows: BestiaryRow[], currentWeek: string): BestiaryEntr
       firstWin: wins.length ? new Date(Math.min(...wins)).toISOString() : null,
       bestDamage: Math.max(0, ...mine.map((r) => r.damage)),
       weeksUntil,
+      history: mine
+        .filter((r) => r.damage > 0 || r.defeatedAt)
+        .sort((a, b) => b.week.localeCompare(a.week))
+        .slice(0, HISTORY_LIMIT)
+        .map((r) => ({ week: r.week, damage: r.damage, won: !!r.defeatedAt, current: r.week === currentWeek })),
     };
   });
 }
