@@ -122,3 +122,29 @@ test("a coach without the link gets 404; comments stay with the client after dis
     await stranger.context.close();
   }
 });
+
+test("after the client reads the summary, the next comment is a new notification", async ({ page, browser }) => {
+  test.slow();
+  const { client, workoutId, coachUrl } = await setup(page, browser);
+  try {
+    await page.goto(coachUrl);
+    const general = page.getByRole("region", { name: "Комментарий тренера" });
+    await general.getByLabel("Комментарий тренера").fill("Первый отзыв");
+    await general.getByRole("button", { name: "Сохранить" }).click();
+    await saved(general.getByLabel("Комментарий тренера"));
+
+    // Клиент открыл сводку (например, по push), колокольчик не трогал
+    await client.page.goto(`/workouts/${workoutId}`);
+    await expect(client.page.getByRole("region", { name: "Комментарий тренера" })).toContainText("Первый отзыв");
+
+    await page.getByRole("button", { name: "Заметка к «Жим штанги лёжа»" }).click();
+    await page.getByLabel("Заметка к «Жим штанги лёжа»").fill("Второй отзыв");
+    await page.getByRole("button", { name: "Сохранить заметку" }).click();
+    await saved(page.getByLabel("Заметка к «Жим штанги лёжа»"));
+
+    await bell(client.page);
+    await expect(client.page.getByText("Комментарий тренера к «Тренировка»")).toHaveCount(2);
+  } finally {
+    await client.context.close();
+  }
+});

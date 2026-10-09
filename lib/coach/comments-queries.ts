@@ -1,4 +1,5 @@
 import "server-only";
+import { NotificationType } from "@/generated/prisma/enums";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { db } from "@/lib/db";
 
@@ -20,7 +21,15 @@ export async function getWorkoutComments(workoutId: string, coachId?: string): P
   }));
 }
 
-/** Клиент открыл сводку — его непрочитанные комментарии к этой тренировке прочитаны. */
+/**
+ * Клиент открыл сводку — комментарии к этой тренировке прочитаны, и уведомление о них тоже:
+ * иначе следующий комментарий молча обновит старое уведомление без push (группировка — по непрочитанному).
+ */
 export async function markCommentsRead(clientId: string, workoutId: string) {
-  await db.coachComment.updateMany({ where: { clientId, workoutId, readAt: null }, data: { readAt: new Date() } });
+  const now = new Date();
+  await db.coachComment.updateMany({ where: { clientId, workoutId, readAt: null }, data: { readAt: now } });
+  await db.notification.updateMany({
+    where: { userId: clientId, type: NotificationType.COACH, url: `/workouts/${workoutId}`, readAt: null },
+    data: { readAt: now },
+  });
 }
