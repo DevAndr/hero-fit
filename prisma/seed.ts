@@ -729,6 +729,31 @@ async function seedDemoCoach(passwordHash: string, exerciseIds: Map<string, stri
     data: clientIds.map((clientId, i) => ({ coachId: coach.id, clientId, createdAt: new Date(Date.now() - (14 + i * 7) * day) })),
   });
   await seedCoachPlans(coach.id, exerciseIds);
+  await seedCoachComments(coach.id);
+}
+
+/** Комментарии тренера к свежей тренировке Маши: общий и заметка к первому упражнению. */
+async function seedCoachComments(coachId: string) {
+  const masha = await db.user.findUniqueOrThrow({ where: { login: "demo.masha" }, select: { id: true } });
+  await db.coachComment.deleteMany({ where: { coachId, clientId: masha.id } });
+  const workout = await db.workout.findFirst({
+    where: { userId: masha.id, status: "COMPLETED" },
+    orderBy: { finishedAt: "desc" },
+    select: { id: true, exercises: { orderBy: { order: "asc" }, take: 1, select: { id: true } } },
+  });
+  if (!workout) return;
+  await db.coachComment.createMany({
+    data: [
+      { coachId, clientId: masha.id, workoutId: workout.id, text: "Отличная работа и новый рекорд! В следующий раз держи паузу внизу на секунду." },
+      ...workout.exercises.map((we) => ({
+        coachId,
+        clientId: masha.id,
+        workoutId: workout.id,
+        workoutExerciseId: we.id,
+        text: "Темп хороший, последний подход можно было дожать ещё на один повтор.",
+      })),
+    ],
+  });
 }
 
 async function main() {
@@ -745,7 +770,7 @@ async function main() {
     console.log(`Demo weekly recaps: ${await seedDemoRecaps(exerciseIds)}`);
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
     await seedDemoCoach(demoHash, exerciseIds);
-    console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")} (Маше назначен «${COACH_TEMPLATE.name}» пн/ср/пт), приглашение /coach/join/${DEMO_COACH.code}`);
+    console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")} (Маше назначен «${COACH_TEMPLATE.name}» пн/ср/пт и оставлены комментарии к свежей тренировке), приглашение /coach/join/${DEMO_COACH.code}`);
   }
 }
 
