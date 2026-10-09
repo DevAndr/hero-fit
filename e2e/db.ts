@@ -155,3 +155,40 @@ export async function addSubscription(login: string, sub: { endpoint: string; p2
 export async function resetOnboarding(login: string) {
   await withDb((db) => db.query(`update "User" set "onboardedAt" = null where login = $1`, [login]));
 }
+
+/** Режим тренера с ником и кодом приглашения; возвращает код (без дефиса). */
+export async function enableCoach(login: string, nickname: string) {
+  // Алфавит кода друга/тренера — без 0/O, 1/I/L
+  const ABC = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const code = Array.from(randomUUID().replace(/-/g, "").slice(0, 8), (ch) => ABC[parseInt(ch, 16) % ABC.length]).join("");
+  await withDb((db) =>
+    db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2), "isCoach" = true, "coachCode" = $3 where login = $1`, [
+      login,
+      nickname,
+      code,
+    ]),
+  );
+  return code;
+}
+
+/** Активная связь тренер → клиент (минуя экран согласия). */
+export async function linkCoach(coachLogin: string, clientLogin: string) {
+  await withDb(async (db) => {
+    await db.query(`insert into "CoachLink" (id, "coachId", "clientId") values ($1, $2, $3)`, [
+      randomUUID(),
+      await userId(db, coachLogin),
+      await userId(db, clientLogin),
+    ]);
+  });
+}
+
+export async function activeCoachLinks(clientLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ coach: string }>(
+      `select c.login as coach from "CoachLink" l join "User" c on c.id = l."coachId" join "User" u on u.id = l."clientId"
+       where u.login = $1 and l."endedAt" is null`,
+      [clientLogin],
+    );
+    return rows.map((r) => r.coach);
+  });
+}

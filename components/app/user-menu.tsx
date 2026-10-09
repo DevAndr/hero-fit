@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { ChartColumn, LogOut, Settings, Swords, Users } from "lucide-react";
+import { ChartColumn, ClipboardCheck, LogOut, Settings, Swords, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import {
 import { usePush } from "@/components/notifications/push-provider";
 import { logoutAction } from "@/lib/auth/actions";
 
-export function UserMenu({ name, login, email }: { name: string | null; login: string; email: string }) {
+export function UserMenu({ name, login, email, isCoach }: { name: string | null; login: string; email: string; isCoach: boolean }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
   const display = name ?? login;
@@ -38,6 +38,12 @@ export function UserMenu({ name, login, email }: { name: string | null; login: s
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        {isCoach ? (
+          <DropdownMenuItem render={<Link href="/coach" />}>
+            <ClipboardCheck />
+            Клиенты
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem render={<Link href="/stats" />}>
           <ChartColumn />
           Статистика

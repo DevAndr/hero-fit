@@ -74,7 +74,7 @@ export function AppShell({
     <div className="ym-hide-content flex min-h-full flex-1">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-6 border-r p-4 lg:flex">
         <Logo />
-        <SidebarNav />
+        <SidebarNav isCoach={user.isCoach} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -91,7 +91,7 @@ export function AppShell({
               Начать тренировку
             </Link>
             {notifications}
-            <UserMenu name={user.name} login={user.login} email={user.email} />
+            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} />
           </div>
         </header>
 

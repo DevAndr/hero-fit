@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "@/components/app/nav";
+import { COACH_NAV_ITEM, NAV_ITEMS } from "@/components/app/nav";
 
 function useIsActive() {
   const pathname = usePathname();
   return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SidebarNav() {
+export function SidebarNav({ isCoach }: { isCoach: boolean }) {
   const isActive = useIsActive();
+  const items = isCoach ? [...NAV_ITEMS, COACH_NAV_ITEM] : NAV_ITEMS;
   return (
     <nav className="flex flex-col gap-1" data-tour="nav">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
