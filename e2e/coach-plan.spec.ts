@@ -256,3 +256,36 @@ test("coach swaps the template for one occurrence of a series; the client starts
     await client.context.close();
   }
 });
+
+test("a running coach workout has no «Пропустить» in the calendar card", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(0), "23:30");
+    await client.page.goto("/dashboard");
+    await client.page.getByRole("region", { name: "План на сегодня" }).getByRole("button", { name: "Начать" }).click();
+    await expect(client.page.getByLabel("Название тренировки")).toHaveValue("Ноги — база");
+    await client.page.goto(`/calendar?date=${localDate(0)}`);
+    await client.page.getByRole("button", { name: /^Ноги — база, .*от тренера/ }).filter({ visible: true }).first().click();
+    const dialog = client.page.getByRole("dialog");
+    await expect(dialog.getByRole("link", { name: "Продолжить" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Пропустить/ })).toHaveCount(0);
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("a skipped one-off no longer keeps the template in «От тренера»", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await client.page.goto(`/calendar?date=${localDate(2)}`);
+    await client.page.getByRole("button", { name: /^Ноги — база, .*от тренера/ }).filter({ visible: true }).first().click();
+    await client.page.getByRole("dialog").getByRole("button", { name: "Пропустить «Ноги — база»" }).click();
+    await expect(client.page.getByText("«Ноги — база» пропущена")).toBeVisible();
+    await client.page.goto("/training");
+    await expect(client.page.getByRole("heading", { name: "Новая тренировка" })).toBeVisible();
+    await expect(client.page.getByRole("region", { name: "От тренера" })).toHaveCount(0);
+  } finally {
+    await client.context.close();
+  }
+});

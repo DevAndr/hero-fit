@@ -118,7 +118,7 @@ function CardBody({
         )}
         {plan && event.status !== "done" && event.coachName ? (
           <>
-            <SkipPlanButton planKey={event.key} title={event.title} />
+            {activePlanKey === event.key ? null : <SkipPlanButton planKey={event.key} title={event.title} />}
             <p className="w-full text-sm text-muted-foreground">Назначено тренером</p>
           </>
         ) : plan && event.status !== "done" ? (
