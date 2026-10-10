@@ -671,7 +671,7 @@ async function seedDemoRecaps(exerciseIds: Map<string, string>) {
 /** Постоянный код приглашения demo.coach: /coach/join/DEMXTRNR (алфавит кода — без 0/O/1/I/L). */
 const DEMO_COACH = { login: "demo.coach", name: "Тренер", nickname: "Coach_Demo", code: "DEMXTRNR", clients: ["demo.masha", "demo.boris"] };
 
-/** Шаблон тренера и его назначение Маше: пн/ср/пт 19:00 с понедельника прошлой недели на 8 недель. */
+/** Шаблон тренера и его назначение Маше: пн/ср/пт 19:00 с понедельника прошлой недели на 8 недель; задания на 2 упражнения. */
 const COACH_TEMPLATE = {
   name: "Ноги — база",
   exercises: [
@@ -709,6 +709,13 @@ async function seedCoachPlans(coachId: string, exerciseIds: Map<string, string>)
       startDate: addDays(monday, weekday),
       endDate,
     })),
+  });
+  // Задания Маше (шаблон пересоздан — прежние ушли каскадом): присед — полностью, румынская тяга — только вес
+  await db.coachTarget.createMany({
+    data: [
+      { clientId: masha.id, templateId: template.id, exerciseId: exerciseIds.get("Приседания со штангой")!, sets: 4, reps: 8, weight: 42.5 },
+      { clientId: masha.id, templateId: template.id, exerciseId: exerciseIds.get("Румынская тяга")!, weight: 35 },
+    ],
   });
 }
 
