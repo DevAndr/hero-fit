@@ -329,3 +329,8 @@ export async function queuePush(login: string, p: { type: string; title: string;
 export async function setNotifyTelegram(login: string, on: boolean) {
   await withDb((db) => db.query(`update "User" set "notifyTelegram" = $2 where login = $1`, [login, on]));
 }
+
+/** Ожидающие записи очереди пользователя — к отправке сейчас. */
+export async function duePushesNow(login: string) {
+  await withDb(async (db) => db.query(`update "ScheduledPush" set "sendAt" = now() where "userId" = $1 and "sentAt" is null`, [await userId(db, login)]));
+}

@@ -18,8 +18,8 @@ export function startTelegramPolling() {
     let offset = 0;
     for (;;) {
       const res = await callBot<{ update_id: number }[]>("getUpdates", { offset, timeout: 25, allowed_updates: ["message"] }, { timeoutMs: 35_000 });
-      if (!res.ok) {
-        console.error("[telegram] getUpdates failed", res.status, res.description);
+      if (!res.ok || !Array.isArray(res.result)) {
+        console.error("[telegram] getUpdates failed", res.ok ? "not an array" : `${res.status} ${res.description}`);
         await new Promise((r) => setTimeout(r, 5_000));
         continue;
       }

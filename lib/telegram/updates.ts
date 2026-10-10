@@ -32,7 +32,8 @@ export async function linkChat(token: string, chat: { id: number; username?: str
     await tx.user.updateMany({ where: { telegramChatId: chatId, NOT: { id: row.userId } }, data: UNLINKED });
     const user = await tx.user.update({
       where: { id: row.userId },
-      data: { telegramChatId: chatId, telegramUsername: chat.username ?? null, telegramLinkedAt: now },
+      // Подключение — явное желание получать уведомления: прежний «выключено» не переживает отвязку
+      data: { telegramChatId: chatId, telegramUsername: chat.username ?? null, telegramLinkedAt: now, notifyTelegram: true },
       select: { nickname: true, login: true },
     });
     return { status: "ok", name: user.nickname ?? user.login };

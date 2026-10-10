@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { linkTelegram, queuePush, setNotifyTelegram, telegramChat, telegramToken } from "./db";
+import { duePushesNow, linkTelegram, queuePush, setNotifyTelegram, telegramChat, telegramToken } from "./db";
 import { registerUser, runTick } from "./helpers";
 import { TELEGRAM_FAKE_URL } from "./telegram-server";
 
@@ -167,12 +167,13 @@ test("unlinked before send — not sent", async ({ page, request }) => {
   const { login } = await registerUser(page);
   const chat = newChat();
   await linkTelegram(login, chat);
-  await queuePush(login, { type: "STREAK", title: "Позже", body: "x", sendAt: new Date(Date.now() + 3000) });
+  // Запись ждёт в очереди далеко в будущем — фоновый воркер не отправит её, пока идёт отключение
+  await queuePush(login, { type: "STREAK", title: "Позже", body: "x", sendAt: new Date(Date.now() + 3_600_000) });
 
   await page.goto("/settings");
   await page.getByRole("region", { name: "Telegram" }).getByRole("button", { name: "Отключить" }).click();
   await expect(page.getByRole("region", { name: "Telegram" }).getByRole("button", { name: "Подключить" })).toBeVisible();
-  await page.waitForTimeout(3500);
+  await duePushesNow(login);
   await runTick(request);
   await page.waitForTimeout(6000);
   expect(await sent(chat)).toEqual([]);
@@ -187,4 +188,18 @@ test("blocked bot unlinks", async ({ page, request }) => {
 
   await runTick(request);
   await expect.poll(() => telegramChat(login)).toBeNull();
+});
+
+test("re-linking turns Telegram notifications back on", async ({ page, request }) => {
+  const { login } = await registerUser(page);
+  const card = await startLink(page);
+  const chat = newChat();
+  await tgUpdate(request, chat, `/start ${await telegramToken(login)}`);
+  await setNotifyTelegram(login, false);
+  await tgUpdate(request, chat, "/stop");
+
+  await startLink(page);
+  await tgUpdate(request, chat, `/start ${await telegramToken(login)}`);
+  await page.reload();
+  await expect(card.getByRole("switch", { name: "Присылать в Telegram" })).toBeChecked();
 });
