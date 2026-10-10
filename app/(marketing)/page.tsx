@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Sparkles, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
 import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
@@ -24,6 +24,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
+import { telegramEnabled } from "@/lib/telegram/format";
+import { telegramAppUrl } from "@/lib/telegram/links";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -163,7 +165,7 @@ const PREMIUM_PLAN = [
 const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[] = [
   {
     title: "Приглашение по ссылке",
-    text: "Отправьте клиенту ссылку — он сам разрешает доступ к своим тренировкам и в любой момент может его отозвать.",
+    text: "Отправьте клиенту ссылку — или ссылку в Telegram: клиент откроет Hero Fit прямо в мессенджере, без пароля. Доступ к своим тренировкам он разрешает сам и в любой момент может отозвать.",
     visual: <InviteFlow />,
   },
   {
@@ -207,6 +209,8 @@ function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: st
 
 export default async function Home() {
   await connection();
+  // Mini App в Telegram — только при настроенном боте
+  const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
   const [exercises, programs] = await Promise.all([
     db.exercise.count({ where: { userId: null } }),
     db.workoutTemplate.count({ where: { userId: null } }),
@@ -258,7 +262,7 @@ export default async function Home() {
         <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-28 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20 lg:pb-32">
           <div className="space-y-7">
             <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
-              <Dumbbell className="size-4 text-primary" aria-hidden /> Бесплатно · в браузере и офлайн
+              <Dumbbell className="size-4 text-primary" aria-hidden /> {telegramUrl ? "Бесплатно · в браузере, Telegram и офлайн" : "Бесплатно · в браузере и офлайн"}
             </p>
             <h1 className="hf-rise font-display text-4xl leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl" style={{ animationDelay: "0.05s" }}>
               Дневник тренировок, который превращает зал в <span className="text-primary">игру</span>
@@ -271,12 +275,18 @@ export default async function Home() {
               <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-6 text-base" })}>
                 Начать бесплатно <ArrowRight aria-hidden />
               </Link>
-              <Link href="#features" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
-                Что умеет
-              </Link>
+              {telegramUrl ? (
+                <a href={telegramUrl} className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
+                  <Send aria-hidden /> Открыть в Telegram
+                </a>
+              ) : (
+                <Link href="#features" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
+                  Что умеет
+                </Link>
+              )}
             </div>
             <ul className="hf-rise flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" style={{ animationDelay: "0.2s" }}>
-              {["Без установки", "Готовые программы", "Работает без сети"].map((t) => (
+              {["Без установки", "Готовые программы", "Работает без сети", ...(telegramUrl ? ["Есть в Telegram"] : [])].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
                   <Check className="size-4 text-primary" aria-hidden /> {t}
                 </li>
@@ -544,6 +554,11 @@ export default async function Home() {
               <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-8 text-base" })}>
                 Создать аккаунт <ArrowRight aria-hidden />
               </Link>
+              {telegramUrl ? (
+                <a href={telegramUrl} className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-8 text-base" })}>
+                  <Send aria-hidden /> Открыть в Telegram
+                </a>
+              ) : null}
             </div>
             <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-1.5"><CalendarDays className="size-4 text-primary" aria-hidden /> Календарь и напоминания</li>

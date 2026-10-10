@@ -90,3 +90,12 @@ test("header links to the coaches block", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Тренерам" })).toHaveAttribute("href", "/#coaches");
 });
+
+test("landing offers Hero Fit in Telegram", async ({ page }) => {
+  await page.goto("/");
+  const links = page.getByRole("link", { name: "Открыть в Telegram" });
+  await expect(links).toHaveCount(2);
+  for (const link of await links.all()) await expect(link).toHaveAttribute("href", "https://t.me/hero_fit_e2e_bot?startapp");
+  await expect(page.getByText("Бесплатно · в браузере, Telegram и офлайн")).toBeVisible();
+  await expect(page.getByText("Есть в Telegram")).toBeVisible();
+});

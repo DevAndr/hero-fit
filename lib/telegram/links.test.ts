@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { telegramJoinUrl } from "./links";
+import { telegramAppUrl, telegramJoinUrl } from "./links";
 
 describe("telegramJoinUrl", () => {
   it("ссылка на Mini App с кодом тренера", () => {
@@ -8,5 +8,12 @@ describe("telegramJoinUrl", () => {
   it("без бота — нет ссылки", () => {
     expect(telegramJoinUrl("ABCDEFGH", undefined)).toBeNull();
     expect(telegramJoinUrl("ABCDEFGH", "")).toBeNull();
+  });
+});
+
+describe("telegramAppUrl", () => {
+  it("ссылка на Main Mini App", () => {
+    expect(telegramAppUrl("hero_bot")).toBe("https://t.me/hero_bot?startapp");
+    expect(telegramAppUrl(undefined)).toBeNull();
   });
 });
