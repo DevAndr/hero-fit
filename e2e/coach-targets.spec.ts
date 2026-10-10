@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { coachAssignOnce, coachTarget, coachTargetCount, coachTemplate, enableCoach, idOf, linkCoach } from "./db";
+import { randomUUID } from "node:crypto";
+import { coachAssignOnce, coachTarget, coachTargetCount, coachTemplate, enableCoach, idOf, linkCoach, withDb } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 import { E2E_TZ_OFFSET } from "./tz";
 
@@ -172,6 +173,26 @@ test("a target for an exercise no longer in the template is ignored", async ({ p
     const bench = client.page.getByRole("region", { name: "Жим штанги лёжа" });
     await expect(bench).toBeVisible();
     await expect(bench).not.toContainText("от тренера");
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("bodyweight exercise has no weight field in the dialog", async ({ page, browser }) => {
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await withDb((db) =>
+      db.query(
+        `insert into "TemplateExercise" (id, "templateId", "exerciseId", "order", "targetSets", "targetReps")
+         select $1, $2, id, 2, 3, 10 from "Exercise" where name = 'Подтягивания' and "userId" is null`,
+        [randomUUID(), templateId],
+      ),
+    );
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    const { dialog } = await openTargets(page, clientId);
+    await expect(dialog.getByLabel("Подходы: Подтягивания")).toBeVisible();
+    await expect(dialog.getByLabel("Вес, кг: Подтягивания")).toHaveCount(0);
+    await expect(dialog.getByLabel(`Вес, кг: ${SQUAT}`)).toBeVisible();
   } finally {
     await client.context.close();
   }

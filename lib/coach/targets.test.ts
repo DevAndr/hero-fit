@@ -49,6 +49,9 @@ describe("formatTarget", () => {
     expect(formatTarget({ sets: 5, reps: null, weight: null })).toBe("от тренера: 5 подходов");
     expect(formatTarget({ sets: null, reps: 12, weight: null })).toBe("от тренера: по 12 повторов");
     expect(formatTarget({ sets: null, reps: null, weight: null })).toBeNull();
+    // Вес 0 — «своим весом»: «0 кг» не пишем
+    expect(formatTarget({ sets: 4, reps: 8, weight: 0 })).toBe("от тренера: 4 × 8");
+    expect(formatTarget({ sets: null, reps: null, weight: 0 })).toBeNull();
   });
 });
 

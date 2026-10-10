@@ -26,6 +26,8 @@ export type ClientTemplateTargets = {
   exercises: {
     exerciseId: string;
     name: string;
+    /** Своим весом — без поля веса в диалоге. */
+    isBodyweight: boolean;
     template: { sets: number; reps: number | null; weight: number | null };
     target: Target | null;
     last: { date: string; sets: PlannedSet[] } | null;
@@ -44,7 +46,7 @@ export async function getClientTargets(clientId: string, coachId: string, timeZo
       exercises: {
         orderBy: { order: "asc" },
         where: { exercise: { archivedAt: null } },
-        select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, exercise: { select: { name: true } } },
+        select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, exercise: { select: { name: true, isBodyweight: true } } },
       },
       coachTargets: { where: { clientId }, select: { exerciseId: true, sets: true, reps: true, weight: true } },
     },
@@ -62,6 +64,7 @@ export async function getClientTargets(clientId: string, coachId: string, timeZo
         .map((e) => ({
           exerciseId: e.exerciseId,
           name: e.exercise.name,
+          isBodyweight: e.exercise.isBodyweight,
           template: { sets: e.targetSets, reps: e.targetReps, weight: e.targetWeight },
           target: targets.get(e.exerciseId) ?? null,
           last: last[e.exerciseId] ?? null,

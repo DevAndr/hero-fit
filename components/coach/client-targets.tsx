@@ -75,7 +75,12 @@ function TargetsForm({
     startTransition(async () => {
       const items = template.exercises.map((e) => {
         const r = rows[e.exerciseId];
-        return { exerciseId: e.exerciseId, sets: parseTargetInput(r.sets, { int: true }), reps: parseTargetInput(r.reps, { int: true }), weight: parseTargetInput(r.weight) };
+        return {
+          exerciseId: e.exerciseId,
+          sets: parseTargetInput(r.sets, { int: true }),
+          reps: parseTargetInput(r.reps, { int: true }),
+          weight: e.isBodyweight ? null : parseTargetInput(r.weight),
+        };
       });
       const bad = template.exercises.find((_, i) => [items[i].sets, items[i].reps, items[i].weight].some((n) => Number.isNaN(n)));
       if (bad) {
@@ -114,14 +119,16 @@ function TargetsForm({
                   placeholder={str(e.template.reps ?? first?.reps) || "—"}
                   onChange={(v) => update(e.exerciseId, { reps: v })}
                 />
-                <Field
-                  label="Вес, кг"
-                  exercise={e.name}
-                  decimal
-                  value={r.weight}
-                  placeholder={str(first?.weight ?? e.template.weight) || "—"}
-                  onChange={(v) => update(e.exerciseId, { weight: v })}
-                />
+                {e.isBodyweight ? null : (
+                  <Field
+                    label="Вес, кг"
+                    exercise={e.name}
+                    decimal
+                    value={r.weight}
+                    placeholder={str(first?.weight ?? e.template.weight) || "—"}
+                    onChange={(v) => update(e.exerciseId, { weight: v })}
+                  />
+                )}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {e.last && first

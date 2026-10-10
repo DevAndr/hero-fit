@@ -34,7 +34,7 @@ export const isEmptyTarget = (t: Target) => t.sets === null && t.reps === null &
 
 const kg = (w: number) => `${w.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
 
-/** «от тренера: 4 × 8 · 60 кг»; пустые поля пропускаются, пустое задание — null. */
+/** «от тренера: 4 × 8 · 60 кг»; пустые поля и вес 0 («своим весом») пропускаются, нечего показать — null. */
 export function formatTarget(t: Target): string | null {
   if (isEmptyTarget(t)) return null;
   const volume =
@@ -45,7 +45,8 @@ export function formatTarget(t: Target): string | null {
         : t.reps !== null
           ? `по ${t.reps} ${plural(t.reps, "повтору", "повтора", "повторов")}`
           : null;
-  return `от тренера: ${[volume, t.weight !== null ? kg(t.weight) : null].filter(Boolean).join(" · ")}`;
+  const parts = [volume, t.weight ? kg(t.weight) : null].filter(Boolean);
+  return parts.length ? `от тренера: ${parts.join(" · ")}` : null;
 }
 
 export const targetSchema = z.object({

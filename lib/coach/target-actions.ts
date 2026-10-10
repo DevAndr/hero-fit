@@ -32,7 +32,8 @@ export async function saveTargetsAction(
   const empty = parsed.data.filter(isEmptyTarget).map((t) => t.exerciseId);
   const filled = parsed.data.filter((t) => !isEmptyTarget(t));
   const before = await db.$transaction(async (tx) => {
-    const count = await tx.coachTarget.count({ where: key });
+    // «Впервые» — только по упражнениям, которые сейчас в шаблоне (задание по убранному не в счёт)
+    const count = await tx.coachTarget.count({ where: { ...key, exerciseId: { in: template.exercises.map((e) => e.exerciseId) } } });
     if (empty.length) await tx.coachTarget.deleteMany({ where: { ...key, exerciseId: { in: empty } } });
     for (const { exerciseId, sets, reps, weight } of filled) {
       await tx.coachTarget.upsert({
