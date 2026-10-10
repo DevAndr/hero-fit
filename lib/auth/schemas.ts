@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nicknameSchema } from "@/lib/social/league";
 
 const login = z
   .string()
@@ -35,8 +36,20 @@ export const registerSchema = z
     confirmPassword: z.string(),
     // 152-ФЗ: отдельное согласие на обработку персональных данных (галочка на форме)
     consent: z.literal("on", { error: "Без согласия на обработку данных зарегистрироваться нельзя" }),
+    // «Я тренер» — сразу режим тренера; клиенты видят тренера по нику, поэтому ник обязателен
+    coach: z
+      .literal("on")
+      .optional()
+      .transform((v) => v === "on"),
+    nickname: z.string().optional(),
   })
-  .refine(passwordsMatch, mismatch);
+  .refine(passwordsMatch, mismatch)
+  .superRefine((d, ctx) => {
+    if (!d.coach) return;
+    const nick = nicknameSchema.safeParse(d.nickname ?? "");
+    if (!nick.success) ctx.addIssue({ code: "custom", path: ["nickname"], message: nick.error.issues[0]?.message ?? "Проверьте ник" });
+  })
+  .transform((d) => ({ ...d, nickname: d.coach ? nicknameSchema.parse(d.nickname) : undefined }));
 
 export const loginSchema = z.object({
   identifier: z.string().trim().toLowerCase().min(1, "Введите логин или email"),

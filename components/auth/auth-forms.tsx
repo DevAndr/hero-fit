@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CircleAlert, CircleCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -99,6 +99,35 @@ function ConsentField({ checked, errors }: { checked: boolean; errors?: string[]
   );
 }
 
+/** «Я тренер»: сразу режим тренера; клиенты видят тренера по нику, поэтому с галочкой ник обязателен. */
+function CoachField({ checked, nickname, errors }: { checked: boolean; nickname?: string; errors?: string[] }) {
+  const [coach, setCoach] = useState(checked);
+  return (
+    <>
+      <Field orientation="horizontal">
+        {/* Значение — скрытым полем: сброс формы после ошибки снимает «галочку» у input чекбокса, а состояние остаётся */}
+        {coach ? <input type="hidden" name="coach" value="on" /> : null}
+        <Checkbox id="field-coach" checked={coach} onCheckedChange={(v) => setCoach(v === true)} />
+        <FieldContent>
+          <FieldLabel htmlFor="field-coach" className="font-normal">
+            Я тренер, буду вести клиентов
+          </FieldLabel>
+        </FieldContent>
+      </Field>
+      {coach ? (
+        <FormField
+          name="nickname"
+          label="Публичный ник"
+          autoComplete="off"
+          defaultValue={nickname}
+          errors={errors}
+          description="Клиенты видят тренера по нику: 3–20 символов, буквы, цифры, «_», «-», «.»"
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function RegisterForm() {
   const [state, action, pending] = useActionState(registerAction, initial);
 
@@ -144,6 +173,12 @@ export function RegisterForm() {
           type="password"
           autoComplete="new-password"
           errors={state.errors?.confirmPassword}
+        />
+        {/* Без key: галочка — своё состояние и переживает ошибку отправки */}
+        <CoachField
+          checked={state.values?.coach === "on"}
+          nickname={state.values?.nickname}
+          errors={state.errors?.nickname}
         />
         <ConsentField key={state.values?.consent ?? "off"} checked={state.values?.consent === "on"} errors={state.errors?.consent} />
         <SubmitButton pending={pending}>Создать аккаунт</SubmitButton>

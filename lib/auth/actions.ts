@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { queueGoal } from "@/lib/analytics/queue";
+import { ensureCoachCode } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
+import { nicknameKey } from "@/lib/social/league";
 import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
 import { ACCESS_COOKIE, clearAuthCookies, REFRESH_COOKIE, writeAuthCookies } from "@/lib/auth/cookies";
@@ -65,18 +67,23 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   const parsed = registerSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values };
 
-  const { login, email, name, password } = parsed.data;
+  const { login, email, name, password, coach, nickname } = parsed.data;
+  const coachProfile = coach && nickname ? { isCoach: true, nickname, nicknameKey: nicknameKey(nickname) } : {};
 
   const taken = await db.user.findFirst({
     where: { OR: [{ login }, { email }] },
     select: { login: true, email: true },
   });
-  if (taken) {
+  const nickTaken = coachProfile.nicknameKey
+    ? await db.user.findFirst({ where: { nicknameKey: coachProfile.nicknameKey }, select: { id: true } })
+    : null;
+  if (taken || nickTaken) {
     return {
       values,
       errors: {
-        login: taken.login === login ? ["Этот логин уже занят"] : undefined,
-        email: taken.email === email ? ["Этот email уже зарегистрирован"] : undefined,
+        login: taken?.login === login ? ["Этот логин уже занят"] : undefined,
+        email: taken?.email === email ? ["Этот email уже зарегистрирован"] : undefined,
+        nickname: nickTaken ? ["Этот ник уже занят"] : undefined,
       },
     };
   }
@@ -84,7 +91,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   let userId: string;
   try {
     const user = await db.user.create({
-      data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date(),
+      data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date(), ...coachProfile,
         onboardedAt: env.ONBOARDING_TOUR === "off" ? new Date() : null,
       },
       select: { id: true },
@@ -93,13 +100,19 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   } catch (e) {
     // Гонка двух одновременных регистраций — подстраховка unique-индексом.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return { values, message: "Логин или email уже заняты" };
+      return { values, message: coach ? "Логин, email или ник уже заняты" : "Логин или email уже заняты" };
     }
     throw e;
   }
 
   await startSession(userId);
   await queueGoal("signup");
+  if (coach) {
+    // Тренер — сразу в кабинет клиентов с готовой ссылкой-приглашением
+    await ensureCoachCode(userId);
+    await queueGoal("coach_enabled");
+    redirect("/coach");
+  }
   redirect("/dashboard");
 }
 
