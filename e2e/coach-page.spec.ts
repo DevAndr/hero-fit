@@ -90,7 +90,7 @@ test("unpublished page: 404 for guests, preview for the coach", async ({ page, b
 
 test("stats appear from 3 clients; hidden stat is not shown", async ({ page, browser }) => {
   const { coach, nick } = await publishedCoach(page);
-  for (const _ of [1, 2]) {
+  for (let i = 0; i < 2; i++) {
     const login = uniqueLogin();
     await createUserRow(login);
     await linkCoach(coach.login, login);
@@ -139,4 +139,33 @@ test("sitemap lists published coach pages only", async ({ page, request }) => {
   await withDb((db) => db.query(`update "User" set "isCoach" = false where login = $1`, [coach.login]));
   expect(await has()).toBe(false);
   expect((await request.get(`/trainer/${nick}`)).status()).toBe(404);
+});
+
+test("viewing the page does not hit the join route (no prefetch)", async ({ page, browser }) => {
+  const { nick } = await publishedCoach(page);
+  const g = await guest(browser);
+  try {
+    const joins: string[] = [];
+    g.page.on("request", (r) => {
+      if (r.url().includes(`/trainer/${nick}/join`)) joins.push(r.url());
+    });
+    await g.page.goto(`/trainer/${nick}`);
+    await g.page.mouse.wheel(0, 4000);
+    await g.page.getByRole("link", { name: "Заниматься" }).first().hover();
+    await g.page.waitForTimeout(1500);
+    expect(joins).toEqual([]);
+  } finally {
+    await g.context.close();
+  }
+});
+
+test("an unpublished page leaks nothing in the 404 response", async ({ page, request }) => {
+  const { coach, nick } = await publishedCoach(page, { about: ABOUT, displayName: "Секретный Тренер", city: "Тайный Город" });
+  await coachProfile(coach.login, { about: ABOUT, displayName: "Секретный Тренер", city: "Тайный Город", publish: false });
+  const res = await request.get(`/trainer/${nick}`);
+  expect(res.status()).toBe(404);
+  const html = await res.text();
+  expect(html).not.toContain("Секретный Тренер");
+  expect(html).not.toContain("Тайный Город");
+  expect(html).not.toContain(ABOUT.slice(0, 40));
 });

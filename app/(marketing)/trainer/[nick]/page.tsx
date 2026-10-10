@@ -28,6 +28,8 @@ export async function generateMetadata({ params }: PageProps<"/trainer/[nick]">)
   const { nick } = await params;
   const coach = await findCoach(nick);
   if (!coach) return {};
+  // Неопубликованная — ни имени, ни описания в ответе (кроме предпросмотра самого тренера)
+  if (!coach.profile.publishedAt && (await getCurrentUser())?.id !== coach.id) return {};
   const title = `${nameOf(coach)} — тренер${coach.profile.city ? `, ${coach.profile.city}` : ""} · Hero Fit`;
   const description = coachDescription(coach.profile.about);
   return {
@@ -49,7 +51,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   if (!coach.profile.publishedAt && !isOwner) notFound();
 
   const [stats, link] = await Promise.all([
-    getCoachPublicStats(coach.id),
+    getCoachPublicStats(coach.id, new Date(), coach.profile.hiddenStats),
     viewer && !isOwner ? db.coachLink.findFirst({ where: { coachId: coach.id, clientId: viewer.id, endedAt: null }, select: { id: true } }) : null,
   ]);
   const shown = visibleStats(stats, coach.profile.hiddenStats);
@@ -75,7 +77,8 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
       Вы занимаетесь с этим тренером
     </p>
   ) : (
-    <Link href={`${pathOf(coach.nickname)}/join`} className={buttonVariants({ size: "lg" })}>
+    // prefetch={false}: /join — route handler с целью Метрики, предзагрузка засчитывала бы её на каждый просмотр
+    <Link href={`${pathOf(coach.nickname)}/join`} prefetch={false} className={buttonVariants({ size: "lg" })}>
       Заниматься
     </Link>
   );
@@ -93,7 +96,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
       <header className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div
           aria-hidden
-          className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-chart-2 font-display text-2xl font-extrabold text-primary-foreground"
+          className="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-chart-2 font-display text-2xl font-extrabold text-primary-foreground"
         >
           {initials}
         </div>

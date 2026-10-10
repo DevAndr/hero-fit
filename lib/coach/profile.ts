@@ -59,6 +59,15 @@ export type CoachStats = {
   since: Date | null;
 };
 
+/** Что считать для публичной страницы: тяжёлое (активность, план по каждому клиенту) — только если покажем. */
+export function statsToCompute(clients: number, hidden: readonly string[]): { activity: boolean; plan: boolean } {
+  const enough = clients >= MIN_CLIENTS_FOR_STATS;
+  return {
+    activity: enough && !(hidden.includes("workouts") && hidden.includes("records")),
+    plan: enough && !hidden.includes("plan"),
+  };
+}
+
 const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 /**
@@ -71,7 +80,7 @@ export function visibleStats(s: CoachStats, hidden: readonly string[]): { code: 
   const add = (code: StatCode, show: boolean, value: string, label: string) => {
     if (show && !hidden.includes(code)) out.push({ code, value, label });
   };
-  add("clients", true, String(s.clients), plural(s.clients, "клиент", "клиента", "клиентов"));
+  add("clients", s.clients > 0, String(s.clients), plural(s.clients, "клиент", "клиента", "клиентов"));
   add("workouts", enough, String(s.workouts), `${plural(s.workouts, "тренировка", "тренировки", "тренировок")} клиентов за 30 дней`);
   add("records", enough, String(s.records), `${plural(s.records, "рекорд", "рекорда", "рекордов")} клиентов за 30 дней`);
   add("plan", enough && s.plan !== null && s.planTotal >= MIN_PLAN_ENTRIES, `${Math.round((s.plan ?? 0) * 100)} %`, "плана выполнено");

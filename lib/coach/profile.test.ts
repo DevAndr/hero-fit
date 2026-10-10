@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canPublish, coachProfileSchema, visibleStats, type CoachStats } from "./profile";
+import { canPublish, coachProfileSchema, statsToCompute, visibleStats, type CoachStats } from "./profile";
 
 const ok = { displayName: "Иван", city: "Казань", format: "BOTH", specialties: ["strength"], about: "x".repeat(60), hiddenStats: [] };
 
@@ -40,6 +40,9 @@ describe("visibleStats", () => {
     expect(codes(s({ clients: 3, planTotal: 4 }))).toEqual(["clients", "workouts", "records", "since"]);
     expect(codes(s({ clients: 3, plan: null }))).toEqual(["clients", "workouts", "records", "since"]);
   });
+  it("у нового тренера нет «0 клиентов»", () => {
+    expect(codes(s({ clients: 0, since: null }))).toEqual([]);
+  });
   it("скрытые и без даты", () => {
     expect(codes(s({ clients: 3 }), ["clients", "plan"])).toEqual(["workouts", "records", "since"]);
     expect(codes(s({ since: null }))).toEqual(["clients"]);
@@ -56,5 +59,17 @@ describe("visibleStats", () => {
       "86 % плана выполнено",
       "с октября 2026 в Hero Fit",
     ]);
+  });
+});
+
+describe("statsToCompute", () => {
+  it("до 3 клиентов — ничего по клиентам", () => {
+    expect(statsToCompute(2, [])).toEqual({ activity: false, plan: false });
+  });
+  it("от 3 — активность и план, скрытое не считаем", () => {
+    expect(statsToCompute(3, [])).toEqual({ activity: true, plan: true });
+    expect(statsToCompute(3, ["plan"])).toEqual({ activity: true, plan: false });
+    expect(statsToCompute(3, ["workouts", "records"])).toEqual({ activity: false, plan: true });
+    expect(statsToCompute(3, ["workouts"])).toEqual({ activity: true, plan: true });
   });
 });

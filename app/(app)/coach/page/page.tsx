@@ -20,7 +20,8 @@ export default async function CoachProfilePage() {
   const notes = Object.fromEntries(
     STAT_CODES.map((code) => [
       code,
-      shown.get(code) ?? (code === "since" ? "появится с первым клиентом" : `появится при ${MIN_CLIENTS_FOR_STATS}+ клиентах`),
+      shown.get(code) ??
+        (code === "since" || code === "clients" ? "появится с первым клиентом" : `появится при ${MIN_CLIENTS_FOR_STATS}+ клиентах`),
     ]),
   ) as Record<StatCode, string>;
 
