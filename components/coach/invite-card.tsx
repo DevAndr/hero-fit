@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 /** Ссылка-приглашение тренера: клиент открывает её и разрешает доступ. */
-export function InviteCard({ url, code }: { url: string; code: string }) {
-  const copy = async () => {
+export function InviteCard({ url, code, telegramUrl }: { url: string; code: string; telegramUrl?: string | null }) {
+  const copy = async (link = url) => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(link);
       toast.success("Ссылка скопирована — отправьте её клиенту");
     } catch {
       toast.error("Не удалось скопировать — выделите ссылку вручную");
@@ -28,11 +28,25 @@ export function InviteCard({ url, code }: { url: string; code: string }) {
         <code data-testid="coach-invite-link" className="min-w-0 flex-1 truncate rounded-lg border bg-background px-3 py-2 text-sm">
           {url}
         </code>
-        <Button type="button" variant="outline" onClick={copy}>
+        <Button type="button" variant="outline" onClick={() => copy()}>
           <Copy />
           Скопировать
         </Button>
       </div>
+      {telegramUrl ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">Ссылка для Telegram</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <code data-testid="coach-invite-telegram" className="min-w-0 flex-1 truncate rounded-lg border bg-background px-3 py-2 text-sm">
+              {telegramUrl}
+            </code>
+            <Button type="button" variant="outline" onClick={() => copy(telegramUrl)}>
+              <Copy />
+              Скопировать
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <p className="text-xs text-muted-foreground">
         Код приглашения: <span className="font-mono font-semibold text-foreground">{code}</span>
       </p>

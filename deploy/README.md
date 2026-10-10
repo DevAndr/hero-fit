@@ -62,6 +62,12 @@ Settings → Secrets and variables → Actions:
    ```
    Ответ — `{"ok":true,...}`. Проверка: `/settings` → «Telegram» → «Подключить» → «Start» в боте.
 
+### Telegram Mini App (вход из Telegram)
+
+После бота: [@BotFather](https://t.me/BotFather) → `/mybots` → бот → Bot Settings → Configure Mini App → Enable Mini App →
+URL `https://<домен>/tg`. Без этого ссылки тренера `t.me/<бот>?startapp=join_<код>` не откроют приложение.
+Проверка: в Telegram — кнопка «Открыть» у бота → экран «Привет, …!» или сразу дашборд (если Telegram уже подключён).
+
 ## На сервере
 
 ```sh

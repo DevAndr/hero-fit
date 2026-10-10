@@ -9,6 +9,8 @@ import { requireCoach } from "@/lib/coach/access";
 import { sortClients } from "@/lib/coach/clients";
 import { ensureCoachCode, getCoachClients } from "@/lib/coach/queries";
 import { env } from "@/lib/env";
+import { telegramEnabled } from "@/lib/telegram/format";
+import { telegramJoinUrl } from "@/lib/telegram/links";
 
 export const metadata: Metadata = { title: "Клиенты" };
 
@@ -40,7 +42,11 @@ export default async function CoachPage() {
           <p className="max-w-sm text-sm text-muted-foreground">Отправьте ссылку клиенту — после его согласия он появится здесь.</p>
         </div>
       )}
-      <InviteCard url={new URL(`/coach/join/${code}`, env.APP_URL).toString()} code={pretty(code)} />
+      <InviteCard
+        url={new URL(`/coach/join/${code}`, env.APP_URL).toString()}
+        code={pretty(code)}
+        telegramUrl={telegramEnabled(env) ? telegramJoinUrl(code, env.TELEGRAM_BOT_USERNAME) : null}
+      />
     </div>
   );
 }

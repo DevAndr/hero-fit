@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createTelegramUser, enableCoach, linkTelegram, telegramChat, withDb } from "./db";
+import { coachProfile, createTelegramUser, enableCoach, linkTelegram, telegramChat, withDb } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
 import { e2eInitData, mockTelegram } from "./telegram-webapp";
 
@@ -229,4 +229,25 @@ test("Mini App session keeps frame cookies after refresh rotation", async ({ pag
     .join("\n");
   expect(setCookie).toMatch(/hf_at=[^\n]*SameSite=none/i);
   expect(setCookie).toMatch(/hf_at=[^\n]*Partitioned/i);
+});
+
+// ───────────────────────────── Приглашение тренера в Telegram ─────────────────────────────
+
+test("coach sees the Telegram invite link; trainer page offers Telegram", async ({ page, browser }) => {
+  const { login } = await registerUser(page);
+  const nick = `T${newTelegramId().slice(-8)}`;
+  const code = await enableCoach(login, nick);
+  const url = `https://t.me/hero_fit_e2e_bot?startapp=join_${code}`;
+
+  await page.goto("/coach");
+  const invite = page.getByRole("region", { name: "Пригласить клиента" });
+  await expect(invite.getByText("Ссылка для Telegram")).toBeVisible();
+  await expect(invite.getByTestId("coach-invite-telegram")).toHaveText(url);
+
+  await coachProfile(login, { about: "Тренер по силовым. ".repeat(4), publish: true });
+  const guest = await browser.newContext();
+  const guestPage = await guest.newPage();
+  await guestPage.goto(`/trainer/${nick}`);
+  await expect(guestPage.getByRole("link", { name: "Заниматься в Telegram" }).first()).toHaveAttribute("href", url);
+  await guest.close();
 });

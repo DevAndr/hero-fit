@@ -11,6 +11,8 @@ import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { absoluteUrl, coachDescription, coachJsonLd, jsonLd } from "@/lib/seo";
+import { telegramEnabled } from "@/lib/telegram/format";
+import { telegramJoinUrl } from "@/lib/telegram/links";
 import { cn } from "@/lib/utils";
 
 const findCoach = cache((nick: string) => getPublicCoach(nick));
@@ -63,6 +65,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
     .join("");
   const specialties = coach.profile.specialties.map((c) => SPECIALTIES[c]).filter(Boolean);
   const url = absoluteUrl(env.APP_URL, pathOf(coach.nickname));
+  const telegramUrl = coach.coachCode && telegramEnabled(env) ? telegramJoinUrl(coach.coachCode, env.TELEGRAM_BOT_USERNAME) : null;
 
   const action = isOwner ? (
     <div className="flex flex-wrap items-center gap-3">
@@ -77,10 +80,17 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
       Вы занимаетесь с этим тренером
     </p>
   ) : (
-    // prefetch={false}: /join — route handler с целью Метрики, предзагрузка засчитывала бы её на каждый просмотр
-    <Link href={`${pathOf(coach.nickname)}/join`} prefetch={false} className={buttonVariants({ size: "lg" })}>
-      Заниматься
-    </Link>
+    <div className="flex flex-wrap gap-3">
+      {/* prefetch={false}: /join — route handler с целью Метрики, предзагрузка засчитывала бы её на каждый просмотр */}
+      <Link href={`${pathOf(coach.nickname)}/join`} prefetch={false} className={buttonVariants({ size: "lg" })}>
+        Заниматься
+      </Link>
+      {telegramUrl ? (
+        <a href={telegramUrl} className={buttonVariants({ variant: "outline", size: "lg" })}>
+          Заниматься в Telegram
+        </a>
+      ) : null}
+    </div>
   );
 
   return (
