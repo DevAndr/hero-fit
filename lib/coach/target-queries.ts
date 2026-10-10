@@ -1,6 +1,10 @@
 import "server-only";
+import { assignedWhere } from "@/lib/coach/templates";
+import type { PlannedSet, Target } from "@/lib/coach/targets";
+import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import type { Target } from "@/lib/coach/targets";
+import { addDays } from "@/lib/plans/expand";
+import { getLastPerformance } from "@/lib/workouts/queries";
 
 /** Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента. */
 export async function getTemplateTargets(clientId: string, templateId: string): Promise<Map<string, Target>> {
@@ -11,4 +15,54 @@ export async function getTemplateTargets(clientId: string, templateId: string): 
     select: { exerciseId: true, sets: true, reps: true, weight: true },
   });
   return new Map(rows.map(({ exerciseId, ...t }) => [exerciseId, t]));
+}
+
+export type ClientTemplateTargets = {
+  templateId: string;
+  name: string;
+  exercises: {
+    exerciseId: string;
+    name: string;
+    template: { sets: number; reps: number | null; weight: number | null };
+    target: Target | null;
+    last: { date: string; sets: PlannedSet[] } | null;
+  }[];
+};
+
+/** Вкладка «План» тренера: актуальные назначенные клиенту шаблоны тренера, их упражнения, задания и последний результат клиента. */
+export async function getClientTargets(clientId: string, coachId: string, timeZone: string, now = new Date()): Promise<ClientTemplateTargets[]> {
+  const since = addDays(dayKey(now, timeZone), -1);
+  const templates = await db.workoutTemplate.findMany({
+    where: assignedWhere(clientId, coachId, since),
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      exercises: {
+        orderBy: { order: "asc" },
+        where: { exercise: { archivedAt: null } },
+        select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, exercise: { select: { name: true } } },
+      },
+      coachTargets: { where: { clientId }, select: { exerciseId: true, sets: true, reps: true, weight: true } },
+    },
+  });
+  const last = await getLastPerformance(clientId, [...new Set(templates.flatMap((t) => t.exercises.map((e) => e.exerciseId)))]);
+  return templates.map((t) => {
+    const targets = new Map(t.coachTargets.map(({ exerciseId, ...rest }) => [exerciseId, rest]));
+    // Упражнение дважды в шаблоне — одна строка: задание у упражнения одно
+    const seen = new Set<string>();
+    return {
+      templateId: t.id,
+      name: t.name,
+      exercises: t.exercises
+        .filter((e) => !seen.has(e.exerciseId) && seen.add(e.exerciseId))
+        .map((e) => ({
+          exerciseId: e.exerciseId,
+          name: e.exercise.name,
+          template: { sets: e.targetSets, reps: e.targetReps, weight: e.targetWeight },
+          target: targets.get(e.exerciseId) ?? null,
+          last: last[e.exerciseId] ?? null,
+        })),
+    };
+  });
 }

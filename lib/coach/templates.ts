@@ -7,7 +7,7 @@ import { addDays } from "@/lib/plans/expand";
  * Шаблоны активного тренера, назначенные клиенту и ещё актуальные: серия не кончилась, разовая
  * (или исключение серии) не отменена и не в прошлом. since — вчера в поясе клиента: «Вчера были … — сделать сегодня?».
  */
-function assignedWhere(clientId: string, coachId: string, since: string) {
+export function assignedWhere(clientId: string, coachId: string, since: string) {
   return {
     userId: coachId,
     OR: [

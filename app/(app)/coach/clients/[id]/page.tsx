@@ -12,6 +12,7 @@ import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
 import { getClientPlan } from "@/lib/coach/plan-queries";
+import { getClientTargets } from "@/lib/coach/target-queries";
 import { getClientWorkouts } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
@@ -131,9 +132,10 @@ async function Overview({ clientId, streak, tz, xp, base }: { clientId: string; 
 
 async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId: string; tz: string; base: string }) {
   const now = new Date();
-  const [{ upcoming, past }, templates] = await Promise.all([
+  const [{ upcoming, past }, templates, targets] = await Promise.all([
     getClientPlan(coachId, clientId, tz, now),
     db.workoutTemplate.findMany({ where: { userId: coachId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getClientTargets(clientId, coachId, tz, now),
   ]);
   const strip = ({ key, title, date, time, durationMin, templateId, recurring, status, workoutId }: (typeof upcoming)[number]) => ({
     key,
@@ -154,6 +156,8 @@ async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId
       templates={templates}
       upcoming={upcoming.map(strip)}
       past={past.map(strip)}
+      targets={targets}
+      timeZone={tz}
     />
   );
 }

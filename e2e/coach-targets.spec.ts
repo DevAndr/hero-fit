@@ -87,3 +87,66 @@ test("disconnecting removes the coach's targets", async ({ page, browser }) => {
     await client.context.close();
   }
 });
+
+async function openTargets(page: Page, clientId: string) {
+  await page.goto(`/coach/clients/${clientId}?tab=plan`);
+  const section = page.getByRole("region", { name: "Задания по шаблонам" });
+  await section.getByRole("button", { name: "Задания: Ноги — база" }).click();
+  return { section, dialog: page.getByRole("dialog", { name: "Задания: Ноги — база" }) };
+}
+
+test("coach sets targets in the dialog; client starts with them", async ({ page, browser }) => {
+  test.slow();
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(0), "23:30");
+    await page.goto(`/coach/clients/${clientId}?tab=plan`);
+    await expect(page.getByRole("region", { name: "Задания по шаблонам" })).toContainText("Ноги — база · заданий нет");
+    const { section, dialog } = await openTargets(page, clientId);
+    await dialog.getByLabel(`Подходы: ${SQUAT}`).fill("4");
+    await dialog.getByLabel(`Повторы: ${SQUAT}`).fill("8");
+    await dialog.getByLabel(`Вес, кг: ${SQUAT}`).fill("62,5");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(section).toContainText("задано 1 из 2 упражнений");
+
+    await startFromDashboard(client.page);
+    const squat = client.page.getByRole("region", { name: SQUAT });
+    await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("62.5");
+    await expect(squat.getByLabel("Повторы, подход 4")).toHaveValue("8");
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("clearing all fields removes the target", async ({ page, browser }) => {
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 4, weight: 60 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    const { section, dialog } = await openTargets(page, clientId);
+    await expect(dialog.getByLabel(`Вес, кг: ${SQUAT}`)).toHaveValue("60");
+    await dialog.getByLabel(`Подходы: ${SQUAT}`).fill("");
+    await dialog.getByLabel(`Вес, кг: ${SQUAT}`).fill("");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(section).toContainText("заданий нет");
+    expect(await coachTargetCount(client.login)).toBe(0);
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("dialog shows the client's last result", async ({ page, browser }) => {
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await quickWorkout(client.page, SQUAT, [{ weight: "50", reps: "6" }]);
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    const { dialog } = await openTargets(page, clientId);
+    await expect(dialog).toContainText("в прошлый раз: 50 × 6 · 1 подход");
+    await expect(dialog).toContainText("ещё не выполнялось");
+    await expect(dialog.getByLabel(`Вес, кг: ${SQUAT}`)).toHaveAttribute("placeholder", "50");
+  } finally {
+    await client.context.close();
+  }
+});

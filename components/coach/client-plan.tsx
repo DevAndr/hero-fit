@@ -6,9 +6,11 @@ import { CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
 import { AssignDialog, type AssignDialogState, type AssignTemplate } from "@/components/coach/assign-dialog";
+import { ClientTargets } from "@/components/coach/client-targets";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { deleteAssignmentAction } from "@/lib/coach/plan-actions";
+import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
 import type { PlanScope } from "@/lib/plans/edit";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +37,7 @@ const STATUS: Record<ClientPlanItem["status"], { label: string; className: strin
 const dayFormat = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const fmt = (date: string) => dayFormat.format(new Date(`${date}T12:00:00Z`));
 
-/** Вкладка «План» карточки клиента: назначить, ближайшие 2 недели, прошлые 4 недели со статусами. */
+/** Вкладка «План» карточки клиента: назначить, ближайшие 2 недели, задания по шаблонам, прошлые 4 недели со статусами. */
 export function ClientPlan({
   clientId,
   today,
@@ -43,9 +45,13 @@ export function ClientPlan({
   templates,
   upcoming,
   past,
+  targets,
+  timeZone,
 }: {
   clientId: string;
   today: string;
+  targets: ClientTemplateTargets[];
+  timeZone: string;
   base: string;
   templates: AssignTemplate[];
   upcoming: ClientPlanItem[];
@@ -68,6 +74,7 @@ export function ClientPlan({
         onEdit={(item) => setDialog({ mode: "edit", item })}
         onDelete={setRemoving}
       />
+      <ClientTargets clientId={clientId} timeZone={timeZone} templates={targets} />
       <PlanSection title="Прошлые 4 недели" empty="Назначений не было." items={past} base={base} />
       <AssignDialog clientId={clientId} state={dialog} templates={templates} onClose={() => setDialog(null)} />
       <RemoveDialog clientId={clientId} item={removing} onClose={() => setRemoving(null)} />

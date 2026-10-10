@@ -1,0 +1,173 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Dumbbell, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { parseNumber } from "@/components/training/workout-state";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { saveTargetsAction } from "@/lib/coach/target-actions";
+import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
+import { plural } from "@/lib/format";
+
+type Row = { sets: string; reps: string; weight: string };
+
+const str = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n).replace(".", ","));
+const toInt = (v: string) => (v.trim() ? Math.round(parseNumber(v)) : null);
+const toWeight = (v: string) => (v.trim() ? parseNumber(v) : null);
+const num = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+
+/** Вкладка «План»: задания клиенту по назначенным шаблонам тренера. */
+export function ClientTargets({ clientId, timeZone, templates }: { clientId: string; timeZone: string; templates: ClientTemplateTargets[] }) {
+  const [open, setOpen] = useState<ClientTemplateTargets | null>(null);
+  if (!templates.length) return null;
+  return (
+    <section aria-label="Задания по шаблонам" className="space-y-2 rounded-xl border bg-card p-4">
+      <h2 className="font-bold">Задания по шаблонам</h2>
+      <p className="text-sm text-muted-foreground">Подходы, повторы и вес для клиента — подставятся при запуске шаблона.</p>
+      <ul className="divide-y divide-border/60">
+        {templates.map((t) => {
+          const set = t.exercises.filter((e) => e.target).length;
+          return (
+            <li key={t.templateId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span className="text-sm">
+                <span className="font-semibold">{t.name}</span>
+                {" · "}
+                <span className="text-muted-foreground">
+                  {set ? `задано ${set} из ${t.exercises.length} ${plural(t.exercises.length, "упражнения", "упражнений", "упражнений")}` : "заданий нет"}
+                </span>
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setOpen(t)} aria-label={`Задания: ${t.name}`}>
+                <Dumbbell />
+                Задания
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="sm:max-w-lg">
+          {open ? <TargetsForm key={open.templateId} clientId={clientId} timeZone={timeZone} template={open} onDone={() => setOpen(null)} /> : null}
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+function TargetsForm({
+  clientId,
+  timeZone,
+  template,
+  onDone,
+}: {
+  clientId: string;
+  timeZone: string;
+  template: ClientTemplateTargets;
+  onDone: () => void;
+}) {
+  const [rows, setRows] = useState<Record<string, Row>>(() =>
+    Object.fromEntries(template.exercises.map((e) => [e.exerciseId, { sets: str(e.target?.sets), reps: str(e.target?.reps), weight: str(e.target?.weight) }])),
+  );
+  const [pending, startTransition] = useTransition();
+  const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone });
+  const update = (id: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
+
+  const save = () =>
+    startTransition(async () => {
+      const items = template.exercises.map((e) => {
+        const r = rows[e.exerciseId];
+        return { exerciseId: e.exerciseId, sets: toInt(r.sets), reps: toInt(r.reps), weight: toWeight(r.weight) };
+      });
+      const result = await saveTargetsAction(clientId, template.templateId, items);
+      if (result.ok) onDone();
+      else toast.error(result.error);
+    });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>{`Задания: ${template.name}`}</DialogTitle>
+      </DialogHeader>
+      <p className="mt-2 text-sm text-muted-foreground">Пустое поле — как без задания (подсказка серым).</p>
+      <ul className="mt-4 max-h-[60vh] space-y-4 overflow-y-auto">
+        {template.exercises.map((e) => {
+          const r = rows[e.exerciseId];
+          const first = e.last?.sets[0];
+          return (
+            <li key={e.exerciseId}>
+              <p className="text-sm font-semibold">{e.name}</p>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                <Field label="Подходы" exercise={e.name} value={r.sets} placeholder={String(e.template.sets)} onChange={(v) => update(e.exerciseId, { sets: v })} />
+                <Field
+                  label="Повторы"
+                  exercise={e.name}
+                  value={r.reps}
+                  placeholder={str(e.template.reps ?? first?.reps) || "—"}
+                  onChange={(v) => update(e.exerciseId, { reps: v })}
+                />
+                <Field
+                  label="Вес, кг"
+                  exercise={e.name}
+                  decimal
+                  value={r.weight}
+                  placeholder={str(first?.weight ?? e.template.weight) || "—"}
+                  onChange={(v) => update(e.exerciseId, { weight: v })}
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {e.last && first
+                  ? `в прошлый раз: ${first.weight ? `${num(first.weight)} × ${first.reps}` : `${first.reps} ${plural(first.reps, "повтор", "повтора", "повторов")}`} · ${e.last.sets.length} ${plural(e.last.sets.length, "подход", "подхода", "подходов")}${e.last.date ? `, ${day.format(new Date(e.last.date))}` : ""}`
+                  : "ещё не выполнялось"}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <DialogFooter className="mt-4">
+        <Button type="button" variant="outline" disabled={pending} onClick={onDone}>
+          Отмена
+        </Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : null}
+          Сохранить
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function Field({
+  label,
+  exercise,
+  value,
+  placeholder,
+  onChange,
+  decimal,
+}: {
+  label: string;
+  exercise: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  decimal?: boolean;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <span aria-hidden>{label}</span>
+      <Input
+        aria-label={`${label}: ${exercise}`}
+        inputMode={decimal ? "decimal" : "numeric"}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 text-center text-sm tabular-nums"
+      />
+    </label>
+  );
+}
