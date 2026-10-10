@@ -42,6 +42,22 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
   { path: "/privacy", priority: 0.2, changeFrequency: "monthly" },
 ];
 
+/**
+ * Записи sitemap.xml. lastmod — настоящая дата изменения: статические страницы меняются только с деплоем (дата
+ * сборки), страница тренера — по своему updatedAt. «Сейчас» на каждый запрос поисковики считают недостоверным.
+ */
+export function sitemapEntries(origin: string, builtAt: Date, coaches: { nickname: string; updatedAt: Date }[]) {
+  return [
+    ...PUBLIC_SITEMAP.map(({ path, priority, changeFrequency }) => ({ url: absoluteUrl(origin, path), lastModified: builtAt, changeFrequency, priority })),
+    ...coaches.map((c) => ({
+      url: absoluteUrl(origin, `/trainer/${encodeURIComponent(c.nickname)}`),
+      lastModified: c.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    })),
+  ];
+}
+
 /** Структурированные данные страницы-инструмента: хлебные крошки, веб-приложение и FAQ. */
 export function toolJsonLd(
   origin: string,

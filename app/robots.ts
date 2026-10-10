@@ -14,7 +14,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       allow: ["/", "/tools/"],
       disallow: ["/api/", "/dashboard", "/training", "/workouts", "/exercises", "/templates", "/calendar", "/stats", "/achievements", "/friends", "/leaderboard", "/recap", "/settings", "/reset-password"],
     },
+    // Без Host: директиву Яндекс больше не читает (главное зеркало — в Вебмастере)
     sitemap: absoluteUrl(env.APP_URL, "/sitemap.xml"),
-    host: new URL(env.APP_URL).origin,
   };
 }

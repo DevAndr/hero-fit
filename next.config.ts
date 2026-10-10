@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   // Docker (Dockerfile, BUILD_STANDALONE=1): .next/standalone — сервер с минимумом node_modules. Локально и в CI — `next start`.
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   serverExternalPackages: ["web-push"],
+  // Дата сборки — lastmod статических страниц в sitemap.xml
+  env: { BUILD_TIME: new Date().toISOString() },
   // Картинка для сторис рисуется на лету и читает шрифты и спрайты боссов с диска — в standalone их нужно положить явно
   outputFileTracingIncludes: {
     "/workouts/\\[id\\]/story": ["./assets/fonts/**/*", "./assets/icons/game/bosses/**/*"],
