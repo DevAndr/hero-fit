@@ -124,7 +124,8 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     select: { id: true, passwordHash: true },
   });
 
-  if (!user) {
+  // Аккаунт из Telegram без пароля — как неизвестный пользователь (то же время ответа)
+  if (!user?.passwordHash) {
     await burnPasswordCheck(password);
     return { values, message: "Неверный логин или пароль" };
   }
@@ -161,7 +162,7 @@ export async function forgotPasswordAction(_prev: FormState, formData: FormData)
     select: { id: true, email: true },
   });
 
-  if (user) {
+  if (user?.email) {
     const token = randomToken();
     await db.$transaction([
       // Действует только последняя ссылка.

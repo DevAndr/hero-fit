@@ -334,3 +334,16 @@ export async function setNotifyTelegram(login: string, on: boolean) {
 export async function duePushesNow(login: string) {
   await withDb(async (db) => db.query(`update "ScheduledPush" set "sendAt" = now() where "userId" = $1 and "sentAt" is null`, [await userId(db, login)]));
 }
+
+/** Аккаунт из Telegram Mini App без email и пароля (логин tg<id>, Telegram привязан). Возвращает логин. */
+export async function createTelegramUser(telegramId: string) {
+  const login = `tg${telegramId}`;
+  await withDb((db) =>
+    db.query(
+      `insert into "User" (id, login, name, "telegramChatId", "telegramLinkedAt", "privacyAcceptedAt", "onboardedAt", "timeZone", "updatedAt")
+       values ($1, $2, 'Из Telegram', $3::bigint, now(), now(), now(), $4, now())`,
+      [randomUUID(), login, telegramId, E2E_TZ],
+    ),
+  );
+  return login;
+}

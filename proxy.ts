@@ -23,6 +23,7 @@ export default async function proxy(req: NextRequest) {
 
   let authed = Boolean(await verifyAccessToken(req.cookies.get(ACCESS_COOKIE)?.value));
   let refreshed: Partial<IssuedTokens> | null = null;
+  let embedded = false;
   let staleRefresh = false;
 
   if (!authed && req.cookies.has(REFRESH_COOKIE)) {
@@ -30,6 +31,7 @@ export default async function proxy(req: NextRequest) {
     if (result.ok) {
       authed = true;
       refreshed = result.tokens;
+      embedded = result.embedded;
     } else {
       staleRefresh = true;
     }
@@ -37,7 +39,8 @@ export default async function proxy(req: NextRequest) {
 
   const response = route();
 
-  if (refreshed) writeAuthCookies(response.cookies, refreshed);
+  // Сессия из Mini App сохраняет атрибуты для фрейма web.telegram.org
+  if (refreshed) writeAuthCookies(response.cookies, refreshed, { embedded });
   if (staleRefresh) clearAuthCookies(response.cookies);
   return response;
 

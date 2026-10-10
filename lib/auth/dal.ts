@@ -11,7 +11,7 @@ export type CurrentUser = {
   id: string;
   sessionId: string;
   login: string;
-  email: string;
+  email: string | null;
   name: string | null;
   xp: number;
   level: number;

@@ -84,8 +84,9 @@ enum XpReason {
 model User {
   id                String    @id @default(cuid())
   login             String    @unique
-  email             String    @unique
-  passwordHash      String
+  /// null — аккаунт из Telegram Mini App (email и пароль задаются в «Вход на сайте»)
+  email             String?   @unique
+  passwordHash      String?
   name              String?
   bodyWeight        Float? // кг; для ачивок «1RM к весу тела»
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
@@ -252,6 +253,8 @@ model Session {
   lastUsedAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
+  /// создана в Telegram Mini App — cookies для фрейма (SameSite=None; Partitioned)
+  embedded   Boolean   @default(false)
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]

@@ -16,7 +16,7 @@ import {
 import { usePush } from "@/components/notifications/push-provider";
 import { logoutAction } from "@/lib/auth/actions";
 
-export function UserMenu({ name, login, email, isCoach }: { name: string | null; login: string; email: string; isCoach: boolean }) {
+export function UserMenu({ name, login, email, isCoach }: { name: string | null; login: string; email: string | null; isCoach: boolean }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
   const display = name ?? login;
@@ -34,7 +34,7 @@ export function UserMenu({ name, login, email, isCoach }: { name: string | null;
         <DropdownMenuGroup>
           <DropdownMenuLabel>
             <div className="truncate font-medium text-foreground">{display}</div>
-            <div className="truncate text-xs font-normal">{email}</div>
+            {email ? <div className="truncate text-xs font-normal">{email}</div> : null}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

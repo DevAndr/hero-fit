@@ -17,10 +17,12 @@ const REUSE_GRACE_MS = 30_000;
 
 type ClientMeta = { userAgent?: string | null; ip?: string | null };
 
-export async function createSession(userId: string, meta: ClientMeta = {}): Promise<IssuedTokens> {
+/** embedded — сессия из Telegram Mini App: её cookies ставятся для фрейма (и при ротации тоже). */
+export async function createSession(userId: string, meta: ClientMeta = {}, { embedded = false } = {}): Promise<IssuedTokens> {
   const session = await db.session.create({
     data: {
       userId,
+      embedded,
       userAgent: meta.userAgent?.slice(0, 512),
       ip: meta.ip,
       expiresAt: new Date(Date.now() + REFRESH_TTL_SEC * 1000),
@@ -30,7 +32,7 @@ export async function createSession(userId: string, meta: ClientMeta = {}): Prom
 }
 
 export type RotateResult =
-  | { ok: true; userId: string; sessionId: string; tokens: Partial<IssuedTokens> }
+  | { ok: true; userId: string; sessionId: string; embedded: boolean; tokens: Partial<IssuedTokens> }
   | { ok: false };
 
 /**
@@ -72,7 +74,7 @@ export async function rotateRefreshToken(refreshToken: string | undefined): Prom
     if (Date.now() - usedAt <= REUSE_GRACE_MS) {
       // Гонка: новую пару уже получил соседний запрос — выдаём только access.
       const accessToken = await signAccessToken({ userId: session.userId, sessionId: session.id });
-      return { ok: true, userId: session.userId, sessionId: session.id, tokens: { accessToken } };
+      return { ok: true, userId: session.userId, sessionId: session.id, embedded: session.embedded, tokens: { accessToken } };
     }
     await revokeSession(session.id);
     return { ok: false };
@@ -80,7 +82,7 @@ export async function rotateRefreshToken(refreshToken: string | undefined): Prom
 
   await db.session.update({ where: { id: session.id }, data: { lastUsedAt: new Date() } });
   const tokens = await issueTokens(session.userId, session.id);
-  return { ok: true, userId: session.userId, sessionId: session.id, tokens };
+  return { ok: true, userId: session.userId, sessionId: session.id, embedded: session.embedded, tokens };
 }
 
 export async function revokeSession(sessionId: string) {

@@ -31,7 +31,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title="Настройки" description={`${user.name ?? user.login} · ${user.email}`} />
+      <PageHeader title="Настройки" description={user.email ? `${user.name ?? user.login} · ${user.email}` : (user.name ?? user.login)} />
       <ThemeSettings />
       <BodyWeightSettings initial={user.bodyWeight} />
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
