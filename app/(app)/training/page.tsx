@@ -50,9 +50,10 @@ export default async function TrainingPage() {
     // Пометка «от тренера» — текущие задания активного тренера по шаблону тренировки
     workout.templateId ? getTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
   ]);
+  const bodyweight = new Set(workout.exercises.filter((e) => e.exercise.isBodyweight).map((e) => e.exercise.id));
   const coachTargets = Object.fromEntries(
     [...targets].flatMap(([exerciseId, t]) => {
-      const label = formatTarget(t);
+      const label = formatTarget(t, { bodyweight: bodyweight.has(exerciseId) });
       return label ? [[exerciseId, label]] : [];
     }),
   );

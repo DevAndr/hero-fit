@@ -52,6 +52,9 @@ describe("formatTarget", () => {
     // Вес 0 — «своим весом»: «0 кг» не пишем
     expect(formatTarget({ sets: 4, reps: 8, weight: 0 })).toBe("от тренера: 4 × 8");
     expect(formatTarget({ sets: null, reps: null, weight: 0 })).toBeNull();
+    // Своим весом — вес как отягощение
+    expect(formatTarget({ sets: 4, reps: 6, weight: 10 }, { bodyweight: true })).toBe("от тренера: 4 × 6 · +10 кг");
+    expect(formatTarget({ sets: 4, reps: 6, weight: 0 }, { bodyweight: true })).toBe("от тренера: 4 × 6");
   });
 });
 

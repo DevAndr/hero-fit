@@ -34,8 +34,10 @@ export const isEmptyTarget = (t: Target) => t.sets === null && t.reps === null &
 
 const kg = (w: number) => `${w.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
 
-/** «от тренера: 4 × 8 · 60 кг»; пустые поля и вес 0 («своим весом») пропускаются, нечего показать — null. */
-export function formatTarget(t: Target): string | null {
+/**
+ * «от тренера: 4 × 8 · 60 кг»; своим весом — отягощение «+10 кг». Пустые поля и вес 0 пропускаются, нечего показать — null.
+ */
+export function formatTarget(t: Target, { bodyweight = false }: { bodyweight?: boolean } = {}): string | null {
   if (isEmptyTarget(t)) return null;
   const volume =
     t.sets !== null && t.reps !== null
@@ -45,7 +47,7 @@ export function formatTarget(t: Target): string | null {
         : t.reps !== null
           ? `по ${t.reps} ${plural(t.reps, "повтору", "повтора", "повторов")}`
           : null;
-  const parts = [volume, t.weight ? kg(t.weight) : null].filter(Boolean);
+  const parts = [volume, t.weight ? `${bodyweight ? "+" : ""}${kg(t.weight)}` : null].filter(Boolean);
   return parts.length ? `от тренера: ${parts.join(" · ")}` : null;
 }
 

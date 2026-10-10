@@ -26,7 +26,7 @@ export type ClientTemplateTargets = {
   exercises: {
     exerciseId: string;
     name: string;
-    /** Своим весом — без поля веса в диалоге. */
+    /** Своим весом — вес в диалоге как отягощение («Доп. кг»). */
     isBodyweight: boolean;
     template: { sets: number; reps: number | null; weight: number | null };
     target: Target | null;

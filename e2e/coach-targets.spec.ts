@@ -178,7 +178,7 @@ test("a target for an exercise no longer in the template is ignored", async ({ p
   }
 });
 
-test("bodyweight exercise has no weight field in the dialog", async ({ page, browser }) => {
+test("bodyweight exercise: extra weight in the dialog and «+N кг» in the label", async ({ page, browser }) => {
   const { coach, templateId, client, clientId } = await setup(page, browser);
   try {
     await withDb((db) =>
@@ -190,9 +190,18 @@ test("bodyweight exercise has no weight field in the dialog", async ({ page, bro
     );
     await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
     const { dialog } = await openTargets(page, clientId);
-    await expect(dialog.getByLabel("Подходы: Подтягивания")).toBeVisible();
     await expect(dialog.getByLabel("Вес, кг: Подтягивания")).toHaveCount(0);
-    await expect(dialog.getByLabel(`Вес, кг: ${SQUAT}`)).toBeVisible();
+    await dialog.getByLabel("Подходы: Подтягивания").fill("4");
+    await dialog.getByLabel("Повторы: Подтягивания").fill("6");
+    await dialog.getByLabel("Доп. кг: Подтягивания").fill("10");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+
+    await client.page.goto("/training");
+    await client.page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+    const pullups = client.page.getByRole("region", { name: "Подтягивания" });
+    await expect(pullups.getByLabel("Вес, подход 1")).toHaveValue("10");
+    await expect(pullups).toContainText("от тренера: 4 × 6 · +10 кг");
   } finally {
     await client.context.close();
   }
