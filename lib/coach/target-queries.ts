@@ -6,12 +6,15 @@ import { db } from "@/lib/db";
 import { addDays } from "@/lib/plans/expand";
 import { getLastPerformance } from "@/lib/workouts/queries";
 
-/** Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента. */
+/**
+ * Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента.
+ * Только упражнения, которые сейчас в шаблоне: задание по убранному не читается (и не даёт пометку).
+ */
 export async function getTemplateTargets(clientId: string, templateId: string): Promise<Map<string, Target>> {
   const link = await db.coachLink.findFirst({ where: { clientId, endedAt: null }, select: { coachId: true } });
   if (!link) return new Map();
   const rows = await db.coachTarget.findMany({
-    where: { clientId, templateId, template: { userId: link.coachId } },
+    where: { clientId, templateId, template: { userId: link.coachId }, exercise: { templateExercises: { some: { templateId } } } },
     select: { exerciseId: true, sets: true, reps: true, weight: true },
   });
   return new Map(rows.map(({ exerciseId, ...t }) => [exerciseId, t]));

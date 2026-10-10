@@ -7,8 +7,8 @@ export type Target = { sets: number | null; reps: number | null; weight: number 
 export type PlannedSet = { weight: number; reps: number };
 
 /**
- * Подходы упражнения шаблона при запуске. Подходы: задание → шаблон. Повторы: задание → шаблон → история
- * (по номеру подхода, затем последний). Вес: задание → история → шаблон. Без задания — прежние правила.
+ * Подходы упражнения шаблона при запуске. Подходы: задание → шаблон. Повторы: задание → шаблон → история того же подхода
+ * (лишний — 0). Вес: задание → история (по номеру подхода, затем последний) → шаблон. Без задания — прежние правила.
  */
 export function plannedSets(
   te: { targetSets: number; targetReps: number | null; targetWeight: number | null },
@@ -17,8 +17,17 @@ export function plannedSets(
 ): PlannedSet[] {
   return Array.from({ length: target?.sets ?? te.targetSets }, (_, i) => ({
     weight: target?.weight ?? lastSets[i]?.weight ?? lastSets.at(-1)?.weight ?? te.targetWeight ?? 0,
-    reps: target?.reps ?? te.targetReps ?? lastSets[i]?.reps ?? lastSets.at(-1)?.reps ?? 0,
+    reps: target?.reps ?? te.targetReps ?? lastSets[i]?.reps ?? 0,
   }));
+}
+
+/** Поле диалога: пусто — null, «62,5» — 62.5; мусор, минус или дробь в целом поле — NaN (не молчаливые 0 кг). */
+export function parseTargetInput(value: string, { int = false }: { int?: boolean } = {}): number | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (!/^\d+([.,]\d+)?$/.test(v)) return Number.NaN;
+  const n = Number(v.replace(",", "."));
+  return int && !Number.isInteger(n) ? Number.NaN : n;
 }
 
 export const isEmptyTarget = (t: Target) => t.sets === null && t.reps === null && t.weight === null;

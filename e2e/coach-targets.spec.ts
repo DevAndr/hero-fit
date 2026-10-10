@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { coachAssignOnce, coachTarget, coachTargetCount, coachTemplate, enableCoach, idOf, linkCoach } from "./db";
-import { quickWorkout, registerUser } from "./helpers";
+import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 import { E2E_TZ_OFFSET } from "./tz";
 
 const nickOf = (login: string, p: string) => `${p.slice(0, 4)}_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
@@ -155,6 +155,23 @@ test("dialog shows the client's last result", async ({ page, browser }) => {
     await expect(dialog).toContainText("в прошлый раз: 50 × 6 · 1 подход");
     await expect(dialog).toContainText("ещё не выполнялось");
     await expect(dialog.getByLabel(`Вес, кг: ${SQUAT}`)).toHaveAttribute("placeholder", "50");
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("a target for an exercise no longer in the template is ignored", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    // Упражнение убрано из шаблона после задания — строка осталась
+    await coachTarget(client.login, templateId, "Жим штанги лёжа", { weight: 70 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await client.page.goto("/training");
+    await client.page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+    await addToWorkout(client.page, ["Жим штанги лёжа"]);
+    const bench = client.page.getByRole("region", { name: "Жим штанги лёжа" });
+    await expect(bench).toBeVisible();
+    await expect(bench).not.toContainText("от тренера");
   } finally {
     await client.context.close();
   }

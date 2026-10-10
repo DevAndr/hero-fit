@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTarget, isEmptyTarget, plannedSets, targetSchema, validateTargetItems } from "./targets";
+import { formatTarget, isEmptyTarget, parseTargetInput, plannedSets, targetSchema, validateTargetItems } from "./targets";
 
 const te = { targetSets: 3, targetReps: 10, targetWeight: 20 };
 const last = [
@@ -14,10 +14,11 @@ describe("plannedSets", () => {
       { weight: 55, reps: 10 },
       { weight: 55, reps: 10 },
     ]);
+    // Повторы лишнего подхода без повторов в шаблоне — 0, как было (вес — с последнего подхода)
     expect(plannedSets({ ...te, targetReps: null }, last)).toEqual([
       { weight: 50, reps: 8 },
       { weight: 55, reps: 6 },
-      { weight: 55, reps: 6 },
+      { weight: 55, reps: 0 },
     ]);
     expect(plannedSets(te, [])).toEqual(Array(3).fill({ weight: 20, reps: 10 }));
     expect(plannedSets({ targetSets: 2, targetReps: null, targetWeight: null }, [])).toEqual(Array(2).fill({ weight: 0, reps: 0 }));
@@ -73,5 +74,23 @@ describe("isEmptyTarget / validateTargetItems", () => {
     expect(validateTargetItems([{ exerciseId: "a" }], ["a", "b"])).toBe(true);
     expect(validateTargetItems([{ exerciseId: "c" }], ["a", "b"])).toBe(false);
     expect(validateTargetItems([{ exerciseId: "a" }, { exerciseId: "a" }], ["a"])).toBe(false);
+  });
+});
+
+describe("parseTargetInput", () => {
+  it("пусто — null, запятая — дробь", () => {
+    expect(parseTargetInput("  ")).toBeNull();
+    expect(parseTargetInput("62,5")).toBe(62.5);
+    expect(parseTargetInput("0")).toBe(0);
+  });
+  it("мусор — NaN, а не 0 кг", () => {
+    expect(parseTargetInput("abc")).toBeNaN();
+    expect(parseTargetInput("-5")).toBeNaN();
+    expect(parseTargetInput(".")).toBeNaN();
+    expect(parseTargetInput("5кг")).toBeNaN();
+  });
+  it("целые поля не округляются молча", () => {
+    expect(parseTargetInput("2.5", { int: true })).toBeNaN();
+    expect(parseTargetInput("4", { int: true })).toBe(4);
   });
 });

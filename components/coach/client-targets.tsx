@@ -3,19 +3,17 @@
 import { useState, useTransition } from "react";
 import { Dumbbell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { parseNumber } from "@/components/training/workout-state";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { saveTargetsAction } from "@/lib/coach/target-actions";
+import { parseTargetInput } from "@/lib/coach/targets";
 import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
 import { plural } from "@/lib/format";
 
 type Row = { sets: string; reps: string; weight: string };
 
 const str = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n).replace(".", ","));
-const toInt = (v: string) => (v.trim() ? Math.round(parseNumber(v)) : null);
-const toWeight = (v: string) => (v.trim() ? parseNumber(v) : null);
 const num = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
 
 /** Вкладка «План»: задания клиенту по назначенным шаблонам тренера. */
@@ -77,8 +75,13 @@ function TargetsForm({
     startTransition(async () => {
       const items = template.exercises.map((e) => {
         const r = rows[e.exerciseId];
-        return { exerciseId: e.exerciseId, sets: toInt(r.sets), reps: toInt(r.reps), weight: toWeight(r.weight) };
+        return { exerciseId: e.exerciseId, sets: parseTargetInput(r.sets, { int: true }), reps: parseTargetInput(r.reps, { int: true }), weight: parseTargetInput(r.weight) };
       });
+      const bad = template.exercises.find((_, i) => [items[i].sets, items[i].reps, items[i].weight].some((n) => Number.isNaN(n)));
+      if (bad) {
+        toast.error(`Проверьте числа: «${bad.name}»`);
+        return;
+      }
       const result = await saveTargetsAction(clientId, template.templateId, items);
       if (result.ok) onDone();
       else toast.error(result.error);
