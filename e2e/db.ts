@@ -289,3 +289,29 @@ export async function coachProfile(
     );
   });
 }
+
+/** Последний токен привязки Telegram пользователя. */
+export async function telegramToken(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ token: string }>(
+      `select t.token from "TelegramLinkToken" t join "User" u on u.id = t."userId" where u.login = $1 order by t."createdAt" desc limit 1`,
+      [login],
+    );
+    return rows[0]?.token ?? null;
+  });
+}
+
+/** Привязанный чат Telegram (строкой) или null. */
+export async function telegramChat(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ chat: string | null }>(`select "telegramChatId"::text as chat from "User" where login = $1`, [login]);
+    return rows[0]?.chat ?? null;
+  });
+}
+
+/** Быстрая привязка Telegram без прохода через бота. */
+export async function linkTelegram(login: string, chatId: string) {
+  await withDb((db) =>
+    db.query(`update "User" set "telegramChatId" = $2::bigint, "telegramUsername" = 'e2e', "telegramLinkedAt" = now() where login = $1`, [login, chatId]),
+  );
+}

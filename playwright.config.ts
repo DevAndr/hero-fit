@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 import { CERT_PATH, ensureCerts } from "./e2e/certs";
+import { TELEGRAM_FAKE_URL } from "./e2e/telegram-server";
 import { prepareTestDatabase, testDatabaseUrl } from "./e2e/test-db";
 import { E2E_TZ } from "./e2e/tz";
 
@@ -44,17 +45,22 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
-  webServer: {
-    command: `npx next start -p ${PORT}`,
-    url: `http://localhost:${PORT}`,
-    // Всегда свой сервер: чужой (без NODE_EXTRA_CA_CERTS) не доставит push в фейковый сервис.
-    reuseExistingServer: false,
-    // Сервер доверяет сертификату фейкового push-сервиса из e2e/push-server.ts и работает с тестовой базой.
-    // E2E_TEST_CLOCK — cron-эндпоинт принимает ?now= (напоминания по дням недели).
-    // DAILY_CHEST_AUTOOPEN=off — диалог ежедневного сундука не перекрывает дашборд (сам сундук — e2e/daily-chest.spec.ts);
-    // ONBOARDING_TOUR=off — новые пользователи уже прошли экскурсию (сама экскурсия — e2e/onboarding.spec.ts)
-    // APP_URL — локальный: иначе из .env подтянется боевой домен (canonical, индексация)
-    env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", APP_URL: `http://localhost:${PORT}` },
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: `npx next start -p ${PORT}`,
+      url: `http://localhost:${PORT}`,
+      // Всегда свой сервер: чужой (без NODE_EXTRA_CA_CERTS) не доставит push в фейковый сервис.
+      reuseExistingServer: false,
+      // Сервер доверяет сертификату фейкового push-сервиса из e2e/push-server.ts и работает с тестовой базой.
+      // E2E_TEST_CLOCK — cron-эндпоинт принимает ?now= (напоминания по дням недели).
+      // DAILY_CHEST_AUTOOPEN=off — диалог ежедневного сундука не перекрывает дашборд (сам сундук — e2e/daily-chest.spec.ts);
+      // ONBOARDING_TOUR=off — новые пользователи уже прошли экскурсию (сама экскурсия — e2e/onboarding.spec.ts)
+      // APP_URL — локальный: иначе из .env подтянется боевой домен (canonical, индексация)
+      env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", APP_URL: `http://localhost:${PORT}`,
+        // Telegram-бот ходит в фейковый Bot API (e2e/telegram-server.ts)
+        TELEGRAM_BOT_TOKEN: "e2e-token", TELEGRAM_BOT_USERNAME: "hero_fit_e2e_bot", TELEGRAM_WEBHOOK_SECRET: "e2e-telegram-secret-0123456789abcdef", TELEGRAM_API_URL: TELEGRAM_FAKE_URL },
+      timeout: 60_000,
+    },
+    { command: "npx tsx e2e/telegram-server.ts", url: `${TELEGRAM_FAKE_URL}/health`, reuseExistingServer: false, timeout: 30_000 },
+  ],
 });
