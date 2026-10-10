@@ -1,18 +1,17 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { coachAssignOnce, coachTemplate, enableCoach, idOf, linkCoach } from "./db";
 import { pickOption, registerUser } from "./helpers";
+import { E2E_TZ_OFFSET } from "./tz";
 
 /** Ник ≤ 20 символов и уникален между прогонами на одной тестовой базе: хвост логина с меткой времени. */
 const nickOf = (login: string, p: string) => `${p.slice(0, 4)}_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
 
-/** Местная дата YYYY-MM-DD через n дней. */
-function localDate(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+/** Сейчас в поясе e2e (поля UTC — местные). */
+const localNow = () => new Date(Date.now() + E2E_TZ_OFFSET * 3600_000);
+/** Местная дата YYYY-MM-DD через n дней (в поясе браузера, а не процесса Node — на CI тот в UTC). */
+const localDate = (n: number) => new Date(localNow().getTime() + n * 86_400_000).toISOString().slice(0, 10);
 /** Ближайший понедельник строго после сегодня (1…7 дней) — попадает в «Ближайшие 2 недели». */
-const nextMonday = () => localDate(((1 - new Date().getDay() + 7) % 7) || 7);
+const nextMonday = () => localDate(((1 - localNow().getUTCDay() + 7) % 7) || 7);
 
 async function another(browser: Browser, name = "Клиент") {
   const context = await browser.newContext();

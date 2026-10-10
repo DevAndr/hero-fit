@@ -2,6 +2,7 @@ import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 import { CERT_PATH, ensureCerts } from "./e2e/certs";
 import { prepareTestDatabase, testDatabaseUrl } from "./e2e/test-db";
+import { E2E_TZ } from "./e2e/tz";
 
 ensureCerts();
 
@@ -30,7 +31,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: "ru-RU",
-    timezoneId: "Europe/Moscow",
+    // Пояс подобран так, чтобы прогон не пересекал полночь (e2e/tz.ts)
+    timezoneId: E2E_TZ,
     trace: "retain-on-failure",
     // Без лимита клик ждёт до общего таймаута теста (30 с) и падает безликим «Test timeout» — так он падает с причиной
     actionTimeout: 15_000,

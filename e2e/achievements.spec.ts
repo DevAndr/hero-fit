@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createUserRow, makeFriends, mondayWeeksAgo, seedRecapWeek, seedWorkouts, userId, withDb } from "./db";
+import { E2E_TZ } from "./tz";
 import { quickWorkout, registerUser, uniqueLogin } from "./helpers";
 
 test("new user sees goals with progress and an empty list", async ({ page }) => {
@@ -126,8 +127,8 @@ test("own exercise, body weight and base lifts give achievements outside of a wo
 
 test("daily login streak in the user's time zone", async ({ page }) => {
   const { login } = await registerUser(page);
-  // Вчерашний календарный день по Москве (timezoneId в playwright.config)
-  const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(
+  // Вчерашний календарный день в поясе e2e (timezoneId в playwright.config)
+  const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(
     new Date(Date.now() - 24 * 3600 * 1000),
   );
   await withDb(async (db) => {

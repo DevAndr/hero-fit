@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import pg, { Client } from "pg";
+import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
 // Колонки — timestamp без зоны, в них UTC (так пишет Prisma). По умолчанию pg сериализует Date
 // в локальном поясе процесса, и Postgres молча отбрасывает смещение — время уехало бы на UTC-offset.
@@ -79,21 +80,21 @@ export async function makeFriends(loginA: string, nickA: string, loginB: string,
 export async function createUserRow(login: string) {
   await withDb((db) =>
     db.query(
-      `insert into "User" (id, login, email, "passwordHash", "timeZone", "updatedAt") values ($1, $2, $3, 'x', 'Europe/Moscow', now())`,
-      [randomUUID(), login, `${login}@test.local`],
+      `insert into "User" (id, login, email, "passwordHash", "timeZone", "updatedAt") values ($1, $2, $3, 'x', $4, now())`,
+      [randomUUID(), login, `${login}@test.local`, E2E_TZ],
     ),
   );
 }
 
-/** Понедельник n недель назад по Москве (пояс браузера в e2e), «YYYY-MM-DD». */
+/** Понедельник n недель назад в поясе e2e (e2e/tz.ts), «YYYY-MM-DD». */
 export function mondayWeeksAgo(n: number, now = new Date()) {
-  const msk = new Date(now.getTime() + 3 * 3600_000); // Europe/Moscow — UTC+3 без перехода на летнее время
-  const weekday = (msk.getUTCDay() + 6) % 7;
-  return new Date(msk.getTime() - (weekday + 7 * n) * 86_400_000).toISOString().slice(0, 10);
+  const local = new Date(now.getTime() + E2E_TZ_OFFSET * 3600_000);
+  const weekday = (local.getUTCDay() + 6) % 7;
+  return new Date(local.getTime() - (weekday + 7 * n) * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
- * Тренировки недели weekStart (по Москве) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
+ * Тренировки недели weekStart (в поясе e2e) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
  * day: 0 = пн … 6 = вс, time — местное «HH:MM» начала-конца не важно: тренировка длится 60 мин и заканчивается в time.
  */
 export async function seedRecapWeek(
@@ -103,11 +104,11 @@ export async function seedRecapWeek(
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
-    await db.query(`update "User" set "timeZone" = 'Europe/Moscow' where id = $1`, [uid]);
+    await db.query(`update "User" set "timeZone" = $2 where id = $1`, [uid, E2E_TZ]);
     for (const [i, w] of workouts.entries()) {
       const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [w.exercise]);
       const date = new Date(Date.parse(`${weekStart}T12:00:00Z`) + w.day * 86_400_000).toISOString().slice(0, 10);
-      const finished = new Date(`${date}T${w.time}:00+03:00`);
+      const finished = localAt(date, w.time);
       const started = new Date(finished.getTime() - 3600_000);
       const workoutId = randomUUID();
       const weId = randomUUID();
