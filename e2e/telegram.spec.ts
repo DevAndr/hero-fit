@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { telegramChat, telegramToken } from "./db";
-import { registerUser } from "./helpers";
+import { linkTelegram, queuePush, setNotifyTelegram, telegramChat, telegramToken } from "./db";
+import { registerUser, runTick } from "./helpers";
 import { TELEGRAM_FAKE_URL } from "./telegram-server";
 
 const SECRET = "e2e-telegram-secret-0123456789abcdef";
@@ -120,4 +120,71 @@ test("webhook rejects bad secret; ignores non-private and empty updates", async 
   const empty = await request.post("/api/telegram/webhook", { headers: { "X-Telegram-Bot-Api-Secret-Token": SECRET }, data: { update_id: 1 } });
   expect(empty.status()).toBe(200);
   expect(await tgCalls(chat)).toEqual([]);
+});
+
+const sent = async (chatId: string) => (await tgCalls(chatId)).filter((c) => c.method === "sendMessage");
+
+test("notifications arrive in Telegram, once", async ({ page, request }) => {
+  const { login } = await registerUser(page);
+  const chat = newChat();
+  await linkTelegram(login, chat);
+  await queuePush(login, { type: "STREAK", title: "Не потеряй streak! 🔥", body: "Серия <4> недели & ещё 2", url: "/training" });
+
+  await runTick(request);
+  await expect.poll(async () => (await sent(chat)).length).toBe(1);
+  const [msg] = await sent(chat);
+  expect(msg.params).toMatchObject({ text: "<b>Не потеряй streak! 🔥</b>\nСерия &lt;4&gt; недели &amp; ещё 2", parse_mode: "HTML" });
+  // APP_URL e2e — localhost: Telegram не принял бы такую кнопку
+  expect(msg.params.reply_markup).toBeUndefined();
+
+  await runTick(request);
+  await page.waitForTimeout(6000);
+  expect(await sent(chat)).toHaveLength(1);
+});
+
+test("rest timer and opted-out users get nothing", async ({ browser, request }) => {
+  const ctx = await browser.newContext();
+  const ctxB = await browser.newContext();
+  const page = await ctx.newPage();
+  const { login: a } = await registerUser(page);
+  const { login: b } = await registerUser(await ctxB.newPage());
+  const [chatA, chatB] = [newChat(), newChat()];
+  await linkTelegram(a, chatA);
+  await linkTelegram(b, chatB);
+  await setNotifyTelegram(b, false);
+  await queuePush(a, { type: "REST", title: "Отдых окончен 💪", body: "Следующий подход", url: "/training" });
+  await queuePush(b, { type: "STREAK", title: "Не потеряй streak! 🔥", body: "x" });
+
+  await runTick(request);
+  await page.waitForTimeout(6000);
+  expect(await sent(chatA)).toEqual([]);
+  expect(await sent(chatB)).toEqual([]);
+  await ctx.close();
+  await ctxB.close();
+});
+
+test("unlinked before send — not sent", async ({ page, request }) => {
+  const { login } = await registerUser(page);
+  const chat = newChat();
+  await linkTelegram(login, chat);
+  await queuePush(login, { type: "STREAK", title: "Позже", body: "x", sendAt: new Date(Date.now() + 3000) });
+
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Telegram" }).getByRole("button", { name: "Отключить" }).click();
+  await expect(page.getByRole("region", { name: "Telegram" }).getByRole("button", { name: "Подключить" })).toBeVisible();
+  await page.waitForTimeout(3500);
+  await runTick(request);
+  await page.waitForTimeout(6000);
+  expect(await sent(chat)).toEqual([]);
+});
+
+test("blocked bot unlinks", async ({ page, request }) => {
+  const { login } = await registerUser(page);
+  const chat = newChat();
+  await linkTelegram(login, chat);
+  await fetch(`${TELEGRAM_FAKE_URL}/block?chat_id=${chat}`, { method: "POST" });
+  await queuePush(login, { type: "SOCIAL", title: "Заявка в друзья", body: "x" });
+
+  await runTick(request);
+  await expect.poll(() => telegramChat(login)).toBeNull();
 });

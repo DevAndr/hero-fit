@@ -315,3 +315,17 @@ export async function linkTelegram(login: string, chatId: string) {
     db.query(`update "User" set "telegramChatId" = $2::bigint, "telegramUsername" = 'e2e', "telegramLinkedAt" = now() where login = $1`, [login, chatId]),
   );
 }
+
+/** Запись в очередь уведомлений (её разошлёт тик / фоновый воркер). */
+export async function queuePush(login: string, p: { type: string; title: string; body: string; url?: string | null; sendAt?: Date }) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "ScheduledPush" (id, "userId", type, title, body, url, "sendAt") values ($1, $2, $3::"NotificationType", $4, $5, $6, $7)`,
+      [randomUUID(), await userId(db, login), p.type, p.title, p.body, p.url ?? null, p.sendAt ?? new Date()],
+    );
+  });
+}
+
+export async function setNotifyTelegram(login: string, on: boolean) {
+  await withDb((db) => db.query(`update "User" set "notifyTelegram" = $2 where login = $1`, [login, on]));
+}

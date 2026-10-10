@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { sendPushToUser } from "@/lib/notifications/push";
+import { sendTelegramToUser } from "@/lib/telegram/send";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { shouldRemindStreak, streakReminderBody } from "@/lib/notifications/reminders";
 import { addDays } from "@/lib/plans/expand";
@@ -75,8 +76,8 @@ export async function processDuePushes(now = new Date()) {
     )
     RETURNING id, "userId", type::text AS type, title, body, url
   `;
-  // Параллельно: медленный push-сервис одного пользователя не задерживает остальных.
-  await Promise.allSettled(due.map((p) => sendPushToUser(p.userId, p)));
+  // Параллельно: медленный push-сервис одного пользователя не задерживает остальных. Telegram — второй канал.
+  await Promise.allSettled(due.flatMap((p) => [sendPushToUser(p.userId, p), sendTelegramToUser(p.userId, p)]));
   return due.length;
 }
 
