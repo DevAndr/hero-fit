@@ -173,6 +173,7 @@ model User {
   coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
   coachTargets        CoachTarget[]
+  coachProfile        CoachProfile?
   kudos               Kudos[]
 }
 
@@ -678,4 +679,30 @@ model CoachTarget {
 
   @@unique([clientId, templateId, exerciseId])
   @@index([templateId])
+}
+
+enum CoachFormat {
+  ONLINE
+  OFFLINE
+  BOTH
+}
+
+/// Публичная страница тренера /trainer/<ник>: видна всем, пока опубликована и режим тренера включён.
+model CoachProfile {
+  userId      String      @id
+  displayName String?
+  city        String?
+  format      CoachFormat @default(BOTH)
+  /// коды из SPECIALTIES (lib/coach/profile.ts)
+  specialties String[]    @default([])
+  about       String      @default("")
+  /// скрытые цифры — коды STAT_CODES
+  hiddenStats String[]    @default([])
+  publishedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([publishedAt])
 }

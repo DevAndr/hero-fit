@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { Users } from "lucide-react";
+import Link from "next/link";
+import { Globe, Users } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { ClientList } from "@/components/coach/client-list";
 import { InviteCard } from "@/components/coach/invite-card";
+import { buttonVariants } from "@/components/ui/button";
 import { requireCoach } from "@/lib/coach/access";
 import { sortClients } from "@/lib/coach/clients";
 import { ensureCoachCode, getCoachClients } from "@/lib/coach/queries";
@@ -19,7 +21,16 @@ export default async function CoachPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader title="Клиенты" description="Тренировки и прогресс ваших клиентов" />
+      <PageHeader
+        title="Клиенты"
+        description="Тренировки и прогресс ваших клиентов"
+        actions={
+          <Link href="/coach/page" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <Globe />
+            Публичная страница
+          </Link>
+        }
+      />
       {clients.length ? (
         <ClientList rows={sortClients(clients, now)} now={now} />
       ) : (

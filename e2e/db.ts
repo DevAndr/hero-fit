@@ -274,3 +274,18 @@ export async function coachTargetRow(clientLogin: string, exerciseName: string) 
     return rows[0];
   });
 }
+
+/** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
+export async function coachProfile(
+  coachLogin: string,
+  p: { about: string; publish?: boolean; city?: string; displayName?: string; hiddenStats?: string[]; specialties?: string[] },
+) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, now())
+       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "updatedAt" = now()`,
+      [await userId(db, coachLogin), p.displayName ?? null, p.city ?? null, p.about, p.specialties ?? [], p.hiddenStats ?? [], p.publish ? new Date() : null],
+    );
+  });
+}
