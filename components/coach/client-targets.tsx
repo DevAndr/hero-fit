@@ -11,7 +11,7 @@ import { parseTargetInput } from "@/lib/coach/targets";
 import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
 import { plural } from "@/lib/format";
 
-type Row = { sets: string; reps: string; weight: string };
+type Row = { sets: string; reps: string; weight: string; step: string };
 
 const str = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n).replace(".", ","));
 const num = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
@@ -27,6 +27,7 @@ export function ClientTargets({ clientId, timeZone, templates }: { clientId: str
       <ul className="divide-y divide-border/60">
         {templates.map((t) => {
           const set = t.exercises.filter((e) => e.target).length;
+          const progressing = t.exercises.filter((e) => e.target?.step && e.target.weight !== null).length;
           return (
             <li key={t.templateId} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <span className="text-sm">
@@ -34,6 +35,7 @@ export function ClientTargets({ clientId, timeZone, templates }: { clientId: str
                 {" · "}
                 <span className="text-muted-foreground">
                   {set ? `задано ${set} из ${t.exercises.length} ${plural(t.exercises.length, "упражнения", "упражнений", "упражнений")}` : "заданий нет"}
+                  {progressing ? ` · прогрессия у ${progressing}` : null}
                 </span>
               </span>
               <Button size="sm" variant="outline" onClick={() => setOpen(t)} aria-label={`Задания: ${t.name}`}>
@@ -65,7 +67,7 @@ function TargetsForm({
   onDone: () => void;
 }) {
   const [rows, setRows] = useState<Record<string, Row>>(() =>
-    Object.fromEntries(template.exercises.map((e) => [e.exerciseId, { sets: str(e.target?.sets), reps: str(e.target?.reps), weight: str(e.target?.weight) }])),
+    Object.fromEntries(template.exercises.map((e) => [e.exerciseId, { sets: str(e.target?.sets), reps: str(e.target?.reps), weight: str(e.target?.weight), step: str(e.target?.step) }])),
   );
   const [pending, startTransition] = useTransition();
   const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone });
@@ -80,9 +82,10 @@ function TargetsForm({
           sets: parseTargetInput(r.sets, { int: true }),
           reps: parseTargetInput(r.reps, { int: true }),
           weight: parseTargetInput(r.weight),
+          step: parseTargetInput(r.step),
         };
       });
-      const bad = template.exercises.find((_, i) => [items[i].sets, items[i].reps, items[i].weight].some((n) => Number.isNaN(n)));
+      const bad = template.exercises.find((_, i) => [items[i].sets, items[i].reps, items[i].weight, items[i].step].some((n) => Number.isNaN(n)));
       if (bad) {
         toast.error(`Проверьте числа: «${bad.name}»`);
         return;
@@ -110,7 +113,7 @@ function TargetsForm({
           return (
             <li key={e.exerciseId}>
               <p className="text-sm font-semibold">{e.name}</p>
-              <div className="mt-1.5 grid grid-cols-3 gap-2">
+              <div className="mt-1.5 grid grid-cols-4 gap-2">
                 <Field label="Подходы" exercise={e.name} value={r.sets} placeholder={String(e.template.sets)} onChange={(v) => update(e.exerciseId, { sets: v })} />
                 <Field
                   label="Повторы"
@@ -128,12 +131,18 @@ function TargetsForm({
                   placeholder={str(first?.weight ?? e.template.weight) || (e.isBodyweight ? "0" : "—")}
                   onChange={(v) => update(e.exerciseId, { weight: v })}
                 />
+                <Field label="Шаг, кг" exercise={e.name} decimal value={r.step} placeholder="—" onChange={(v) => update(e.exerciseId, { step: v })} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {e.last && first
                   ? `в прошлый раз: ${first.weight ? `${num(first.weight)} × ${first.reps}` : `${first.reps} ${plural(first.reps, "повтор", "повтора", "повторов")}`} · ${e.last.sets.length} ${plural(e.last.sets.length, "подход", "подхода", "подходов")}${e.last.date ? `, ${day.format(new Date(e.last.date))}` : ""}`
                   : "ещё не выполнялось"}
               </p>
+              {e.target?.step && e.target.weight !== null ? (
+                <p className="text-xs text-primary">
+                  {`прогрессия: +${num(e.target.step)} кг за успешную тренировку · неудач подряд: ${e.target.fails}`}
+                </p>
+              ) : null}
             </li>
           );
         })}

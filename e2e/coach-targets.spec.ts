@@ -274,3 +274,29 @@ test("progression: third failure deloads and notifies the coach", async ({ page,
     await client.context.close();
   }
 });
+
+test("coach sets a step in the dialog; step without weight is refused; changing weight resets fails", async ({ page, browser }) => {
+  test.slow();
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    let { section, dialog } = await openTargets(page, clientId);
+    await dialog.getByLabel(`Шаг, кг: ${SQUAT}`).fill("2,5");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(page.getByText("Для прогрессии нужен вес")).toBeVisible();
+    await dialog.getByLabel(`Вес, кг: ${SQUAT}`).fill("60");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(section).toContainText("прогрессия у 1");
+
+    await withDb((db) => db.query(`update "CoachTarget" set fails = 2 where "clientId" = $1`, [clientId]));
+    ({ section, dialog } = await openTargets(page, clientId));
+    await expect(dialog).toContainText("прогрессия: +2,5 кг за успешную тренировку · неудач подряд: 2");
+    await dialog.getByLabel(`Вес, кг: ${SQUAT}`).fill("65");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+    expect(await coachTargetRow(client.login, SQUAT)).toEqual({ weight: 65, fails: 0 });
+  } finally {
+    await client.context.close();
+  }
+});

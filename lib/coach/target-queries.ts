@@ -29,7 +29,8 @@ export type ClientTemplateTargets = {
     /** Своим весом — вес в диалоге как отягощение («Доп. кг»). */
     isBodyweight: boolean;
     template: { sets: number; reps: number | null; weight: number | null };
-    target: Target | null;
+    /** Задание; step и fails — прогрессия. */
+    target: (Target & { step: number | null; fails: number }) | null;
     last: { date: string; sets: PlannedSet[] } | null;
   }[];
 };
@@ -48,7 +49,7 @@ export async function getClientTargets(clientId: string, coachId: string, timeZo
         where: { exercise: { archivedAt: null } },
         select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, exercise: { select: { name: true, isBodyweight: true } } },
       },
-      coachTargets: { where: { clientId }, select: { exerciseId: true, sets: true, reps: true, weight: true } },
+      coachTargets: { where: { clientId }, select: { exerciseId: true, sets: true, reps: true, weight: true, step: true, fails: true } },
     },
   });
   const last = await getLastPerformance(clientId, [...new Set(templates.flatMap((t) => t.exercises.map((e) => e.exerciseId)))]);

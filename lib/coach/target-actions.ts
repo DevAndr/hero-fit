@@ -15,7 +15,7 @@ type Result = { ok: true } | { ok: false; error: string };
 export async function saveTargetsAction(
   clientId: string,
   templateId: string,
-  items: { exerciseId: string; sets: number | null; reps: number | null; weight: number | null }[],
+  items: { exerciseId: string; sets: number | null; reps: number | null; weight: number | null; step?: number | null }[],
 ): Promise<Result> {
   const { client, coach } = await requireClientOf(String(clientId));
   const parsed = targetsSchema.safeParse(items);
@@ -27,6 +27,7 @@ export async function saveTargetsAction(
   });
   if (!template) return { ok: false, error: "Шаблон не назначен клиенту" };
   if (!validateTargetItems(parsed.data, template.exercises.map((e) => e.exerciseId))) return { ok: false, error: "Упражнения нет в шаблоне" };
+  if (parsed.data.some((t) => t.step !== null && t.weight === null)) return { ok: false, error: "Для прогрессии нужен вес" };
 
   const key = { clientId: client.id, templateId: template.id };
   const empty = parsed.data.filter(isEmptyTarget).map((t) => t.exerciseId);
@@ -35,11 +36,17 @@ export async function saveTargetsAction(
     // «Впервые» — только по упражнениям, которые сейчас в шаблоне (задание по убранному не в счёт)
     const count = await tx.coachTarget.count({ where: { ...key, exerciseId: { in: template.exercises.map((e) => e.exerciseId) } } });
     if (empty.length) await tx.coachTarget.deleteMany({ where: { ...key, exerciseId: { in: empty } } });
-    for (const { exerciseId, sets, reps, weight } of filled) {
+    const old = new Map(
+      (await tx.coachTarget.findMany({ where: key, select: { exerciseId: true, weight: true, step: true } })).map((t) => [t.exerciseId, t]),
+    );
+    for (const { exerciseId, sets, reps, weight, step } of filled) {
+      // Тренер сменил вес или шаг — счётчик неудач прогрессии с нуля
+      const prev = old.get(exerciseId);
+      const reset = !prev || prev.weight !== weight || prev.step !== step;
       await tx.coachTarget.upsert({
         where: { clientId_templateId_exerciseId: { ...key, exerciseId } },
-        create: { ...key, exerciseId, sets, reps, weight },
-        update: { sets, reps, weight },
+        create: { ...key, exerciseId, sets, reps, weight, step },
+        update: { sets, reps, weight, step, ...(reset ? { fails: 0 } : {}) },
       });
     }
     return count;
