@@ -665,6 +665,10 @@ model CoachTarget {
   sets       Int?
   reps       Int?
   weight     Float?
+  /// шаг прогрессии, кг (0,5…20); null — прогрессии нет
+  step       Float?
+  /// неудач подряд (прогрессия): на 3-й — разгрузка −10 %
+  fails      Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Clock, Dumbbell, Flame, Layers, Medal, Repeat, Sparkles, Trophy, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, Layers, Medal, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
@@ -8,6 +8,7 @@ import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import type { RecordType } from "@/generated/prisma/enums";
+import { progressionLine, type ProgressionItem } from "@/lib/coach/progression";
 import { formatClock, rirLabel } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
@@ -193,6 +194,8 @@ export function WorkoutSummaryView({
         </section>
       ) : null}
 
+      {meta?.progression?.length ? <CoachProgression items={meta.progression} /> : null}
+
       <section className="mt-6 space-y-3">
         <h2 className="text-lg font-bold">Упражнения</h2>
         {workout.exercises.map((we) => (
@@ -221,5 +224,31 @@ export function WorkoutSummaryView({
       {renderComment?.(null)}
       {footer ? <div className="mt-6 flex flex-wrap gap-2">{footer}</div> : null}
     </div>
+  );
+}
+
+const PROGRESSION_ICON = {
+  up: { Icon: ArrowUp, className: "text-primary" },
+  same: { Icon: RotateCcw, className: "text-muted-foreground" },
+  deload: { Icon: ArrowDown, className: "text-streak" },
+} as const;
+
+/** Прогрессия заданий тренера: что будет в следующий раз (FinishMeta.progression). */
+function CoachProgression({ items }: { items: ProgressionItem[] }) {
+  return (
+    <section aria-label="План тренера" className="mt-4 rounded-xl border p-4">
+      <h2 className="font-bold">План тренера</h2>
+      <ul className="mt-2 space-y-1 text-sm">
+        {items.map((item) => {
+          const { Icon, className } = PROGRESSION_ICON[item.kind];
+          return (
+            <li key={item.exercise} className="flex items-start gap-2">
+              <Icon className={cn("mt-0.5 size-4 shrink-0", className)} aria-hidden />
+              {progressionLine(item)}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

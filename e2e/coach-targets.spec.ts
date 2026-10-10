@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { coachAssignOnce, coachTarget, coachTargetCount, coachTemplate, enableCoach, idOf, linkCoach, withDb } from "./db";
+import { coachAssignOnce, coachTarget, coachTargetCount, coachTargetRow, coachTemplate, enableCoach, idOf, linkCoach, withDb } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 import { E2E_TZ_OFFSET } from "./tz";
 
@@ -202,6 +202,48 @@ test("bodyweight exercise: extra weight in the dialog and «+N кг» in the lab
     const pullups = client.page.getByRole("region", { name: "Подтягивания" });
     await expect(pullups.getByLabel("Вес, подход 1")).toHaveValue("10");
     await expect(pullups).toContainText("от тренера: 4 × 6 · +10 кг");
+  } finally {
+    await client.context.close();
+  }
+});
+
+/** Клиент запускает «Ноги — база» из «От тренера», отмечает первые n подходов приседа и завершает. */
+async function doSquats(page: Page, n: number) {
+  await page.goto("/training");
+  await page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+  const squat = page.getByRole("region", { name: SQUAT });
+  for (let i = 1; i <= n; i++) await squat.getByRole("button", { name: `Подход ${i} выполнен` }).click();
+  await page.getByRole("button", { name: "Завершить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+  await expect(page).toHaveURL(/\/workouts\/\w+$/);
+}
+
+test("progression: success raises the weight for the next start", async ({ page, browser }) => {
+  test.slow();
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await doSquats(client.page, 3);
+    await expect(client.page.getByRole("region", { name: "План тренера" })).toContainText(`${SQUAT}: в следующий раз 62,5 кг (+2,5)`);
+    expect(await coachTargetRow(client.login, SQUAT)).toEqual({ weight: 62.5, fails: 0 });
+
+    await client.page.goto("/training");
+    await client.page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+    await expect(client.page.getByRole("region", { name: SQUAT }).getByLabel("Вес, подход 1")).toHaveValue("62.5");
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("progression: failure keeps the weight", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await doSquats(client.page, 2);
+    await expect(client.page.getByRole("region", { name: "План тренера" })).toContainText(`${SQUAT}: повторим 60 кг · неудача 1 из 3`);
+    expect(await coachTargetRow(client.login, SQUAT)).toEqual({ weight: 60, fails: 1 });
   } finally {
     await client.context.close();
   }

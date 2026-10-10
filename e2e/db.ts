@@ -243,12 +243,17 @@ export async function coachAssignOnce(coachLogin: string, clientLogin: string, t
 }
 
 /** Задание тренера клиенту по упражнению шаблона (минуя UI). */
-export async function coachTarget(clientLogin: string, templateId: string, exerciseName: string, t: { sets?: number; reps?: number; weight?: number }) {
+export async function coachTarget(
+  clientLogin: string,
+  templateId: string,
+  exerciseName: string,
+  t: { sets?: number; reps?: number; weight?: number; step?: number; fails?: number },
+) {
   await withDb(async (db) => {
     await db.query(
-      `insert into "CoachTarget" (id, "clientId", "templateId", "exerciseId", sets, reps, weight, "updatedAt")
-       select $1, $2, $3, e.id, $5, $6, $7, now() from "Exercise" e where e.name = $4 and e."userId" is null`,
-      [randomUUID(), await userId(db, clientLogin), templateId, exerciseName, t.sets ?? null, t.reps ?? null, t.weight ?? null],
+      `insert into "CoachTarget" (id, "clientId", "templateId", "exerciseId", sets, reps, weight, step, fails, "updatedAt")
+       select $1, $2, $3, e.id, $5, $6, $7, $8, $9, now() from "Exercise" e where e.name = $4 and e."userId" is null`,
+      [randomUUID(), await userId(db, clientLogin), templateId, exerciseName, t.sets ?? null, t.reps ?? null, t.weight ?? null, t.step ?? null, t.fails ?? 0],
     );
   });
 }
@@ -257,5 +262,15 @@ export async function coachTargetCount(clientLogin: string) {
   return withDb(async (db) => {
     const { rows } = await db.query<{ c: number }>(`select count(*)::int c from "CoachTarget" where "clientId" = $1`, [await userId(db, clientLogin)]);
     return rows[0].c;
+  });
+}
+
+export async function coachTargetRow(clientLogin: string, exerciseName: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ weight: number | null; fails: number }>(
+      `select t.weight, t.fails from "CoachTarget" t join "Exercise" e on e.id = t."exerciseId" where t."clientId" = $1 and e.name = $2`,
+      [await userId(db, clientLogin), exerciseName],
+    );
+    return rows[0];
   });
 }

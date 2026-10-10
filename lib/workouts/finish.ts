@@ -7,6 +7,8 @@ import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
 import { titlesUnlockedByWin } from "@/lib/titles/catalog";
 import { notifyCoachOnFinish } from "@/lib/coach/finish-notify";
+import type { ProgressionItem } from "@/lib/coach/progression";
+import { applyProgression } from "@/lib/coach/progression-apply";
 import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
@@ -34,6 +36,8 @@ export type FinishMeta = {
   usedFreezes: number;
   /** Тренировок за неделю этой тренировки (включая её). */
   weekCount: number;
+  /** Прогрессия заданий тренера по этой тренировке (нет — поля нет). */
+  progression?: ProgressionItem[];
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
   boss?: {
     week: string;
@@ -60,7 +64,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     const workout = await tx.workout.findFirst({
       where: { id: workoutId, userId },
       include: {
-        exercises: { include: { exercise: { select: { name: true } }, sets: true } },
+        exercises: { include: { exercise: { select: { name: true, isBodyweight: true } }, sets: true } },
       },
     });
     if (!workout) return { ok: false, error: "Тренировка не найдена" };
@@ -85,6 +89,9 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       where: { workoutExercise: { workoutId }, OR: [{ completedAt: null }, { reps: { lte: 0 } }] },
     });
     await tx.workoutExercise.deleteMany({ where: { workoutId, sets: { none: {} } } });
+
+    // Прогрессия заданий тренера: сравниваем выполненное с заданием (невыполненные подходы уже удалены)
+    const progression = await applyProgression(tx, userId, workout);
 
     // Личные рекорды
     const records: NewRecord[] = [];
@@ -242,6 +249,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       usedFreezes: streak.frozenWeeks.length,
       weekCount,
       boss,
+      ...(progression.items.length ? { progression: progression.items } : {}),
     };
 
     await tx.xpEvent.create({
