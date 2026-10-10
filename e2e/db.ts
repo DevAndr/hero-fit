@@ -289,3 +289,48 @@ export async function coachProfile(
     );
   });
 }
+
+/** Последний токен привязки Telegram пользователя. */
+export async function telegramToken(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ token: string }>(
+      `select t.token from "TelegramLinkToken" t join "User" u on u.id = t."userId" where u.login = $1 order by t."createdAt" desc limit 1`,
+      [login],
+    );
+    return rows[0]?.token ?? null;
+  });
+}
+
+/** Привязанный чат Telegram (строкой) или null. */
+export async function telegramChat(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ chat: string | null }>(`select "telegramChatId"::text as chat from "User" where login = $1`, [login]);
+    return rows[0]?.chat ?? null;
+  });
+}
+
+/** Быстрая привязка Telegram без прохода через бота. */
+export async function linkTelegram(login: string, chatId: string) {
+  await withDb((db) =>
+    db.query(`update "User" set "telegramChatId" = $2::bigint, "telegramUsername" = 'e2e', "telegramLinkedAt" = now() where login = $1`, [login, chatId]),
+  );
+}
+
+/** Запись в очередь уведомлений (её разошлёт тик / фоновый воркер). */
+export async function queuePush(login: string, p: { type: string; title: string; body: string; url?: string | null; sendAt?: Date }) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "ScheduledPush" (id, "userId", type, title, body, url, "sendAt") values ($1, $2, $3::"NotificationType", $4, $5, $6, $7)`,
+      [randomUUID(), await userId(db, login), p.type, p.title, p.body, p.url ?? null, p.sendAt ?? new Date()],
+    );
+  });
+}
+
+export async function setNotifyTelegram(login: string, on: boolean) {
+  await withDb((db) => db.query(`update "User" set "notifyTelegram" = $2 where login = $1`, [login, on]));
+}
+
+/** Ожидающие записи очереди пользователя — к отправке сейчас. */
+export async function duePushesNow(login: string) {
+  await withDb(async (db) => db.query(`update "ScheduledPush" set "sendAt" = now() where "userId" = $1 and "sentAt" is null`, [await userId(db, login)]));
+}

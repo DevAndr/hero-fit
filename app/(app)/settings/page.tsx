@@ -9,21 +9,24 @@ import { PrivacySettings } from "@/components/social/privacy-settings";
 import { TitleSelect } from "@/components/social/title-select";
 import { ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
+import { TelegramCard } from "@/components/notifications/telegram-settings";
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { getNotificationSettings } from "@/lib/notifications/queries";
+import { getTelegramStatus } from "@/lib/telegram/queries";
 import { getTitleSettings } from "@/lib/titles/queries";
 
 export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
     db.coachProfile.findFirst({ where: { userId: user.id, publishedAt: { not: null } }, select: { userId: true } }),
+    getTelegramStatus(user.id),
   ]);
 
   return (
@@ -37,6 +40,7 @@ export default async function SettingsPage() {
       {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : null}
       <CoachModeCard initial={user.isCoach} hasNickname={Boolean(nickname)} />
       <PushDeviceCard devices={_count.pushSubscriptions} />
+      {telegram.enabled ? <TelegramCard status={telegram} /> : null}
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />
     </div>

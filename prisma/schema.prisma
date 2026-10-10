@@ -137,6 +137,11 @@ model User {
   notifySocial       Boolean @default(true)
   notifyPlan         Boolean @default(true)
   notifyRecap        Boolean @default(true)
+  /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
+  telegramChatId     BigInt?   @unique
+  telegramUsername   String?
+  telegramLinkedAt   DateTime?
+  notifyTelegram     Boolean   @default(true)
   /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
   planReminderMin    Int     @default(60)
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
@@ -156,6 +161,7 @@ model User {
   achievements        UserAchievement[]
   xpEvents            XpEvent[]
   pushSubscriptions   PushSubscription[]
+  telegramLinkTokens  TelegramLinkToken[]
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
@@ -705,4 +711,17 @@ model CoachProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([publishedAt])
+}
+
+/// Одноразовая ссылка t.me/<бот>?start=<token> для привязки Telegram (15 минут)
+model TelegramLinkToken {
+  token     String    @id
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

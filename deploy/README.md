@@ -45,6 +45,20 @@ Settings → Secrets and variables → Actions:
 
 После первого деплоя: Actions → Deploy → Run workflow (или любой push в `main`). Проверка — `https://домен/api/health` → `{"ok":true}`.
 
+## Telegram-бот (необязательно)
+
+1. В [@BotFather](https://t.me/BotFather): `/newbot` → токен и имя бота (без `@`).
+2. В `/opt/hero-fit/.env`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` (`openssl rand -hex 32`),
+   затем `docker compose up -d app`.
+3. Один раз зарегистрировать webhook (в образе нет `tsx`, поэтому `curl`; или `npm run telegram:webhook` локально с теми же env):
+   ```sh
+   cd /opt/hero-fit && set -a && . ./.env && set +a
+   curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+     -H 'content-type: application/json' \
+     -d "{\"url\":\"https://$DOMAIN/api/telegram/webhook\",\"secret_token\":\"$TELEGRAM_WEBHOOK_SECRET\",\"allowed_updates\":[\"message\"]}"
+   ```
+   Ответ — `{"ok":true,...}`. Проверка: `/settings` → «Telegram» → «Подключить» → «Start» в боте.
+
 ## На сервере
 
 ```sh

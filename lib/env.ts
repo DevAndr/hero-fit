@@ -25,6 +25,16 @@ const schema = z.object({
   /** Только e2e: cron-эндпоинт принимает ?now= (тестовые часы для напоминаний). */
   E2E_TEST_CLOCK: z.enum(["1"]).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  /** Telegram-бот (@BotFather): без токена и имени интеграция выключена. */
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_BOT_USERNAME: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  TELEGRAM_API_URL: z.url().default("https://api.telegram.org"),
+  /** on — локальная разработка: обновления через getUpdates вместо webhook. */
+  TELEGRAM_POLLING: z.enum(["on", "off"]).default("off"),
+}).refine((e) => !e.TELEGRAM_BOT_TOKEN || (e.TELEGRAM_WEBHOOK_SECRET?.length ?? 0) >= 32, {
+  path: ["TELEGRAM_WEBHOOK_SECRET"],
+  message: "TELEGRAM_WEBHOOK_SECRET обязателен при TELEGRAM_BOT_TOKEN (32+ символа)",
 });
 
 const parsed = schema.safeParse(process.env);
