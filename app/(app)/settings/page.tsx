@@ -1,3 +1,4 @@
+import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
@@ -18,10 +19,11 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
+    db.coachProfile.findFirst({ where: { userId: user.id, publishedAt: { not: null } }, select: { userId: true } }),
   ]);
 
   return (
@@ -29,7 +31,7 @@ export default async function SettingsPage() {
       <PageHeader title="Настройки" description={`${user.name ?? user.login} · ${user.email}`} />
       <ThemeSettings />
       <BodyWeightSettings initial={user.bodyWeight} />
-      <NicknameForm initial={nickname} />
+      <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
       {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : null}

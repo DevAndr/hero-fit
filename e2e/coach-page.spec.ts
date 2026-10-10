@@ -1,5 +1,5 @@
 import { expect, test, type Browser } from "@playwright/test";
-import { activeCoachLinks, coachProfile, createUserRow, enableCoach, linkCoach } from "./db";
+import { activeCoachLinks, coachProfile, createUserRow, enableCoach, linkCoach, withDb } from "./db";
 import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
 const nickOf = (login: string) => `T_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
@@ -127,4 +127,16 @@ test("a client of the coach sees «Вы занимаетесь с этим тр�
   } finally {
     await g.context.close();
   }
+});
+
+test("sitemap lists published coach pages only", async ({ page, request }) => {
+  const { coach, nick } = await publishedCoach(page);
+  const has = async () => (await (await request.get("/sitemap.xml")).text()).includes(`/trainer/${nick}<`);
+  expect(await has()).toBe(true);
+  await coachProfile(coach.login, { about: ABOUT, publish: false });
+  expect(await has()).toBe(false);
+  await coachProfile(coach.login, { about: ABOUT, publish: true });
+  await withDb((db) => db.query(`update "User" set "isCoach" = false where login = $1`, [coach.login]));
+  expect(await has()).toBe(false);
+  expect((await request.get(`/trainer/${nick}`)).status()).toBe(404);
 });

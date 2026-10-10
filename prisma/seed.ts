@@ -737,6 +737,18 @@ async function seedDemoCoach(passwordHash: string, exerciseIds: Map<string, stri
   });
   await seedCoachPlans(coach.id, exerciseIds);
   await seedCoachComments(coach.id);
+  // Опубликованная страница /trainer/Coach_Demo (клиентов двое — цифр по клиентам на ней нет: порог 3)
+  const page = {
+    displayName: "Тренер Демо",
+    city: "Москва",
+    format: "BOTH" as const,
+    specialties: ["strength", "beginners"],
+    about:
+      "Помогаю начать с нуля и выйти на первые силовые результаты: техника базовых движений, понятный план на неделю и прогрессия весов без травм.\n\nРаботаю онлайн и в зале.",
+    hiddenStats: [],
+    publishedAt: new Date(),
+  };
+  await db.coachProfile.upsert({ where: { userId: coach.id }, create: { userId: coach.id, ...page }, update: page });
 }
 
 /** Комментарии тренера к свежей тренировке Маши: общий и заметка к первому упражнению. */

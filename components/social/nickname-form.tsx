@@ -8,7 +8,16 @@ import { Input } from "@/components/ui/input";
 import { setNicknameAction } from "@/lib/social/actions";
 
 /** Публичный ник для рейтинга. Логин остаётся приватным — его никто не видит. */
-export function NicknameForm({ initial, suggestion }: { initial: string | null; suggestion?: string }) {
+export function NicknameForm({
+  initial,
+  suggestion,
+  publishedPage = false,
+}: {
+  initial: string | null;
+  suggestion?: string;
+  /** Опубликована страница тренера /trainer/<ник> — смена ника меняет её адрес. */
+  publishedPage?: boolean;
+}) {
   const [value, setValue] = useState(initial ?? suggestion ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -22,6 +31,9 @@ export function NicknameForm({ initial, suggestion }: { initial: string | null; 
       <p className="text-sm text-muted-foreground">
         Его видят только ваши друзья в недельной лиге. Логин для входа остаётся приватным.
       </p>
+      {publishedPage ? (
+        <p className="text-sm text-streak">Смена ника изменит адрес вашей публичной страницы тренера — старая ссылка перестанет работать.</p>
+      ) : null}
       <form
         className="flex gap-2"
         onSubmit={(e) => {
