@@ -201,7 +201,7 @@ test("deleting an assigned template warns how many clients have it", async ({ pa
   }
 });
 
-test("a coach template with the coach's own exercise can be finished by the client", async ({ page, browser }) => {
+test("a coach template with the coach's own exercise can be finished by the client; the coach is notified", async ({ page, browser }) => {
   test.slow();
   const coach = await registerUser(page, "Тренер");
   await enableCoach(coach.login, nickOf(coach.login, "Coach"));
@@ -218,6 +218,10 @@ test("a coach template with the coach's own exercise can be finished by the clie
     await client.page.getByRole("button", { name: "Завершить тренировку" }).click();
     await client.page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
     await expect(client.page).toHaveURL(/\/workouts\/\w+$/);
+
+    // Запущено из «От тренера», а не из плана, — тренер всё равно узнаёт
+    await bell(page);
+    await expect(page.getByText(/выполнено «Ноги — авторская»/)).toBeVisible();
   } finally {
     await client.context.close();
   }
