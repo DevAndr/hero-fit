@@ -30,7 +30,7 @@ export function parseTargetInput(value: string, { int = false }: { int?: boolean
   return int && !Number.isInteger(n) ? Number.NaN : n;
 }
 
-export const isEmptyTarget = (t: Target) => t.sets === null && t.reps === null && t.weight === null;
+export const isEmptyTarget = (t: Target & { step?: number | null }) => t.sets === null && t.reps === null && t.weight === null && (t.step ?? null) === null;
 
 const kg = (w: number) => `${w.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
 
@@ -56,6 +56,8 @@ export const targetSchema = z.object({
   sets: z.number().int().min(1, "Минимум 1 подход").max(20, "Максимум 20 подходов").nullable(),
   reps: z.number().int().min(1, "Минимум 1 повтор").max(100, "Максимум 100 повторов").nullable(),
   weight: z.number().min(0).max(1000, "Максимум 1000 кг").nullable(),
+  /** Шаг прогрессии, кг; null — без прогрессии. */
+  step: z.number().min(0.5, "Шаг — от 0,5 кг").max(20, "Шаг — до 20 кг").nullable().default(null),
 });
 export const targetsSchema = z.array(targetSchema).max(MAX_EXERCISES);
 
