@@ -710,10 +710,10 @@ async function seedCoachPlans(coachId: string, exerciseIds: Map<string, string>)
       endDate,
     })),
   });
-  // Задания Маше (шаблон пересоздан — прежние ушли каскадом): присед — полностью, румынская тяга — только вес
+  // Задания Маше (шаблон пересоздан — прежние ушли каскадом): присед — полностью и с прогрессией (одна неудача), румынская тяга — только вес
   await db.coachTarget.createMany({
     data: [
-      { clientId: masha.id, templateId: template.id, exerciseId: exerciseIds.get("Приседания со штангой")!, sets: 4, reps: 8, weight: 42.5 },
+      { clientId: masha.id, templateId: template.id, exerciseId: exerciseIds.get("Приседания со штангой")!, sets: 4, reps: 8, weight: 42.5, step: 2.5, fails: 1 },
       { clientId: masha.id, templateId: template.id, exerciseId: exerciseIds.get("Румынская тяга")!, weight: 35 },
     ],
   });
