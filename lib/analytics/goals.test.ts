@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addGoal, metrikaId, parseGoals } from "./goals";
+import { addGoal, metrikaId, parseGoals, metrikaOff } from "./goals";
 
 describe("metrikaId", () => {
   it("только в production и только числовой номер", () => {
@@ -33,5 +33,13 @@ describe("очередь целей в cookie", () => {
 
   it("не тащит мусор из старого значения при добавлении", () => {
     expect(addGoal("junk.signup", "workout_start")).toBe("signup.workout_start");
+  });
+});
+
+describe("metrikaOff", () => {
+  it("на /tg Метрики нет — в адресе подписанный initData", () => {
+    expect(metrikaOff("/tg")).toBe(true);
+    expect(metrikaOff("/dashboard")).toBe(false);
+    expect(metrikaOff("/")).toBe(false);
   });
 });

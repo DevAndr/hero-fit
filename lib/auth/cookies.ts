@@ -21,7 +21,13 @@ export function writeAuthCookies(store: CookieWriter, tokens: Partial<IssuedToke
   if (tokens.refreshToken) store.set(REFRESH_COOKIE, tokens.refreshToken, authCookieOptions({ embedded, production, maxAge: REFRESH_TTL_SEC }));
 }
 
-export function clearAuthCookies(store: { delete(name: string): unknown }) {
-  store.delete(ACCESS_COOKIE);
-  store.delete(REFRESH_COOKIE);
+/**
+ * Partitioned-cookie (сессия Mini App) удаляется только Set-Cookie с теми же атрибутами — обычный delete её не
+ * трогает (выход в Telegram зацикливал бы /login ⇄ /dashboard).
+ */
+export function clearAuthCookies(store: CookieWriter & { delete(name: string): unknown }, { embedded = false } = {}) {
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE]) {
+    if (embedded) store.set(name, "", authCookieOptions({ embedded, production, maxAge: 0 }));
+    else store.delete(name);
+  }
 }

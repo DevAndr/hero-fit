@@ -49,7 +49,8 @@ export async function POST(req: Request) {
     if (!(await verifyPassword(account.passwordHash, input.password))) {
       return NextResponse.json({ error: "credentials" }, { status: 401 });
     }
-    await linkTelegramTo(account.id, user);
+    const linked = await linkTelegramTo(account.id, user);
+    if (!linked.ok) return NextResponse.json({ error: linked.reason }, { status: 409 });
     userId = account.id;
   } else {
     const existing = await findByTelegram(user.id);

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { GOAL_COOKIE, parseGoals } from "@/lib/analytics/goals";
+import { GOAL_COOKIE, metrikaOff, parseGoals } from "@/lib/analytics/goals";
 
 type Ym = ((...args: unknown[]) => void) & { a?: unknown[][]; l?: number };
 
@@ -29,8 +29,10 @@ export function YandexMetrika({ id }: { id: number }) {
   const pathname = usePathname();
   const referer = useRef<string | null>(null);
 
+  const off = metrikaOff(pathname);
+
   useEffect(() => {
-    if (window.ym) return;
+    if (off || window.ym) return;
     const stub: Ym = (...args) => {
       (stub.a ||= []).push(args);
     };
@@ -41,9 +43,10 @@ export function YandexMetrika({ id }: { id: number }) {
     script.src = `https://mc.yandex.ru/metrika/tag.js?id=${id}`;
     document.head.appendChild(script);
     window.ym(id, "init", { defer: true, clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
-  }, [id]);
+  }, [id, off]);
 
   useEffect(() => {
+    if (off) return;
     const url = location.href;
     window.ym?.(id, "hit", url, referer.current ? { referer: referer.current } : undefined);
     referer.current = url;

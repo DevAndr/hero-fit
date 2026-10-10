@@ -16,8 +16,8 @@ describe("verifyInitData", () => {
     const forged = signInitData(fields(), "T").replace(encodeURIComponent(user), encodeURIComponent(JSON.stringify({ id: 1, first_name: "Злодей" })));
     expect(verifyInitData(forged, "T", now)).toEqual({ ok: false, reason: "hash" });
   });
-  it("устаревшие и из будущего — expired; 4 мин вперёд — ок", () => {
-    const old = new Date(now.getTime() - 24 * 3600_000 - 1000);
+  it("старше часа и из будущего — expired; 4 мин вперёд — ок", () => {
+    const old = new Date(now.getTime() - 3600_000 - 1000);
     expect(verifyInitData(signInitData(fields({ auth_date: sec(old) }), "T"), "T", now)).toEqual({ ok: false, reason: "expired" });
     const future = new Date(now.getTime() + 6 * 60_000);
     expect(verifyInitData(signInitData(fields({ auth_date: sec(future) }), "T"), "T", now)).toEqual({ ok: false, reason: "expired" });

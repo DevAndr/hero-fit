@@ -340,10 +340,18 @@ export async function createTelegramUser(telegramId: string) {
   const login = `tg${telegramId}`;
   await withDb((db) =>
     db.query(
-      `insert into "User" (id, login, name, "telegramChatId", "telegramLinkedAt", "privacyAcceptedAt", "onboardedAt", "timeZone", "updatedAt")
-       values ($1, $2, 'Из Telegram', $3::bigint, now(), now(), now(), $4, now())`,
+      `insert into "User" (id, login, name, "telegramId", "telegramChatId", "telegramLinkedAt", "privacyAcceptedAt", "onboardedAt", "timeZone", "updatedAt")
+       values ($1, $2, 'Из Telegram', $3::bigint, $3::bigint, now(), now(), now(), $4, now())`,
       [randomUUID(), login, telegramId, E2E_TZ],
     ),
   );
   return login;
+}
+
+/** Вход в Mini App (telegramId) — строкой или null. */
+export async function telegramLoginId(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string | null }>(`select "telegramId"::text as id from "User" where login = $1`, [login]);
+    return rows[0]?.id ?? null;
+  });
 }

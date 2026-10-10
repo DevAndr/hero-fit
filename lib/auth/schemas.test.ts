@@ -36,3 +36,14 @@ describe("registerSchema — регистрация тренера", () => {
     expect(registerSchema.safeParse({ ...base, coach: "on", nickname: "ив ан" }).success).toBe(false);
   });
 });
+
+describe("registerSchema — логины Telegram зарезервированы", () => {
+  it("tg<цифры> на сайте не регистрируется", () => {
+    for (const login of ["tg123456", "TG42", "tg123_4567"]) {
+      expect(registerSchema.safeParse({ ...valid, login, consent: "on" }).success).toBe(false);
+    }
+  });
+  it("обычные логины с tg — можно", () => {
+    expect(registerSchema.safeParse({ ...valid, login: "tgfan", consent: "on" }).success).toBe(true);
+  });
+});

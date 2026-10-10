@@ -140,6 +140,9 @@ model User {
   notifyRecap        Boolean @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
+  /// вход в Telegram Mini App (id пользователя Telegram) — отдельно от уведомлений: /stop, «Отключить» и 403 его не трогают;
+  /// ставится только регистрацией из Mini App или привязкой по паролю, не ссылкой бота
+  telegramId         BigInt?   @unique
   telegramUsername   String?
   telegramLinkedAt   DateTime?
   notifyTelegram     Boolean   @default(true)

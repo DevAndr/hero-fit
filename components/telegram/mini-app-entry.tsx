@@ -76,6 +76,8 @@ export function MiniAppEntry() {
     if ("status" in a && a.status === "ok") return go(a.to);
     setPending(false);
     if ("error" in a && a.error === "credentials") setError("Неверный логин или пароль");
+    else if ("error" in a && a.error === "telegram_in_use")
+      setError("Этот Telegram — единственный вход в другой аккаунт Hero Fit. Задайте там email и пароль в настройках («Вход на сайте»), тогда Telegram можно будет перенести");
     else if ("error" in a && a.error === "request") setError("Введите логин и пароль");
     else setScreen({ kind: "error" });
   };

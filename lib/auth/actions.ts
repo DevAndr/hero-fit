@@ -21,7 +21,7 @@ import {
   siteLoginSchema,
 } from "@/lib/auth/schemas";
 import { requireUser } from "@/lib/auth/dal";
-import { createSession, revokeAllUserSessions, revokeSession } from "@/lib/auth/session";
+import { createSession, revokeAllUserSessions, revokeSession, sessionEmbedded } from "@/lib/auth/session";
 import { hashToken, randomToken, verifyAccessToken, verifyRefreshToken } from "@/lib/auth/tokens";
 
 export type FormState = {
@@ -147,8 +147,9 @@ export async function logoutAction() {
   const refresh = await verifyRefreshToken(store.get(REFRESH_COOKIE)?.value);
   const sessionId = access?.sessionId ?? refresh?.sessionId;
 
+  const embedded = await sessionEmbedded(sessionId);
   if (sessionId) await revokeSession(sessionId);
-  clearAuthCookies(store);
+  clearAuthCookies(store, { embedded });
   redirect("/login");
 }
 

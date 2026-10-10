@@ -33,7 +33,14 @@ export async function createSession(userId: string, meta: ClientMeta = {}, { emb
 
 export type RotateResult =
   | { ok: true; userId: string; sessionId: string; embedded: boolean; tokens: Partial<IssuedTokens> }
-  | { ok: false };
+  | { ok: false; embedded: boolean };
+
+/** Сессия создана в Telegram Mini App — её cookies ставятся и удаляются с атрибутами для фрейма. */
+export async function sessionEmbedded(sessionId: string | undefined) {
+  if (!sessionId) return false;
+  const s = await db.session.findUnique({ where: { id: sessionId }, select: { embedded: true } });
+  return s?.embedded ?? false;
+}
 
 /**
  * Ротация: старый refresh помечается использованным, выдаётся новая пара.
@@ -41,7 +48,7 @@ export type RotateResult =
  */
 export async function rotateRefreshToken(refreshToken: string | undefined): Promise<RotateResult> {
   const payload = await verifyRefreshToken(refreshToken);
-  if (!payload || !refreshToken) return { ok: false };
+  if (!payload || !refreshToken) return { ok: false, embedded: false };
 
   const tokenHash = hashToken(refreshToken);
   const record = await db.refreshToken.findUnique({
@@ -59,7 +66,7 @@ export async function rotateRefreshToken(refreshToken: string | undefined): Prom
     session.expiresAt <= new Date() ||
     record.expiresAt <= new Date()
   ) {
-    return { ok: false };
+    return { ok: false, embedded: session?.embedded ?? false };
   }
 
   // Атомарно «захватываем» токен: из параллельных запросов выигрывает только один.
@@ -77,7 +84,7 @@ export async function rotateRefreshToken(refreshToken: string | undefined): Prom
       return { ok: true, userId: session.userId, sessionId: session.id, embedded: session.embedded, tokens: { accessToken } };
     }
     await revokeSession(session.id);
-    return { ok: false };
+    return { ok: false, embedded: session?.embedded ?? false };
   }
 
   await db.session.update({ where: { id: session.id }, data: { lastUsedAt: new Date() } });

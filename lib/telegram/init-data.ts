@@ -12,7 +12,8 @@ export type InitDataResult =
   | { ok: true; user: TelegramUser; startParam: string | null; authDate: Date }
   | { ok: false; reason: "hash" | "expired" | "malformed" };
 
-const MAX_AGE_MS = 24 * 3600_000;
+/** initData обменивается на сессию один раз при запуске — час с запасом; меньше окно для перехваченной подписи. */
+const MAX_AGE_MS = 3600_000;
 const FUTURE_SKEW_MS = 5 * 60_000;
 
 function checkString(params: URLSearchParams) {

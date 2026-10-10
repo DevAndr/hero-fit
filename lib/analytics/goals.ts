@@ -25,3 +25,8 @@ export function parseGoals(value: string | undefined): Goal[] {
 export function addGoal(value: string | undefined, goal: Goal): string {
   return [...new Set([...parseGoals(value), goal])].join(SEP);
 }
+
+/** Страницы без Метрики: /tg — Telegram кладёт в адрес подписанный initData (#tgWebAppData), он не должен уйти в отчёты. */
+export function metrikaOff(pathname: string) {
+  return pathname === "/tg";
+}

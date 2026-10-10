@@ -34,6 +34,7 @@ export default async function proxy(req: NextRequest) {
       embedded = result.embedded;
     } else {
       staleRefresh = true;
+      embedded = result.embedded;
     }
   }
 
@@ -41,7 +42,7 @@ export default async function proxy(req: NextRequest) {
 
   // Сессия из Mini App сохраняет атрибуты для фрейма web.telegram.org
   if (refreshed) writeAuthCookies(response.cookies, refreshed, { embedded });
-  if (staleRefresh) clearAuthCookies(response.cookies);
+  if (staleRefresh) clearAuthCookies(response.cookies, { embedded });
   return response;
 
   function route() {

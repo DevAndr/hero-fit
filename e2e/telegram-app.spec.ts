@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { coachProfile, createTelegramUser, enableCoach, linkTelegram, telegramChat, withDb } from "./db";
+import { coachProfile, createTelegramUser, createUserRow, enableCoach, linkTelegram, telegramChat, telegramLoginId, withDb } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
 import { e2eInitData, mockTelegram } from "./telegram-webapp";
 
@@ -79,7 +79,8 @@ test("returning person goes straight to the dashboard", async ({ browser }) => {
   await ctx.close();
 });
 
-test("bot-linked account signs in automatically", async ({ browser }) => {
+test("bot link alone does not sign in to the Mini App", async ({ browser }) => {
+  // Ссылку бота может подсунуть кто угодно — она даёт только уведомления, не вход
   const id = newTelegramId();
   const site = await browser.newContext();
   const { login } = await registerUser(await site.newPage());
@@ -90,8 +91,32 @@ test("bot-linked account signs in automatically", async ({ browser }) => {
   const page = await ctx.newPage();
   await mockTelegram(page, { id, firstName: "Другое имя" });
   await page.goto("/tg");
+  await expect(page.getByText("Привет, Другое имя!", { exact: false })).toBeVisible();
+  await ctx.close();
+});
+
+test("passwordless account survives /stop, unlinking and a blocked bot", async ({ browser, request }) => {
+  const id = newTelegramId();
+  const first = await browser.newContext();
+  const firstPage = await first.newPage();
+  await registerViaTelegram(firstPage, id);
+  await expect(firstPage).toHaveURL(/\/dashboard$/);
+  await first.close();
+
+  // /stop в боте отключает уведомления, но вход в Mini App остаётся
+  const stop = await request.post("/api/telegram/webhook", {
+    headers: { "X-Telegram-Bot-Api-Secret-Token": "e2e-telegram-secret-0123456789abcdef" },
+    data: { update_id: 1, message: { message_id: 1, chat: { id: Number(id), type: "private" }, text: "/stop" } },
+  });
+  expect(stop.status()).toBe(200);
+  expect(await telegramChat(`tg${id}`)).toBeNull();
+  expect(await telegramLoginId(`tg${id}`)).toBe(id);
+
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await mockTelegram(page, { id, firstName: "Маша" });
+  await page.goto("/tg");
   await expect(page).toHaveURL(/\/dashboard$/);
-  expect((await telegramUserRows(id)).map((r) => r.login)).toEqual([login]);
   await ctx.close();
 });
 
@@ -114,10 +139,11 @@ test("existing account: sign in and link", async ({ browser }) => {
   await page.getByRole("button", { name: "Войти и привязать Telegram" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   expect(await telegramChat(login)).toBe(id);
+  expect(await telegramLoginId(login)).toBe(id);
   await ctx.close();
 });
 
-test("link moves Telegram from another account", async ({ browser, request }) => {
+test("link refuses to take the only sign-in of a passwordless account", async ({ browser, request }) => {
   const id = newTelegramId();
   const tgLogin = await createTelegramUser(id);
   const site = await browser.newContext();
@@ -127,9 +153,60 @@ test("link moves Telegram from another account", async ({ browser, request }) =>
   const res = await request.post("/api/telegram/auth", {
     data: { initData: e2eInitData({ id, firstName: "Маша" }), action: "link", identifier: login, password: PASSWORD },
   });
+  expect(res.status()).toBe(409);
+  expect(await res.json()).toEqual({ error: "telegram_in_use" });
+  expect(await telegramLoginId(tgLogin)).toBe(id);
+  expect(await telegramLoginId(login)).toBeNull();
+});
+
+test("link moves Telegram from an account that has a password", async ({ browser, request }) => {
+  const id = newTelegramId();
+  const initData = e2eInitData({ id, firstName: "Маша" });
+  const a = await browser.newContext();
+  const { login: first } = await registerUser(await a.newPage());
+  await a.close();
+  const b = await browser.newContext();
+  const { login: second } = await registerUser(await b.newPage());
+  await b.close();
+
+  await request.post("/api/telegram/auth", { data: { initData, action: "link", identifier: first, password: PASSWORD } });
+  expect(await telegramLoginId(first)).toBe(id);
+  const res = await request.post("/api/telegram/auth", { data: { initData, action: "link", identifier: second, password: PASSWORD } });
   expect(await res.json()).toMatchObject({ status: "ok" });
-  expect(await telegramChat(tgLogin)).toBeNull();
-  expect(await telegramChat(login)).toBe(id);
+  expect(await telegramLoginId(first)).toBeNull();
+  expect(await telegramChat(first)).toBeNull();
+  expect(await telegramLoginId(second)).toBe(id);
+});
+
+test("a squatted tg<id> login does not block registration", async ({ request }) => {
+  const id = newTelegramId();
+  await createUserRow(`tg${id}`);
+  const res = await request.post("/api/telegram/auth", {
+    data: { initData: e2eInitData({ id, firstName: "Маша" }), action: "register", consent: true },
+  });
+  expect(await res.json()).toMatchObject({ status: "ok" });
+  expect(await telegramUserRows(id)).toHaveLength(1);
+});
+
+test("logout inside the Mini App really signs out", async ({ page, context }) => {
+  await registerViaTelegram(page, newTelegramId());
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText("LVL 1")).toBeVisible();
+  await page.getByRole("button", { name: "Меню профиля" }).click();
+  await page.getByRole("menuitem", { name: "Выйти" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect((await context.cookies()).filter((c) => c.name === "hf_at" || c.name === "hf_rt")).toEqual([]);
+});
+
+test("Mini App waits for a slow Telegram script", async ({ page }) => {
+  const id = newTelegramId();
+  const body = `window.Telegram = { WebApp: { initData: ${JSON.stringify(e2eInitData({ id, firstName: "Маша" }))}, ready() {}, expand() {}, requestWriteAccess(cb) { cb && cb(true); } } };`;
+  await page.route("https://telegram.org/js/telegram-web-app.js*", async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.fulfill({ contentType: "application/javascript", body });
+  });
+  await page.goto("/tg");
+  await expect(page.getByText("Привет, Маша!", { exact: false })).toBeVisible();
 });
 
 test("double tap registers once", async ({ request }) => {
