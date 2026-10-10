@@ -148,6 +148,7 @@ test("clearing all fields removes the target", async ({ page, browser }) => {
 });
 
 test("dialog shows the client's last result", async ({ page, browser }) => {
+  test.slow(); // полная тренировка и два пользователя — под параллельной нагрузкой дольше 30 с
   const { coach, templateId, client, clientId } = await setup(page, browser);
   try {
     await quickWorkout(client.page, SQUAT, [{ weight: "50", reps: "6" }]);
@@ -237,6 +238,7 @@ test("progression: success raises the weight for the next start", async ({ page,
 });
 
 test("progression: failure keeps the weight", async ({ page, browser }) => {
+  test.slow(); // полная тренировка и два пользователя — под параллельной нагрузкой дольше 30 с
   const { coach, templateId, client } = await setup(page, browser);
   try {
     await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5 });
@@ -244,6 +246,30 @@ test("progression: failure keeps the weight", async ({ page, browser }) => {
     await doSquats(client.page, 2);
     await expect(client.page.getByRole("region", { name: "План тренера" })).toContainText(`${SQUAT}: повторим 60 кг · неудача 1 из 3`);
     expect(await coachTargetRow(client.login, SQUAT)).toEqual({ weight: 60, fails: 1 });
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("progression: third failure deloads and notifies the coach", async ({ page, browser }) => {
+  test.slow();
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5, fails: 2 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await doSquats(client.page, 2);
+    const line = `${SQUAT}: разгрузка — 52,5 кг (−10 %)`;
+    await expect(client.page.getByRole("region", { name: "План тренера" })).toContainText(line);
+    const workoutId = client.page.url().split("/").at(-1)!;
+
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: /Уведомления/ }).click();
+    const item = page.getByRole("menuitem", { name: /Разгрузка:/ });
+    await expect(item).toContainText(`${SQUAT}: 52,5 кг после 3 неудач`);
+    await page.keyboard.press("Escape");
+
+    await page.goto(`/coach/clients/${clientId}/workouts/${workoutId}`);
+    await expect(page.getByRole("region", { name: "План тренера" })).toContainText(line);
   } finally {
     await client.context.close();
   }

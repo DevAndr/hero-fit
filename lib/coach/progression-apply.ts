@@ -1,8 +1,12 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { progressTarget, type ProgressionItem } from "@/lib/coach/progression";
+import { NotificationType } from "@/generated/prisma/enums";
+import { clientDisplayName } from "@/lib/coach/clients";
+import { DELOAD_AFTER, progressTarget, type ProgressionItem } from "@/lib/coach/progression";
+import { notify } from "@/lib/notifications/service";
 
 type FinishedWorkout = {
+  id: string;
   templateId: string | null;
   exercises: {
     exerciseId: string;
@@ -14,6 +18,7 @@ type FinishedWorkout = {
 /**
  * Прогрессия заданий при завершении тренировки (в транзакции finishWorkout): шаблон — активного тренера,
  * задания с весом и шагом по упражнениям, которые сейчас в шаблоне. Сравнивается сделанное с заданием.
+ * Разгрузка — уведомление тренеру.
  */
 export async function applyProgression(
   tx: Prisma.TransactionClient,
@@ -49,6 +54,24 @@ export async function applyProgression(
       fails: result.kind === "same" ? result.fails : 0,
       bodyweight: mine[0].exercise.isBodyweight,
     });
+  }
+  const deloads = items.filter((i) => i.kind === "deload");
+  if (deloads.length) {
+    const me = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { nickname: true, name: true } });
+    const kg = (w: number, bw: boolean) => `${bw ? "+" : ""}${w.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
+    for (const d of deloads) {
+      await notify(
+        tx,
+        link.coachId,
+        {
+          type: NotificationType.COACH,
+          title: `Разгрузка: ${clientDisplayName(me)}`,
+          body: `${d.exercise}: ${kg(d.to, d.bodyweight)} после ${DELOAD_AFTER} неудач`,
+          url: `/coach/clients/${userId}/workouts/${workout.id}`,
+        },
+        { push: true },
+      );
+    }
   }
   return { items, coachId: link.coachId };
 }
