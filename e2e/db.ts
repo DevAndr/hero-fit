@@ -241,3 +241,21 @@ export async function coachAssignOnce(coachLogin: string, clientLogin: string, t
     return `e:${id}`;
   });
 }
+
+/** Задание тренера клиенту по упражнению шаблона (минуя UI). */
+export async function coachTarget(clientLogin: string, templateId: string, exerciseName: string, t: { sets?: number; reps?: number; weight?: number }) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "CoachTarget" (id, "clientId", "templateId", "exerciseId", sets, reps, weight, "updatedAt")
+       select $1, $2, $3, e.id, $5, $6, $7, now() from "Exercise" e where e.name = $4 and e."userId" is null`,
+      [randomUUID(), await userId(db, clientLogin), templateId, exerciseName, t.sets ?? null, t.reps ?? null, t.weight ?? null],
+    );
+  });
+}
+
+export async function coachTargetCount(clientLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ c: number }>(`select count(*)::int c from "CoachTarget" where "clientId" = $1`, [await userId(db, clientLogin)]);
+    return rows[0].c;
+  });
+}

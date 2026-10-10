@@ -172,6 +172,7 @@ model User {
   coachPlanEntries    PlanEntry[]          @relation("PlanEntryCoach")
   coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
+  coachTargets        CoachTarget[]
   kudos               Kudos[]
 }
 
@@ -299,6 +300,7 @@ model Exercise {
   workoutExercises  WorkoutExercise[]
   personalRecords   PersonalRecord[]
   achievements      UserAchievement[]
+  coachTargets      CoachTarget[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -316,11 +318,12 @@ model WorkoutTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises   TemplateExercise[]
-  workouts    Workout[]
-  planSeries  PlanSeries[]
-  planEntries PlanEntry[]
+  user         User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises    TemplateExercise[]
+  workouts     Workout[]
+  planSeries   PlanSeries[]
+  planEntries  PlanEntry[]
+  coachTargets CoachTarget[]
 
   @@index([userId])
 }
@@ -380,8 +383,8 @@ model WorkoutExercise {
   order      Int
   restSec    Int    @default(90)
 
-  workout  Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  workout  Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   sets     WorkoutSet[]
   comment  CoachComment?
 
@@ -650,4 +653,25 @@ model BossWeek {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, week])
+}
+
+/// Задание тренера клиенту по упражнению шаблона (режим тренера). Тренер — владелец шаблона.
+/// Связь — с упражнением, а не со строкой TemplateExercise: редактор шаблона пересоздаёт строки при сохранении.
+model CoachTarget {
+  id         String   @id @default(cuid())
+  clientId   String
+  templateId String
+  exerciseId String
+  sets       Int?
+  reps       Int?
+  weight     Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client   User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, templateId, exerciseId])
+  @@index([templateId])
 }

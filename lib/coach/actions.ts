@@ -18,10 +18,11 @@ const nameSelect = { nickname: true, name: true } as const;
 
 type Tx = Prisma.TransactionClient;
 
-/** Связь закрыта — назначения этого тренера уходят из календаря клиента (тренировки остаются). */
+/** Связь закрыта — назначения и задания этого тренера уходят у клиента (тренировки остаются). */
 async function dropAssignments(tx: Tx, coachId: string, clientId: string) {
   await tx.planSeries.deleteMany({ where: { userId: clientId, coachId } });
   await tx.planEntry.deleteMany({ where: { userId: clientId, coachId, seriesId: null } });
+  await tx.coachTarget.deleteMany({ where: { clientId, template: { userId: coachId } } });
 }
 
 /** Включить/выключить режим тренера. Выключение не разрывает связи — только скрывает раздел. */

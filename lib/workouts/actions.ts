@@ -11,6 +11,8 @@ import { getOccurrence } from "@/lib/plans/queries";
 import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
 import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { templateAccessible } from "@/lib/coach/templates";
+import { getTemplateTargets } from "@/lib/coach/target-queries";
+import { plannedSets } from "@/lib/coach/targets";
 import { markOnboarded } from "@/lib/onboarding/complete";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
@@ -23,7 +25,7 @@ type PlannedExercise = { exerciseId: string; restSec: number; sets: { weight: nu
 
 // ───────────────────────────── Старт ─────────────────────────────
 
-/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из прошлой тренировки. */
+/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из задания тренера или прошлой тренировки. */
 async function fromTemplate(userId: string, id: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
   if (!(await templateAccessible(userId, id))) return null;
   const template = await db.workoutTemplate.findUnique({
@@ -37,22 +39,19 @@ async function fromTemplate(userId: string, id: string): Promise<{ name: string;
     },
   });
   if (!template) return null;
-  const last = await getLastPerformance(userId, template.exercises.map((e) => e.exerciseId));
+  const [last, targets] = await Promise.all([
+    getLastPerformance(userId, template.exercises.map((e) => e.exerciseId)),
+    getTemplateTargets(userId, template.id),
+  ]);
   return {
     name: template.name,
     templateId: template.id,
-    planned: template.exercises.map((te) => {
-      // Вес подставляем из прошлой тренировки — пользователю остаётся только подтвердить.
-      const lastSets = last[te.exerciseId]?.sets ?? [];
-      return {
-        exerciseId: te.exerciseId,
-        restSec: te.restSec ?? te.exercise.defaultRestSec,
-        sets: Array.from({ length: te.targetSets }, (_, i) => ({
-          weight: lastSets[i]?.weight ?? lastSets.at(-1)?.weight ?? te.targetWeight ?? 0,
-          reps: te.targetReps ?? lastSets[i]?.reps ?? 0,
-        })),
-      };
-    }),
+    // Вес — из задания тренера или прошлой тренировки: пользователю остаётся только подтвердить.
+    planned: template.exercises.map((te) => ({
+      exerciseId: te.exerciseId,
+      restSec: te.restSec ?? te.exercise.defaultRestSec,
+      sets: plannedSets(te, last[te.exerciseId]?.sets ?? [], targets.get(te.exerciseId)),
+    })),
   };
 }
 
