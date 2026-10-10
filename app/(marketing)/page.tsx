@@ -136,6 +136,7 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Босс недели, сундуки и титулы", false],
   ["Восстановление мышц и баланс нагрузки", false],
   ["Напоминания о тренировках по плану", false],
+  ["Тренировки с тренером: план, задания и комментарии", false],
 ];
 
 /** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
@@ -383,7 +384,7 @@ export default async function Home() {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-40 -left-40 -z-10 size-[36rem] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)]"
+          className="pointer-events-none absolute -top-40 -left-40 -z-10 size-144 rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)]"
         />
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:py-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
           <div className="lg:sticky lg:top-24 lg:self-start">
