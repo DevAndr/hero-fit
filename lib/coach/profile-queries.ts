@@ -4,6 +4,7 @@ import { getClientPlan } from "@/lib/coach/plan-queries";
 import type { CoachStats } from "@/lib/coach/profile";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
+import { nicknameKey } from "@/lib/social/league";
 
 const DAY = 86_400_000;
 
@@ -39,4 +40,14 @@ export async function getCoachPublicStats(coachId: string, now = new Date()): Pr
     planTotal: past.length,
     since: first?.createdAt ?? null,
   };
+}
+
+/** Тренер по нику из адреса (без учёта регистра) с профилем; публикацию проверяет вызывающий. */
+export async function getPublicCoach(nick: string) {
+  const user = await db.user.findFirst({
+    where: { nicknameKey: nicknameKey(decodeURIComponent(nick)), isCoach: true, coachProfile: { isNot: null } },
+    select: { id: true, nickname: true, coachCode: true, coachProfile: true },
+  });
+  if (!user?.coachProfile || !user.nickname) return null;
+  return { id: user.id, nickname: user.nickname, coachCode: user.coachCode, profile: user.coachProfile };
 }

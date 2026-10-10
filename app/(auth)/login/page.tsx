@@ -19,7 +19,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <LoginForm next={typeof next === "string" ? next : undefined} />
         <p className="text-center text-sm text-muted-foreground">
           Нет аккаунта?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
+          <Link
+            href={typeof next === "string" ? `/register?next=${encodeURIComponent(next)}` : "/register"}
+            className="font-medium text-primary hover:underline"
+          >
             Зарегистрироваться
           </Link>
         </p>

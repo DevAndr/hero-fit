@@ -11,8 +11,8 @@ import { verifyAccessToken } from "@/lib/auth/tokens";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
 const PUBLIC_PAGES = ["/", "/privacy", "/reset-password", "/tools/1rm", "/tools/plates", ...AUTH_PAGES];
-/** Публичные файлы без расширения: PWA-иконки и картинка для соцсетей (opengraph-image?<hash>). */
-const PUBLIC_PREFIXES = ["/pwa-icon/", "/opengraph-image"];
+/** Публичные файлы без расширения (PWA-иконки, картинка для соцсетей — opengraph-image?<hash>) и страницы тренеров /trainer/<ник>. */
+const PUBLIC_PREFIXES = ["/pwa-icon/", "/opengraph-image", "/trainer/"];
 
 /**
  * Оптимистичная проверка по cookie + тихий refresh, когда access истёк.

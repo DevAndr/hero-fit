@@ -108,7 +108,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
     await queueGoal("coach_enabled");
     redirect("/coach");
   }
-  redirect("/dashboard");
+  redirect(safeRedirectPath(formData.get("next")));
 }
 
 // ───────────────────────────── Вход ─────────────────────────────

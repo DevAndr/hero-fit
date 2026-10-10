@@ -72,3 +72,24 @@ export function toolJsonLd(
     },
   ];
 }
+
+/** Описание страницы тренера для поисковиков: начало «О себе» до 160 символов по слову, в одну строку. */
+export function coachDescription(about: string, max = 160): string {
+  const text = about.replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : cut.length)}…`;
+}
+
+/** JSON-LD публичной страницы тренера: Person с городом и специализациями. */
+export function coachJsonLd(c: { name: string; url: string; city: string | null; specialties: string[] }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: c.name,
+    jobTitle: "Тренер",
+    url: c.url,
+    ...(c.city ? { address: { "@type": "PostalAddress", addressLocality: c.city } } : {}),
+    ...(c.specialties.length ? { knowsAbout: c.specialties } : {}),
+  };
+}

@@ -128,11 +128,12 @@ function CoachField({ checked, nickname, errors }: { checked: boolean; nickname?
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(registerAction, initial);
 
   return (
     <form action={action} noValidate>
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <FieldGroup>
         <FormMessage state={state} />
         <FormField
