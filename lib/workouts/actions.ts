@@ -117,11 +117,17 @@ export async function createWorkoutAction(formData: FormData) {
     if (previous) {
       name = previous.name;
       templateId = previous.templateId ?? undefined;
-      planned = previous.exercises.map((we) => ({
-        exerciseId: we.exerciseId,
-        restSec: we.restSec,
-        sets: we.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
-      }));
+      // Шаблон активного тренера — поверх прошлого раза задания (прогрессия могла сдвинуть вес)
+      const targets = templateId ? await getTemplateTargets(user.id, templateId) : new Map();
+      planned = previous.exercises.map((we) => {
+        const sets = we.sets.map((s) => ({ weight: s.weight, reps: s.reps }));
+        const target = targets.get(we.exerciseId);
+        return {
+          exerciseId: we.exerciseId,
+          restSec: we.restSec,
+          sets: target ? plannedSets({ targetSets: sets.length, targetReps: null, targetWeight: null }, sets, target) : sets,
+        };
+      });
     }
   }
 

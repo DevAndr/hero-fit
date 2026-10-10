@@ -300,3 +300,38 @@ test("coach sets a step in the dialog; step without weight is refused; changing 
     await client.context.close();
   }
 });
+
+test("a stale dialog does not overwrite a row the coach did not touch", async ({ page, browser }) => {
+  const { coach, templateId, client, clientId } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    const { dialog } = await openTargets(page, clientId);
+    // Пока диалог открыт, клиент успешно потренировался — вес вырос
+    await withDb((db) => db.query(`update "CoachTarget" set weight = 62.5 where "clientId" = $1`, [clientId]));
+    await dialog.getByLabel("Вес, кг: Жим ногами").fill("100");
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+    expect(await coachTargetRow(client.login, SQUAT)).toEqual({ weight: 62.5, fails: 0 });
+    expect(await coachTargetRow(client.login, "Жим ногами")).toEqual({ weight: 100, fails: 0 });
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("repeating a coach-template workout starts with the current targets", async ({ page, browser }) => {
+  test.slow();
+  const { coach, templateId, client } = await setup(page, browser);
+  try {
+    await coachTarget(client.login, templateId, SQUAT, { sets: 3, reps: 5, weight: 60, step: 2.5 });
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await doSquats(client.page, 3); // успех: 60 → 62,5
+    await client.page.goto("/training");
+    await client.page.getByRole("button", { name: /Повторить «Ноги — база»/ }).click();
+    const squat = client.page.getByRole("region", { name: SQUAT });
+    await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("62.5");
+    await expect(squat.getByLabel("Повторы, подход 3")).toHaveValue("5");
+  } finally {
+    await client.context.close();
+  }
+});

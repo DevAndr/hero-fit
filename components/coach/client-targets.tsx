@@ -66,16 +66,27 @@ function TargetsForm({
   template: ClientTemplateTargets;
   onDone: () => void;
 }) {
-  const [rows, setRows] = useState<Record<string, Row>>(() =>
+  // Исходные строки — чтобы отправить только изменённые: пока диалог открыт, прогрессия могла сдвинуть вес
+  const [initial] = useState<Record<string, Row>>(() =>
     Object.fromEntries(template.exercises.map((e) => [e.exerciseId, { sets: str(e.target?.sets), reps: str(e.target?.reps), weight: str(e.target?.weight), step: str(e.target?.step) }])),
   );
+  const [rows, setRows] = useState(initial);
   const [pending, startTransition] = useTransition();
   const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone });
   const update = (id: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
 
   const save = () =>
     startTransition(async () => {
-      const items = template.exercises.map((e) => {
+      const changed = template.exercises.filter((e) => {
+        const r = rows[e.exerciseId];
+        const o = initial[e.exerciseId];
+        return r.sets !== o.sets || r.reps !== o.reps || r.weight !== o.weight || r.step !== o.step;
+      });
+      if (!changed.length) {
+        onDone();
+        return;
+      }
+      const items = changed.map((e) => {
         const r = rows[e.exerciseId];
         return {
           exerciseId: e.exerciseId,
@@ -85,7 +96,7 @@ function TargetsForm({
           step: parseTargetInput(r.step),
         };
       });
-      const bad = template.exercises.find((_, i) => [items[i].sets, items[i].reps, items[i].weight, items[i].step].some((n) => Number.isNaN(n)));
+      const bad = changed.find((_, i) => [items[i].sets, items[i].reps, items[i].weight, items[i].step].some((n) => Number.isNaN(n)));
       if (bad) {
         toast.error(`Проверьте числа: «${bad.name}»`);
         return;
