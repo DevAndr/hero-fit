@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { queueGoal } from "@/lib/analytics/queue";
+import { safeRedirectPath } from "@/lib/auth/redirect";
 import { ensureCoachCode } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
 import { nicknameKey } from "@/lib/social/league";
@@ -47,12 +48,6 @@ async function clientMeta() {
     userAgent: h.get("user-agent"),
     ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip"),
   };
-}
-
-/** Разрешаем редирект только на внутренние пути. */
-function safeRedirectPath(value: FormDataEntryValue | null) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
 }
 
 async function startSession(userId: string) {
