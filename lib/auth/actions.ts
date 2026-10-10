@@ -18,7 +18,9 @@ import {
   loginSchema,
   registerSchema,
   resetPasswordSchema,
+  siteLoginSchema,
 } from "@/lib/auth/schemas";
+import { requireUser } from "@/lib/auth/dal";
 import { createSession, revokeAllUserSessions, revokeSession } from "@/lib/auth/session";
 import { hashToken, randomToken, verifyAccessToken, verifyRefreshToken } from "@/lib/auth/tokens";
 
@@ -221,4 +223,31 @@ export async function resetPasswordAction(_prev: FormState, formData: FormData):
   await revokeAllUserSessions(record.userId);
   clearAuthCookies(await cookies());
   redirect("/login?reset=1");
+}
+
+// ───────────────────────────── Вход на сайте (аккаунт из Telegram) ─────────────────────────────
+
+/** Аккаунт без пароля (создан в Telegram Mini App) задаёт email и пароль — и входит на сайте как обычно. */
+export async function setSiteLoginAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const values = formValues(formData, PASSWORD_FIELDS);
+  const parsed = siteLoginSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values };
+
+  const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } });
+  if (me.passwordHash) return { values, message: "Пароль уже задан" };
+
+  const taken = { values, errors: { email: ["Этот email уже зарегистрирован"] } };
+  if (await db.user.findFirst({ where: { email: parsed.data.email, NOT: { id: user.id } }, select: { id: true } })) return taken;
+  try {
+    await db.user.update({
+      where: { id: user.id },
+      data: { email: parsed.data.email, passwordHash: await hashPassword(parsed.data.password) },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return taken;
+    throw e;
+  }
+  // Без revalidatePath: блок пропал бы вместе с сообщением об успехе (он только для аккаунтов без пароля)
+  return { success: true, message: "Теперь можно входить на сайте по email и паролю" };
 }

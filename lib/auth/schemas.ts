@@ -58,6 +58,11 @@ export const loginSchema = z.object({
 
 export const forgotPasswordSchema = z.object({ email });
 
+/** «Вход на сайте» для аккаунта из Telegram: email и пароль по тем же правилам, что при регистрации. */
+export const siteLoginSchema = z
+  .object({ email, password, confirmPassword: z.string() })
+  .refine(passwordsMatch, mismatch);
+
 export const resetPasswordSchema = z
   .object({
     token: z.string().min(1, "Ссылка недействительна"),

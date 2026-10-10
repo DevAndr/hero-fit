@@ -174,6 +174,46 @@ test("/tg in a plain browser goes to login", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("set site login, then sign in on /login", async ({ page, context }) => {
+  const id = newTelegramId();
+  await registerViaTelegram(page, id);
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/settings");
+  const card = page.getByRole("region", { name: "Вход на сайте" });
+  const email = `tg${id}@test.local`;
+  await card.getByLabel("Email").fill(email);
+  await card.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await card.getByLabel("Повторите пароль").fill(PASSWORD);
+  await card.getByRole("button", { name: "Сохранить" }).click();
+  await expect(card.getByText("Теперь можно входить на сайте по email и паролю")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Вход на сайте" })).toHaveCount(0);
+
+  await context.clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("Логин или email").fill(email);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Войти" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test("site login with a taken email", async ({ browser, page }) => {
+  const other = await browser.newContext();
+  const { login } = await registerUser(await other.newPage());
+  await other.close();
+
+  await registerViaTelegram(page, newTelegramId());
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/settings");
+  const card = page.getByRole("region", { name: "Вход на сайте" });
+  await card.getByLabel("Email").fill(`${login}@test.local`);
+  await card.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await card.getByLabel("Повторите пароль").fill(PASSWORD);
+  await card.getByRole("button", { name: "Сохранить" }).click();
+  await expect(card.getByText("Этот email уже зарегистрирован")).toBeVisible();
+});
+
 test("Mini App session keeps frame cookies after refresh rotation", async ({ page, context }) => {
   await registerViaTelegram(page, newTelegramId());
   await expect(page).toHaveURL(/\/dashboard$/);

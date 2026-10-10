@@ -26,12 +26,14 @@ describe("verifyInitData", () => {
   });
   it("без hash, без user, user не JSON — malformed", () => {
     expect(verifyInitData(`auth_date=${sec(now)}&user=${encodeURIComponent(user)}`, "T", now)).toEqual({ ok: false, reason: "malformed" });
-    const { user: _u, ...noUser } = fields();
+    const noUser = fields();
+    delete (noUser as Partial<typeof noUser>).user;
     expect(verifyInitData(signInitData(noUser, "T"), "T", now)).toEqual({ ok: false, reason: "malformed" });
     expect(verifyInitData(signInitData(fields({ user: "{oops" }), "T"), "T", now)).toEqual({ ok: false, reason: "malformed" });
   });
   it("без start_param — null", () => {
-    const { start_param: _s, ...rest } = fields();
+    const rest = fields();
+    delete (rest as Partial<typeof rest>).start_param;
     const r = verifyInitData(signInitData(rest, "T"), "T", now);
     expect(r.ok && r.startParam).toBeNull();
   });
