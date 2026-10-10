@@ -128,7 +128,7 @@ function CoachField({ checked, nickname, errors }: { checked: boolean; nickname?
   );
 }
 
-export function RegisterForm({ next }: { next?: string }) {
+export function RegisterForm({ next, coach = false }: { next?: string; coach?: boolean }) {
   const [state, action, pending] = useActionState(registerAction, initial);
 
   return (
@@ -177,7 +177,7 @@ export function RegisterForm({ next }: { next?: string }) {
         />
         {/* Без key: галочка — своё состояние и переживает ошибку отправки */}
         <CoachField
-          checked={state.values?.coach === "on"}
+          checked={state.values ? state.values.coach === "on" : coach}
           nickname={state.values?.nickname}
           errors={state.errors?.nickname}
         />

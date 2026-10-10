@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RegisterPage({ searchParams }: PageProps<"/register">) {
-  const { next } = await searchParams;
+  const { next, coach } = await searchParams;
   // С публичной страницы тренера — после регистрации сразу экран согласия
   const back = typeof next === "string" ? next : undefined;
   return (
@@ -20,7 +20,8 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
         <CardDescription>Создай героя и начни прокачку с 1 уровня.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <RegisterForm next={back} />
+        {/* ?coach=1 — с лендинга «Стать тренером»: галочка «Я тренер» уже отмечена */}
+        <RegisterForm next={back} coach={coach === "1"} />
         <p className="text-center text-sm text-muted-foreground">
           Уже есть аккаунт?{" "}
           <Link href={back ? `/login?next=${encodeURIComponent(back)}` : "/login"} className="font-medium text-primary hover:underline">

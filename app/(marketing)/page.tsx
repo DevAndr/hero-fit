@@ -3,6 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
+import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
 import { CountUp, Reveal } from "@/components/marketing/motion";
@@ -155,6 +156,40 @@ const PREMIUM_PLAN = [
   "Баланс мышц за 30 дней",
   "Тренировка «по восстановлению» одним касанием",
   "Новые функции — первыми",
+];
+
+/** Режим тренера: утверждения держать в соответствии с приложением. */
+const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[] = [
+  {
+    title: "Приглашение по ссылке",
+    text: "Отправьте клиенту ссылку — он сам разрешает доступ к своим тренировкам и в любой момент может его отозвать.",
+    visual: <InviteFlow />,
+  },
+  {
+    title: "Клиенты в одном списке",
+    text: "Кто тренировался сегодня, кто пропадает, кому пора увеличить вес — видно сразу. По каждому — тренировки с подходами, статистика и карта мышц.",
+    visual: <ClientRows />,
+  },
+  {
+    title: "Тренировки в календарь",
+    text: "Назначьте шаблон на нужные дни недели на несколько недель вперёд. Клиент видит план на дашборде, а вы — что выполнено и что пропущено.",
+    visual: <AssignedWeek />,
+  },
+  {
+    title: "Задания и прогрессия",
+    text: "Подходы, повторы и вес — свои для каждого клиента. Справился — в следующий раз тяжелее на шаг, три неудачи подряд — разгрузка.",
+    visual: <ProgressionTicker />,
+  },
+  {
+    title: "Комментарии к тренировкам",
+    text: "Общий отзыв и заметки к упражнениям прямо в сводке тренировки — клиенту приходит уведомление.",
+    visual: <CoachNote />,
+  },
+  {
+    title: "Своя страница тренера",
+    text: "Публичная страница с описанием, честными цифрами из приложения и кнопкой «Заниматься» — делитесь ссылкой, её находят и поисковики.",
+    visual: <TrainerCard />,
+  },
 ];
 
 function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
@@ -336,6 +371,53 @@ export default async function Home() {
           <Reveal className="mt-12 lg:mt-14">
             <BestiaryStrip />
           </Reveal>
+        </div>
+      </section>
+
+      {/* Для тренеров */}
+      <section aria-labelledby="coaches" className="relative scroll-mt-20 overflow-hidden border-t">
+        {/* «Пульт тренера»: сетка рабочего экрана и свечение фирменного цвета */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,color-mix(in_oklch,var(--border)_70%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklch,var(--border)_70%,transparent)_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-40 -left-40 -z-10 size-[36rem] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)]"
+        />
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:py-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <p className="text-sm font-semibold tracking-wide text-primary uppercase">Для тренеров</p>
+            <h2 id="coaches" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+              Ведите клиентов там, где им интересно тренироваться
+            </h2>
+            <p className="mt-4 text-pretty text-muted-foreground">
+              Клиент качается в игровом дневнике — уровни, streak, босс недели. А вы видите каждую тренировку, назначаете план и ведёте
+              прогрессию весов. Без таблиц и переписки в мессенджерах.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link href="/register?coach=1" className={buttonVariants({ size: "lg" })}>
+                Стать тренером — бесплатно <ArrowRight aria-hidden />
+              </Link>
+              <span className="text-sm text-muted-foreground">Пока идёт бета — всё бесплатно</span>
+            </div>
+          </div>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {COACH_FEATURES.map((f, i) => (
+              <Reveal
+                as="li"
+                delay={(i % 2) * 0.08}
+                key={f.title}
+                className="flex flex-col justify-between gap-5 rounded-2xl border bg-card/90 p-5 backdrop-blur transition-colors hover:border-primary/50"
+              >
+                <div>
+                  <h3 className="font-bold">{f.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground">{f.text}</p>
+                </div>
+                {f.visual}
+              </Reveal>
+            ))}
+          </ul>
         </div>
       </section>
 

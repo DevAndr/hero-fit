@@ -71,3 +71,22 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await page.getByRole("link", { name: "Открыть кабинет" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 });
+
+test("coaches block: six features, header link, CTA opens coach sign-up", async ({ page }) => {
+  await page.goto("/");
+  const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
+  await expect(block.getByRole("listitem")).toHaveCount(6);
+  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Тренировки в календарь", "Задания и прогрессия", "Комментарии к тренировкам", "Своя страница тренера"]) {
+    await expect(block.getByRole("heading", { name: title })).toBeVisible();
+  }
+  await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();
+  await expect(page).toHaveURL(/\/register\?coach=1$/);
+  await expect(page.getByRole("checkbox", { name: /Я тренер/ })).toBeChecked();
+  await expect(page.getByLabel("Публичный ник")).toBeVisible();
+});
+
+test("header links to the coaches block", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Тренерам" })).toHaveAttribute("href", "/#coaches");
+});
