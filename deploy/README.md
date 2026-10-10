@@ -49,7 +49,10 @@ Settings → Secrets and variables → Actions:
 
 1. В [@BotFather](https://t.me/BotFather): `/newbot` → токен и имя бота (без `@`).
 2. В `/opt/hero-fit/.env`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` (`openssl rand -hex 32`),
-   затем `docker compose up -d app`.
+   затем Actions → Deploy → Run workflow (перечитает `.env`). Голый `docker compose up -d app` на сервере не сработает:
+   без `IMAGE_TAG` compose идёт за `:latest`, которого нет, и без логина в GHCR. Вручную — с тегом текущего образа:
+   `IMAGE_TAG=$(docker inspect -f '{{.Config.Image}}' "$(docker compose ps -q app)" | sed 's/.*://') docker compose up -d app`.
+   Проверка: `curl -X POST https://<домен>/api/telegram/webhook` → `401` (бот включён; `404` — `.env` не подхвачен или старый образ).
 3. Один раз зарегистрировать webhook (в образе нет `tsx`, поэтому `curl`; или `npm run telegram:webhook` локально с теми же env):
    ```sh
    cd /opt/hero-fit && set -a && . ./.env && set +a
