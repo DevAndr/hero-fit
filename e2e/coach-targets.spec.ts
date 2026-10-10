@@ -44,6 +44,8 @@ test("assigned template starts with the coach's targets; another client gets own
       await expect(squat.getByLabel(`Повторы, подход ${i}`)).toHaveValue("8");
     }
     await expect(squat.getByLabel("Вес, подход 5")).toHaveCount(0);
+    await expect(squat).toContainText("от тренера: 4 × 8 · 60 кг");
+    await expect(client.page.getByRole("region", { name: "Жим ногами" })).not.toContainText("от тренера");
 
     await linkCoach(coach.login, other.login);
     await quickWorkout(other.page, SQUAT, [{ weight: "40", reps: "5" }]);
@@ -73,16 +75,23 @@ test("«От тренера» start applies targets", async ({ page, browser }) 
   }
 });
 
-test("disconnecting removes the coach's targets", async ({ page, browser }) => {
-  const { templateId, client } = await setup(page, browser);
+test("disconnecting removes the coach's targets and the label", async ({ page, browser }) => {
+  const { coach, templateId, client } = await setup(page, browser);
   try {
     await coachTarget(client.login, templateId, SQUAT, { weight: 60 });
     expect(await coachTargetCount(client.login)).toBe(1);
+    await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(2));
+    await client.page.goto("/training");
+    await client.page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+    await expect(client.page.getByRole("region", { name: SQUAT })).toContainText("от тренера: 60 кг");
     await client.page.goto("/settings");
     await client.page.getByRole("button", { name: "Отключить тренера" }).click();
     await client.page.getByRole("alertdialog").getByRole("button", { name: "Отключить" }).click();
     await expect(client.page.getByText("Тренер больше не видит ваши тренировки")).toBeVisible();
     expect(await coachTargetCount(client.login)).toBe(0);
+    await client.page.goto("/training");
+    await expect(client.page.getByLabel("Название тренировки")).toHaveValue("Ноги — база");
+    await expect(client.page.getByText(/от тренера:/)).toHaveCount(0);
   } finally {
     await client.context.close();
   }

@@ -29,6 +29,7 @@ export function ExerciseBlock({
   total,
   last,
   hint,
+  coachTarget,
   dispatch,
   onComplete,
   handle,
@@ -38,6 +39,8 @@ export function ExerciseBlock({
   total: number;
   last?: LastPerformance[string];
   hint?: ProgressionHint;
+  /** «от тренера: 4 × 8 · 60 кг» — задание активного тренера по этому упражнению шаблона. */
+  coachTarget?: string;
   dispatch: Dispatch<Action>;
   /** Вызывается, когда подход отмечен выполненным (запуск таймера отдыха). */
   onComplete: (item: ExerciseState, set: SetState) => void;
@@ -70,6 +73,7 @@ export function ExerciseBlock({
               Прошлый раз: <span className="text-foreground">{formatSets(last.sets)}</span>
             </p>
           ) : null}
+          {coachTarget ? <p className="mt-1 text-sm font-medium text-primary">{coachTarget}</p> : null}
           {hint ? <HintBadge hint={hint} className="mt-1.5 w-fit" /> : null}
         </div>
 

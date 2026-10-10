@@ -52,6 +52,8 @@ type Props = {
   exercises: ExerciseItem[];
   last: LastPerformance;
   hints: Record<string, ProgressionHint>;
+  /** Задания тренера по упражнениям (exerciseId → «от тренера: …»). */
+  coachTargets: Record<string, string>;
   /** План календаря, из которого начата тренировка (если он ещё есть). */
   plan?: { key: string; title: string } | null;
   /** Босс недели (урон без этой тренировки). */
@@ -129,7 +131,7 @@ function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone:
   return next?.exercise.name ?? null;
 }
 
-function Editor({ workout, exercises, last, hints, plan, boss }: Props) {
+function Editor({ workout, exercises, last, hints, coachTargets, plan, boss }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   const draft = useMemo(() => toDraft(state), [state]);
   const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
@@ -297,6 +299,7 @@ function Editor({ workout, exercises, last, hints, plan, boss }: Props) {
                         total={state.exercises.length}
                         last={last[item.exercise.id]}
                         hint={hints[item.exercise.id]}
+                        coachTarget={coachTargets[item.exercise.id]}
                         dispatch={dispatch}
                         onComplete={onComplete}
                         handle={handle}

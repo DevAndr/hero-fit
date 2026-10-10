@@ -11,6 +11,8 @@ import { listExercises } from "@/lib/exercises/queries";
 import { getBossView } from "@/lib/boss/queries";
 import { getMuscleRecovery, getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { getProgressionHints } from "@/lib/stats/queries";
+import { getTemplateTargets } from "@/lib/coach/target-queries";
+import { formatTarget, type Target } from "@/lib/coach/targets";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
 
 export const metadata: Metadata = { title: "Тренировка" };
@@ -38,20 +40,28 @@ export default async function TrainingPage() {
 
   const exercises = await listExercises(user.id);
   const ids = [...new Set([...exercises.map((e) => e.id), ...workout.exercises.map((e) => e.exercise.id)])];
-  const [last, hints, occurrence, recovery, boss] = await Promise.all([
+  const [last, hints, occurrence, recovery, boss, targets] = await Promise.all([
     getLastPerformance(user.id, ids),
     getProgressionHints(user.id, ids),
     workout.planKey ? getOccurrence(user.id, workout.planKey) : null,
     getMuscleRecovery(user.id),
     // Урон этой тренировки досчитывает редактор
     getBossView(user.id, safeTimeZone(user.timeZone), new Date(), workout.id),
+    // Пометка «от тренера» — текущие задания активного тренера по шаблону тренировки
+    workout.templateId ? getTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
   ]);
+  const coachTargets = Object.fromEntries(
+    [...targets].flatMap(([exerciseId, t]) => {
+      const label = formatTarget(t);
+      return label ? [[exerciseId, label]] : [];
+    }),
+  );
   const plan = occurrence ? { key: occurrence.occurrence.key, title: occurrence.occurrence.title } : null;
 
   // key: после отмены/новой тренировки редактор монтируется с чистым состоянием.
   return (
     <MuscleRecoveryProvider recovery={recovery}>
-      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} plan={plan} boss={boss} />
+      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} coachTargets={coachTargets} plan={plan} boss={boss} />
     </MuscleRecoveryProvider>
   );
 }
