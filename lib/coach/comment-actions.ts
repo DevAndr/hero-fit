@@ -59,8 +59,9 @@ export async function saveCoachCommentAction(clientId: string, workoutId: string
     } catch (e) {
       // Двойной «Сохранить»: место уже занято параллельным запросом — обновляем его
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
-      await db.coachComment.updateMany({ where: { ...slot, coachId: coach.id }, data: { text: parsed.data } });
+      const { count } = await db.coachComment.updateMany({ where: { ...slot, coachId: coach.id }, data: { text: parsed.data } });
       revalidate(clientId, workout.id);
+      if (!count) return { ok: false, error: "Здесь уже есть комментарий другого тренера" };
       return { ok: true };
     }
     await notifyClient(clientId, workout, parsed.data);

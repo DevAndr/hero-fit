@@ -31,6 +31,8 @@ async function setup(page: Page, browser: Browser) {
   await linkCoach(coach.login, client.login);
   await quickWorkout(client.page, "Жим штанги лёжа", [{ weight: "60", reps: "8" }]);
   const workoutId = client.page.url().split("/").at(-1)!;
+  // Уходим со сводки: открытая у клиента сводка читает комментарии (и уведомление) при каждой перерисовке
+  await client.page.goto("/dashboard");
   const clientId = await idOf(client.login);
   return { coach, coachNick, client, clientId, workoutId, coachUrl: `/coach/clients/${clientId}/workouts/${workoutId}` };
 }
@@ -48,7 +50,7 @@ test("coach leaves a general comment and an exercise note; client sees both and 
 
     await page.getByRole("button", { name: "Заметка к «Жим штанги лёжа»" }).click();
     await page.getByLabel("Заметка к «Жим штанги лёжа»").fill("Лопатки сведены — молодец");
-    await page.getByRole("button", { name: "Сохранить заметку" }).click();
+    await page.getByRole("button", { name: "Сохранить заметку к «Жим штанги лёжа»" }).click();
     await saved(page.getByLabel("Заметка к «Жим штанги лёжа»"));
     await expect(page.getByText("Лопатки сведены — молодец")).toBeVisible();
 
@@ -70,24 +72,26 @@ test("coach edits and deletes a note; workouts tab marks commented workouts", as
   try {
     await page.goto(coachUrl);
     await page.getByRole("button", { name: "Заметка к «Жим штанги лёжа»" }).click();
+    await expect(page.getByLabel("Заметка к «Жим штанги лёжа»")).toBeFocused(); // открыли — фокус в поле
     await page.getByLabel("Заметка к «Жим штанги лёжа»").fill("Первый вариант");
-    await page.getByRole("button", { name: "Сохранить заметку" }).click();
+    await page.getByRole("button", { name: "Сохранить заметку к «Жим штанги лёжа»" }).click();
     await saved(page.getByLabel("Заметка к «Жим штанги лёжа»"));
     await expect(page.getByText("Первый вариант")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Изменить заметку к «Жим штанги лёжа»" })).toBeFocused(); // сохранили — на кнопку
 
     await page.goto(`/coach/clients/${clientId}?tab=workouts`);
     await expect(page.getByRole("list", { name: "Тренировки клиента" }).getByText("есть комментарий")).toHaveCount(1);
 
     await page.goto(coachUrl);
-    await page.getByRole("button", { name: "Изменить заметку" }).click();
+    await page.getByRole("button", { name: "Изменить заметку к «Жим штанги лёжа»" }).click();
     await page.getByLabel("Заметка к «Жим штанги лёжа»").fill("Второй вариант");
-    await page.getByRole("button", { name: "Сохранить заметку" }).click();
+    await page.getByRole("button", { name: "Сохранить заметку к «Жим штанги лёжа»" }).click();
     await saved(page.getByLabel("Заметка к «Жим штанги лёжа»"));
     await expect(page.getByText("Второй вариант")).toBeVisible();
     await client.page.goto(`/workouts/${workoutId}`);
     await expect(client.page.getByText("Тренер: Второй вариант")).toBeVisible();
 
-    await page.getByRole("button", { name: "Удалить заметку" }).click();
+    await page.getByRole("button", { name: "Удалить заметку к «Жим штанги лёжа»" }).click();
     await expect(page.getByText("Второй вариант")).toHaveCount(0);
     await client.page.reload();
     await expect(client.page.getByText(/Тренер: /)).toHaveCount(0);
@@ -139,7 +143,7 @@ test("after the client reads the summary, the next comment is a new notification
 
     await page.getByRole("button", { name: "Заметка к «Жим штанги лёжа»" }).click();
     await page.getByLabel("Заметка к «Жим штанги лёжа»").fill("Второй отзыв");
-    await page.getByRole("button", { name: "Сохранить заметку" }).click();
+    await page.getByRole("button", { name: "Сохранить заметку к «Жим штанги лёжа»" }).click();
     await saved(page.getByLabel("Заметка к «Жим штанги лёжа»"));
 
     await bell(client.page);

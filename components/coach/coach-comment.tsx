@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, MessageSquarePlus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,32 @@ export function CoachCommentEditor({
   const [text, setText] = useState(comment?.text ?? "");
   const [pending, startTransition] = useTransition();
   const label = note ? `Заметка к «${exerciseName}»` : "Комментарий тренера";
-  const what = note ? "заметку" : "комментарий";
+  // С названием упражнения: у каждого упражнения свои «Изменить/Удалить заметку»
+  const what = note ? `заметку к «${exerciseName}»` : "комментарий";
+  // Куда перевести фокус после смены вида: открыли — в поле, закрыли — на кнопку, которая его открывает.
+  // После сохранения/удаления ждём новый comment с сервера: до него на месте кнопки ещё прежний вид.
+  const focusGoal = useRef<{ to: "field" | "toggle"; hasComment?: boolean } | null>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const goal = focusGoal.current;
+    if (pending || !goal || (goal.hasComment !== undefined && goal.hasComment !== Boolean(comment))) return;
+    (goal.to === "field" ? fieldRef : toggleRef).current?.focus();
+    focusGoal.current = null;
+  }, [editing, pending, comment]);
+  const open = () => {
+    focusGoal.current = { to: "field" };
+    setEditing(true);
+  };
+  const close = (hasComment?: boolean) => {
+    focusGoal.current = { to: "toggle", hasComment };
+    setEditing(false);
+  };
 
   const save = () =>
     startTransition(async () => {
       const result = await saveCoachCommentAction(clientId, workoutId, workoutExerciseId, text);
-      if (result.ok) setEditing(false);
+      if (result.ok) close(true);
       else toast.error(result.error);
     });
   const remove = () =>
@@ -48,7 +68,8 @@ export function CoachCommentEditor({
       const result = await deleteCoachCommentAction(clientId, comment.id);
       if (result.ok) {
         setText("");
-        setEditing(!note);
+        if (note) close(false);
+        else open();
       } else toast.error(result.error);
     });
 
@@ -65,9 +86,9 @@ export function CoachCommentEditor({
         <Label htmlFor={id} className={note ? "sr-only" : undefined}>
           {label}
         </Label>
-        <Textarea id={id} value={text} maxLength={COMMENT_MAX} rows={note ? 2 : 3} onChange={(e) => setText(e.target.value)} placeholder={note ? "Техника, вес, на что обратить внимание" : "Как прошла тренировка, что дальше"} />
+        <Textarea ref={fieldRef} id={id} value={text} readOnly={pending} maxLength={COMMENT_MAX} rows={note ? 2 : 3} onChange={(e) => setText(e.target.value)} placeholder={note ? "Техника, вес, на что обратить внимание" : "Как прошла тренировка, что дальше"} />
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={pending || !text.trim()} aria-label={note ? "Сохранить заметку" : undefined}>
+          <Button type="submit" size="sm" disabled={pending || !text.trim()} aria-label={note ? `Сохранить ${what}` : undefined}>
             {pending ? <Loader2 className="animate-spin" /> : null}
             Сохранить
           </Button>
@@ -79,7 +100,7 @@ export function CoachCommentEditor({
               disabled={pending}
               onClick={() => {
                 setText(comment?.text ?? "");
-                setEditing(false);
+                close(Boolean(comment));
               }}
             >
               Отмена
@@ -92,7 +113,7 @@ export function CoachCommentEditor({
 
   if (!comment) {
     return (
-      <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setEditing(true)} aria-label={label}>
+      <Button ref={toggleRef} type="button" size="sm" variant="ghost" className="mt-2" onClick={open} aria-label={label}>
         <MessageSquarePlus />
         Заметка
       </Button>
@@ -103,7 +124,7 @@ export function CoachCommentEditor({
     <div className="mt-3 rounded-lg bg-muted/60 p-3 text-sm">
       <p className="whitespace-pre-line">{comment.text}</p>
       <div className="mt-2 flex gap-1">
-        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setEditing(true)} aria-label={`Изменить ${what}`}>
+        <Button ref={toggleRef} type="button" size="sm" variant="ghost" disabled={pending} onClick={open} aria-label={`Изменить ${what}`}>
           <Pencil />
           Изменить
         </Button>

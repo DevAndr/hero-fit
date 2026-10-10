@@ -24,7 +24,8 @@ export default async function CoachClientWorkoutPage({ params }: PageProps<"/coa
   const names = new Map(workout.exercises.map((we) => [we.id, we.exercise.name]));
   const editor = (workoutExerciseId: string | null) => (
     <CoachCommentEditor
-      key={`${workoutExerciseId ?? "general"}:${byExercise.get(workoutExerciseId)?.id ?? "new"}`}
+      // Ключ — место, а не id: после создания/удаления редактор не пересоздаётся и переводит фокус
+      key={workoutExerciseId ?? "general"}
       clientId={client.id}
       workoutId={workout.id}
       workoutExerciseId={workoutExerciseId}
