@@ -86,13 +86,15 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           envs: SHA,IMAGE,DEPLOY_PATH,GHCR_TOKEN,GHCR_USER
+          # По умолчанию 10 мин — медленное скачивание тяжёлого образа migrate обрывалось на середине
+          command_timeout: 25m
           # Без script_stop: он проверяет каждую строку отдельно и обрывает цикл ожидания на первой же итерации.
           script: |
             set -eu
             cd "$DEPLOY_PATH"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             export IMAGE_REPO="$IMAGE" IMAGE_TAG="$SHA"
-            docker compose pull --quiet migrate app
+            docker compose pull migrate app
             docker compose up -d --remove-orphans
             docker logout ghcr.io
             health() { docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)"; }
@@ -108,7 +110,8 @@ jobs:
               sleep 5
             done
             docker compose ps
-            docker image prune -f
+            # Каждый деплой — новые образы с тегом sha; неиспользуемые старше 3 суток удаляем (недавние — для отката)
+            docker image prune -a -f --filter "until=72h"
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
