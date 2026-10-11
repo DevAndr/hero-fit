@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { GoalStatus } from "@/generated/prisma/enums";
+import { GoalStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
-import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { evaluateAchievements, evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
 import { currentValueFor } from "@/lib/goals/queries";
 import { markAchieved, writeWeight } from "@/lib/goals/mutations";
-import { canCreate, deadlineSchema, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
+import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
+import { levelProgress } from "@/lib/progress/level";
 
 type Result = { ok: true } | { ok: false; error: string; field?: string };
 
@@ -114,4 +115,26 @@ export async function logBodyWeightAction(weight: number): Promise<{ ok: true; a
   refresh();
   revalidatePath("/settings");
   return { ok: true, achieved };
+}
+
+/** Сундук за выполненную цель: 100 XP, забрать можно один раз; в лигу не идёт. */
+export async function openGoalChestAction(goalId: string): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const result = await db.$transaction(async (tx) => {
+    const goal = await tx.goal.findFirst({ where: { id: goalId, userId: user.id }, select: { status: true } });
+    if (goal?.status !== GoalStatus.ACHIEVED) return { ok: false as const, error: "Цель ещё не достигнута" };
+    // Условие по chestOpenedAt — второй клик или вторая вкладка не заберут сундук дважды
+    const { count } = await tx.goal.updateMany({
+      where: { id: goalId, userId: user.id, status: GoalStatus.ACHIEVED, chestOpenedAt: null },
+      data: { chestOpenedAt: new Date() },
+    });
+    if (count === 0) return { ok: false as const, error: "Сундук уже открыт" };
+    await tx.xpEvent.create({ data: { userId: user.id, amount: GOAL_CHEST_XP, reason: XpReason.GOAL_REWARD, meta: { goalId } } });
+    const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: GOAL_CHEST_XP } }, select: { xp: true } });
+    await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    await evaluateAchievements(tx, user.id);
+    return { ok: true as const, amount: GOAL_CHEST_XP };
+  });
+  if (result.ok) revalidatePath("/", "layout");
+  return result;
 }

@@ -316,3 +316,14 @@ describe("raids", () => {
     });
   });
 });
+
+describe("goals", () => {
+  it("лестница выполненных целей: 1, 5, 10, 25", () => {
+    expect(codesOf("goal", { goalsAchieved: 5 })).toEqual(["goal:1", "goal:5"]);
+    expect(codesOf("goal", { goalsAchieved: 0 })).toEqual([]);
+    const earned = earnedAchievements({ ...empty, goalsAchieved: 5 });
+    expect(earned.find((a) => a.code === "goal:1")).toMatchObject({ category: "GOAL", title: "Целеустремлённый" });
+    expect(earned.find((a) => a.code === "goal:5")).toMatchObject({ title: "Целеустремлённый ×5" });
+    expect(nextGoals({ ...empty, goalsAchieved: 5 }).find((g) => g.code.startsWith("goal:"))).toMatchObject({ code: "goal:10", target: 10 });
+  });
+});

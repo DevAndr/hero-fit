@@ -169,6 +169,21 @@ export function goalTitle(g: {
   }
 }
 
+/** Цель, выполненная тренировкой (FinishMeta.goals.achieved → сводка и лента). */
+export type FinishGoal = {
+  id: string;
+  type: GoalType;
+  title: string;
+  /** Заголовок без килограммов (для hideWeights): у силовых по весу/1ПМ — имя упражнения; null — как title. */
+  feedTitle: string | null;
+};
+
+export type FinishGoals = {
+  achieved: FinishGoal[];
+  /** Невыполненные цели, которые эта тренировка продвинула: доли пути до и после. */
+  advanced: { id: string; title: string; before: number; after: number }[];
+};
+
 export type GoalSuggestion = GoalInput & { title: string };
 
 /** Подсказки для пустой страницы целей. */
