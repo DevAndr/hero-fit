@@ -1,11 +1,20 @@
 name: CI
 
+# Экономия минут Actions: CI — только на PR и на main (не на каждый пуш ветки — иначе ветка с PR гоняется дважды);
+# правки одних документов CI не запускают. На PR — быстрые проверки, полный e2e — на main (перед деплоем),
+# на PR — по метке «e2e» или вручную (Run workflow). Полный e2e перед PR гоняется локально.
 on:
   push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
 
+# Метка «e2e» — своя группа: иначе она отменила бы идущие быстрые проверки того же PR
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event.action == 'labeled' && 'label' || 'code' }}
   cancel-in-progress: true
 
 # Только для CI: секреты-заглушки, БД — сервис-контейнер. e2e сами создают и засевают базу herofit_test.
@@ -20,6 +29,8 @@ env:
 jobs:
   checks:
     name: Typecheck, lint, unit tests
+    # Повесили метку — код не менялся, быстрые проверки уже прошли
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,6 +46,8 @@ jobs:
 
   e2e:
     name: Build + e2e (desktop & mobile)
+    # main и ручной запуск — всегда; PR — только с меткой «e2e» (повесить метку = запустить)
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -63,9 +76,25 @@ jobs:
           keys=$(npx web-push generate-vapid-keys --json)
           echo "VAPID_PUBLIC_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).publicKey')" >> "$GITHUB_ENV"
           echo "VAPID_PRIVATE_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).privateKey')" >> "$GITHUB_ENV"
+      # Кэш сборки Next: повторная сборка — только изменённое
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**') }}
+          restore-keys: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - run: npm run build
+      # Браузер Playwright — из кэша по версии в lock-файле; системные библиотеки ставятся всегда (их в кэше нет)
+      - id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Playwright system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run test:e2e
       - name: Playwright traces on failure
         if: failure()
