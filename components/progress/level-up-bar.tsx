@@ -4,6 +4,7 @@ import { useState, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { LottiePlayer } from "@/components/lottie/lottie-player";
 import { XpBar } from "@/components/progress/xp-bar";
+import { haptic } from "@/lib/telegram/webapp";
 
 /** Залпы салюта: место на экране, размер и задержка (мс). */
 const VOLLEYS = [
@@ -18,7 +19,14 @@ export function LevelUpBar({ celebrate, ...props }: Omit<ComponentProps<typeof X
   const [bursts, setBursts] = useState<number[]>([]);
   return (
     <>
-      <XpBar {...props} onLevelUp={celebrate ? () => setBursts((b) => [...b, Date.now()]) : undefined} />
+      <XpBar {...props} onLevelUp={
+          celebrate
+            ? () => {
+                haptic("success");
+                setBursts((b) => [...b, Date.now()]);
+              }
+            : undefined
+        } />
       {bursts.length
         ? createPortal(
             <div aria-hidden data-testid="level-up-celebration" className="pointer-events-none fixed inset-0 z-50 overflow-hidden">

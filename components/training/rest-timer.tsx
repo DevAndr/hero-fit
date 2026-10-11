@@ -16,8 +16,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { subscribeError } from "@/components/notifications/notification-settings";
 import { usePush } from "@/components/notifications/push-provider";
+import { useTelegram } from "@/components/telegram/telegram-mini-app";
 import { formatClock } from "@/lib/format";
 import { cancelRestPushAction, scheduleRestPushAction } from "@/lib/notifications/actions";
+import { haptic } from "@/lib/telegram/webapp";
 import { cn } from "@/lib/utils";
 
 /**
@@ -78,6 +80,8 @@ function playBeep() {
 
 function notifyDone(label: string) {
   navigator.vibrate?.([300, 150, 300]);
+  // В Telegram (и на iOS, где navigator.vibrate нет) — вибрация Telegram
+  haptic("warning");
   playBeep();
   if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.hidden) {
     new Notification("Отдых окончен 💪", { body: `Следующий подход: ${label}`, tag: "hero-fit-rest" });
@@ -187,7 +191,7 @@ export function RestTimerBar() {
     <div
       role="timer"
       aria-label="Таймер отдыха"
-      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border bg-popover shadow-2xl lg:bottom-6"
+      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border bg-popover shadow-2xl lg:bottom-6"
     >
       <div className="h-1 bg-muted">
         <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />
@@ -221,9 +225,13 @@ const readPermission = (): NotificationPermission | "unsupported" =>
 /** Включить уведомления об окончании отдыха: Web Push, а где его нет — системные уведомления вкладки. */
 export function NotificationToggle({ className }: { className?: string }) {
   const push = usePush();
+  const { inTelegram } = useTelegram();
   const browserPermission = useSyncExternalStore(noopSubscribe, readPermission, () => "default" as const);
   const [requested, setPermission] = useState<NotificationPermission | null>(null);
   const permission: NotificationPermission | "unsupported" = requested ?? browserPermission;
+
+  // Во webview Telegram ни Web Push, ни уведомления вкладки не работают — сигнал придёт вибрацией
+  if (inTelegram) return null;
 
   if (push?.supported && push.available) {
     if (!push.ready || push.subscribed) return null;

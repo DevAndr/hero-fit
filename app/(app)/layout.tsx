@@ -10,6 +10,7 @@ import { getUnseenAchievements } from "@/lib/achievements/queries";
 import { requireUser } from "@/lib/auth/dal";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
+import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
 import { env } from "@/lib/env";
 import { getNotificationFeed } from "@/lib/notifications/queries";
 
@@ -23,25 +24,30 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
   const [unseen, feed] = await Promise.all([getUnseenAchievements(user.id), getNotificationFeed(user.id)]);
 
+  const shell = (
+    <AppShell
+      user={user}
+      chest={
+        <DailyChest
+          day={visit.today}
+          streak={visit.loginStreak}
+          available={!chestOpened}
+          autoOpen={chestAutoOpen(env.DAILY_CHEST_AUTOOPEN === "on", user.onboardedAt)}
+        />
+      }
+      // key: новые уведомления сбрасывают локальное «прочитано»
+      notifications={<NotificationBell key={`${feed.items[0]?.id}:${feed.unread}`} feed={feed} />}
+    >
+      {children}
+      <AchievementToaster achievements={unseen} />
+      <TimezoneSync cookieName={TIMEZONE_COOKIE} current={timeZone} />
+    </AppShell>
+  );
+
   return (
     <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
-      <AppShell
-        user={user}
-        chest={
-          <DailyChest
-            day={visit.today}
-            streak={visit.loginStreak}
-            available={!chestOpened}
-            autoOpen={chestAutoOpen(env.DAILY_CHEST_AUTOOPEN === "on", user.onboardedAt)}
-          />
-        }
-        // key: новые уведомления сбрасывают локальное «прочитано»
-        notifications={<NotificationBell key={`${feed.items[0]?.id}:${feed.unread}`} feed={feed} />}
-      >
-        {children}
-        <AchievementToaster achievements={unseen} />
-        <TimezoneSync cookieName={TIMEZONE_COOKIE} current={timeZone} />
-      </AppShell>
+      {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
+      {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
     </PushProvider>
   );
 }

@@ -78,7 +78,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+var(--tg-safe-top))] items-center pt-(--tg-safe-top) gap-3 border-b bg-background/95 px-4 backdrop-blur">
           <div className="lg:hidden">
             <Logo />
           </div>
@@ -95,7 +95,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 pt-6 pb-24 lg:px-8 lg:pb-10">{children}</main>
+        <main className="flex-1 px-4 pt-6 pb-[calc(6rem+var(--tg-safe-bottom))] lg:px-8 lg:pb-10">{children}</main>
       </div>
 
       <BottomNav />

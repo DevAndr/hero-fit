@@ -30,6 +30,8 @@ export type CurrentUser = {
   onboardedAt: Date | null;
   /** Режим тренера: раздел «Клиенты». */
   isCoach: boolean;
+  /** Сессия из Telegram Mini App: кабинет подстраивается под Telegram. */
+  embedded: boolean;
 };
 
 /**
@@ -46,6 +48,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     select: {
       revokedAt: true,
       expiresAt: true,
+      embedded: true,
       user: {
         select: {
           id: true,
@@ -75,7 +78,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
   if (session.user.id !== payload.userId) return null;
 
-  return { ...session.user, sessionId: payload.sessionId };
+  return { ...session.user, sessionId: payload.sessionId, embedded: session.embedded };
 });
 
 export async function requireUser(): Promise<CurrentUser> {

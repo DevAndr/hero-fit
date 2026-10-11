@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExerciseBlock } from "@/components/training/exercise-block";
+import { useClosingConfirmation } from "@/components/telegram/telegram-mini-app";
 import { BossBar } from "@/components/boss/boss-bar";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
@@ -136,6 +137,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss }: P
   const draft = useMemo(() => toDraft(state), [state]);
   const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
   const rest = useRestTimer();
+  // Telegram переспросит перед закрытием, пока тренировка открыта
+  useClosingConfirmation(true);
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);

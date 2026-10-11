@@ -7,6 +7,7 @@ import { BossDamage } from "@/components/boss/boss-damage";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
+import { Haptic } from "@/components/telegram/haptic";
 import type { RecordType } from "@/generated/prisma/enums";
 import { progressionLine, type ProgressionItem } from "@/lib/coach/progression";
 import { formatClock, rirLabel } from "@/lib/format";
@@ -175,6 +176,7 @@ export function WorkoutSummaryView({
 
       {meta?.records.length ? (
         <section className="mt-4 rounded-xl border border-xp/40 bg-xp/5 p-4">
+          {!readOnly && freshFinish ? <Haptic kind="success" /> : null}
           <h2 className="flex items-center gap-2 font-bold">
             <Trophy className="size-4 text-xp" />
             Новые рекорды
