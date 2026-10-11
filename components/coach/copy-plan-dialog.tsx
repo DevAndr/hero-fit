@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { plural } from "@/lib/format";
+import type { CoachGroupView } from "@/lib/coach/groups";
 import { copyPlanText } from "@/lib/coach/plan-copy";
 import { copyPlanAction } from "@/lib/coach/plan-actions";
 
@@ -17,7 +18,17 @@ export type CopySummary = { on: string; off: string };
 export type CopyRecipient = { id: string; name: string; overwrite: { on: number; off: number } };
 
 /** «Скопировать план» во вкладке «План»: будущие назначения и задания клиента — другим клиентам тренера. */
-export function CopyPlanButton({ sourceId, summary, recipients }: { sourceId: string; summary: CopySummary; recipients: CopyRecipient[] }) {
+export function CopyPlanButton({
+  sourceId,
+  summary,
+  recipients,
+  groups,
+}: {
+  sourceId: string;
+  summary: CopySummary;
+  recipients: CopyRecipient[];
+  groups: CoachGroupView[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -31,7 +42,7 @@ export function CopyPlanButton({ sourceId, summary, recipients }: { sourceId: st
             <DialogTitle>Скопировать план</DialogTitle>
           </DialogHeader>
           {/* Форма монтируется заново при каждом открытии — выбор не переживает закрытие */}
-          {open ? <CopyPlanForm sourceId={sourceId} summary={summary} recipients={recipients} onDone={() => setOpen(false)} /> : null}
+          {open ? <CopyPlanForm sourceId={sourceId} summary={summary} recipients={recipients} groups={groups} onDone={() => setOpen(false)} /> : null}
         </DialogContent>
       </Dialog>
     </>
@@ -42,11 +53,13 @@ function CopyPlanForm({
   sourceId,
   summary,
   recipients,
+  groups,
   onDone,
 }: {
   sourceId: string;
   summary: CopySummary;
   recipients: CopyRecipient[];
+  groups: CoachGroupView[];
   onDone: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -81,7 +94,7 @@ function CopyPlanForm({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Будет скопировано: {summary[mode]}</p>
-      <ClientPicker clients={clients} picked={picked} onChange={setPicked} />
+      <ClientPicker clients={clients} groups={groups} picked={picked} onChange={setPicked} />
       <Label className="flex items-center gap-2 font-normal">
         <Checkbox checked={withWeights} onCheckedChange={(v) => setWithWeights(v === true)} />С весами
       </Label>

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { CalendarCheck, Flame, TrendingUp } from "lucide-react";
+import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 
 /** Клиенты тренера: сигналы риска (lib/coach/signals.ts) и сортировка (lib/coach/clients.ts). */
-export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
+export function ClientList({ rows, now, groupNames = {} }: { rows: ClientRow[]; now: Date; groupNames?: Record<string, string[]> }) {
   return (
     <ul aria-label="Клиенты" className="divide-y divide-border/60 rounded-xl border bg-card">
       {rows.map((r) => {
@@ -18,6 +19,11 @@ export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
               <p className="text-xs text-muted-foreground">
                 LVL {r.level} · последняя тренировка: {lastWorkoutLabel(r.lastWorkoutAt, now, r.timeZone)}
               </p>
+              {groupNames[r.id]?.length ? (
+                <div className="mt-1">
+                  <GroupBadges names={groupNames[r.id]} />
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {r.signals.map((kind) => (

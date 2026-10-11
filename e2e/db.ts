@@ -296,6 +296,17 @@ export async function coachTargetFull(clientLogin: string, exerciseName: string)
   });
 }
 
+/** Строк членства в группах тренера (разрыв связи их удаляет). */
+export async function coachGroupMembers(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ c: number }>(
+      `select count(*)::int c from "CoachGroupMember" m join "CoachGroup" g on g.id = m."groupId" where g."coachId" = $1`,
+      [await userId(db, coachLogin)],
+    );
+    return rows[0].c;
+  });
+}
+
 /** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
 export async function coachProfile(
   coachLogin: string,

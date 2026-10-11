@@ -186,6 +186,8 @@ model User {
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
   coachTargets        CoachTarget[]
   coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
+  coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
+  coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
   coachProfile        CoachProfile?
   kudos               Kudos[]
@@ -775,4 +777,31 @@ model CoachSignal {
   client User @relation("CoachSignalClient", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([coachId, clientId])
+}
+
+/// Группа клиентов тренера — метка для фильтра и быстрого выбора; клиент может быть в нескольких
+model CoachGroup {
+  id        String   @id @default(cuid())
+  coachId   String
+  name      String
+  /// название без учёта регистра и лишних пробелов — уникально у тренера
+  nameKey   String
+  createdAt DateTime @default(now())
+
+  coach   User               @relation("CoachGroupCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  members CoachGroupMember[]
+
+  @@unique([coachId, nameKey])
+}
+
+model CoachGroupMember {
+  groupId   String
+  clientId  String
+  createdAt DateTime @default(now())
+
+  group  CoachGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  client User       @relation("CoachGroupClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, clientId])
+  @@index([clientId])
 }
