@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignInputSchema, assignmentText } from "./assign";
+import { assignInputSchema, assignManyText, assignmentText, pickClients } from "./assign";
 
 describe("assignmentText", () => {
   it("разовая — «на дату»", () => {
@@ -19,5 +19,21 @@ describe("assignInputSchema", () => {
   it("«до» раньше начала и пустой шаблон — ошибка", () => {
     expect(assignInputSchema.safeParse({ ...ok, endDate: "2026-10-12" }).success).toBe(false);
     expect(assignInputSchema.safeParse({ ...ok, templateId: "" }).success).toBe(false);
+  });
+});
+
+describe("pickClients", () => {
+  it("только активные клиенты, без повторов, в порядке запроса; остальные — пропущены", () => {
+    expect(pickClients(["a", "b", "a", "x"], ["b", "a", "c"])).toEqual({ ids: ["a", "b"], skipped: 1 });
+    expect(pickClients(["x", "y", "x"], ["a"])).toEqual({ ids: [], skipped: 2 });
+  });
+});
+
+describe("assignManyText", () => {
+  it("сколько назначено и пропущено", () => {
+    expect(assignManyText(1, 0)).toBe("Назначено 1 клиенту");
+    expect(assignManyText(2, 0)).toBe("Назначено 2 клиентам");
+    expect(assignManyText(5, 1)).toBe("Назначено 5 клиентам · 1 пропущен");
+    expect(assignManyText(3, 2)).toBe("Назначено 3 клиентам · 2 пропущено");
   });
 });
