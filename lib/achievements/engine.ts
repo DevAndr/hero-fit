@@ -227,7 +227,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
   });
   const tz = safeTimeZone(timeZone);
   const { weekWorkouts, weekWorkoutsKey, ...rest } = user;
-  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, raidWins, raidMvps] =
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, raidWins, raidMvps, goalsAchieved] =
     await Promise.all([
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
@@ -243,6 +243,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       bossWins(client, userId),
       client.raidReward.count({ where: { userId } }),
       client.raidWeek.count({ where: { mvpUserId: userId } }),
+      client.goal.count({ where: { userId, status: "ACHIEVED" } }),
     ]);
   return {
     ...rest,
@@ -251,6 +252,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
     bossWins: wins,
     raidWins,
     raidMvps,
+    goalsAchieved,
     workouts: totals.workouts,
     exercises,
     achievements,

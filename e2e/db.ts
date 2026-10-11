@@ -628,3 +628,85 @@ export async function seedRaidHits(login: string, week: string, hp: number, defe
     );
   });
 }
+
+/** Цель минуя UI (по умолчанию активная, без срока); exerciseName — встроенное или своё упражнение пользователя. */
+export async function createGoal(
+  login: string,
+  g: {
+    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT";
+    target: number;
+    startValue?: number;
+    exerciseName?: string;
+    metric?: "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS";
+    deadline?: string | null;
+    createdAt?: Date;
+    status?: "ACTIVE" | "ACHIEVED";
+  },
+) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    let exerciseId: string | null = null;
+    if (g.exerciseName) {
+      const { rows } = await db.query<{ id: string }>(
+        `select id from "Exercise" where name = $1 and ("userId" is null or "userId" = $2) order by "userId" nulls last limit 1`,
+        [g.exerciseName, uid],
+      );
+      exerciseId = rows[0].id;
+    }
+    const id = randomUUID();
+    const achieved = g.status === "ACHIEVED" ? new Date() : null;
+    await db.query(
+      `insert into "Goal" (id, "userId", type, "exerciseId", metric, target, "startValue", deadline, status, "createdAt", "achievedAt", "closedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved],
+    );
+    return id;
+  });
+}
+
+export async function goalOf(id: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ status: string; chestOpenedAt: Date | null; deadline: string | null }>(
+      `select status, "chestOpenedAt", deadline from "Goal" where id = $1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Цели пользователя (id и статус) — по порядку постановки. */
+export async function goalsOf(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ id: string; status: string; target: number }>(
+      `select id, status, target from "Goal" where "userId" = $1 order by "createdAt"`,
+      [uid],
+    );
+    return rows;
+  });
+}
+
+/** Взвешивание за местную дату `date`. */
+export async function logWeight(login: string, date: string, weight: number) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(
+      `insert into "BodyWeightEntry" (id, "userId", date, weight) values ($1, $2, $3, $4)
+       on conflict ("userId", date) do update set weight = excluded.weight`,
+      [randomUUID(), uid, date, weight],
+    );
+    await db.query(`update "User" set "bodyWeight" = $2 where id = $1`, [uid, weight]);
+  });
+}
+
+/** Сколько XP начислено сундуками целей. */
+export async function goalRewardXp(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ xp: number }>(
+      `select coalesce(sum(amount), 0)::int as xp from "XpEvent" where "userId" = $1 and reason = 'GOAL_REWARD'`,
+      [uid],
+    );
+    return rows[0].xp;
+  });
+}

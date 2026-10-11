@@ -24,6 +24,8 @@ import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { GuildCard } from "@/components/guild/guild-card";
+import { GoalsCard } from "@/components/goals/goals-card";
+import { getDashboardGoals } from "@/lib/goals/queries";
 import { getMyGuild } from "@/lib/guild/queries";
 import { getRaidView } from "@/lib/raid/queries";
 import { formatClock, plural } from "@/lib/format";
@@ -122,7 +124,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss, coach, guild] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss, coach, guild, goals] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -132,6 +134,7 @@ export default async function DashboardPage() {
     getBossView(user.id, userTz),
     activeCoachOf(user.id),
     getMyGuild(user.id, userTz),
+    getDashboardGoals(user.id, userTz),
   ]);
   const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
@@ -203,6 +206,8 @@ export default async function DashboardPage() {
       </div>
 
       <BossCard boss={boss} />
+
+      <GoalsCard goals={goals.goals} total={goals.total} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

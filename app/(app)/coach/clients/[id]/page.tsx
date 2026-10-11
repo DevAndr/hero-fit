@@ -7,6 +7,8 @@ import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
 import { BodyMap } from "@/components/progress/body-map";
+import { ClientGoals } from "@/components/goals/client-goals";
+import { getClientGoals } from "@/lib/goals/queries";
 import { HintBadge } from "@/components/stats/hint-badge";
 import { StatsView } from "@/components/stats/stats-view";
 import { buttonVariants } from "@/components/ui/button";
@@ -131,7 +133,7 @@ async function Overview({
   base: string;
 }) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, recent, signalInput] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent, signalInput, goals] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
@@ -141,6 +143,7 @@ async function Overview({
       distinct: ["exerciseId"],
     }),
     getSignalInput(coachId, clientId, tz, linkedAt, now),
+    getClientGoals(clientId, tz),
   ]);
   const signals = clientSignals(signalInput, now, tz);
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
@@ -174,6 +177,7 @@ async function Overview({
         <Tile label="Серия, недель" value={String(streak)} />
         <Tile label="Уровень" value={String(levelProgress(xp).level)} />
       </div>
+      <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} />
       <BodyMap recovery={recovery} balance={balance} />
       {hinted.length ? (
         <section aria-label="Пора увеличить вес" className="space-y-2 rounded-xl border bg-card p-4">

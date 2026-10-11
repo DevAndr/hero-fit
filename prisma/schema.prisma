@@ -51,6 +51,7 @@ enum AchievementCategory {
   LEAGUE // места в недельной лиге друзей (из итогов недели)
   BOSS // победы над боссом недели
   GUILD // победы в рейдах гильдии
+  GOAL // выполненные личные цели (lib/goals)
 }
 
 enum NotificationType {
@@ -64,6 +65,7 @@ enum NotificationType {
   BOSS // босс недели повержен
   RAID // рейд-босс гильдии: повержен, «не хватает урона»
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
+  GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
 }
 
 enum FriendshipStatus {
@@ -80,6 +82,7 @@ enum XpReason {
   STREAK_RESTORE // выкуп сгоревшей серии (отрицательная сумма)
   BOSS_REWARD // сундук за победу над боссом недели (lib/boss)
   RAID_REWARD // сундук рейда гильдии (lib/raid)
+  GOAL_REWARD // сундук за выполненную цель (lib/goals)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -141,6 +144,7 @@ model User {
   notifySocial       Boolean   @default(true)
   notifyPlan         Boolean   @default(true)
   notifyRecap        Boolean   @default(true)
+  notifyGoal         Boolean   @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
   /// вход в Telegram Mini App (id пользователя Telegram) — отдельно от уведомлений: /stop, «Отключить» и 403 его не трогают;
@@ -199,6 +203,8 @@ model User {
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
   coachProfile        CoachProfile?
   kudos               Kudos[]
+  goals               Goal[]
+  bodyWeights         BodyWeightEntry[]
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -328,6 +334,7 @@ model Exercise {
   personalRecords   PersonalRecord[]
   achievements      UserAchievement[]
   coachTargets      CoachTarget[]
+  goals             Goal[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -913,4 +920,56 @@ model RaidReward {
   @@unique([raidId, userId])
   /// счётчик побед в рейдах (ачивки)
   @@index([userId])
+}
+
+// ───────────────────────────── Личные цели (lib/goals) ─────────────────────────────
+
+enum GoalType {
+  STRENGTH // упражнение + метрика RecordType
+  WORKOUTS // завершённые тренировки с момента постановки
+  STREAK // недели серии (User.currentStreak)
+  HOURS // часы в зале с момента постановки
+  BODY_WEIGHT // последнее взвешивание
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  FAILED
+}
+
+/// Цель хранит условие и стартовое значение; текущее значение считается из данных (lib/goals/queries.ts).
+model Goal {
+  id            String      @id @default(cuid())
+  userId        String
+  type          GoalType
+  exerciseId    String? // только STRENGTH
+  metric        RecordType? // только STRENGTH
+  target        Float
+  startValue    Float // значение при постановке (полоса «от старта к цели», направление веса)
+  deadline      String? // местная дата "YYYY-MM-DD" в User.timeZone
+  status        GoalStatus  @default(ACTIVE)
+  createdAt     DateTime    @default(now())
+  achievedAt    DateTime? // из тренировки — её finishedAt
+  closedAt      DateTime? // когда стала ACHIEVED/FAILED
+  chestOpenedAt DateTime?
+  reminderAt    DateTime? // «7 дней до срока» отправлено
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+/// Журнал взвешиваний: одна запись на местный день; последняя дублируется в User.bodyWeight.
+model BodyWeightEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String // местная дата "YYYY-MM-DD"
+  weight    Float // кг, 30…300
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
 }

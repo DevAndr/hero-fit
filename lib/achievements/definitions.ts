@@ -80,6 +80,8 @@ export type AchievementStats = {
   raidWins: number;
   /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
   raidMvps: number;
+  /** Выполненные личные цели (Goal ACHIEVED). */
+  goalsAchieved: number;
 };
 
 export type LeaguePlace = 1 | 2 | 3;
@@ -118,6 +120,7 @@ export const EMPTY_STATS: AchievementStats = {
   bossWins: 0,
   raidWins: 0,
   raidMvps: 0,
+  goalsAchieved: 0,
 };
 
 export const WORKOUT_STEP = 5;
@@ -644,6 +647,20 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 1 ? "MVP рейда" : `MVP рейда ×${n}`,
           description: n === 1 ? "Нанести больше всех урона в победном рейде" : `Стать MVP ${n} победных рейдов`,
           xpReward: 40 + n * 5,
+        }),
+    },
+
+    // Личные цели
+    {
+      fixed: [1, 5, 10, 25],
+      value: s.goalsAchieved,
+      def: (n) =>
+        def(n, {
+          code: `goal:${n}`,
+          category: "GOAL",
+          title: n === 1 ? "Целеустремлённый" : `Целеустремлённый ×${n}`,
+          description: n === 1 ? "Выполнить свою цель" : `Выполнить ${n} ${plural(n, "цель", "цели", "целей")}`,
+          xpReward: 30 + n * 5,
         }),
     },
 

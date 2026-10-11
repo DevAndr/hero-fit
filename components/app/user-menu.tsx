@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Users } from "lucide-react";
+import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Target, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -44,6 +44,10 @@ export function UserMenu({ name, login, email, isCoach }: { name: string | null;
             Клиенты
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem render={<Link href="/goals" />}>
+          <Target />
+          Цели
+        </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/stats" />}>
           <ChartColumn />
           Статистика

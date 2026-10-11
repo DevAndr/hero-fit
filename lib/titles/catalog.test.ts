@@ -95,3 +95,10 @@ describe("raid titles", () => {
     expect(availableTitles({ achievementCodes: ["raid:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:raid:25");
   });
 });
+
+describe("goal titles", () => {
+  it("вершина лестницы целей", () => {
+    expect(titleLabel("ach:goal:25")).toBe("Человек слова");
+    expect(availableTitles({ achievementCodes: ["goal:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:goal:25");
+  });
+});

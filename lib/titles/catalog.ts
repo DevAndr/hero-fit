@@ -41,6 +41,7 @@ const ACHIEVEMENT_TITLES: [achievementCode: string, label: string][] = [
   ["login:100", "Завсегдатай"],
   ["raid:25", "Гроза рейдов"],
   ["raidmvp:10", "Сердце гильдии"],
+  ["goal:25", "Человек слова"],
 ];
 
 const achievementTitle = ([code, label]: [string, string]): Title => ({ code: `ach:${code}`, label, source: "achievement" });

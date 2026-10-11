@@ -17,6 +17,7 @@ type Prefs = {
   notifySocial: boolean;
   notifyPlan: boolean;
   notifyRecap: boolean;
+  notifyGoal: boolean;
   planReminderMin: number;
 };
 type Toggle = Exclude<keyof Prefs, "planReminderMin">;
@@ -26,6 +27,7 @@ const PREFS: { key: Toggle; label: string; description: string }[] = [
   { key: "notifyStreak", label: "Не потеряй streak", description: "Когда тренировок не хватает, чтобы засчитать неделю (с пятницы)" },
   { key: "notifyPlan", label: "Тренировка по плану", description: "Напоминание перед тренировкой из календаря" },
   { key: "notifyRecap", label: "Итоги недели — в понедельник утром", description: "Место в лиге, прирост и лучший подход за прошлую неделю" },
+  { key: "notifyGoal", label: "Цели — выполнение и сроки", description: "Цель достигнута, неделя до срока, срок вышел" },
   { key: "notifyAchievements", label: "Новые ачивки", description: "Push, когда получена ачивка" },
   { key: "notifySocial", label: "Друзья", description: "Заявки в друзья и их принятие" },
 ];
