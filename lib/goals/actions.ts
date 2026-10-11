@@ -12,6 +12,7 @@ import { currentValueFor } from "@/lib/goals/queries";
 import { markAchieved, writeWeight } from "@/lib/goals/mutations";
 import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
 import { levelProgress } from "@/lib/progress/level";
+import { initialReminderAt } from "@/lib/goals/tick-rules";
 
 type Result = { ok: true } | { ok: false; error: string; field?: string };
 
@@ -65,6 +66,7 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
         target: g.target,
         startValue: counter ? 0 : current,
         deadline: g.deadline,
+        reminderAt: initialReminderAt(g.deadline, new Date(), tz),
       },
     });
     return { ok: true };
@@ -83,7 +85,7 @@ export async function updateGoalDeadlineAction(goalId: string, deadline: string 
   // Новый срок — новое напоминание за 7 дней
   const { count } = await db.goal.updateMany({
     where: { id: goalId, userId: user.id, status: GoalStatus.ACTIVE },
-    data: { deadline: parsed.data, reminderAt: null },
+    data: { deadline: parsed.data, reminderAt: initialReminderAt(parsed.data, new Date(), user.timeZone) },
   });
   if (count === 0) return { ok: false, error: "Цель не найдена" };
   refresh();
