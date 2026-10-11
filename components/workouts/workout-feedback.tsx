@@ -37,7 +37,14 @@ export function WorkoutFeedback({ workoutId, rpe, note }: { workoutId: string; r
   const save = () => {
     if (value === null) return;
     startTransition(async () => {
-      const res = await saveWorkoutFeedbackAction(workoutId, { rpe: value, note: text });
+      let res: Awaited<ReturnType<typeof saveWorkoutFeedbackAction>>;
+      try {
+        res = await saveWorkoutFeedbackAction(workoutId, { rpe: value, note: text });
+      } catch {
+        // Нет сети или сервер упал — без падения страницы: введённое остаётся в форме
+        toast.error("Не удалось сохранить — проверьте связь");
+        return;
+      }
       if (!res.ok) {
         toast.error(res.error);
         return;

@@ -86,3 +86,19 @@ test("an easy workout without a note does not notify the coach", async ({ page, 
   expect(await coachNotifications(coach.login)).toEqual([]);
   await context.close();
 });
+
+test("no network: a toast, the form keeps the note, saving works once back online", async ({ page, context }) => {
+  await registerUser(page);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "60", reps: "10" }]);
+  await card(page).getByRole("radio", { name: "Тяжесть 8" }).click();
+  await card(page).getByLabel("Заметка").fill("плохо спал");
+
+  await context.setOffline(true);
+  await card(page).getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByText("Не удалось сохранить — проверьте связь")).toBeVisible();
+  await expect(card(page).getByLabel("Заметка")).toHaveValue("плохо спал");
+
+  await context.setOffline(false);
+  await card(page).getByRole("button", { name: "Сохранить" }).click();
+  await expect(card(page)).toContainText("Тяжесть 8 — Тяжело");
+});
