@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RemoveClientButton } from "@/components/coach/client-header";
+import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
 import { BodyMap } from "@/components/progress/body-map";
@@ -12,6 +13,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
+import { getCoachGroups } from "@/lib/coach/group-queries";
+import type { CoachGroupView } from "@/lib/coach/groups";
 import { copyPlan, copySummary, overwriteCount } from "@/lib/coach/plan-copy";
 import { getCopyRecipients, getPlanCopySource } from "@/lib/coach/plan-copy-queries";
 import { getClientPlan } from "@/lib/coach/plan-queries";
@@ -59,6 +62,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
   const tz = safeTimeZone(client.timeZone);
   const name = clientDisplayName(client);
   const base = `/coach/clients/${client.id}`;
+  const groups = await getCoachGroups(coach.id);
 
   return (
     <div className="space-y-4">
@@ -67,6 +71,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
         Клиенты
       </Link>
       <PageHeader title={name} description={`Клиент с ${since.format(linkedAt)}`} actions={<RemoveClientButton clientId={client.id} name={name} />} />
+      <GroupBadges names={groups.filter((g) => g.clientIds.includes(client.id)).map((g) => g.name)} />
       <nav aria-label="Разделы клиента" className="flex gap-1 border-b">
         {TABS.map((t) => (
           <Link
@@ -93,7 +98,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
           base={base}
         />
       ) : null}
-      {tab === "plan" ? <Plan coachId={coach.id} coachTz={safeTimeZone(coach.timeZone)} clientId={client.id} tz={tz} base={base} /> : null}
+      {tab === "plan" ? <Plan coachId={coach.id} coachTz={safeTimeZone(coach.timeZone)} clientId={client.id} tz={tz} base={base} groups={groups} /> : null}
       {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} tz={tz} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
@@ -189,7 +194,21 @@ async function Overview({
   );
 }
 
-async function Plan({ coachId, coachTz, clientId, tz, base }: { coachId: string; coachTz: string; clientId: string; tz: string; base: string }) {
+async function Plan({
+  coachId,
+  coachTz,
+  clientId,
+  tz,
+  base,
+  groups,
+}: {
+  coachId: string;
+  coachTz: string;
+  clientId: string;
+  tz: string;
+  base: string;
+  groups: CoachGroupView[];
+}) {
   const now = new Date();
   const [{ upcoming, past }, templates, targets, copySource, recipients] = await Promise.all([
     getClientPlan(coachId, clientId, tz, now),
@@ -208,6 +227,7 @@ async function Plan({ coachId, coachTz, clientId, tz, base }: { coachId: string;
     summaryOn && summaryOff && recipients.length
       ? {
           summary: { on: summaryOn, off: summaryOff },
+          groups,
           recipients: recipients.map((r) => ({
             id: r.id,
             name: r.name,

@@ -11,6 +11,7 @@ import { CopyPlanButton, type CopyRecipient, type CopySummary } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { deleteAssignmentAction } from "@/lib/coach/plan-actions";
+import type { CoachGroupView } from "@/lib/coach/groups";
 import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
 import type { PlanScope } from "@/lib/plans/edit";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,7 @@ export function ClientPlan({
 }: {
   clientId: string;
   /** «Скопировать план» — есть что копировать и кому. */
-  copy: { summary: CopySummary; recipients: CopyRecipient[] } | null;
+  copy: { summary: CopySummary; recipients: CopyRecipient[]; groups: CoachGroupView[] } | null;
   today: string;
   targets: ClientTemplateTargets[];
   timeZone: string;
@@ -71,7 +72,7 @@ export function ClientPlan({
           <CalendarPlus />
           Назначить
         </Button>
-        {copy ? <CopyPlanButton sourceId={clientId} summary={copy.summary} recipients={copy.recipients} /> : null}
+        {copy ? <CopyPlanButton sourceId={clientId} summary={copy.summary} recipients={copy.recipients} groups={copy.groups} /> : null}
       </div>
       <PlanSection
         title="Ближайшие 2 недели"

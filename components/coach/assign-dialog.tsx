@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
 import { ClientPicker } from "@/components/coach/client-picker";
+import type { CoachGroupView } from "@/lib/coach/groups";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,6 +34,7 @@ const WEEKS = 8;
 export function AssignDialog({
   clientId,
   clients = [],
+  groups = [],
   state,
   templates,
   onClose,
@@ -41,6 +43,8 @@ export function AssignDialog({
   clientId: string | null;
   /** Режим many: из кого выбирать. */
   clients?: AssignClient[];
+  /** Режим many: кнопки групп над списком. */
+  groups?: CoachGroupView[];
   state: AssignDialogState | null;
   templates: AssignTemplate[];
   onClose: () => void;
@@ -55,6 +59,7 @@ export function AssignDialog({
             key={shown.mode === "edit" ? shown.item.key : shown.date}
             clientId={clientId}
             clients={clients}
+            groups={groups}
             state={shown}
             templates={templates}
             onClose={onClose}
@@ -68,12 +73,14 @@ export function AssignDialog({
 function AssignForm({
   clientId,
   clients,
+  groups,
   state,
   templates,
   onClose,
 }: {
   clientId: string | null;
   clients: AssignClient[];
+  groups: CoachGroupView[];
   state: AssignDialogState;
   templates: AssignTemplate[];
   onClose: () => void;
@@ -135,7 +142,7 @@ function AssignForm({
       <DialogHeader>
         <DialogTitle>{state.mode === "edit" ? "Изменить назначение" : many ? "Назначить нескольким" : "Назначить тренировку"}</DialogTitle>
       </DialogHeader>
-      {many ? <ClientPicker clients={clients} picked={picked} onChange={setPicked} /> : null}
+      {many ? <ClientPicker clients={clients} groups={groups} picked={picked} onChange={setPicked} /> : null}
       {templates.length ? (
         <div className="grid gap-1.5">
           <Label htmlFor="assign-template">Шаблон</Label>
