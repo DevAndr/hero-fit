@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { coachTemplate, enableCoach, idOf, linkCoach, setTimeZone } from "./db";
 import { pickOption, registerUser } from "./helpers";
-import { E2E_TZ_OFFSET } from "./tz";
+import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
 
 /** Ник ≤ 20 символов и уникален между прогонами: хвост логина с меткой времени. */
 const nickOf = (login: string) => `Coac_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
@@ -99,6 +99,24 @@ test("«Выбрать всех» checks every client", async ({ page, browser }
     for (const name of ["Аня", "Боря", "Вика"]) await expect(picked.getByRole("checkbox", { name })).toBeChecked();
     await picked.getByRole("checkbox", { name: "Выбрать всех" }).click();
     for (const name of ["Аня", "Боря", "Вика"]) await expect(picked.getByRole("checkbox", { name })).not.toBeChecked();
+  } finally {
+    for (const who of clients) await who.context.close();
+  }
+});
+
+test("same-named clients are told apart by the start date", async ({ page, browser }) => {
+  const coach = await registerUser(page, "Тренер");
+  await enableCoach(coach.login, nickOf(coach.login));
+  await setTimeZone(coach.login);
+  const since = [new Date("2026-09-12T12:00:00Z"), new Date("2026-10-01T12:00:00Z")];
+  const clients = [await client(browser, "Маша"), await client(browser, "Маша")];
+  try {
+    for (const [i, c] of clients.entries()) await linkCoach(coach.login, c.login, since[i]);
+    await page.goto("/coach");
+    await page.getByRole("button", { name: "Назначить нескольким" }).click();
+    const picked = page.getByRole("dialog").getByRole("group", { name: "Клиенты" });
+    const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: E2E_TZ });
+    for (const d of since) await expect(picked.getByRole("checkbox", { name: `Маша · с ${day.format(d)}`, exact: true })).toBeVisible();
   } finally {
     for (const who of clients) await who.context.close();
   }

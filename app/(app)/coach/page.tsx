@@ -7,6 +7,7 @@ import { ClientList } from "@/components/coach/client-list";
 import { InviteCard } from "@/components/coach/invite-card";
 import { buttonVariants } from "@/components/ui/button";
 import { requireCoach } from "@/lib/coach/access";
+import { clientPickLabels } from "@/lib/coach/assign";
 import { sortClients } from "@/lib/coach/clients";
 import { ensureCoachCode, getCoachClients } from "@/lib/coach/queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
@@ -28,6 +29,7 @@ export default async function CoachPage() {
     db.workoutTemplate.findMany({ where: { userId: coach.id }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const sorted = sortClients(clients);
+  const tz = safeTimeZone(coach.timeZone);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -43,9 +45,9 @@ export default async function CoachPage() {
       />
       {clients.length > 1 ? (
         <AssignManyButton
-          clients={sorted.map((c) => ({ id: c.id, name: c.name }))}
+          clients={clientPickLabels(sorted.map((c) => ({ id: c.id, name: c.name, linkedDay: dayKey(c.linkedAt, tz) })))}
           templates={templates}
-          today={dayKey(now, safeTimeZone(coach.timeZone))}
+          today={dayKey(now, tz)}
         />
       ) : null}
       {clients.length ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignInputSchema, assignManyText, assignmentText, pickClients } from "./assign";
+import { assignInputSchema, assignManyText, assignmentText, clientPickLabels, pickClients } from "./assign";
 
 describe("assignmentText", () => {
   it("разовая — «на дату»", () => {
@@ -35,5 +35,25 @@ describe("assignManyText", () => {
     expect(assignManyText(2, 0)).toBe("Назначено 2 клиентам");
     expect(assignManyText(5, 1)).toBe("Назначено 5 клиентам · 1 пропущен");
     expect(assignManyText(3, 2)).toBe("Назначено 3 клиентам · 2 пропущено");
+  });
+});
+
+describe("clientPickLabels", () => {
+  it("уникальные имена — как есть; одинаковые — с датой начала работы, совпала и она — с номером", () => {
+    expect(
+      clientPickLabels([
+        { id: "a", name: "Маша", linkedDay: "2026-09-12" },
+        { id: "b", name: "Боря", linkedDay: "2026-09-01" },
+        { id: "c", name: "Маша", linkedDay: "2026-10-01" },
+        { id: "d", name: "Петя", linkedDay: "2026-10-02" },
+        { id: "e", name: "Петя", linkedDay: "2026-10-02" },
+      ]),
+    ).toEqual([
+      { id: "a", name: "Маша · с 12 сент." },
+      { id: "b", name: "Боря" },
+      { id: "c", name: "Маша · с 1 окт." },
+      { id: "d", name: "Петя · с 2 окт. (1)" },
+      { id: "e", name: "Петя · с 2 окт. (2)" },
+    ]);
   });
 });

@@ -36,3 +36,22 @@ export function assignManyText(assigned: number, skipped: number): string {
   const text = `Назначено ${assigned} ${plural(assigned, "клиенту", "клиентам", "клиентам")}`;
   return skipped ? `${text} · ${skipped} ${plural(skipped, "пропущен", "пропущено", "пропущено")}` : text;
 }
+
+/**
+ * Подписи в «Назначить нескольким»: одинаковые имена (у клиентов без ника) различаются датой начала работы
+ * (`linkedDay` — день в поясе тренера), совпала и она — номером. Логин не показываем никому.
+ */
+export function clientPickLabels(rows: { id: string; name: string; linkedDay: string }[]): { id: string; name: string }[] {
+  const count = (labels: string[]) => labels.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map<string, number>());
+  const names = count(rows.map((r) => r.name));
+  const dated = rows.map((r) => (names.get(r.name)! > 1 ? `${r.name} · с ${fmt(r.linkedDay)}` : r.name));
+  const totals = count(dated);
+  const seen = new Map<string, number>();
+  return rows.map((r, i) => {
+    const label = dated[i];
+    if (totals.get(label)! === 1) return { id: r.id, name: label };
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    return { id: r.id, name: `${label} (${n})` };
+  });
+}
