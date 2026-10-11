@@ -34,7 +34,7 @@ export default async function CoachPage() {
         }
       />
       {clients.length ? (
-        <ClientList rows={sortClients(clients, now)} now={now} />
+        <ClientList rows={sortClients(clients)} now={now} />
       ) : (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center">
           <Users className="size-8 text-muted-foreground" aria-hidden />

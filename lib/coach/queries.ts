@@ -95,6 +95,7 @@ export async function getCoachClients(coachId: string, now = new Date()): Promis
         hints: Object.keys(hints).length,
         timeZone: tz,
         plan,
+        signals: [],
       };
     }),
   );
