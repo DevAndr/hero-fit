@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
 import { ShareStoryButton } from "@/components/workouts/share-story-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
+import { WorkoutFeedback } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
 import { bossRewardTaken } from "@/lib/boss/queries";
@@ -41,6 +42,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       readOnly={false}
       bossTaken={bossTaken}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
+      feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) => {
         const comment = byExercise.get(workoutExerciseId);
         if (!comment) return null;
