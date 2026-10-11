@@ -216,3 +216,32 @@ export function goalNotice(kind: "achieved" | "reminder" | "failed", title: stri
       return { title: "Срок цели вышел", body: `${title}: пройдено ${pct} %. Поставить снова?` };
   }
 }
+
+/** «87,5 / 100 кг», «3 / 12 недель», вес тела — «84,8 → 80 кг». */
+export function goalValueText(g: { type: GoalType; metric: RecordType | null }, current: number, target: number): string {
+  const c = fmt(current);
+  switch (g.type) {
+    case "STRENGTH":
+      return g.metric === "MAX_REPS" ? `${c} / ${target} ${plural(target, "повтор", "повтора", "повторов")}` : `${c} / ${fmt(target)} кг`;
+    case "WORKOUTS":
+      return `${c} / ${target} ${plural(target, "тренировки", "тренировок", "тренировок")}`;
+    case "STREAK":
+      return `${c} / ${target} ${plural(target, "недели", "недель", "недель")}`;
+    case "HOURS":
+      return `${c} / ${target} ч`;
+    case "BODY_WEIGHT":
+      return `${c} → ${fmt(target)} кг`;
+  }
+}
+
+const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
+const dayMonthYear = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/** «до 31 декабря · осталось 81 день»; `today` — местная дата пользователя. */
+export function deadlineText(deadline: string, today: string): string {
+  const d = new Date(`${deadline}T12:00:00Z`);
+  const date = deadline.slice(0, 4) === today.slice(0, 4) ? dayMonth.format(d) : dayMonthYear.format(d).replace(/\s*г\.$/, "");
+  const left = Math.round((d.getTime() - new Date(`${today}T12:00:00Z`).getTime()) / 86_400_000);
+  if (left <= 0) return `до ${date} · последний день`;
+  return `до ${date} · ${plural(left, "остался", "осталось", "осталось")} ${left} ${plural(left, "день", "дня", "дней")}`;
+}

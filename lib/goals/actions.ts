@@ -137,6 +137,7 @@ export async function openGoalChestAction(goalId: string): Promise<{ ok: true; a
     await evaluateAchievements(tx, user.id);
     return { ok: true as const, amount: GOAL_CHEST_XP };
   });
-  if (result.ok) revalidatePath("/", "layout");
+  // Без revalidatePath: цель с открытым сундуком уходит в историю, и диалог с наградой исчез бы вместе с карточкой —
+  // страницу обновляет GoalChestButton, когда диалог закрыт
   return result;
 }

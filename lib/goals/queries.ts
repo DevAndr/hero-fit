@@ -230,3 +230,28 @@ export async function getExerciseGoal(userId: string, exerciseId: string) {
   });
   return g?.metric ? { metric: g.metric, target: g.target } : null;
 }
+
+export type GoalFormExercise = { id: string; name: string; isBodyweight: boolean; records: Partial<Record<"ONE_RM" | "MAX_WEIGHT" | "MAX_REPS", number>> };
+export type GoalFormData = { exercises: GoalFormExercise[]; streak: number; weight: number | null; today: string };
+
+/** Диалог «Новая цель»: упражнения с текущими рекордами («сейчас: …»), серия, последний вес. */
+export async function getGoalFormData(userId: string, tz: string): Promise<GoalFormData> {
+  const [exercises, records, user, weight] = await Promise.all([
+    db.exercise.findMany({
+      where: { archivedAt: null, OR: [{ userId: null }, { userId }] },
+      select: { id: true, name: true, isBodyweight: true },
+      orderBy: { name: "asc" },
+    }),
+    db.personalRecord.findMany({ where: { userId }, select: { exerciseId: true, type: true, value: true } }),
+    db.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } }),
+    latestWeight(db, userId),
+  ]);
+  const byExercise = new Map<string, GoalFormExercise["records"]>();
+  for (const r of records) byExercise.set(r.exerciseId, { ...byExercise.get(r.exerciseId), [r.type]: r.value });
+  return {
+    exercises: exercises.map((e) => ({ ...e, records: byExercise.get(e.id) ?? {} })),
+    streak: user.currentStreak,
+    weight,
+    today: dayKey(new Date(), tz),
+  };
+}

@@ -3,6 +3,8 @@ import {
   canCreate,
   deadlineEnd,
   deadlineSchema,
+  deadlineText,
+  goalValueText,
   goalNotice,
   goalProgress,
   goalSchema,
@@ -148,4 +150,21 @@ test("goalNotice", () => {
   expect(goalNotice("achieved", "Жим лёжа — 100 кг", 1)).toEqual({ title: "🎯 Цель достигнута", body: "Жим лёжа — 100 кг" });
   expect(goalNotice("reminder", "50 тренировок", 0.823)).toEqual({ title: "До срока цели 7 дней", body: "50 тренировок: пройдено 82 %" });
   expect(goalNotice("failed", "50 тренировок", 0.94)).toEqual({ title: "Срок цели вышел", body: "50 тренировок: пройдено 94 %. Поставить снова?" });
+});
+
+test("goalValueText", () => {
+  expect(goalValueText({ type: "STRENGTH", metric: "MAX_WEIGHT" }, 0, 60)).toBe("0 / 60 кг");
+  expect(goalValueText({ type: "STRENGTH", metric: "ONE_RM" }, 87.53, 100)).toBe("87,5 / 100 кг");
+  expect(goalValueText({ type: "STRENGTH", metric: "MAX_REPS" }, 12, 20)).toBe("12 / 20 повторов");
+  expect(goalValueText({ type: "WORKOUTS", metric: null }, 3, 50)).toBe("3 / 50 тренировок");
+  expect(goalValueText({ type: "STREAK", metric: null }, 3, 12)).toBe("3 / 12 недель");
+  expect(goalValueText({ type: "HOURS", metric: null }, 12.5, 30)).toBe("12,5 / 30 ч");
+  expect(goalValueText({ type: "BODY_WEIGHT", metric: null }, 84.8, 80)).toBe("84,8 → 80 кг");
+});
+
+test("deadlineText", () => {
+  expect(deadlineText("2026-12-31", "2026-10-11")).toBe("до 31 декабря · остался 81 день");
+  expect(deadlineText("2026-10-12", "2026-10-11")).toBe("до 12 октября · остался 1 день");
+  expect(deadlineText("2026-10-11", "2026-10-11")).toBe("до 11 октября · последний день");
+  expect(deadlineText("2027-01-15", "2026-10-11")).toBe("до 15 января 2027 · осталось 96 дней");
 });
