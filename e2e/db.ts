@@ -173,12 +173,13 @@ export async function enableCoach(login: string, nickname: string) {
 }
 
 /** Активная связь тренер → клиент (минуя экран согласия). */
-export async function linkCoach(coachLogin: string, clientLogin: string) {
+export async function linkCoach(coachLogin: string, clientLogin: string, since?: Date) {
   await withDb(async (db) => {
-    await db.query(`insert into "CoachLink" (id, "coachId", "clientId") values ($1, $2, $3)`, [
+    await db.query(`insert into "CoachLink" (id, "coachId", "clientId", "createdAt") values ($1, $2, $3, coalesce($4, now()))`, [
       randomUUID(),
       await userId(db, coachLogin),
       await userId(db, clientLogin),
+      since ?? null,
     ]);
   });
 }
@@ -230,13 +231,22 @@ export async function coachTemplate(coachLogin: string, name: string, ownExercis
 }
 
 /** Разовое назначение тренера клиенту на дату (минуя UI); возвращает ключ вхождения `e:<id>`. */
-export async function coachAssignOnce(coachLogin: string, clientLogin: string, templateId: string, title: string, date: string, time = "19:00") {
+export async function coachAssignOnce(
+  coachLogin: string,
+  clientLogin: string,
+  templateId: string,
+  title: string,
+  date: string,
+  time = "19:00",
+  /** Когда назначено (по умолчанию — сейчас); назначенное позже своей даты сигналом пропуска не считается. */
+  assignedAt?: Date,
+) {
   return withDb(async (db) => {
     const id = randomUUID();
     await db.query(
-      `insert into "PlanEntry" (id, "userId", "coachId", "templateId", title, date, time, "durationMin", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, 60, now())`,
-      [id, await userId(db, clientLogin), await userId(db, coachLogin), templateId, title, date, time],
+      `insert into "PlanEntry" (id, "userId", "coachId", "templateId", title, date, time, "durationMin", "createdAt", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, 60, coalesce($8, now()), now())`,
+      [id, await userId(db, clientLogin), await userId(db, coachLogin), templateId, title, date, time, assignedAt ?? null],
     );
     return `e:${id}`;
   });

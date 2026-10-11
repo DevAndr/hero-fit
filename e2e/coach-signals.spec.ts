@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { coachAssignOnce, coachNotifications, coachSignals, coachTarget, coachTargetSet, coachTemplate, enableCoach, idOf, linkCoach, resetCoachSignalsDay, seedWorkouts, setTimeZone } from "./db";
 import { registerUser, runTick } from "./helpers";
-import { E2E_TZ_OFFSET } from "./tz";
+import { E2E_TZ_OFFSET, localAt } from "./tz";
 
 /** Ник ≤ 20 символов и уникален между прогонами: хвост логина с меткой времени. */
 const nickOf = (login: string) => `Coac_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
@@ -23,12 +23,15 @@ async function setup(page: Page, browser: Browser) {
   return { coach, templateId, client, clientPage, context, clientId: await idOf(client.login) };
 }
 
+/** Назначение в прошлом, сделанное заранее (за неделю) — иначе это «задним числом» и не пропуск. */
+const ahead = () => localAt(localDate(-7), "09:00");
+
 const row = (page: Page, name: string) => page.getByRole("list", { name: "Клиенты" }).getByRole("listitem").filter({ hasText: name });
 
 test("missed plan: label in the list and the attention block in the card", async ({ page, browser }) => {
   const { coach, templateId, client, context, clientId } = await setup(page, browser);
-  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3));
-  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1));
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3), "19:00", ahead());
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1), "19:00", ahead());
 
   await page.goto("/coach");
   await expect(row(page, "Маша").getByTestId("client-signal")).toHaveText(["Пропуски плана"]);
@@ -42,12 +45,37 @@ test("missed plan: label in the list and the attention block in the card", async
 });
 
 test("stalled target shows «Застой на весе»", async ({ page, browser }) => {
-  const { client, templateId, context } = await setup(page, browser);
+  const { coach, client, templateId, context } = await setup(page, browser);
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(3));
   await coachTarget(client.login, templateId, "Приседания со штангой", { weight: 60, step: 2.5 });
   await coachTargetSet(client.login, "Приседания со штангой", { fails: 2 });
 
   await page.goto("/coach");
   await expect(row(page, "Маша").getByTestId("client-signal")).toHaveText(["Застой на весе"]);
+  await context.close();
+});
+
+test("a target of a template that is no longer assigned is not a stall", async ({ page, browser }) => {
+  const { client, templateId, context } = await setup(page, browser);
+  // Задание осталось, а назначений шаблона нет — в диалоге заданий его не видно, снять застой тренер не может
+  await coachTarget(client.login, templateId, "Приседания со штангой", { weight: 60, step: 2.5 });
+  await coachTargetSet(client.login, "Приседания со штангой", { fails: 2 });
+
+  await page.goto("/coach");
+  await expect(row(page, "Маша")).toBeVisible();
+  await expect(row(page, "Маша").getByTestId("client-signal")).toHaveCount(0);
+  await context.close();
+});
+
+test("assignments dated before they were made are not misses", async ({ page, browser }) => {
+  const { coach, templateId, client, context } = await setup(page, browser);
+  // Серия «с прошлой недели», назначенная сегодня: прошедшие даты тогда ещё не существовали
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3));
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1));
+
+  await page.goto("/coach");
+  await expect(row(page, "Маша")).toBeVisible();
+  await expect(row(page, "Маша").getByTestId("client-signal")).toHaveCount(0);
   await context.close();
 });
 
@@ -64,8 +92,8 @@ test("a fresh client has no signals and no attention block", async ({ page, brow
 test("daily check notifies the coach once per new signal and resolves it after a workout", async ({ page, browser, request }) => {
   test.slow(); // тики проходят всех непроверенных тренеров тестовой базы
   const { coach, templateId, client, context, clientId } = await setup(page, browser);
-  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3));
-  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1));
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3), "19:00", ahead());
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1), "19:00", ahead());
 
   // Реальное время (в поясе e2e сейчас 12:xx, проверка — с 10:00); тестовые часы на завтра не берём: в понедельник
   // тик ещё и собирает итоги недели всей тестовой базы. Фоновый воркер может проверить тренера параллельно —
@@ -85,7 +113,7 @@ test("daily check notifies the coach once per new signal and resolves it after a
 
   // Назначение позавчера выполнено (тренировка того же дня закрывает его): из двух последних прошедших одно
   // выполнено — сигнал снимается
-  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-2));
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-2), "19:00", ahead());
   await seedWorkouts(client.login, "Приседания со штангой", [{ weight: 60, reps: 8, sets: 3 }], 2);
   await resetCoachSignalsDay(coach.login);
   await runTick(request);

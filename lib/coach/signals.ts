@@ -10,8 +10,8 @@ export type SignalInput = {
   lastWorkoutAt: Date | null;
   /** Завершённые тренировки за 42 дня. */
   workoutsAt: Date[];
-  /** Назначения этого тренера за 28 дней и вперёд (статусы календаря). */
-  plan: { date: string; status: "done" | "missed" | "skipped" | "today" | "planned" }[];
+  /** Назначения этого тренера за 28 дней и вперёд (статусы календаря); assignedAt — когда назначено. */
+  plan: { date: string; status: "done" | "missed" | "skipped" | "today" | "planned"; assignedAt: Date }[];
   /** Задания тренера клиенту. */
   targets: { fails: number; unloadedAt: Date | null; updatedAt: Date }[];
 };
@@ -33,16 +33,21 @@ export function clientSignals(input: SignalInput, now: Date, tz: string): Signal
   const out: Signal[] = [];
   const ago = (days: number) => now.getTime() - days * DAY;
 
-  // Две последние прошедшие назначенные — обе не выполнены; сегодняшнее ещё не пропуск
+  // Две последние прошедшие назначенные — обе не выполнены; сегодняшнее ещё не пропуск,
+  // назначенное задним числом (дата раньше дня назначения) — тоже: тогда его ещё не было
   const today = dayKey(now, tz);
-  const past = input.plan.filter((o) => o.date < today).sort((a, b) => b.date.localeCompare(a.date));
+  const past = input.plan
+    .filter((o) => o.date < today && o.date >= dayKey(o.assignedAt, tz))
+    .sort((a, b) => b.date.localeCompare(a.date));
   const lastTwo = past.slice(0, MISSED_IN_ROW);
   if (lastTwo.length === MISSED_IN_ROW && lastTwo.every((o) => o.status === "missed" || o.status === "skipped")) {
     out.push({ kind: "MISSED_PLAN", since: localMidnight(lastTwo[MISSED_IN_ROW - 1].date, tz) });
   }
 
+  // Отсчёт — от более поздней из последней тренировки и связи: только что пришедший клиент ещё не «пропал»
   const quietSince = input.lastWorkoutAt ?? input.linkedAt;
-  const inactive = quietSince.getTime() <= ago(INACTIVE_DAYS);
+  const quietFrom = Math.max(quietSince.getTime(), input.linkedAt.getTime());
+  const inactive = quietFrom <= ago(INACTIVE_DAYS);
   if (inactive) out.push({ kind: "INACTIVE", since: quietSince });
 
   const stalledSince = input.targets
@@ -72,7 +77,7 @@ export const SIGNAL_LABELS: Record<SignalKind, string> = {
   MISSED_PLAN: "Пропуски плана",
   STALLED: "Застой на весе",
   ACTIVITY_DROP: "Спад активности",
-  INACTIVE: "Неактивен",
+  INACTIVE: "7+ дней без тренировок",
 };
 
 /** alert — клиент уходит (пропуски, тишина), warn — тренируется, но что-то не так. */

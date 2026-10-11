@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { clientSignals, signalsDiff, signalsNotice, type SignalInput, type SignalKind } from "./signals";
+import { clientSignals, SIGNAL_LABELS, signalsDiff, signalsNotice, type SignalInput, type SignalKind } from "./signals";
 
 const NOW = new Date("2026-10-11T09:00:00Z"); // 12:00 МСК 11 октября
 const TZ = "Europe/Moscow";
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * DAY);
 const at = (...days: number[]) => days.map(daysAgo);
-const p = (date: string, status: SignalInput["plan"][number]["status"]) => ({ date, status });
+const p = (date: string, status: SignalInput["plan"][number]["status"], assignedAt = daysAgo(60)) => ({ date, status, assignedAt });
 const t = (over: Partial<SignalInput["targets"][number]> = {}) => ({ fails: 0, unloadedAt: null, updatedAt: daysAgo(3), ...over });
 
 const input = (over: Partial<SignalInput> = {}): SignalInput => ({
@@ -31,6 +31,12 @@ describe("MISSED_PLAN", () => {
     expect(kinds({ plan: [p("2026-10-08", "missed"), p("2026-10-11", "today")] })).not.toContain("MISSED_PLAN");
   });
 
+  it("назначенное задним числом (вхождение раньше дня назначения) — не пропуск", () => {
+    const assignedAt = new Date("2026-10-09T09:00:00Z");
+    expect(kinds({ plan: [p("2026-10-06", "missed", assignedAt), p("2026-10-08", "missed", assignedAt)] })).not.toContain("MISSED_PLAN");
+    expect(kinds({ plan: [p("2026-10-09", "missed", assignedAt), p("2026-10-10", "missed", assignedAt)] })).toContain("MISSED_PLAN");
+  });
+
   it("since — полночь более раннего пропуска в поясе клиента", () => {
     expect(sig({ plan: [p("2026-10-06", "missed"), p("2026-10-08", "missed")] }, "MISSED_PLAN").since).toEqual(new Date("2026-10-05T21:00:00Z"));
   });
@@ -42,6 +48,11 @@ describe("INACTIVE", () => {
     expect(kinds({ lastWorkoutAt: daysAgo(6) })).not.toContain("INACTIVE");
     expect(kinds({ lastWorkoutAt: null, linkedAt: daysAgo(1) })).toEqual([]);
     expect(kinds({ lastWorkoutAt: null, linkedAt: daysAgo(8) })).toEqual(["INACTIVE"]);
+  });
+
+  it("недавно связанный — отсчёт от связи, даже если тренировки были давно", () => {
+    expect(kinds({ lastWorkoutAt: daysAgo(60), linkedAt: daysAgo(1) })).toEqual([]);
+    expect(sig({ lastWorkoutAt: daysAgo(60), linkedAt: daysAgo(8) }, "INACTIVE").since).toEqual(daysAgo(60));
   });
 });
 
@@ -79,5 +90,11 @@ describe("signalsDiff", () => {
 describe("signalsNotice", () => {
   it("имя и фразы через точку", () => {
     expect(signalsNotice("Маша", ["MISSED_PLAN", "ACTIVITY_DROP"])).toBe("Маша: пропущены 2 тренировки подряд · спад активности");
+  });
+});
+
+describe("SIGNAL_LABELS", () => {
+  it("метки без рода", () => {
+    expect(SIGNAL_LABELS.INACTIVE).toBe("7+ дней без тренировок");
   });
 });
