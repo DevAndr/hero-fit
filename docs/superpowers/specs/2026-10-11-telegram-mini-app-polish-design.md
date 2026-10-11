@@ -39,7 +39,7 @@
 - **Безопасные зоны:** `safeAreaInset` + `contentSafeAreaInset` → CSS-переменные `--tg-safe-top/bottom/left/right`
   на `<html>` (по событиям `safeAreaChanged`/`contentSafeAreaChanged`), шапка и нижняя панель кабинета добавляют их
   к отступам; вне Telegram — 0.
-- **Скрываем в Telegram:** выбор темы, push-блоки (`notification-settings`, подсказка в `user-menu`, push таймера
+- **Скрываем в Telegram:** выбор темы, push-блоки (`PushDeviceCard` в `/settings`, кнопка push таймера
   отдыха) — Web Push во webview Telegram не работает, уведомления идут через бота.
 
 ## Модули
