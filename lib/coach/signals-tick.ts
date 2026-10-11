@@ -19,8 +19,15 @@ const TICK_BUDGET_MS = 2000;
  * Возвращает число уведомлений.
  */
 export async function processCoachSignals(now = new Date()): Promise<number> {
+  // Уже проверенные на самую позднюю «сегодня» из всех поясов (UTC+14) отсекаются в запросе: тик идёт каждые 5 с,
+  // и почти всегда проверять некого. Точное «сегодня» тренера — ниже, в его поясе.
+  const latestToday = dayKey(now, "Etc/GMT-14");
   const coaches = await db.user.findMany({
-    where: { isCoach: true, coachClients: { some: { endedAt: null } } },
+    where: {
+      isCoach: true,
+      OR: [{ coachSignalsDay: null }, { coachSignalsDay: { lt: latestToday } }],
+      coachClients: { some: { endedAt: null } },
+    },
     select: { id: true, timeZone: true, coachSignalsDay: true },
     // Новые тренеры первыми: порядок не важен для справедливости — за день проверяются все
     orderBy: { createdAt: "desc" },
