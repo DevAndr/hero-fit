@@ -12,6 +12,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
+import { copyPlan, copySummary, overwriteCount } from "@/lib/coach/plan-copy";
+import { getCopyRecipients, getPlanCopySource } from "@/lib/coach/plan-copy-queries";
 import { getClientPlan } from "@/lib/coach/plan-queries";
 import { clientSignals, signalText, type SignalKind } from "@/lib/coach/signals";
 import { getSignalInput } from "@/lib/coach/signals-queries";
@@ -91,7 +93,7 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
           base={base}
         />
       ) : null}
-      {tab === "plan" ? <Plan coachId={coach.id} clientId={client.id} tz={tz} base={base} /> : null}
+      {tab === "plan" ? <Plan coachId={coach.id} coachTz={safeTimeZone(coach.timeZone)} clientId={client.id} tz={tz} base={base} /> : null}
       {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} tz={tz} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
     </div>
@@ -187,13 +189,22 @@ async function Overview({
   );
 }
 
-async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId: string; tz: string; base: string }) {
+async function Plan({ coachId, coachTz, clientId, tz, base }: { coachId: string; coachTz: string; clientId: string; tz: string; base: string }) {
   const now = new Date();
-  const [{ upcoming, past }, templates, targets] = await Promise.all([
+  const [{ upcoming, past }, templates, targets, copySource, recipients] = await Promise.all([
     getClientPlan(coachId, clientId, tz, now),
     db.workoutTemplate.findMany({ where: { userId: coachId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getClientTargets(clientId, coachId, tz, now),
+    getPlanCopySource(coachId, clientId),
+    getCopyRecipients(coachId, clientId, coachTz),
   ]);
+  // Сводка и «перезапишется» — по копии с весами: какие задания перезапишутся, от галочки почти не зависит
+  const copied = copyPlan(copySource, dayKey(now, tz), { withWeights: true });
+  const summary = copySummary(copied);
+  const copy =
+    summary && recipients.length
+      ? { summary, recipients: recipients.map((r) => ({ id: r.id, name: r.name, overwrite: overwriteCount(copied.targets, r.keys) })) }
+      : null;
   const strip = ({ key, title, date, time, durationMin, templateId, recurring, status, workoutId }: (typeof upcoming)[number]) => ({
     key,
     title,
@@ -215,6 +226,7 @@ async function Plan({ coachId, clientId, tz, base }: { coachId: string; clientId
       past={past.map(strip)}
       targets={targets}
       timeZone={tz}
+      copy={copy}
     />
   );
 }

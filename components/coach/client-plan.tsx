@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
 import { AssignDialog, type AssignDialogState, type AssignTemplate } from "@/components/coach/assign-dialog";
 import { ClientTargets } from "@/components/coach/client-targets";
+import { CopyPlanButton, type CopyRecipient } from "@/components/coach/copy-plan-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { deleteAssignmentAction } from "@/lib/coach/plan-actions";
@@ -47,8 +48,11 @@ export function ClientPlan({
   past,
   targets,
   timeZone,
+  copy,
 }: {
   clientId: string;
+  /** «Скопировать план» — есть что копировать и кому. */
+  copy: { summary: string; recipients: CopyRecipient[] } | null;
   today: string;
   targets: ClientTemplateTargets[];
   timeZone: string;
@@ -62,10 +66,13 @@ export function ClientPlan({
 
   return (
     <div className="space-y-4">
-      <Button onClick={() => setDialog({ mode: "create", date: today })}>
-        <CalendarPlus />
-        Назначить
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => setDialog({ mode: "create", date: today })}>
+          <CalendarPlus />
+          Назначить
+        </Button>
+        {copy ? <CopyPlanButton sourceId={clientId} summary={copy.summary} recipients={copy.recipients} /> : null}
+      </div>
       <PlanSection
         title="Ближайшие 2 недели"
         empty="Ничего не назначено."
