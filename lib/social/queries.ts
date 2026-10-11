@@ -235,6 +235,10 @@ async function feedPage(userId: string, ids: string[], cursor: string | null, li
     SELECT w.id, w."userId", u.nickname, u."titleCode", u."hideWeights", w.name, w."finishedAt", w."durationSec",
            w."totalVolume", w."totalSets", w."totalReps", x.meta,
            (
+             SELECT g.name FROM "RaidWeek" r JOIN "Guild" g ON g.id = r."guildId"
+             WHERE r.id = x.meta->'raid'->>'raidId'
+           ) AS "raidGuild",
+           (
              SELECT json_agg(json_build_object('name', e.name, 'top', t.top) ORDER BY we."order")
              FROM "WorkoutExercise" we
              JOIN "Exercise" e ON e.id = we."exerciseId"

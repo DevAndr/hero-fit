@@ -89,6 +89,9 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     // Остальным бившим — при открытии сундука
     await expect.poll(() => achievementCodes(a.login)).toEqual(expect.arrayContaining(["raid:1", "raidmvp:1"]));
 
+    await a.page.goto("/guild");
+    await expect(a.page.getByRole("region", { name: "Лента гильдии" })).toContainText("повергла: Древний");
+
     await a.page.goto("/dashboard");
     await expect(a.page.getByRole("region", { name: "Гильдия" })).toContainText("Рейд-босс повержен");
 

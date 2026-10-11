@@ -1,5 +1,6 @@
 import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
+import { raidBossName } from "@/lib/raid/rules";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 import { titleLabel } from "@/lib/titles/catalog";
 
@@ -26,7 +27,10 @@ export type FeedRow = {
     streakExtended?: boolean;
     weekCount?: number;
     boss?: { code: string; defeated: boolean };
+    raid?: { raidId: string; code: string; defeated: boolean };
   } | null;
+  /** Название гильдии рейда из meta.raid (на момент показа); рейд или гильдия удалены — null. */
+  raidGuild?: string | null;
   kudos: number;
   byMe: boolean;
   kudosNames: string[] | null;
@@ -54,6 +58,8 @@ export type FeedEntry = {
   streakMilestone: number | null;
   /** Имя босса недели, повергнутого этой тренировкой. */
   bossDefeated: string | null;
+  /** Рейд-босс, повергнутый этой тренировкой, и гильдия. */
+  raidDefeated: { boss: string; guild: string } | null;
   kudos: { count: number; byMe: boolean; names: string[] };
 };
 
@@ -98,6 +104,7 @@ export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
     levelUp: meta.levelAfter && meta.levelBefore && meta.levelAfter > meta.levelBefore ? meta.levelAfter : null,
     streakMilestone: streakMilestone(row.meta),
     bossDefeated: meta.boss?.defeated ? bossName(meta.boss.code) : null,
+    raidDefeated: meta.raid?.defeated && row.raidGuild ? { boss: raidBossName(meta.raid.code), guild: row.raidGuild } : null,
     kudos: { count: row.kudos, byMe: row.byMe, names: row.kudosNames ?? [] },
   };
 }

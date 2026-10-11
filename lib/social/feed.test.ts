@@ -120,3 +120,18 @@ describe("toFeedEntry: титул", () => {
     expect(toFeedEntry(row(), "viewer").title).toBeNull();
   });
 });
+
+describe("raidDefeated", () => {
+  const raid = { raidId: "r1", code: "golem", defeated: true };
+  it("победный удар по рейд-боссу — босс и гильдия", () => {
+    expect(toFeedEntry(row({ meta: { raid }, raidGuild: "Молоты" }), "viewer").raidDefeated).toEqual({
+      boss: "Древний Железный Голем",
+      guild: "Молоты",
+    });
+  });
+  it("не победный удар, удалённая гильдия, без рейда — нет строки", () => {
+    expect(toFeedEntry(row({ meta: { raid: { ...raid, defeated: false } }, raidGuild: "Молоты" }), "viewer").raidDefeated).toBeNull();
+    expect(toFeedEntry(row({ meta: { raid }, raidGuild: null }), "viewer").raidDefeated).toBeNull();
+    expect(toFeedEntry(row(), "viewer").raidDefeated).toBeNull();
+  });
+});

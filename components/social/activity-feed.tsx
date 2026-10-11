@@ -2,7 +2,7 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Swords, Timer, Trophy, Weight } from "lucide-react";
+import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Shield, Swords, Timer, Trophy, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { weeksText } from "@/lib/progress/streak-copy";
@@ -80,6 +80,9 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
     ...entry.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
     ...(entry.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${entry.levelUp}`, className: "text-primary" }] : []),
     ...(entry.bossDefeated ? [{ icon: Swords, text: `Босс повержен: ${entry.bossDefeated}`, className: "text-streak" }] : []),
+    ...(entry.raidDefeated
+      ? [{ icon: Shield, text: `Гильдия «${entry.raidDefeated.guild}» повергла: ${entry.raidDefeated.boss}`, className: "text-destructive" }]
+      : []),
     ...(entry.streakMilestone
       ? [{ icon: Flame, text: `${weeksText(entry.streakMilestone)} подряд в ударе`, className: "text-streak" }]
       : []),
