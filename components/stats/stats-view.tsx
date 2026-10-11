@@ -146,6 +146,9 @@ export function StatsView({
                 <th className="p-3 text-right font-normal">Повторов</th>
                 <th className="p-3 text-right font-normal">Объём</th>
                 <th className="p-3 text-right font-normal">Время</th>
+                <th className="p-3 text-right font-normal" title="Тяжесть тренировки 1–10">
+                  RPE
+                </th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
@@ -167,6 +170,7 @@ export function StatsView({
                     <td className="p-3 text-right">{w.totalReps}</td>
                     <td className="p-3 text-right">{kg(w.totalVolume)}</td>
                     <td className="p-3 text-right">{formatClock(w.durationSec ?? 0)}</td>
+                    <td className="p-3 text-right">{w.rpe ?? "—"}</td>
                   </tr>
                 );
               })}

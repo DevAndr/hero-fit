@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CoachCommentEditor } from "@/components/coach/coach-comment";
 import { CoachCommentSection } from "@/components/coach/coach-comment-note";
 import { buttonVariants } from "@/components/ui/button";
+import { CoachFeedbackNote } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
@@ -43,6 +44,7 @@ export default async function CoachClientWorkoutPage({ params }: PageProps<"/coa
       readOnly
       bossTaken
       exerciseHref={(exerciseId) => `${base}/exercises/${exerciseId}`}
+      feedback={<CoachFeedbackNote rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) =>
         workoutExerciseId ? editor(workoutExerciseId) : <CoachCommentSection>{editor(null)}</CoachCommentSection>
       }

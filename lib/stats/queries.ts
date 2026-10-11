@@ -109,6 +109,7 @@ async function history(userId: string) {
       totalVolume: true,
       totalSets: true,
       totalReps: true,
+      rpe: true,
       exercises: { select: { exercise: { select: { muscleGroups: true } } } },
     },
   });

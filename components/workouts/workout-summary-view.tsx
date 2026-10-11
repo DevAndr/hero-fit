@@ -55,6 +55,7 @@ export function WorkoutSummaryView({
   bossTaken,
   exerciseHref,
   renderComment,
+  feedback,
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -67,6 +68,8 @@ export function WorkoutSummaryView({
   exerciseHref: (exerciseId: string) => string;
   /** Комментарии тренера: заметка упражнения (id упражнения тренировки) и общий блок (null) — показ или редактор. */
   renderComment?: (workoutExerciseId: string | null) => ReactNode;
+  /** Оценка тренировки: форма у владельца, блок «Оценка клиента» у тренера. */
+  feedback?: ReactNode;
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const achievementsXp = meta?.achievementsXp ?? 0;
@@ -91,6 +94,8 @@ export function WorkoutSummaryView({
         <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
         <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
       </div>
+
+      {feedback ? <div className="mt-4">{feedback}</div> : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className={cn("rounded-xl border p-4", leveledUp ? "border-xp/50 bg-xp/10" : "bg-card")}>

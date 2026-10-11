@@ -121,6 +121,7 @@ export async function getClientWorkouts(clientId: string, coachId: string, curso
       finishedAt: true,
       durationSec: true,
       totalSets: true,
+      rpe: true,
       totalVolume: true,
       _count: { select: { exercises: true, comments: { where: { coachId } } } },
     },
