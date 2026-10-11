@@ -1,32 +1,7 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { fillGuild, guildOf, notificationUrls, setNickname, setPrivacy } from "./db";
+import { createGuild, guildName, inviteUrl, nickOf, player, twoInGuild } from "./guild-helpers";
 import { quickWorkout, registerUser } from "./helpers";
-
-/** Ник ≤ 20 символов и уникален между прогонами. */
-const nickOf = (login: string, prefix = "G") => `${prefix}_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-16)}`;
-/** Название гильдии уникально на всю базу — с хвостом логина. */
-const guildName = (login: string) => `Жел ${login.replace(/_/g, "").slice(-12)}`;
-
-async function player(browser: Browser, name: string) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  const user = await registerUser(page, name);
-  await setNickname(user.login, nickOf(user.login, name.slice(0, 2)));
-  return { context, page, ...user };
-}
-
-async function createGuild(page: Page, name: string, emblem = "Молот") {
-  await page.goto("/guild");
-  await page.getByRole("button", { name: "Создать гильдию" }).click();
-  const dialog = page.getByRole("dialog", { name: "Создать гильдию" });
-  await dialog.getByLabel("Название").fill(name);
-  await dialog.getByRole("radiogroup", { name: "Значок" }).getByRole("radio", { name: emblem }).click();
-  await dialog.getByRole("button", { name: "Создать" }).click();
-  await expect(page.getByRole("heading", { name })).toBeVisible();
-}
-
-/** Ссылка-приглашение со страницы гильдии. */
-const inviteUrl = async (page: Page) => (await page.getByRole("region", { name: "Пригласить" }).getByRole("textbox", { name: "Ссылка" }).inputValue());
 
 const members = (page: Page) => page.getByRole("list", { name: "Участники гильдии" });
 
@@ -119,16 +94,6 @@ test("full guild, changed link, leader can't leave, last one deletes", async ({ 
   }
 });
 
-/** A создаёт гильдию, B вступает по ссылке. */
-async function twoInGuild(browser: Browser) {
-  const a = await player(browser, "Аня");
-  const b = await player(browser, "Боря");
-  await createGuild(a.page, guildName(a.login));
-  await b.page.goto(await inviteUrl(a.page));
-  await b.page.getByRole("button", { name: "Вступить" }).click();
-  await expect(b.page).toHaveURL(/\/guild$/);
-  return { a, b };
-}
 
 test("guild feed shows a mate's workout, hides weights, kudos", async ({ browser }) => {
   test.slow();

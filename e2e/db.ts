@@ -535,3 +535,35 @@ export async function resetCoachSignalsDay(coachLogin: string) {
     await db.query(`update "User" set "coachSignalsDay" = null where id = $1`, [await userId(db, coachLogin)]);
   });
 }
+
+/** Рейд текущего окна гильдии игрока: HP, суммарный урон, победа, MVP (логин) и удары по игрокам; нет — null. */
+export async function raidOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; hp: number; defeated: boolean; mvp: string | null }>(
+      `select r.id, r.hp, r."defeatedAt" is not null as defeated, mu.login as mvp
+       from "GuildMember" m join "User" u on u.id = m."userId" join "RaidWeek" r on r."guildId" = m."guildId"
+       left join "User" mu on mu.id = r."mvpUserId"
+       where u.login = $1 and r."startsAt" <= (now() at time zone 'UTC') and r."endsAt" > (now() at time zone 'UTC')`,
+      [login],
+    );
+    if (!rows[0]) return null;
+    const hits = await db.query<{ login: string; damage: number }>(
+      `select u.login, sum(h.damage)::int as damage from "RaidHit" h join "User" u on u.id = h."userId"
+       where h."raidId" = $1 group by u.login order by u.login`,
+      [rows[0].id],
+    );
+    return { ...rows[0], damage: hits.rows.reduce((s, h) => s + h.damage, 0), hits: hits.rows };
+  });
+}
+
+/** HP рейда текущего окна гильдии игрока (рейд уже должен быть создан — тренировкой или заходом на /guild). */
+export async function setRaidHp(login: string, hp: number) {
+  await withDb(async (db) => {
+    const { rowCount } = await db.query(
+      `update "RaidWeek" r set hp = $2 from "GuildMember" m join "User" u on u.id = m."userId"
+       where u.login = $1 and r."guildId" = m."guildId" and r."startsAt" <= (now() at time zone 'UTC') and r."endsAt" > (now() at time zone 'UTC')`,
+      [login, hp],
+    );
+    if (!rowCount) throw new Error(`setRaidHp: нет рейда у ${login}`);
+  });
+}
