@@ -731,3 +731,12 @@ model TelegramLinkToken {
 
   @@index([userId])
 }
+
+/// Ограничение подбора пароля: key — "id:<логин или email>" или "ip:<адрес>" (правила — lib/auth/throttle-rules.ts)
+model LoginThrottle {
+  key         String    @id
+  failures    Int
+  windowStart DateTime
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}

@@ -192,8 +192,13 @@ test("logout inside the Mini App really signs out", async ({ page, context }) =>
   await registerViaTelegram(page, newTelegramId());
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByText("LVL 1")).toBeVisible();
-  await page.getByRole("button", { name: "Меню профиля" }).click();
-  await page.getByRole("menuitem", { name: "Выйти" }).click();
+  // Меню может не открыться, пока кнопка не ожила после перехода из /tg — кликаем, пока не появится пункт
+  const logout = page.getByRole("menuitem", { name: "Выйти" });
+  await expect(async () => {
+    if (!(await logout.isVisible())) await page.getByRole("button", { name: "Меню профиля" }).click();
+    await expect(logout).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await logout.click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await context.cookies()).filter((c) => c.name === "hf_at" || c.name === "hf_rt")).toEqual([]);
 });

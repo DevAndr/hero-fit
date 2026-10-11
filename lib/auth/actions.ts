@@ -21,6 +21,8 @@ import {
   siteLoginSchema,
 } from "@/lib/auth/schemas";
 import { requireUser } from "@/lib/auth/dal";
+import { recordLoginFailure, recordLoginSuccess, throttleKeys, throttleLock } from "@/lib/auth/throttle";
+import { throttleMessage } from "@/lib/auth/throttle-rules";
 import { createSession, revokeAllUserSessions, revokeSession, sessionEmbedded } from "@/lib/auth/session";
 import { hashToken, randomToken, verifyAccessToken, verifyRefreshToken } from "@/lib/auth/tokens";
 
@@ -121,6 +123,11 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values };
 
   const { identifier, password } = parsed.data;
+  // Подбор пароля: в блокировке не проверяем даже верный пароль
+  const keys = throttleKeys(identifier, (await headers()).get("x-real-ip"));
+  const locked = await throttleLock(keys);
+  if (locked) return { values, message: throttleMessage(locked) };
+
   const user = await db.user.findFirst({
     where: { OR: [{ login: identifier }, { email: identifier }] },
     select: { id: true, passwordHash: true },
@@ -129,12 +136,15 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   // Аккаунт из Telegram без пароля — как неизвестный пользователь (то же время ответа)
   if (!user?.passwordHash) {
     await burnPasswordCheck(password);
+    await recordLoginFailure(keys);
     return { values, message: "Неверный логин или пароль" };
   }
   if (!(await verifyPassword(user.passwordHash, password))) {
+    await recordLoginFailure(keys);
     return { values, message: "Неверный логин или пароль" };
   }
 
+  await recordLoginSuccess(keys);
   await startSession(user.id);
   redirect(safeRedirectPath(formData.get("next")));
 }

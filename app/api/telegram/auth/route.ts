@@ -4,6 +4,8 @@ import { queueGoal } from "@/lib/analytics/queue";
 import { writeAuthCookies } from "@/lib/auth/cookies";
 import { burnPasswordCheck, verifyPassword } from "@/lib/auth/password";
 import { loginSchema } from "@/lib/auth/schemas";
+import { recordLoginFailure, recordLoginSuccess, throttleKeys, throttleLock } from "@/lib/auth/throttle";
+import { throttleMessage } from "@/lib/auth/throttle-rules";
 import { createSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -38,17 +40,25 @@ export async function POST(req: Request) {
 
   let userId: string;
   if (input.action === "link") {
+    // Тот же лимит подбора пароля, что у /login
+    const keys = throttleKeys(input.identifier, req.headers.get("x-real-ip"));
+    const locked = await throttleLock(keys);
+    if (locked) return NextResponse.json({ error: "throttled", message: throttleMessage(locked) }, { status: 429 });
+
     const account = await db.user.findFirst({
       where: { OR: [{ login: input.identifier }, { email: input.identifier }] },
       select: { id: true, passwordHash: true },
     });
     if (!account?.passwordHash) {
       await burnPasswordCheck(input.password);
+      await recordLoginFailure(keys);
       return NextResponse.json({ error: "credentials" }, { status: 401 });
     }
     if (!(await verifyPassword(account.passwordHash, input.password))) {
+      await recordLoginFailure(keys);
       return NextResponse.json({ error: "credentials" }, { status: 401 });
     }
+    await recordLoginSuccess(keys);
     const linked = await linkTelegramTo(account.id, user);
     if (!linked.ok) return NextResponse.json({ error: linked.reason }, { status: 409 });
     userId = account.id;

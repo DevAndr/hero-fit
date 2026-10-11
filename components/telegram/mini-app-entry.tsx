@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 
 type WebApp = { initData?: string; ready?: () => void; expand?: () => void; requestWriteAccess?: (cb?: (ok: boolean) => void) => void };
-type Answer = { status: "ok"; to: string } | { status: "new"; firstName: string } | { error: string };
+type Answer = { status: "ok"; to: string } | { status: "new"; firstName: string } | { error: string; message?: string };
 type Screen = { kind: "loading" } | { kind: "error" } | { kind: "new"; firstName: string } | { kind: "link"; firstName: string };
 
 const webApp = () => (window as unknown as { Telegram?: { WebApp?: WebApp } }).Telegram?.WebApp;
@@ -76,6 +76,7 @@ export function MiniAppEntry() {
     if ("status" in a && a.status === "ok") return go(a.to);
     setPending(false);
     if ("error" in a && a.error === "credentials") setError("Неверный логин или пароль");
+    else if ("error" in a && a.error === "throttled") setError(a.message ?? "Слишком много попыток входа");
     else if ("error" in a && a.error === "telegram_in_use")
       setError("Этот Telegram — единственный вход в другой аккаунт Hero Fit. Задайте там email и пароль в настройках («Вход на сайте»), тогда Telegram можно будет перенести");
     else if ("error" in a && a.error === "request") setError("Введите логин и пароль");

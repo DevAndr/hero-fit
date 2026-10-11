@@ -1,7 +1,10 @@
 # HTTPS: сертификат Let's Encrypt Caddy получает и продлевает сам (DNS домена должен указывать на сервер, порты 80/443 открыты).
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:3000
+	# X-Real-IP — адрес клиента для лимита подбора пароля (lib/auth/throttle.ts); клиентский заголовок перезаписывается
+	reverse_proxy app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
 }
 
 www.{$DOMAIN} {
