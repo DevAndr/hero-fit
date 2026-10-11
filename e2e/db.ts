@@ -604,12 +604,13 @@ export async function achievementCodes(login: string) {
 
 /**
  * Рейд гильдии игрока на неделю `week` (понедельник в поясе e2e) с ударами по его завершённым тренировкам этой недели:
- * 100 за выполненный рабочий подход. defeated — рейд повержен (MVP — этот игрок).
+ * 100 за выполненный рабочий подход. defeated — рейд повержен (MVP — этот игрок); leaderEastHours — пояс главы восточнее.
  */
-export async function seedRaidHits(login: string, week: string, hp: number, defeated: boolean) {
+export async function seedRaidHits(login: string, week: string, hp: number, defeated: boolean, leaderEastHours = 0) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
-    const startsAt = localAt(week, "00:00");
+    // Окно рейда — в поясе главы: восточнее игрока на leaderEastHours часов
+    const startsAt = new Date(localAt(week, "00:00").getTime() - leaderEastHours * 3600_000);
     const endsAt = new Date(startsAt.getTime() + 7 * 86_400_000);
     const raidId = randomUUID();
     await db.query(

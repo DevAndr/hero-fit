@@ -142,7 +142,8 @@ test("weekly recap shows the guild raid", async ({ browser }) => {
   try {
     const week = mondayWeeksAgo(2);
     await seedRecapWeek(a.login, week, [{ day: 1, time: "19:00", exercise: BENCH, weight: 100, reps: 5, sets: 3, xp: 80 }]);
-    await seedRaidHits(a.login, week, 300, true);
+    // Глава восточнее на 4 часа: рейд недели начался раньше понедельника игрока
+    await seedRaidHits(a.login, week, 300, true, 4);
     await a.page.goto(`/recap/${week}`);
     const block = a.page.getByRole("region", { name: "Рейд гильдии" });
     await expect(block).toContainText("Повержен: Древний");

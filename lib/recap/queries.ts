@@ -72,15 +72,16 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
 }
 
 /**
- * Рейд гильдии недели: рейды со стартом в [start, end), где у игрока есть удары; при нескольких (переход между
- * гильдиями) — с наибольшим моим уроном. Место — среди всех бивших, включая вышедших.
+ * Рейд гильдии недели: рейды, в которые игрок бил тренировками, завершёнными в [start, end) (его неделя — окно рейда
+ * в поясе главы может не совпадать); при нескольких — с наибольшим моим уроном за весь рейд. Место — среди всех бивших,
+ * включая вышедших.
  */
 export async function weekRaid(userId: string, start: Date, end: Date): Promise<RecapRaid | null> {
   const rows = await db.$queryRaw<{ id: string; bossCode: string; hp: number; defeated: boolean; mvp: boolean; damage: number; mine: number; place: number; members: number }[]>`
     WITH mine AS (
-      SELECT r.id FROM "RaidWeek" r
-      WHERE r."startsAt" >= ${start} AND r."startsAt" < ${end}
-        AND EXISTS (SELECT 1 FROM "RaidHit" h WHERE h."raidId" = r.id AND h."userId" = ${userId})
+      -- Рейды, в которые бил игрок тренировками своей недели (окно рейда — в поясе главы, может сдвигаться)
+      SELECT DISTINCT h."raidId" AS id FROM "RaidHit" h JOIN "Workout" w ON w.id = h."workoutId"
+      WHERE h."userId" = ${userId} AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
     ),
     per AS (
       SELECT h."raidId", h."userId", SUM(h.damage)::int AS damage FROM "RaidHit" h
