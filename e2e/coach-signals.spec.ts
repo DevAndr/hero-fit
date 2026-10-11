@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { coachAssignOnce, coachTarget, coachTargetSet, coachTemplate, enableCoach, idOf, linkCoach } from "./db";
-import { registerUser } from "./helpers";
+import { coachAssignOnce, coachNotifications, coachSignals, coachTarget, coachTargetSet, coachTemplate, enableCoach, idOf, linkCoach, resetCoachSignalsDay, seedWorkouts, setTimeZone } from "./db";
+import { registerUser, runTick } from "./helpers";
 import { E2E_TZ_OFFSET } from "./tz";
 
 /** Ник ≤ 20 символов и уникален между прогонами: хвост логина с меткой времени. */
@@ -17,6 +17,9 @@ async function setup(page: Page, browser: Browser) {
   const clientPage = await context.newPage();
   const client = await registerUser(clientPage, "Маша");
   await linkCoach(coach.login, client.login);
+  // Проверка сигналов — по поясу тренера, правила — по поясу клиента
+  await setTimeZone(coach.login);
+  await setTimeZone(client.login);
   return { coach, templateId, client, clientPage, context, clientId: await idOf(client.login) };
 }
 
@@ -55,5 +58,38 @@ test("a fresh client has no signals and no attention block", async ({ page, brow
   await expect(row(page, "Маша").getByTestId("client-signal")).toHaveCount(0);
   await page.goto(`/coach/clients/${clientId}`);
   await expect(page.getByRole("region", { name: "Требует внимания" })).toHaveCount(0);
+  await context.close();
+});
+
+test("daily check notifies the coach once per new signal and resolves it after a workout", async ({ page, browser, request }) => {
+  test.slow(); // тики проходят всех непроверенных тренеров тестовой базы
+  const { coach, templateId, client, context, clientId } = await setup(page, browser);
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-3));
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-1));
+
+  // Реальное время (в поясе e2e сейчас 12:xx, проверка — с 10:00); тестовые часы на завтра не берём: в понедельник
+  // тик ещё и собирает итоги недели всей тестовой базы. Фоновый воркер может проверить тренера параллельно —
+  // уникальный индекс не даёт дублей, поэтому ждём уведомление, а не читаем сразу.
+  await resetCoachSignalsDay(coach.login);
+  await runTick(request);
+  await expect.poll(() => coachNotifications(coach.login)).toHaveLength(1);
+  const [notice] = await coachNotifications(coach.login);
+  expect(notice.title).toMatch(/: пропущены 2 тренировки подряд$/);
+  expect(notice.url).toBe(`/coach/clients/${clientId}`);
+
+  // Тот же день — без повторной проверки; новая проверка открытый сигнал не дублирует
+  await runTick(request);
+  await resetCoachSignalsDay(coach.login);
+  await runTick(request);
+  expect(await coachNotifications(coach.login)).toHaveLength(1);
+
+  // Назначение позавчера выполнено (тренировка того же дня закрывает его): из двух последних прошедших одно
+  // выполнено — сигнал снимается
+  await coachAssignOnce(coach.login, client.login, templateId, "Ноги — база", localDate(-2));
+  await seedWorkouts(client.login, "Приседания со штангой", [{ weight: 60, reps: 8, sets: 3 }], 2);
+  await resetCoachSignalsDay(coach.login);
+  await runTick(request);
+  await expect.poll(() => coachSignals(coach.login)).toEqual([{ kind: "MISSED_PLAN", resolvedAt: expect.any(Date) }]);
+  expect(await coachNotifications(coach.login)).toHaveLength(1);
   await context.close();
 });

@@ -11,6 +11,7 @@ import { getCalendar } from "@/lib/plans/queries";
 import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 import { processWeeklyRecaps } from "@/lib/recap/tick";
+import { processCoachSignals } from "@/lib/coach/signals-tick";
 
 type Client = Prisma.TransactionClient;
 
@@ -209,6 +210,14 @@ export async function runNotificationTick(now = new Date()) {
     if (recaps) pushes += await processDuePushes();
   } catch (e) {
     console.error("[recap] шаг итогов недели упал", e);
+  }
+  try {
+    // Сигналы клиентов тренерам: раз в день с 10:00 по времени тренера
+    const signals = await processCoachSignals(now);
+    reminders += signals;
+    if (signals) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[coach-signals] шаг сигналов упал", e);
   }
   return { reminders, pushes };
 }

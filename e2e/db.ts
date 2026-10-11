@@ -388,3 +388,17 @@ export async function coachSignals(coachLogin: string) {
     return rows;
   });
 }
+
+/** Пояс пользователя = пояс e2e сразу (браузер записывает его из cookie только на следующем запросе). */
+export async function setTimeZone(login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "timeZone" = $2 where id = $1`, [await userId(db, login), E2E_TZ]);
+  });
+}
+
+/** Сбросить день проверки сигналов тренера — следующий тик проверит его заново (без тестовых часов). */
+export async function resetCoachSignalsDay(coachLogin: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "coachSignalsDay" = null where id = $1`, [await userId(db, coachLogin)]);
+  });
+}
