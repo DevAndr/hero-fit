@@ -118,7 +118,7 @@ test("own exercise, body weight and base lifts give achievements outside of a wo
   await page.goto("/settings");
   const bodyWeight = page.getByRole("region", { name: "Вес тела" });
   await bodyWeight.getByLabel("Вес тела, кг").fill("90");
-  await bodyWeight.getByRole("button", { name: "Сохранить" }).click();
+  await bodyWeight.getByRole("button", { name: "Записать вес" }).click();
   await expect(page.getByText("🏆 Жим лёжа: ×1 веса тела")).toBeVisible();
   await expect(page.getByText("🏆 Жим лёжа: ×1,25 веса тела")).toBeVisible();
   await page.goto("/achievements");
