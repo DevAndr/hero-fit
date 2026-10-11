@@ -3,12 +3,48 @@ import type { Target } from "@/lib/coach/targets";
 
 export type OwnRow = { exerciseId: string; targetSets: number; targetReps: number | null; targetWeight: number | null; step: number | null; fails: number };
 
-/** Неудачи подряд при пересоздании строки: вес и шаг те же — прежний счётчик, иначе с нуля. */
-export function carryFails(
-  old: { targetWeight: number | null; step: number | null; fails: number } | undefined,
-  next: { targetWeight: number | null; step: number | null },
-): number {
-  return old && old.targetWeight === next.targetWeight && old.step === next.step ? old.fails : 0;
+type Goal = { targetSets?: number; targetReps?: number | null; targetWeight: number | null; step: number | null };
+
+/** Неудачи подряд при пересоздании строки: цель (подходы, повторы, вес) и шаг те же — прежний счётчик, иначе с нуля. */
+export function carryFails(old: (Goal & { fails: number }) | undefined, next: Goal): number {
+  if (!old || old.targetWeight !== next.targetWeight || old.step !== next.step) return 0;
+  if (old.targetSets !== next.targetSets || (old.targetReps ?? null) !== (next.targetReps ?? null)) return 0;
+  return old.fails;
+}
+
+/** Первая строка каждого упражнения (строки — в порядке шаблона): прогрессия ведётся только по ней. */
+function firstRows<T extends { exerciseId: string }>(rows: T[]): Map<string, T> {
+  const first = new Map<string, T>();
+  for (const r of rows) if (!first.has(r.exerciseId)) first.set(r.exerciseId, r);
+  return first;
+}
+
+/** Неудачи новых строк при пересохранении шаблона: первой строке упражнения — по первой старой, повторам — 0. */
+export function rowFails(next: (Goal & { exerciseId: string; targetSets: number })[], old: (OwnRow & Goal)[]): number[] {
+  const before = firstRows(old);
+  const seen = new Set<string>();
+  return next.map((r) => {
+    if (seen.has(r.exerciseId)) return 0;
+    seen.add(r.exerciseId);
+    return carryFails(before.get(r.exerciseId), r);
+  });
+}
+
+/**
+ * «Добавить в шаблон» из тренировки: у первой строки упражнения со своей прогрессией цель целиком (подходы, повторы,
+ * вес), шаг и неудачи — из шаблона, иначе неудачная тренировка снизила бы цель или откатила +шаг.
+ */
+export function keepProgress<T extends { exerciseId: string }>(items: T[], old: OwnRow[]): (T | (T & Omit<OwnRow, "exerciseId">))[] {
+  const before = firstRows(old);
+  const seen = new Set<string>();
+  return items.map((item) => {
+    const kept = before.get(item.exerciseId);
+    const first = !seen.has(item.exerciseId);
+    seen.add(item.exerciseId);
+    if (!first || !kept || kept.step === null || kept.targetWeight === null) return item;
+    const { targetSets, targetReps, targetWeight, step, fails } = kept;
+    return { ...item, targetSets, targetReps, targetWeight, step, fails };
+  });
 }
 
 /** Цели запуска: строки с весом и шагом; упражнение дважды в шаблоне — первая строка. */

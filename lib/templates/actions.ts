@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
-import { carryFails } from "@/lib/templates/progression";
+import { keepProgress, rowFails } from "@/lib/templates/progression";
 import { templateSchema, type TemplateInput } from "@/lib/templates/schema";
 
 export type SaveTemplateResult =
@@ -36,14 +36,15 @@ export async function saveTemplateAction(id: string | null, input: TemplateInput
     const { count } = await db.workoutTemplate.updateMany({ where: { id, userId: user.id }, data: { name, description } });
     if (count === 0) return { ok: false, error: "Шаблон не найден" };
     await db.$transaction(async (tx) => {
-      // Строки пересоздаются — неудачи своей прогрессии переносятся, пока вес и шаг не менялись
-      const old = new Map(
-        (await tx.templateExercise.findMany({ where: { templateId: id }, select: { exerciseId: true, targetWeight: true, step: true, fails: true } })).map(
-          (r) => [r.exerciseId, r],
-        ),
-      );
+      // Строки пересоздаются — неудачи своей прогрессии переносятся, пока цель и шаг не менялись
+      const old = await tx.templateExercise.findMany({
+        where: { templateId: id },
+        orderBy: { order: "asc" },
+        select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, step: true, fails: true },
+      });
+      const fails = rowFails(items, old);
       await tx.templateExercise.deleteMany({ where: { templateId: id } });
-      await tx.templateExercise.createMany({ data: items.map((e) => ({ ...e, templateId: id, fails: carryFails(old.get(e.exerciseId), e) })) });
+      await tx.templateExercise.createMany({ data: items.map((e, i) => ({ ...e, templateId: id, fails: fails[i] })) });
     });
     revalidate();
     return { ok: true, id };
@@ -118,21 +119,15 @@ export async function updateTemplateFromWorkoutAction(workoutId: string): Promis
 
   const templateId = workout.templateId;
   await db.$transaction(async (tx) => {
-    // Своя прогрессия: вес цели, шаг и неудачи строки с шагом не берутся из тренировки — иначе откатится +шаг
-    const progress = new Map(
-      (
-        await tx.templateExercise.findMany({
-          where: { templateId, step: { not: null } },
-          select: { exerciseId: true, targetWeight: true, step: true, fails: true },
-        })
-      ).map((r) => [r.exerciseId, r]),
-    );
+    // Своя прогрессия: цель, шаг и неудачи строки с шагом не берутся из тренировки — иначе неудача снизит цель или откатит +шаг
+    const old = await tx.templateExercise.findMany({
+      where: { templateId },
+      orderBy: { order: "asc" },
+      select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, step: true, fails: true },
+    });
     await tx.templateExercise.deleteMany({ where: { templateId } });
     await tx.templateExercise.createMany({
-      data: templateItemsFromWorkout(workout.exercises).map((item) => {
-        const kept = progress.get(item.exerciseId);
-        return { ...item, templateId, ...(kept ? { targetWeight: kept.targetWeight, step: kept.step, fails: kept.fails } : {}) };
-      }),
+      data: keepProgress(templateItemsFromWorkout(workout.exercises), old).map((item) => ({ ...item, templateId })),
     });
     await tx.workoutTemplate.update({ where: { id: templateId }, data: { updatedAt: new Date() } });
   });

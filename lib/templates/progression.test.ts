@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carryFails, ownTargets, progressionHint, type OwnRow } from "./progression";
+import { carryFails, keepProgress, ownTargets, progressionHint, rowFails, type OwnRow } from "./progression";
 import { templateSchema } from "./schema";
 
 const row = (p: Partial<OwnRow> = {}): OwnRow => ({ exerciseId: "a", targetSets: 4, targetReps: 8, targetWeight: 60, step: 2.5, fails: 0, ...p });
@@ -11,6 +11,13 @@ describe("carryFails", () => {
     expect(carryFails(old, { targetWeight: 62.5, step: 2.5 })).toBe(0);
     expect(carryFails(old, { targetWeight: 60, step: 5 })).toBe(0);
     expect(carryFails(undefined, { targetWeight: 60, step: 2.5 })).toBe(0);
+  });
+
+  it("сменилась цель (подходы или повторы) — счёт с нуля", () => {
+    const old = { targetSets: 4, targetReps: 8, targetWeight: 60, step: 2.5, fails: 2 };
+    expect(carryFails(old, { targetSets: 4, targetReps: 10, targetWeight: 60, step: 2.5 })).toBe(0);
+    expect(carryFails(old, { targetSets: 5, targetReps: 8, targetWeight: 60, step: 2.5 })).toBe(0);
+    expect(carryFails(old, { targetSets: 4, targetReps: 8, targetWeight: 60, step: 2.5 })).toBe(2);
   });
 });
 
@@ -51,5 +58,29 @@ describe("templateSchema — шаг", () => {
     expect(templateSchema.safeParse(tpl({ step: 21 })).success).toBe(false);
     expect(templateSchema.parse(tpl({})).exercises[0].step).toBeNull();
     expect(templateSchema.parse(tpl({ step: 2.5 })).exercises[0].step).toBe(2.5);
+  });
+});
+
+describe("rowFails — пересохранение шаблона", () => {
+  it("неудачи переносятся только первой строке упражнения, по первой старой строке", () => {
+    const old = [row({ fails: 2 }), row({ step: null, fails: 0 })]; // упражнение дважды: первая — с шагом
+    const next = [row({ fails: 0 }), row({ step: null, fails: 0 })];
+    expect(rowFails(next, old)).toEqual([2, 0]);
+  });
+});
+
+describe("keepProgress — «Добавить в шаблон» из тренировки", () => {
+  it("первая строка упражнения с прогрессией сохраняет цель целиком; повтор упражнения — как из тренировки", () => {
+    const old = [row({ targetSets: 4, targetReps: 8, targetWeight: 62.5, fails: 1 }), row({ targetWeight: 60, fails: 0 })];
+    const fromWorkout = [
+      { exerciseId: "a", targetSets: 3, targetReps: 6, targetWeight: 60, restSec: 90 },
+      { exerciseId: "a", targetSets: 2, targetReps: 5, targetWeight: 40, restSec: 90 },
+      { exerciseId: "b", targetSets: 3, targetReps: 10, targetWeight: 20, restSec: 60 },
+    ];
+    expect(keepProgress(fromWorkout, old)).toEqual([
+      { exerciseId: "a", targetSets: 4, targetReps: 8, targetWeight: 62.5, step: 2.5, fails: 1, restSec: 90 },
+      { exerciseId: "a", targetSets: 2, targetReps: 5, targetWeight: 40, restSec: 90 },
+      { exerciseId: "b", targetSets: 3, targetReps: 10, targetWeight: 20, restSec: 60 },
+    ]);
   });
 });
