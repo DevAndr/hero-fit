@@ -46,3 +46,16 @@ export function ThemeSettings() {
     </section>
   );
 }
+
+/** В Telegram Mini App тема следует схеме Telegram (TelegramMiniApp) — выбирать нечего. */
+export function TelegramThemeNote() {
+  return (
+    <section aria-label="Оформление" className="space-y-3 rounded-xl border bg-card p-4">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Palette className="size-4 text-primary" />
+        Оформление
+      </h2>
+      <p className="text-sm text-muted-foreground">Тема — как в Telegram</p>
+    </section>
+  );
+}

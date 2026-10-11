@@ -7,7 +7,7 @@ import { RestartTourButton } from "@/components/onboarding/restart-button";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { PrivacySettings } from "@/components/social/privacy-settings";
 import { TitleSelect } from "@/components/social/title-select";
-import { ThemeSettings } from "@/components/app/theme-settings";
+import { TelegramThemeNote, ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
 import { TelegramCard } from "@/components/notifications/telegram-settings";
 import { SiteLoginForm } from "@/components/auth/site-login-form";
@@ -35,14 +35,15 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title="Настройки" description={user.email ? `${user.name ?? user.login} · ${user.email}` : (user.name ?? user.login)} />
       {hasPassword ? null : <SiteLoginForm />}
-      <ThemeSettings />
+      {user.embedded ? <TelegramThemeNote /> : <ThemeSettings />}
       <BodyWeightSettings initial={user.bodyWeight} />
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
       {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : null}
       <CoachModeCard initial={user.isCoach} hasNickname={Boolean(nickname)} />
-      <PushDeviceCard devices={_count.pushSubscriptions} />
+      {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
+      {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}
       {telegram.enabled ? <TelegramCard status={telegram} /> : null}
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />

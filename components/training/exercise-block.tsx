@@ -18,6 +18,7 @@ import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/telegram/webapp";
 import type { Action, ExerciseState, SetState } from "@/components/training/workout-state";
 
 const formatSets = (sets: { weight: number; reps: number }[]) =>
@@ -185,6 +186,7 @@ export function ExerciseBlock({
                     dispatch({ type: "toggleComplete", key: item.key, setKey: set.key, now: new Date().toISOString() });
                     if (done) stopCelebrating(set.key);
                     else {
+                      haptic("light");
                       onComplete(item, set);
                       if (!prefersReducedMotion()) setCelebrating((prev) => new Set(prev).add(set.key));
                     }

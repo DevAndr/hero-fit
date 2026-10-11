@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { markAchievementsSeenAction } from "@/lib/achievements/actions";
+import { haptic } from "@/lib/telegram/webapp";
 import { titleForAchievement } from "@/lib/titles/catalog";
 
 type Unseen = { id: string; code: string; title: string; description: string; xpReward: number };
@@ -15,6 +16,7 @@ export function AchievementToaster({ achievements }: { achievements: Unseen[] })
   useEffect(() => {
     const fresh = achievements.filter((a) => !shown.current.has(a.id));
     if (fresh.length === 0) return;
+    haptic("success");
     for (const a of fresh) {
       shown.current.add(a.id);
       const title = titleForAchievement(a.code);

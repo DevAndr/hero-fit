@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { registerUser } from "./helpers";
+import { addToWorkout, registerUser } from "./helpers";
 import { mockTelegram, tgBack, tgCalls, tgEmit } from "./telegram-webapp";
 
 /** Уникальный Telegram id на тест (база общая для воркеров). */
@@ -73,4 +73,40 @@ test("plain sign-in does not load the Telegram SDK", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
   expect(sdk).toEqual([]);
+});
+
+test("workout in Telegram: set confirm vibrates, closing is confirmed only while the editor is open", async ({ page }) => {
+  await openMiniApp(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const closing = () => last(page, "enableClosingConfirmation", "disableClosingConfirmation");
+  await expect.poll(closing).toBe("enableClosingConfirmation");
+
+  const block = page.getByRole("region", { name: "Жим штанги лёжа" });
+  await block.getByLabel("Вес, подход 1").fill("60");
+  await block.getByLabel("Повторы, подход 1").fill("10");
+  await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect.poll(async () => (await tgCalls(page)).some((c) => c[0] === "impactOccurred" && c[1] === "light")).toBe(true);
+
+  await page.getByRole("button", { name: "Завершить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+  await expect(page).toHaveURL(/\/workouts\//);
+  await expect.poll(closing).toBe("disableClosingConfirmation");
+});
+
+test("settings in Telegram: theme follows Telegram, no push card", async ({ page, browser }) => {
+  await openMiniApp(page);
+  await page.goto("/settings");
+  await expect(page.getByText("Тема — как в Telegram")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Тема" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Push на этом устройстве" })).toHaveCount(0);
+
+  const ctx = await browser.newContext();
+  const plain = await ctx.newPage();
+  await registerUser(plain);
+  await plain.goto("/settings");
+  await expect(plain.getByRole("radiogroup", { name: "Тема" })).toBeVisible();
+  await expect(plain.getByText("Тема — как в Telegram")).toHaveCount(0);
+  await ctx.close();
 });
