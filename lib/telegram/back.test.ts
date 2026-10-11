@@ -28,4 +28,8 @@ describe("backTarget", () => {
     expect(backTarget("/settings")).toBe("/dashboard");
     expect(backTarget("/recap")).toBe("/dashboard");
   });
+
+  it("приглашение тренера — в кабинет (/coach у клиента — 404)", () => {
+    expect(backTarget("/coach/join/DEMXTRNR")).toBe("/dashboard");
+  });
 });

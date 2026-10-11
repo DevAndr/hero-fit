@@ -191,7 +191,7 @@ export function RestTimerBar() {
     <div
       role="timer"
       aria-label="Таймер отдыха"
-      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border bg-popover shadow-2xl lg:bottom-6"
+      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border bg-popover shadow-2xl lg:bottom-6"
     >
       <div className="h-1 bg-muted">
         <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />

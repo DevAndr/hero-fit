@@ -95,7 +95,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 pt-6 pb-24 lg:px-8 lg:pb-10">{children}</main>
+        <main className="flex-1 px-4 pt-6 pb-[calc(6rem+var(--tg-safe-bottom))] lg:px-8 lg:pb-10">{children}</main>
       </div>
 
       <BottomNav />

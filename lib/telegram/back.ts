@@ -12,6 +12,8 @@ export function backTarget(pathname: string): string | null {
   if (isRootPath(pathname)) return null;
   // Тренировки живут под /workouts, а раздел у них — «Тренировка»
   if (pathname.startsWith("/workouts/")) return "/training";
+  // Приглашение тренера открывает клиент — раздел /coach у него 404
+  if (pathname.startsWith("/coach/join/")) return "/dashboard";
   const parent = ROOTS.filter((root) => pathname.startsWith(`${root}/`)).sort((a, b) => b.length - a.length)[0];
   return parent ?? "/dashboard";
 }

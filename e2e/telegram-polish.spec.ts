@@ -5,7 +5,7 @@ import { mockTelegram, tgBack, tgCalls, tgEmit } from "./telegram-webapp";
 /** Уникальный Telegram id на тест (база общая для воркеров). */
 const newTelegramId = () => String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
 
-type Opts = { colorScheme?: "light" | "dark"; version?: string };
+type Opts = { colorScheme?: "light" | "dark"; version?: string; safeBottom?: number };
 
 /** Новый человек из Mini App → дашборд; заглушка SDK остаётся на всех следующих страницах. */
 async function openMiniApp(page: Page, opts: Opts = {}) {
@@ -109,4 +109,21 @@ test("settings in Telegram: theme follows Telegram, no push card", async ({ page
   await expect(plain.getByRole("radiogroup", { name: "Тема" })).toBeVisible();
   await expect(plain.getByText("Тема — как в Telegram")).toHaveCount(0);
   await ctx.close();
+});
+
+test("rest timer stays above the bottom nav when Telegram reports a bottom inset", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 1024, "нижнее меню — только на телефоне");
+  await openMiniApp(page, { safeBottom: 34 });
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const block = page.getByRole("region", { name: "Жим штанги лёжа" });
+  await block.getByLabel("Вес, подход 1").fill("60");
+  await block.getByLabel("Повторы, подход 1").fill("10");
+  await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
+
+  const timer = await page.getByRole("timer", { name: "Таймер отдыха" }).boundingBox();
+  const nav = await page.locator("nav[data-tour='nav']:visible").boundingBox();
+  expect(timer && nav).toBeTruthy();
+  expect(timer!.y + timer!.height).toBeLessThanOrEqual(nav!.y);
 });
