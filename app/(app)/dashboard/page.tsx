@@ -23,6 +23,8 @@ import { getTodayPlan } from "@/lib/plans/queries";
 import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
+import { GuildCard } from "@/components/guild/guild-card";
+import { getMyGuild } from "@/lib/guild/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { BodyMap } from "@/components/progress/body-map";
@@ -119,7 +121,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss, coach] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss, coach, guild] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -128,6 +130,7 @@ export default async function DashboardPage() {
     getMuscleBalance(user.id),
     getBossView(user.id, userTz),
     activeCoachOf(user.id),
+    getMyGuild(user.id, userTz),
   ]);
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
@@ -261,6 +264,8 @@ export default async function DashboardPage() {
           hint={data.counts.week ? `≈ ${Math.round((data.weekHours * 60) / data.counts.week)} мин на тренировку` : undefined}
         />
       </section>
+
+      <GuildCard guild={guild} />
 
       <section aria-label="Друзья недавно" className="space-y-3">
         <div className="flex items-center justify-between">

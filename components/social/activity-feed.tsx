@@ -169,7 +169,16 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
 }
 
 /** Лента с подгрузкой «Показать ещё». */
-export function ActivityFeed({ initial, next: initialNext }: { initial: FeedEntry[]; next: string | null }) {
+export function ActivityFeed({
+  initial,
+  next: initialNext,
+  source = "friends",
+}: {
+  initial: FeedEntry[];
+  next: string | null;
+  /** Чья лента подгружается «Показать ещё». */
+  source?: "friends" | "guild";
+}) {
   const [extra, setExtra] = useState<FeedEntry[]>([]);
   const [next, setNext] = useState(initialNext);
   const [pending, startTransition] = useTransition();
@@ -188,7 +197,7 @@ export function ActivityFeed({ initial, next: initialNext }: { initial: FeedEntr
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const page = await loadFeedPageAction(next);
+              const page = await loadFeedPageAction(next, source);
               setExtra((prev) => [...prev, ...page.entries]);
               setNext(page.next);
             })
