@@ -99,6 +99,28 @@ export async function setNickname(login: string, nickname: string) {
   });
 }
 
+/** Настройки приватности пользователя (минуя UI). */
+export async function setPrivacy(login: string, p: { shareActivity?: boolean; hideWeights?: boolean }) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "shareActivity" = coalesce($2, "shareActivity"), "hideWeights" = coalesce($3, "hideWeights") where login = $1`, [
+      login,
+      p.shareActivity ?? null,
+      p.hideWeights ?? null,
+    ]);
+  });
+}
+
+/** Ссылки уведомлений пользователя (новые первыми). */
+export async function notificationUrls(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ url: string | null }>(
+      `select n.url from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 order by n."createdAt" desc`,
+      [login],
+    );
+    return rows.map((r) => r.url);
+  });
+}
+
 /** Гильдия пользователя: название и глава ли он; нет гильдии — null. */
 export async function guildOf(login: string) {
   return withDb(async (db) => {

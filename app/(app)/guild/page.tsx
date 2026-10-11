@@ -3,6 +3,7 @@ import { Shield } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { CreateGuildButton, GuildSettingsButton, JoinByCode } from "@/components/guild/guild-forms";
 import { GuildInvite, GuildMembers, LeaveGuild } from "@/components/guild/guild-members";
+import { ActivityFeed } from "@/components/social/activity-feed";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
@@ -11,14 +12,16 @@ import { env } from "@/lib/env";
 import { GuildEmblem } from "@/lib/guild/emblem";
 import { getMyGuild } from "@/lib/guild/queries";
 import { GUILD_MAX, leaveBlock } from "@/lib/guild/rules";
+import { getGuildFeed } from "@/lib/social/queries";
 
 export const metadata: Metadata = { title: "Гильдия" };
 
 export default async function GuildPage() {
   const user = await requireUser();
-  const [me, guild] = await Promise.all([
+  const [me, guild, feed] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { nickname: true, name: true } }),
     getMyGuild(user.id, safeTimeZone(user.timeZone)),
+    getGuildFeed(user.id, null),
   ]);
 
   if (!guild) {
@@ -66,6 +69,14 @@ export default async function GuildPage() {
       <section aria-label="Состав" className="space-y-2">
         <h2 className="font-bold">Состав · эта неделя</h2>
         <GuildMembers members={guild.members} meId={user.id} iLead={iLead} />
+      </section>
+      <section aria-label="Лента гильдии" className="space-y-3">
+        <h2 className="font-bold">Лента гильдии</h2>
+        {feed.entries.length ? (
+          <ActivityFeed initial={feed.entries} next={feed.next} source="guild" />
+        ) : (
+          <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Здесь появятся тренировки участников — поддерживайте их 👊.</p>
+        )}
       </section>
       <GuildInvite url={new URL(`/guild/join/${guild.code}`, env.APP_URL).toString()} code={guild.code} iLead={iLead} />
       <LeaveGuild blocked={leaveBlock(iLead, guild.members.length)} />

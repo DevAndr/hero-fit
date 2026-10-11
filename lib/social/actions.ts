@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { notify } from "@/lib/notifications/service";
 import { nicknameKey, nicknameSchema, normalizeFriendCode } from "@/lib/social/league";
-import { canSeeWorkout, getFeed } from "@/lib/social/queries";
+import { canSeeWorkout, getFeed, getGuildFeed } from "@/lib/social/queries";
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -135,9 +135,9 @@ export async function removeFriendshipAction(id: string): Promise<Result> {
 // ───────────────────────────── Лента активности ─────────────────────────────
 
 /** Следующая страница ленты («Показать ещё»). */
-export async function loadFeedPageAction(cursor: string) {
+export async function loadFeedPageAction(cursor: string, source: "friends" | "guild" = "friends") {
   const user = await requireUser();
-  return getFeed(user.id, cursor);
+  return source === "guild" ? getGuildFeed(user.id, cursor) : getFeed(user.id, cursor);
 }
 
 /**
@@ -158,14 +158,15 @@ export async function toggleKudosAction(workoutId: string): Promise<Result> {
       // двойной клик — уже поставлено
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
     }
-    await notifyKudos(workoutId, workout.userId);
+    await notifyKudos(workoutId, workout.userId, workout.friend);
   }
   revalidatePath("/friends");
   revalidatePath("/dashboard");
   return { ok: true };
 }
 
-async function notifyKudos(workoutId: string, ownerId: string) {
+/** `friend` — поставивший видит тренировку как друг; иначе — как согильдиец (ссылка ведёт в ленту гильдии). */
+async function notifyKudos(workoutId: string, ownerId: string, friend: boolean) {
   const [workout, givers, owner] = await Promise.all([
     db.workout.findUniqueOrThrow({ where: { id: workoutId }, select: { name: true } }),
     db.kudos.findMany({
@@ -178,7 +179,7 @@ async function notifyKudos(workoutId: string, ownerId: string) {
   const names = givers.map((g) => g.user.nickname ?? "Атлет");
   const body = `Поддержали: ${names.slice(0, 2).join(", ")}${names.length > 2 ? ` и ещё ${names.length - 2}` : ""}`;
   const title = `👊 Тренировка «${workout.name}»`;
-  const url = `/friends#w-${workoutId}`;
+  const url = `${friend ? "/friends" : "/guild"}#w-${workoutId}`;
 
   const unread = await db.notification.findFirst({
     where: { userId: ownerId, type: NotificationType.SOCIAL, url, readAt: null },
