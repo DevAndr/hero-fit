@@ -56,7 +56,7 @@ export function YandexMetrika({ id }: { id: number }) {
       for (const goal of goals) window.ym?.(id, "reachGoal", goal);
       document.cookie = `${GOAL_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
     }
-  }, [id, pathname]);
+  }, [id, pathname, off]);
 
   return <CookieNotice />;
 }
