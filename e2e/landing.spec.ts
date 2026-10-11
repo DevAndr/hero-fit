@@ -99,3 +99,14 @@ test("landing offers Hero Fit in Telegram", async ({ page }) => {
   await expect(page.getByText("Бесплатно · в браузере, Telegram и офлайн")).toBeVisible();
   await expect(page.getByText("Есть в Telegram")).toBeVisible();
 });
+
+test("guilds block: header link, raid infographic, CTA, FAQ", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Гильдии" })).toHaveAttribute("href", "/#guilds");
+  const block = page.getByRole("region", { name: "Гильдии и рейды" });
+  await expect(block).toContainText("до 10");
+  await expect(block).toContainText("MVP");
+  await expect(block.getByRole("link", { name: "Собрать гильдию" })).toHaveAttribute("href", "/register");
+  await expect(page.getByRole("heading", { name: "Что такое гильдия и рейд?" })).toBeVisible();
+});
