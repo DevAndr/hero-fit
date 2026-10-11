@@ -11,6 +11,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { GuildEmblem } from "@/lib/guild/emblem";
 import { getMyGuild } from "@/lib/guild/queries";
+import { getRaidHistory, getRaidView } from "@/lib/raid/queries";
+import { RaidHistory, RaidPanel } from "@/components/raid/raid-panel";
 import { GUILD_MAX, leaveBlock } from "@/lib/guild/rules";
 import { getGuildFeed } from "@/lib/social/queries";
 
@@ -50,6 +52,10 @@ export default async function GuildPage() {
   }
 
   const iLead = guild.leaderId === user.id;
+  const [raid, history] = await Promise.all([
+    getRaidView(guild.id, user.id, safeTimeZone(user.timeZone)),
+    getRaidHistory(guild.id, user.id),
+  ]);
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -66,10 +72,12 @@ export default async function GuildPage() {
         </div>
         {iLead ? <GuildSettingsButton name={guild.name} emblem={guild.emblem} /> : null}
       </div>
+      <RaidPanel raid={raid} />
       <section aria-label="Состав" className="space-y-2">
         <h2 className="font-bold">Состав · эта неделя</h2>
         <GuildMembers members={guild.members} meId={user.id} iLead={iLead} />
       </section>
+      <RaidHistory history={history} />
       <section aria-label="Лента гильдии" className="space-y-3">
         <h2 className="font-bold">Лента гильдии</h2>
         {feed.entries.length ? (

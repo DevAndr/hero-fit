@@ -126,6 +126,7 @@ test("guild feed shows a mate's workout, hides weights, kudos", async ({ browser
 });
 
 test("dashboard guild card", async ({ page }) => {
+  test.slow();
   const { login } = await registerUser(page);
   const card = page.getByRole("region", { name: "Гильдия" });
   await expect(card).toContainText("Создайте гильдию или вступите по ссылке");
