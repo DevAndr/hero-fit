@@ -364,23 +364,28 @@ model TemplateExercise {
 // ───────────────────────────── Тренировки ─────────────────────────────
 
 model Workout {
-  id          String        @id @default(cuid())
-  userId      String
-  templateId  String?
+  id                 String        @id @default(cuid())
+  userId             String
+  templateId         String?
   /// ключ вхождения календаря, из которого запущена тренировка (lib/plans/expand.ts)
-  planKey     String?
-  name        String
-  status      WorkoutStatus @default(PLANNED)
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  durationSec Int? // finishedAt - startedAt, фиксируется при завершении
-  totalVolume Float         @default(0) // Σ вес × повторы
-  totalSets   Int           @default(0)
-  totalReps   Int           @default(0)
-  xpEarned    Int           @default(0)
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  planKey            String?
+  name               String
+  status             WorkoutStatus @default(PLANNED)
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  durationSec        Int? // finishedAt - startedAt, фиксируется при завершении
+  totalVolume        Float         @default(0) // Σ вес × повторы
+  totalSets          Int           @default(0)
+  totalReps          Int           @default(0)
+  xpEarned           Int           @default(0)
+  /// тяжесть тренировки 1–10 (оценка в сводке, lib/workouts/feedback.ts)
+  rpe                Int?
+  /// заметка к оценке тренировки
+  notes              String?
+  /// когда тренеру ушло уведомление об оценке (одно на тренировку)
+  feedbackNotifiedAt DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   template  WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
