@@ -48,3 +48,12 @@ describe("startTarget", () => {
     for (const v of ["join_../x", "join_", "other", "", null]) expect(startTarget(v)).toBe("/dashboard");
   });
 });
+
+describe("startTarget — гильдия", () => {
+  it("код гильдии", () => {
+    expect(startTarget("guild_abcdefgh")).toBe("/guild/join/ABCDEFGH");
+  });
+  it("пустой или мусорный код — дашборд", () => {
+    for (const v of ["guild_", "guild_../x"]) expect(startTarget(v)).toBe("/dashboard");
+  });
+});

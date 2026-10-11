@@ -9,6 +9,8 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { telegramEnabled } from "@/lib/telegram/format";
+import { telegramGuildJoinUrl } from "@/lib/telegram/links";
 import { GuildEmblem } from "@/lib/guild/emblem";
 import { getMyGuild } from "@/lib/guild/queries";
 import { getRaidHistory, getRaidView } from "@/lib/raid/queries";
@@ -86,7 +88,12 @@ export default async function GuildPage() {
           <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Здесь появятся тренировки участников — поддерживайте их 👊.</p>
         )}
       </section>
-      <GuildInvite url={new URL(`/guild/join/${guild.code}`, env.APP_URL).toString()} code={guild.code} iLead={iLead} />
+      <GuildInvite
+        url={new URL(`/guild/join/${guild.code}`, env.APP_URL).toString()}
+        telegramUrl={telegramEnabled(env) ? telegramGuildJoinUrl(guild.code, env.TELEGRAM_BOT_USERNAME) : null}
+        code={guild.code}
+        iLead={iLead}
+      />
       <LeaveGuild blocked={leaveBlock(iLead, guild.members.length)} />
     </div>
   );

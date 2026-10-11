@@ -7,3 +7,8 @@ export function telegramJoinUrl(code: string, botUsername: string | undefined): 
 export function telegramAppUrl(botUsername: string | undefined): string | null {
   return botUsername ? `https://t.me/${botUsername}?startapp` : null;
 }
+
+/** Приглашение в гильдию через Telegram Mini App (startapp → /tg → экран вступления). Без бота — нет ссылки. */
+export function telegramGuildJoinUrl(code: string, botUsername: string | undefined): string | null {
+  return botUsername ? `https://t.me/${botUsername}?startapp=guild_${code}` : null;
+}
