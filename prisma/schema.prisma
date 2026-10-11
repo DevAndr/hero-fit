@@ -187,6 +187,8 @@ model User {
   coachTargets        CoachTarget[]
   coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
   coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
+  guildLed            Guild[]              @relation("GuildLeader")
+  guildMember         GuildMember?         @relation("GuildMember")
   coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
   coachProfile        CoachProfile?
@@ -808,4 +810,33 @@ model CoachGroupMember {
 
   @@id([groupId, clientId])
   @@index([clientId])
+}
+
+/// Гильдия игроков (рейды): до 10 участников, вход по ссылке /guild/join/<code>
+model Guild {
+  id        String   @id @default(cuid())
+  name      String
+  /// название без учёта регистра и лишних пробелов — уникально
+  nameKey   String   @unique
+  /// код значка — GUILD_EMBLEMS
+  emblem    String
+  /// приглашение; «Сменить ссылку» выдаёт новый
+  code      String   @unique
+  leaderId  String
+  createdAt DateTime @default(now())
+
+  leader  User          @relation("GuildLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  members GuildMember[]
+}
+
+/// Участник гильдии: у игрока одна гильдия (userId — ключ); joinedAt — с него урон в рейд
+model GuildMember {
+  userId   String   @id
+  guildId  String
+  joinedAt DateTime @default(now())
+
+  user  User  @relation("GuildMember", fields: [userId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
 }

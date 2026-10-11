@@ -46,7 +46,7 @@ export async function friendIds(userId: string) {
  * Границы недели (пн 00:00 – следующий пн 00:00) в поясе пользователя как timestamptz; offset 1 — прошлая.
  * Колонки хранят UTC без пояса, поэтому сравниваем с ("col" AT TIME ZONE 'UTC').
  */
-const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
+export const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
   SELECT (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset})) AT TIME ZONE ${timeZone} AS start_at,
          (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}) + interval '7 days') AT TIME ZONE ${timeZone} AS end_at
 `;

@@ -18,6 +18,7 @@ function revalidate() {
   revalidatePath("/leaderboard");
   revalidatePath("/friends");
   revalidatePath("/settings");
+  revalidatePath("/guild");
 }
 
 export async function setNicknameAction(input: string): Promise<Result> {

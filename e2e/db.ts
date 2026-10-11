@@ -92,6 +92,40 @@ export async function templateRow(templateId: string, exerciseName: string) {
   });
 }
 
+/** Ник пользователю (минуя UI). */
+export async function setNickname(login: string, nickname: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2) where login = $1`, [login, nickname]);
+  });
+}
+
+/** Гильдия пользователя: название и глава ли он; нет гильдии — null. */
+export async function guildOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; leader: boolean; code: string }>(
+      `select g.name, g."leaderId" = u.id as leader, g.code from "GuildMember" m join "Guild" g on g.id = m."guildId" join "User" u on u.id = m."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Добить гильдию пользователями-заглушками до n участников. */
+export async function fillGuild(code: string, n: number) {
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; c: number }>(
+      `select g.id, (select count(*)::int from "GuildMember" m where m."guildId" = g.id) c from "Guild" g where g.code = $1`,
+      [code],
+    );
+    for (let i = rows[0].c; i < n; i++) {
+      const uid = randomUUID();
+      const login = `e2e_fill_${uid.slice(0, 12)}`;
+      await db.query(`insert into "User" (id, login, email, "passwordHash", "updatedAt") values ($1, $2, $3, 'x', now())`, [uid, login, `${login}@test.local`]);
+      await db.query(`insert into "GuildMember" ("userId", "guildId") values ($1, $2)`, [uid, rows[0].id]);
+    }
+  });
+}
+
 /** Два пользователя-друга с никами — без прокликивания заявок. */
 export async function makeFriends(loginA: string, nickA: string, loginB: string, nickB: string) {
   await withDb(async (db) => {

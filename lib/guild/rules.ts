@@ -10,7 +10,7 @@ export const GUILD_EMBLEMS = [
   { code: "hammer", label: "Молот" },
   { code: "crown", label: "Корона" },
   { code: "flame", label: "Пламя" },
-  { code: "wolf", label: "Волк" },
+  { code: "paw", label: "Лапа" },
   { code: "skull", label: "Череп" },
   { code: "mountain", label: "Гора" },
   { code: "zap", label: "Молния" },
