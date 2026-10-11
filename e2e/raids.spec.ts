@@ -14,6 +14,9 @@ test("a guild member's workout hits the raid boss", async ({ browser }) => {
     const raid = await raidOf(a.login);
     expect(raid).not.toBeNull();
     expect(raid!.damage).toBeGreaterThan(0);
+    const summary = a.page.getByTestId("raid-damage");
+    await expect(summary).toContainText(`Урон по рейд-боссу: −${raid!.damage}`);
+    await expect(summary).toContainText("Древний");
     expect(raid!.hits).toEqual([{ login: a.login, damage: raid!.damage }]);
     expect(raid!.defeated).toBe(false);
   } finally {
@@ -29,6 +32,8 @@ test("a workout before joining does not count, the next one does", async ({ brow
   try {
     await createGuild(a.page, guildName(a.login));
     await quickWorkout(b.page, BENCH, [{ weight: "50", reps: "8" }]);
+    await expect(b.page.getByTestId("boss-damage")).toBeVisible();
+    await expect(b.page.getByTestId("raid-damage")).toHaveCount(0);
     await b.page.goto(await inviteUrl(a.page));
     await b.page.getByRole("button", { name: "Вступить" }).click();
     await expect(b.page).toHaveURL(/\/guild$/);
@@ -50,6 +55,9 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     const first = (await raidOf(a.login))!;
     await setRaidHp(a.login, first.damage + 1);
     await quickWorkout(b.page, BENCH, [{ weight: "40", reps: "10" }]);
+    const kill = b.page.getByTestId("raid-damage");
+    await expect(kill).toContainText("Рейд-босс повержен!");
+    await expect(kill.getByRole("link", { name: "Забрать сундук" })).toHaveAttribute("href", "/guild");
 
     const raid = (await raidOf(a.login))!;
     expect(raid.defeated).toBe(true);
