@@ -31,6 +31,20 @@ test("calendar in the navigation", async ({ page, isMobile }) => {
   await expect(page.getByRole("heading", { name: "Календарь" })).toBeVisible();
 });
 
+test("a plan without a template needs a title — the template is optional", async ({ page }) => {
+  await registerUser(page);
+  await page.goto(THURSDAY);
+  await page.getByRole("button", { name: "Запланировать", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая тренировка" });
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByText("Введите название тренировки")).toBeVisible();
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Название").fill("Кардио");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test("create a weekly plan and see it in week and month views", async ({ page, isMobile }) => {
   await registerUser(page);
   await page.goto(THURSDAY);

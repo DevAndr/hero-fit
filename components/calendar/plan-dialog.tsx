@@ -82,7 +82,7 @@ function PlanForm({
       done(await updatePlanAction(state.event.key, scope, { templateId: templateId || null, title: finalTitle, date, time, durationMin }));
     });
   const submit = () => {
-    if (!finalTitle) return toast.error("Выберите шаблон или введите название");
+    if (!finalTitle) return toast.error("Введите название тренировки");
     if (state.mode === "edit") {
       if (state.event.recurring) setAskScope(true);
       else update("one");
