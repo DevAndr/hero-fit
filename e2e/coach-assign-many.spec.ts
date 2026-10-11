@@ -91,6 +91,10 @@ test("«Выбрать всех» checks every client", async ({ page, browser }
     await page.goto("/coach");
     await page.getByRole("button", { name: "Назначить нескольким" }).click();
     const picked = page.getByRole("dialog").getByRole("group", { name: "Клиенты" });
+    // Часть отмечена — «Выбрать всех» не отмечен (не «частично»: его галочку легко принять за «все»)
+    await picked.getByRole("checkbox", { name: "Аня" }).click();
+    await expect(picked.getByRole("checkbox", { name: "Выбрать всех" })).toHaveAttribute("aria-checked", "false");
+    await picked.getByRole("checkbox", { name: "Аня" }).click();
     await picked.getByRole("checkbox", { name: "Выбрать всех" }).click();
     for (const name of ["Аня", "Боря", "Вика"]) await expect(picked.getByRole("checkbox", { name })).toBeChecked();
     await picked.getByRole("checkbox", { name: "Выбрать всех" }).click();

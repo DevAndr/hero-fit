@@ -248,9 +248,9 @@ function ClientPicker({ clients, picked, onChange }: { clients: AssignClient[]; 
   return (
     <div role="group" aria-label="Клиенты" className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3">
       <Label className="flex items-center gap-2 font-semibold">
+        {/* Без «частично»: наш Checkbox рисует ту же галочку — её легко принять за «отмечены все» */}
         <Checkbox
           checked={all}
-          indeterminate={picked.length > 0 && !all}
           onCheckedChange={(v) => onChange(v === true ? clients.map((c) => c.id) : [])}
         />
         Выбрать всех
