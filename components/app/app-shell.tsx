@@ -78,7 +78,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+var(--tg-safe-top))] items-center pt-(--tg-safe-top) gap-3 border-b bg-background/95 px-4 backdrop-blur">
           <div className="lg:hidden">
             <Logo />
           </div>

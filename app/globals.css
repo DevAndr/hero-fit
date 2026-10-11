@@ -52,6 +52,9 @@
 }
 
 :root {
+  /* Безопасные зоны Telegram Mini App (TelegramMiniApp); вне Telegram — 0 */
+  --tg-safe-top: 0px;
+  --tg-safe-bottom: 0px;
   /* Нативные контролы (список <select>, иконки даты/времени, скроллбары) — в цвет темы */
   color-scheme: light;
   /* Сила свечения карточек card-glow (эксперимент) — на светлом фоне тише */

@@ -36,7 +36,7 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
 export function BottomNav() {
   const isActive = useIsActive();
   return (
-    <nav data-tour="nav" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+    <nav data-tour="nav" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[calc(env(safe-area-inset-bottom)+var(--tg-safe-bottom))] backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5">
         {NAV_ITEMS.filter((item) => item.mobile).map(({ href, label, icon: Icon }) => (
           <Link
