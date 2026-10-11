@@ -9,6 +9,7 @@ import { titlesUnlockedByWin } from "@/lib/titles/catalog";
 import { notifyCoachOnFinish } from "@/lib/coach/finish-notify";
 import type { ProgressionItem } from "@/lib/coach/progression";
 import { applyProgression } from "@/lib/coach/progression-apply";
+import { applyOwnProgression } from "@/lib/progress/own-progression";
 import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
@@ -36,8 +37,10 @@ export type FinishMeta = {
   usedFreezes: number;
   /** Тренировок за неделю этой тренировки (включая её). */
   weekCount: number;
-  /** Прогрессия заданий тренера по этой тренировке (нет — поля нет). */
+  /** Прогрессия по этой тренировке — заданий тренера или своего шаблона (нет — поля нет). */
   progression?: ProgressionItem[];
+  /** Чья прогрессия: own — свой шаблон; нет поля — тренера (и в старых записях). */
+  progressionSource?: "own";
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
   boss?: {
     week: string;
@@ -90,8 +93,9 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     });
     await tx.workoutExercise.deleteMany({ where: { workoutId, sets: { none: {} } } });
 
-    // Прогрессия заданий тренера: сравниваем выполненное с заданием (невыполненные подходы уже удалены)
+    // Прогрессия: сравниваем выполненное с целью (невыполненные подходы уже удалены). Шаблон либо свой, либо тренера
     const progression = await applyProgression(tx, userId, workout);
+    const ownProgression = await applyOwnProgression(tx, userId, workout);
 
     // Личные рекорды
     const records: NewRecord[] = [];
@@ -250,6 +254,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       weekCount,
       boss,
       ...(progression.items.length ? { progression: progression.items } : {}),
+      ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };
 
     await tx.xpEvent.create({

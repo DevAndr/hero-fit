@@ -201,7 +201,7 @@ export function WorkoutSummaryView({
         </section>
       ) : null}
 
-      {meta?.progression?.length ? <CoachProgression items={meta.progression} /> : null}
+      {meta?.progression?.length ? <ProgressionBlock items={meta.progression} title={meta.progressionSource === "own" ? "Прогрессия" : "План тренера"} /> : null}
 
       <section className="mt-6 space-y-3">
         <h2 className="text-lg font-bold">Упражнения</h2>
@@ -240,11 +240,11 @@ const PROGRESSION_ICON = {
   deload: { Icon: ArrowDown, className: "text-streak" },
 } as const;
 
-/** Прогрессия заданий тренера: что будет в следующий раз (FinishMeta.progression). */
-function CoachProgression({ items }: { items: ProgressionItem[] }) {
+/** Прогрессия — заданий тренера («План тренера») или своего шаблона: что будет в следующий раз (FinishMeta.progression). */
+function ProgressionBlock({ items, title }: { items: ProgressionItem[]; title: string }) {
   return (
-    <section aria-label="План тренера" className="mt-4 rounded-xl border p-4">
-      <h2 className="font-bold">План тренера</h2>
+    <section aria-label={title} className="mt-4 rounded-xl border p-4">
+      <h2 className="font-bold">{title}</h2>
       <ul className="mt-2 space-y-1 text-sm">
         {items.map((item) => {
           const { Icon, className } = PROGRESSION_ICON[item.kind];

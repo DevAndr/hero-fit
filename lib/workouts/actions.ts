@@ -12,7 +12,9 @@ import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
 import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
 import { templateAccessible } from "@/lib/coach/templates";
 import { getTemplateTargets } from "@/lib/coach/target-queries";
-import { plannedSets } from "@/lib/coach/targets";
+import { plannedSets, type Target } from "@/lib/coach/targets";
+import { ownTargets } from "@/lib/templates/progression";
+import { getOwnTemplateTargets } from "@/lib/templates/queries";
 import { markOnboarded } from "@/lib/onboarding/complete";
 import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
@@ -25,7 +27,7 @@ type PlannedExercise = { exerciseId: string; restSec: number; sets: { weight: nu
 
 // ───────────────────────────── Старт ─────────────────────────────
 
-/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из задания тренера или прошлой тренировки. */
+/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из цели прогрессии, задания тренера или прошлой тренировки. */
 async function fromTemplate(userId: string, id: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
   if (!(await templateAccessible(userId, id))) return null;
   const template = await db.workoutTemplate.findUnique({
@@ -41,7 +43,8 @@ async function fromTemplate(userId: string, id: string): Promise<{ name: string;
   if (!template) return null;
   const [last, targets] = await Promise.all([
     getLastPerformance(userId, template.exercises.map((e) => e.exerciseId)),
-    getTemplateTargets(userId, template.id),
+    // Свой шаблон — цели своей прогрессии; шаблон тренера — его задания
+    template.userId === userId ? ownTargets(template.exercises) : getTemplateTargets(userId, template.id),
   ]);
   return {
     name: template.name,
@@ -117,8 +120,9 @@ export async function createWorkoutAction(formData: FormData) {
     if (previous) {
       name = previous.name;
       templateId = previous.templateId ?? undefined;
-      // Шаблон активного тренера — поверх прошлого раза задания (прогрессия могла сдвинуть вес)
-      const targets = templateId ? await getTemplateTargets(user.id, templateId) : new Map();
+      // Поверх прошлого раза — цели своей прогрессии или задания активного тренера (прогрессия могла сдвинуть вес)
+      const own = templateId ? await getOwnTemplateTargets(user.id, templateId) : new Map<string, Target>();
+      const targets = own.size ? own : templateId ? await getTemplateTargets(user.id, templateId) : new Map<string, Target>();
       planned = previous.exercises.map((we) => {
         const sets = we.sets.map((s) => ({ weight: s.weight, reps: s.reps }));
         const target = targets.get(we.exerciseId);

@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { ownTargets } from "@/lib/templates/progression";
 
 const listSelect = {
   id: true,
@@ -42,7 +43,8 @@ export async function getTemplateForEdit(userId: string, id: string) {
           targetReps: true,
           targetWeight: true,
           restSec: true,
-          exercise: { select: { id: true, name: true, muscleGroups: true, defaultRestSec: true, archivedAt: true } },
+          step: true,
+          exercise: { select: { id: true, name: true, muscleGroups: true, defaultRestSec: true, archivedAt: true, isBodyweight: true } },
         },
       },
     },
@@ -50,3 +52,13 @@ export async function getTemplateForEdit(userId: string, id: string) {
 }
 
 export type TemplateForEdit = NonNullable<Awaited<ReturnType<typeof getTemplateForEdit>>>;
+
+/** Цели своей прогрессии по шаблону пользователя (не его шаблон — пусто). */
+export async function getOwnTemplateTargets(userId: string, templateId: string) {
+  const rows = await db.templateExercise.findMany({
+    where: { templateId, template: { userId } },
+    orderBy: { order: "asc" },
+    select: { exerciseId: true, targetSets: true, targetReps: true, targetWeight: true, step: true, fails: true },
+  });
+  return ownTargets(rows);
+}
