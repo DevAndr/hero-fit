@@ -45,7 +45,11 @@ export async function applyProgression(
     const done = mine.flatMap((e) => e.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0));
     const result = progressTarget({ target, template: { sets: te.targetSets, reps: te.targetReps }, done });
     if (!result) continue;
-    await tx.coachTarget.update({ where: { id: target.id }, data: { weight: result.weight, fails: result.fails } });
+    await tx.coachTarget.update({
+      where: { id: target.id },
+      // Время разгрузки — для сигнала тренеру «Застой на весе»
+      data: { weight: result.weight, fails: result.fails, ...(result.kind === "deload" ? { unloadedAt: new Date() } : {}) },
+    });
     items.push({
       exercise: mine[0].exercise.name,
       kind: result.kind,

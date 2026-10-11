@@ -2,6 +2,7 @@
 import { dayKey } from "@/lib/daily-login";
 import { plural } from "@/lib/format";
 import { streakStatus, streakValue, weekKey, type StreakUserFields } from "@/lib/progress/weekly-streak";
+import type { SignalKind } from "@/lib/coach/signals";
 
 export type ClientRow = {
   id: string;
@@ -18,35 +19,29 @@ export type ClientRow = {
   timeZone: string;
   /** Назначения тренера на эту неделю клиента: выполнено / всего; null — назначений нет. */
   plan: { done: number; total: number } | null;
+  /** Сигналы риска (lib/coach/signals.ts). */
+  signals: SignalKind[];
 };
 
-export type ClientFlags = { inactive: boolean; hints: number };
-
 const DAY = 86_400_000;
-const INACTIVE_MS = 7 * DAY;
 
 /** Как тренер и клиент видят друг друга: ник, иначе имя. Логин и почту не показываем. */
 export function clientDisplayName(u: { nickname: string | null; name: string | null }): string {
   return u.nickname || u.name || "Клиент";
 }
 
-export function clientFlags(row: ClientRow, now: Date): ClientFlags {
-  const since = row.lastWorkoutAt ?? row.linkedAt;
-  return { inactive: now.getTime() - since.getTime() >= INACTIVE_MS, hints: row.hints };
-}
-
-/** Сначала неактивные (без тренировок — выше всех, затем давние), потом с подсказками (давние выше), потом по свежести. */
-export function sortClients(rows: ClientRow[], now: Date): ClientRow[] {
-  const group = (r: ClientRow) => {
-    const f = clientFlags(r, now);
-    return f.inactive ? 0 : f.hints > 0 ? 1 : 2;
-  };
+/**
+ * Сначала с сигналами: больше сигналов — выше, при равенстве давняя последняя тренировка выше (без тренировок — выше
+ * всех); потом остальные — свежие выше.
+ */
+export function sortClients(rows: ClientRow[]): ClientRow[] {
   const last = (r: ClientRow) => r.lastWorkoutAt?.getTime() ?? -Infinity;
+  // Без тренировок у обоих: -Infinity − -Infinity = NaN — сравниваем явно
+  const cmp = (x: number, y: number) => (x === y ? 0 : x < y ? -1 : 1);
   return [...rows].sort((a, b) => {
-    const g = group(a) - group(b);
-    if (g) return g;
-    // В группах внимания давние выше, в остальных — свежие выше
-    return group(a) === 2 ? last(b) - last(a) : last(a) - last(b);
+    const s = b.signals.length - a.signals.length;
+    if (s) return s;
+    return a.signals.length ? cmp(last(a), last(b)) : cmp(last(b), last(a));
   });
 }
 

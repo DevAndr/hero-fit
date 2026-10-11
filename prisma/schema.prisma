@@ -132,12 +132,12 @@ model User {
   chestOpenedDay DateTime? @db.Date
 
   // Уведомления
-  notifyRest         Boolean @default(true)
-  notifyStreak       Boolean @default(true)
-  notifyAchievements Boolean @default(true)
-  notifySocial       Boolean @default(true)
-  notifyPlan         Boolean @default(true)
-  notifyRecap        Boolean @default(true)
+  notifyRest         Boolean   @default(true)
+  notifyStreak       Boolean   @default(true)
+  notifyAchievements Boolean   @default(true)
+  notifySocial       Boolean   @default(true)
+  notifyPlan         Boolean   @default(true)
+  notifyRecap        Boolean   @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
   /// вход в Telegram Mini App (id пользователя Telegram) — отдельно от уведомлений: /stop, «Отключить» и 403 его не трогают;
@@ -147,9 +147,11 @@ model User {
   telegramLinkedAt   DateTime?
   notifyTelegram     Boolean   @default(true)
   /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
-  planReminderMin    Int     @default(60)
+  planReminderMin    Int       @default(60)
   /// локальная дата последнего «Не потеряй streak!» (не чаще раза в день)
   streakReminderDay  String?
+  /// день (YYYY-MM-DD в поясе тренера) последней проверки сигналов клиентов
+  coachSignalsDay    String?
   /// неделя (пн), за которую уже ушёл push «Новая неделя — новый старт»
   recapNudgeWeek     String?
 
@@ -183,6 +185,8 @@ model User {
   coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
   coachTargets        CoachTarget[]
+  coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
+  clientSignals       CoachSignal[]        @relation("CoachSignalClient")
   coachProfile        CoachProfile?
   kudos               Kudos[]
 }
@@ -671,7 +675,7 @@ model BossWeek {
 /// Задание тренера клиенту по упражнению шаблона (режим тренера). Тренер — владелец шаблона.
 /// Связь — с упражнением, а не со строкой TemplateExercise: редактор шаблона пересоздаёт строки при сохранении.
 model CoachTarget {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   clientId   String
   templateId String
   exerciseId String
@@ -681,9 +685,11 @@ model CoachTarget {
   /// шаг прогрессии, кг (0,5…20); null — прогрессии нет
   step       Float?
   /// неудач подряд (прогрессия): на 3-й — разгрузка −10 %
-  fails      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  fails      Int       @default(0)
+  /// последняя разгрузка (прогрессия) — сигнал «Застой на весе»
+  unloadedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   client   User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -739,4 +745,29 @@ model LoginThrottle {
   windowStart DateTime
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
+}
+
+enum CoachSignalKind {
+  MISSED_PLAN // две последние назначенные тренировки не выполнены
+  STALLED // задание не выполняется 2 раза подряд или была разгрузка
+  ACTIVITY_DROP // тренировок вдвое меньше обычного
+  INACTIVE // 7 дней без тренировок
+}
+
+/// Сигнал риска клиента — для уведомления тренеру один раз на появление (показ считается на лету).
+/// Один открытый (resolvedAt = null) на тренер + клиент + тип — частичный уникальный индекс CoachSignal_open в миграции.
+model CoachSignal {
+  id         String          @id @default(cuid())
+  coachId    String
+  clientId   String
+  kind       CoachSignalKind
+  since      DateTime
+  createdAt  DateTime        @default(now())
+  notifiedAt DateTime?
+  resolvedAt DateTime?
+
+  coach  User @relation("CoachSignalCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  client User @relation("CoachSignalClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, clientId])
 }

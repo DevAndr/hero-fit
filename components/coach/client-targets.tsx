@@ -21,7 +21,7 @@ export function ClientTargets({ clientId, timeZone, templates }: { clientId: str
   const [open, setOpen] = useState<ClientTemplateTargets | null>(null);
   if (!templates.length) return null;
   return (
-    <section aria-label="Задания по шаблонам" className="space-y-2 rounded-xl border bg-card p-4">
+    <section id="targets" aria-label="Задания по шаблонам" className="space-y-2 rounded-xl border bg-card p-4">
       <h2 className="font-bold">Задания по шаблонам</h2>
       <p className="text-sm text-muted-foreground">Подходы, повторы и вес для клиента — подставятся при запуске шаблона.</p>
       <ul className="divide-y divide-border/60">

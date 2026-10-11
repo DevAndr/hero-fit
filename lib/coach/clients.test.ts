@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientDisplayName, clientFlags, clientWeek, lastWorkoutLabel, sortClients, type ClientRow } from "./clients";
+import { clientDisplayName, clientWeek, lastWorkoutLabel, sortClients, type ClientRow } from "./clients";
 
 const NOW = new Date("2026-10-09T12:00:00Z");
 const DAY = 86_400_000;
@@ -16,6 +16,7 @@ const row = (id: string, over: Partial<ClientRow> = {}): ClientRow => ({
   hints: 0,
   timeZone: "Europe/Moscow",
   plan: null,
+  signals: [],
   ...over,
 });
 
@@ -27,33 +28,17 @@ describe("clientDisplayName", () => {
   });
 });
 
-describe("clientFlags", () => {
-  it("7 суток без тренировок — неактивен", () => {
-    expect(clientFlags(row("a", { lastWorkoutAt: ago(7 * DAY) }), NOW).inactive).toBe(true);
-    expect(clientFlags(row("a", { lastWorkoutAt: ago(7 * DAY - 3_600_000) }), NOW).inactive).toBe(false);
-  });
-
-  it("без тренировок — неактивен, если подключён 7+ суток назад", () => {
-    expect(clientFlags(row("a", { lastWorkoutAt: null, linkedAt: ago(8 * DAY) }), NOW).inactive).toBe(true);
-    expect(clientFlags(row("a", { lastWorkoutAt: null, linkedAt: ago(2 * DAY) }), NOW).inactive).toBe(false);
-  });
-
-  it("подсказки прогрессии пробрасываются", () => {
-    expect(clientFlags(row("a", { hints: 3 }), NOW).hints).toBe(3);
-  });
-});
-
 describe("sortClients", () => {
-  it("сначала неактивные (без тренировок — выше всех), затем с подсказками, затем по свежести", () => {
+  it("сначала с сигналами (больше — выше, при равенстве давние выше, без тренировок — выше всех), затем по свежести", () => {
     const rows = [
-      row("today", { lastWorkoutAt: ago(3_600_000) }),
-      row("inactive10", { lastWorkoutAt: ago(10 * DAY) }),
-      row("hints2", { lastWorkoutAt: ago(2 * DAY), hints: 2 }),
-      row("never", { lastWorkoutAt: null, linkedAt: ago(8 * DAY) }),
-      row("oneDay", { lastWorkoutAt: ago(DAY) }),
-      row("hints5", { lastWorkoutAt: ago(5 * DAY), hints: 1 }),
+      row("fresh", { lastWorkoutAt: ago(3_600_000) }),
+      row("oneOld", { lastWorkoutAt: ago(10 * DAY), signals: ["INACTIVE"] }),
+      row("two", { lastWorkoutAt: ago(2 * DAY), signals: ["MISSED_PLAN", "STALLED"] }),
+      row("oneNever", { lastWorkoutAt: null, signals: ["INACTIVE"] }),
+      row("oneRecent", { lastWorkoutAt: ago(2 * DAY), signals: ["STALLED"] }),
+      row("day", { lastWorkoutAt: ago(DAY), hints: 3 }),
     ];
-    expect(sortClients(rows, NOW).map((r) => r.id)).toEqual(["never", "inactive10", "hints5", "hints2", "today", "oneDay"]);
+    expect(sortClients(rows).map((r) => r.id)).toEqual(["two", "oneNever", "oneOld", "oneRecent", "fresh", "day"]);
   });
 });
 

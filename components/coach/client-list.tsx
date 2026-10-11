@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { CalendarCheck, CircleAlert, Flame, TrendingUp } from "lucide-react";
-import { clientFlags, lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
+import { CalendarCheck, Flame, TrendingUp } from "lucide-react";
+import { SignalBadge } from "@/components/coach/signal-badge";
+import { lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 
-/** Клиенты тренера: метки внимания и сортировка — чистые функции lib/coach/clients.ts. */
+/** Клиенты тренера: сигналы риска (lib/coach/signals.ts) и сортировка (lib/coach/clients.ts). */
 export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
   return (
     <ul aria-label="Клиенты" className="divide-y divide-border/60 rounded-xl border bg-card">
       {rows.map((r) => {
-        const flags = clientFlags(r, now);
         return (
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="min-w-0">
@@ -20,16 +20,13 @@ export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {flags.inactive ? (
-                <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 font-semibold text-destructive">
-                  <CircleAlert className="size-3.5" aria-hidden />
-                  7+ дней без тренировок
-                </span>
-              ) : null}
-              {flags.hints ? (
+              {r.signals.map((kind) => (
+                <SignalBadge key={kind} kind={kind} />
+              ))}
+              {r.hints ? (
                 <span className="flex items-center gap-1 rounded-full bg-xp/10 px-2 py-0.5 font-semibold text-xp">
                   <TrendingUp className="size-3.5" aria-hidden />
-                  Пора увеличить вес: {flags.hints}
+                  Пора увеличить вес: {r.hints}
                 </span>
               ) : null}
               {r.plan ? (

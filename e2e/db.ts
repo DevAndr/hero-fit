@@ -173,12 +173,13 @@ export async function enableCoach(login: string, nickname: string) {
 }
 
 /** Активная связь тренер → клиент (минуя экран согласия). */
-export async function linkCoach(coachLogin: string, clientLogin: string) {
+export async function linkCoach(coachLogin: string, clientLogin: string, since?: Date) {
   await withDb(async (db) => {
-    await db.query(`insert into "CoachLink" (id, "coachId", "clientId") values ($1, $2, $3)`, [
+    await db.query(`insert into "CoachLink" (id, "coachId", "clientId", "createdAt") values ($1, $2, $3, coalesce($4, now()))`, [
       randomUUID(),
       await userId(db, coachLogin),
       await userId(db, clientLogin),
+      since ?? null,
     ]);
   });
 }
@@ -230,13 +231,22 @@ export async function coachTemplate(coachLogin: string, name: string, ownExercis
 }
 
 /** Разовое назначение тренера клиенту на дату (минуя UI); возвращает ключ вхождения `e:<id>`. */
-export async function coachAssignOnce(coachLogin: string, clientLogin: string, templateId: string, title: string, date: string, time = "19:00") {
+export async function coachAssignOnce(
+  coachLogin: string,
+  clientLogin: string,
+  templateId: string,
+  title: string,
+  date: string,
+  time = "19:00",
+  /** Когда назначено (по умолчанию — сейчас); назначенное позже своей даты сигналом пропуска не считается. */
+  assignedAt?: Date,
+) {
   return withDb(async (db) => {
     const id = randomUUID();
     await db.query(
-      `insert into "PlanEntry" (id, "userId", "coachId", "templateId", title, date, time, "durationMin", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, 60, now())`,
-      [id, await userId(db, clientLogin), await userId(db, coachLogin), templateId, title, date, time],
+      `insert into "PlanEntry" (id, "userId", "coachId", "templateId", title, date, time, "durationMin", "createdAt", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, 60, coalesce($8, now()), now())`,
+      [id, await userId(db, clientLogin), await userId(db, coachLogin), templateId, title, date, time, assignedAt ?? null],
     );
     return `e:${id}`;
   });
@@ -353,5 +363,52 @@ export async function telegramLoginId(login: string) {
   return withDb(async (db) => {
     const { rows } = await db.query<{ id: string | null }>(`select "telegramId"::text as id from "User" where login = $1`, [login]);
     return rows[0]?.id ?? null;
+  });
+}
+
+/** Подправить задание тренера (неудачи подряд, время разгрузки) — минуя прогрессию. */
+export async function coachTargetSet(clientLogin: string, exerciseName: string, patch: { fails?: number; unloadedAt?: Date }) {
+  await withDb(async (db) => {
+    await db.query(
+      `update "CoachTarget" t set fails = coalesce($3, t.fails), "unloadedAt" = coalesce($4, t."unloadedAt")
+       from "Exercise" e where e.id = t."exerciseId" and e.name = $2 and t."clientId" = $1`,
+      [await userId(db, clientLogin), exerciseName, patch.fails ?? null, patch.unloadedAt ?? null],
+    );
+  });
+}
+
+/** Уведомления тренеру (тип COACH) по порядку. */
+export async function coachNotifications(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; url: string }>(
+      `select title, url from "Notification" where "userId" = $1 and type = 'COACH' order by "createdAt"`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}
+
+/** Сигналы тренера (для проверки тика): тип и снят ли. */
+export async function coachSignals(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ kind: string; resolvedAt: Date | null }>(
+      `select kind, "resolvedAt" from "CoachSignal" where "coachId" = $1 order by "createdAt"`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}
+
+/** Пояс пользователя = пояс e2e сразу (браузер записывает его из cookie только на следующем запросе). */
+export async function setTimeZone(login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "timeZone" = $2 where id = $1`, [await userId(db, login), E2E_TZ]);
+  });
+}
+
+/** Сбросить день проверки сигналов тренера — следующий тик проверит его заново (без тестовых часов). */
+export async function resetCoachSignalsDay(coachLogin: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "coachSignalsDay" = null where id = $1`, [await userId(db, coachLogin)]);
   });
 }

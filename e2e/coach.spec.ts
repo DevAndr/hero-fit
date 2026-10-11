@@ -152,13 +152,14 @@ test("coach sees clients sorted with attention flags", async ({ page, browser })
     await seedWorkouts(fresh.login, "Жим штанги лёжа", [{ weight: 50, reps: 8, sets: 3 }], 1);
     await seedWorkouts(stale.login, "Жим штанги лёжа", [{ weight: 50, reps: 8, sets: 3 }], 8);
     await linkCoach(coach.login, fresh.login);
-    await linkCoach(coach.login, stale.login);
+    // Клиент с тренером давно — иначе отсчёт тишины идёт от связи
+    await linkCoach(coach.login, stale.login, new Date(Date.now() - 10 * 86_400_000));
 
     await page.goto("/coach");
     const rows = page.getByRole("list", { name: "Клиенты" }).getByRole("listitem");
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText(nickOf(stale.login, "Stale"));
-    await expect(rows.nth(0)).toContainText("7+ дней без тренировок");
+    await expect(rows.nth(0).getByTestId("client-signal")).toHaveText(["7+ дней без тренировок"]);
     await expect(rows.nth(1)).toContainText(nickOf(fresh.login, "Fresh"));
     await expect(rows.nth(1)).toContainText("вчера");
   } finally {

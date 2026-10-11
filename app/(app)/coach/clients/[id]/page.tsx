@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RemoveClientButton } from "@/components/coach/client-header";
+import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
 import { BodyMap } from "@/components/progress/body-map";
 import { HintBadge } from "@/components/stats/hint-badge";
@@ -12,6 +13,8 @@ import { WorkoutStatus } from "@/generated/prisma/enums";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName, clientWeek } from "@/lib/coach/clients";
 import { getClientPlan } from "@/lib/coach/plan-queries";
+import { clientSignals, signalText, type SignalKind } from "@/lib/coach/signals";
+import { getSignalInput } from "@/lib/coach/signals-queries";
 import { getClientTargets } from "@/lib/coach/target-queries";
 import { getClientWorkouts } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
@@ -77,7 +80,17 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
           </Link>
         ))}
       </nav>
-      {tab === "overview" ? <Overview clientId={client.id} streak={clientWeek(client, new Date(), tz).streak} tz={tz} xp={client.xp} base={base} /> : null}
+      {tab === "overview" ? (
+        <Overview
+          coachId={coach.id}
+          clientId={client.id}
+          linkedAt={linkedAt}
+          streak={clientWeek(client, new Date(), tz).streak}
+          tz={tz}
+          xp={client.xp}
+          base={base}
+        />
+      ) : null}
       {tab === "plan" ? <Plan coachId={coach.id} clientId={client.id} tz={tz} base={base} /> : null}
       {tab === "workouts" ? <Workouts clientId={client.id} coachId={coach.id} tz={tz} base={base} cursor={typeof query.cursor === "string" ? query.cursor : null} /> : null}
       {tab === "stats" ? <Stats clientId={client.id} tz={tz} base={base} /> : null}
@@ -85,9 +98,33 @@ export default async function CoachClientPage({ params, searchParams }: PageProp
   );
 }
 
-async function Overview({ clientId, streak, tz, xp, base }: { clientId: string; streak: number; tz: string; xp: number; base: string }) {
+/** Куда ведёт «Открыть» у сигнала в карточке клиента. */
+const SIGNAL_TAB: Record<SignalKind, string> = {
+  MISSED_PLAN: "?tab=plan",
+  STALLED: "?tab=plan#targets",
+  ACTIVITY_DROP: "?tab=workouts",
+  INACTIVE: "?tab=workouts",
+};
+
+async function Overview({
+  coachId,
+  clientId,
+  linkedAt,
+  streak,
+  tz,
+  xp,
+  base,
+}: {
+  coachId: string;
+  clientId: string;
+  linkedAt: Date;
+  streak: number;
+  tz: string;
+  xp: number;
+  base: string;
+}) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, recent] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent, signalInput] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
@@ -96,12 +133,32 @@ async function Overview({ clientId, streak, tz, xp, base }: { clientId: string; 
       select: { exerciseId: true, exercise: { select: { name: true } } },
       distinct: ["exerciseId"],
     }),
+    getSignalInput(coachId, clientId, tz, linkedAt, now),
   ]);
+  const signals = clientSignals(signalInput, now, tz);
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
   const hinted = recent.filter((r) => hints[r.exerciseId]);
 
   return (
     <div className="space-y-4">
+      {signals.length ? (
+        <section aria-label="Требует внимания" className="space-y-2 rounded-xl border border-destructive/30 bg-card p-4">
+          <h2 className="font-bold">Требует внимания</h2>
+          <ul className="space-y-2">
+            {signals.map((s) => (
+              <li key={s.kind} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <SignalBadge kind={s.kind} />
+                  <span className="text-sm text-muted-foreground">{signalText(s, tz)}</span>
+                </div>
+                <Link href={`${base}${SIGNAL_TAB[s.kind]}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  Открыть
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Tile label="За 7 дней" value={String(t.week)} />
         <Tile label="За 30 дней" value={String(t.month)} />
