@@ -250,3 +250,12 @@ describe("boss block", () => {
     expect(buildRecap(input({ boss: null }))).not.toHaveProperty("boss");
   });
 });
+
+describe("raid block", () => {
+  it("рейд гильдии недели — как есть; без рейда — поля нет", () => {
+    const raid = { name: "Древний Железный Голем", code: "golem", defeated: true, damage: 4000, hp: 3600, mine: 1200, place: 2, members: 3, mvp: false };
+    expect(buildRecap(input({ raid }))?.raid).toEqual(raid);
+    const data = buildRecap(input());
+    expect(data && "raid" in data).toBe(false);
+  });
+});

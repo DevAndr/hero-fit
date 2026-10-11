@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { achievementCodes, createRaid, mondayWeeksAgo, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
+import { achievementCodes, createRaid, mondayWeeksAgo, seedRaidHits, seedRecapWeek, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
 import { localAt } from "./tz";
 import { raidRewardXp } from "../lib/raid/rules";
 import { inviteUrl, player, twoInGuild, createGuild, guildName } from "./guild-helpers";
@@ -130,6 +130,23 @@ test("thursday reminder: guild is short of damage, once per raid", async ({ brow
     await runTick(request, localAt(week, "13:00", 3));
     expect(await reminders(a.login)).toBe(1);
     expect(await reminders(b.login)).toBe(1);
+  } finally {
+    await a.context.close();
+    await b.context.close();
+  }
+});
+
+test("weekly recap shows the guild raid", async ({ browser }) => {
+  test.slow();
+  const { a, b } = await twoInGuild(browser);
+  try {
+    const week = mondayWeeksAgo(2);
+    await seedRecapWeek(a.login, week, [{ day: 1, time: "19:00", exercise: BENCH, weight: 100, reps: 5, sets: 3, xp: 80 }]);
+    await seedRaidHits(a.login, week, 300, true);
+    await a.page.goto(`/recap/${week}`);
+    const block = a.page.getByRole("region", { name: "Рейд гильдии" });
+    await expect(block).toContainText("Повержен: Древний");
+    await expect(block).toContainText("мой вклад 300 · 1-е место из 1");
   } finally {
     await a.context.close();
     await b.context.close();
