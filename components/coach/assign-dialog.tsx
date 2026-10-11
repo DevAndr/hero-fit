@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { assignWorkoutAction, updateAssignmentAction } from "@/lib/coach/plan-actions";
+import { assignManyText } from "@/lib/coach/assign";
+import { assignManyAction, assignWorkoutAction, updateAssignmentAction } from "@/lib/coach/plan-actions";
 import type { PlanScope } from "@/lib/plans/edit";
 import { addDays, weekdayOf } from "@/lib/plans/expand";
 import { PLAN_DURATIONS } from "@/lib/plans/schema";
@@ -19,20 +20,26 @@ import { cn } from "@/lib/utils";
 
 export type AssignTemplate = { id: string; name: string };
 export type AssignEditItem = { key: string; templateId: string | null; date: string; time: string; durationMin: number; recurring: boolean };
-export type AssignDialogState = { mode: "create"; date: string } | { mode: "edit"; item: AssignEditItem };
+export type AssignClient = { id: string; name: string };
+/** create/edit — одному клиенту (вкладка «План»), many — нескольким (список /coach). */
+export type AssignDialogState = { mode: "create"; date: string } | { mode: "edit"; item: AssignEditItem } | { mode: "many"; date: string };
 
 const durationLabel = (m: number) => (m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ""}`);
 /** «До» по умолчанию — 8 недель. */
 const WEEKS = 8;
 
-/** «Назначить тренировку» / «Изменить назначение» — даты в поясе клиента. */
+/** «Назначить тренировку» / «Изменить назначение» / «Назначить нескольким» — даты в поясе каждого клиента. */
 export function AssignDialog({
   clientId,
+  clients = [],
   state,
   templates,
   onClose,
 }: {
-  clientId: string;
+  /** Клиент вкладки «План»; в режиме many — null. */
+  clientId: string | null;
+  /** Режим many: из кого выбирать. */
+  clients?: AssignClient[];
   state: AssignDialogState | null;
   templates: AssignTemplate[];
   onClose: () => void;
@@ -46,6 +53,7 @@ export function AssignDialog({
           <AssignForm
             key={shown.mode === "edit" ? shown.item.key : shown.date}
             clientId={clientId}
+            clients={clients}
             state={shown}
             templates={templates}
             onClose={onClose}
@@ -56,7 +64,19 @@ export function AssignDialog({
   );
 }
 
-function AssignForm({ clientId, state, templates, onClose }: { clientId: string; state: AssignDialogState; templates: AssignTemplate[]; onClose: () => void }) {
+function AssignForm({
+  clientId,
+  clients,
+  state,
+  templates,
+  onClose,
+}: {
+  clientId: string | null;
+  clients: AssignClient[];
+  state: AssignDialogState;
+  templates: AssignTemplate[];
+  onClose: () => void;
+}) {
   const initial = state.mode === "edit" ? state.item : { templateId: templates[0]?.id ?? null, date: state.date, time: "19:00", durationMin: 60, recurring: false };
   const [templateId, setTemplateId] = useState(initial.templateId ?? "");
   const [date, setDate] = useState(initial.date);
@@ -66,6 +86,8 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
   const [days, setDays] = useState<number[]>([weekdayOf(initial.date)]);
   const [until, setUntil] = useState(addDays(initial.date, WEEKS * 7 - 1));
   const [askScope, setAskScope] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const many = state.mode === "many";
   const [pending, startTransition] = useTransition();
   const durations = [...new Set([...PLAN_DURATIONS, initial.durationMin])].sort((a, b) => a - b);
 
@@ -75,7 +97,7 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
   };
   const update = (scope: PlanScope) =>
     startTransition(async () => {
-      if (state.mode !== "edit") return;
+      if (state.mode !== "edit" || !clientId) return;
       done(await updateAssignmentAction(clientId, state.item.key, scope, { templateId, date, time, durationMin }));
     });
   const submit = () => {
@@ -85,18 +107,18 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
       else update("one");
       return;
     }
-    startTransition(async () =>
-      done(
-        await assignWorkoutAction(clientId, {
-          templateId,
-          date,
-          time,
-          durationMin,
-          repeatWeekdays: repeat ? days : [],
-          endDate: repeat ? until : null,
-        }),
-      ),
-    );
+    const input = { templateId, date, time, durationMin, repeatWeekdays: repeat ? days : [], endDate: repeat ? until : null };
+    if (many) {
+      startTransition(async () => {
+        const result = await assignManyAction(picked, input);
+        if (!result.ok) return void toast.error(result.error);
+        toast.success(assignManyText(result.assigned, result.skipped));
+        onClose();
+      });
+      return;
+    }
+    if (!clientId) return;
+    startTransition(async () => done(await assignWorkoutAction(clientId, input)));
   };
 
   if (askScope) return <ScopeChoice pending={pending} onChoose={update} onCancel={() => setAskScope(false)} />;
@@ -110,8 +132,9 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
       }}
     >
       <DialogHeader>
-        <DialogTitle>{state.mode === "edit" ? "Изменить назначение" : "Назначить тренировку"}</DialogTitle>
+        <DialogTitle>{state.mode === "edit" ? "Изменить назначение" : many ? "Назначить нескольким" : "Назначить тренировку"}</DialogTitle>
       </DialogHeader>
+      {many ? <ClientPicker clients={clients} picked={picked} onChange={setPicked} /> : null}
       {templates.length ? (
         <div className="grid gap-1.5">
           <Label htmlFor="assign-template">Шаблон</Label>
@@ -164,7 +187,7 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
           </Select>
         </div>
       </div>
-      {state.mode === "create" ? (
+      {state.mode !== "edit" ? (
         <div className="grid gap-2">
           <Label className="flex items-center gap-2 font-normal">
             <Checkbox
@@ -210,11 +233,37 @@ function AssignForm({ clientId, state, templates, onClose }: { clientId: string;
         <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
           Отмена
         </Button>
-        <Button type="submit" disabled={pending || !templates.length || (repeat && !days.length)}>
+        <Button type="submit" disabled={pending || !templates.length || (repeat && !days.length) || (many && !picked.length)}>
           {pending ? <Loader2 className="animate-spin" /> : null}
           {state.mode === "edit" ? "Сохранить" : "Назначить"}
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/** Клиенты для назначения нескольким: «Выбрать всех» и по галочке на клиента. */
+function ClientPicker({ clients, picked, onChange }: { clients: AssignClient[]; picked: string[]; onChange: (ids: string[]) => void }) {
+  const all = clients.length > 0 && picked.length === clients.length;
+  return (
+    <div role="group" aria-label="Клиенты" className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3">
+      <Label className="flex items-center gap-2 font-semibold">
+        <Checkbox
+          checked={all}
+          indeterminate={picked.length > 0 && !all}
+          onCheckedChange={(v) => onChange(v === true ? clients.map((c) => c.id) : [])}
+        />
+        Выбрать всех
+      </Label>
+      {clients.map((c) => (
+        <Label key={c.id} className="flex items-center gap-2 font-normal">
+          <Checkbox
+            checked={picked.includes(c.id)}
+            onCheckedChange={(v) => onChange(v === true ? [...picked, c.id] : picked.filter((id) => id !== c.id))}
+          />
+          {c.name}
+        </Label>
+      ))}
+    </div>
   );
 }
