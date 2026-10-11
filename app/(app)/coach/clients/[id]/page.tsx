@@ -239,6 +239,11 @@ async function Workouts({ clientId, coachId, tz, base, cursor }: { clientId: str
                       <span className="sr-only">есть комментарий</span>
                     </span>
                   ) : null}
+                  {w.rpe !== null ? (
+                    <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums" title="Тяжесть тренировки">
+                      RPE {w.rpe}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-xs text-muted-foreground">{w.finishedAt ? day.format(w.finishedAt) : ""}</span>
               </span>

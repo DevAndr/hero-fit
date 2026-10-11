@@ -43,6 +43,11 @@ test("rate a workout: save, see it after reload, edit", async ({ page }) => {
   await card(page).getByRole("button", { name: "Изменить" }).click();
   await rate(page, 5, "болела спина");
   await expect(card(page)).toContainText("Тяжесть 5 — Нормально");
+
+  // В истории — колонка «RPE»
+  await page.goto("/stats");
+  const history = page.getByRole("region", { name: "История тренировок" });
+  await expect(history.getByRole("row").nth(1).getByRole("cell").last()).toHaveText("5");
 });
 
 test("the coach gets one notice for a hard workout and sees the rating", async ({ page, browser }) => {
@@ -66,6 +71,10 @@ test("the coach gets one notice for a hard workout and sees the rating", async (
   const block = page.getByRole("region", { name: "Оценка клиента" });
   await expect(block).toContainText("Тяжесть 10 — На пределе");
   await expect(block).toContainText("болела спина");
+
+  // Вкладка «Тренировки» клиента — значок оценки
+  await page.goto(`/coach/clients/${clientId}?tab=workouts`);
+  await expect(page.getByRole("list", { name: "Тренировки клиента" })).toContainText("RPE 10");
   await context.close();
 });
 
