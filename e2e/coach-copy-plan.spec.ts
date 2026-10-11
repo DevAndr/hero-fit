@@ -30,6 +30,8 @@ async function setup(page: Page, browser: Browser) {
   for (const c of [masha, borya]) await linkCoach(coach.login, c.login);
   await coachAssignOnce(coach.login, masha.login, tpl, "Ноги — база", localDate(3));
   await coachTarget(masha.login, tpl, SQUAT, { sets: 4, reps: 8, weight: 60, step: 2.5, fails: 2 });
+  // Только вес: без «С весами» не копируется
+  await coachTarget(masha.login, tpl, PRESS, { weight: 100 });
   await coachTarget(borya.login, tpl, SQUAT, { sets: 5, reps: 5 });
   await coachTarget(borya.login, tpl, PRESS, { sets: 3, reps: 12 });
   return { nick, masha, borya };
@@ -39,12 +41,18 @@ async function copyToBorya(page: Page, mashaLogin: string, withWeights: boolean)
   await page.goto(`/coach/clients/${await idOf(mashaLogin)}?tab=plan`);
   await page.getByRole("button", { name: "Скопировать план" }).click();
   const dialog = page.getByRole("dialog", { name: "Скопировать план" });
-  await expect(dialog).toContainText("Будет скопировано: 1 разовая тренировка, 1 задание");
   const picked = dialog.getByRole("group", { name: "Клиенты" });
-  await expect(picked).toContainText("перезапишется 1 задание");
+  // Без весов: задание только с весом не копируется, у перезаписанного вес и шаг сбросятся
+  await expect(dialog).toContainText("Будет скопировано: 1 разовая тренировка, 1 задание");
+  await expect(picked).toContainText("перезапишется 1 задание · вес и шаг сбросятся");
   await expect(dialog.getByRole("button", { name: "Скопировать", exact: true })).toBeDisabled();
   await picked.getByRole("checkbox", { name: "Боря" }).click();
-  if (withWeights) await dialog.getByRole("checkbox", { name: "С весами" }).click();
+  if (withWeights) {
+    await dialog.getByRole("checkbox", { name: "С весами" }).click();
+    await expect(dialog).toContainText("Будет скопировано: 1 разовая тренировка, 2 задания");
+    await expect(picked).toContainText("перезапишется 2 задания");
+    await expect(picked).not.toContainText("сбросятся");
+  }
   await dialog.getByRole("button", { name: "Скопировать", exact: true }).click();
   await expect(page.getByText("План скопирован 1 клиенту")).toBeVisible();
   await expect(dialog).toHaveCount(0);
@@ -72,10 +80,12 @@ test("copy a plan without weights", async ({ page, browser }) => {
 });
 
 test("copy with weights keeps weight and step", async ({ page, browser }) => {
+  test.slow();
   const { masha, borya } = await setup(page, browser);
   try {
     await copyToBorya(page, masha.login, true);
     expect(await coachTargetFull(borya.login, SQUAT)).toMatchObject({ sets: 4, reps: 8, weight: 60, step: 2.5, fails: 0 });
+    expect(await coachTargetFull(borya.login, PRESS)).toMatchObject({ sets: null, reps: null, weight: 100 });
   } finally {
     for (const c of [masha, borya]) await c.context.close();
   }

@@ -12,10 +12,12 @@ import { plural } from "@/lib/format";
 import { copyPlanText } from "@/lib/coach/plan-copy";
 import { copyPlanAction } from "@/lib/coach/plan-actions";
 
-export type CopyRecipient = { id: string; name: string; overwrite: number };
+/** Числа для обоих положений галочки «С весами»: on — с весами, off — без. */
+export type CopySummary = { on: string; off: string };
+export type CopyRecipient = { id: string; name: string; overwrite: { on: number; off: number } };
 
 /** «Скопировать план» во вкладке «План»: будущие назначения и задания клиента — другим клиентам тренера. */
-export function CopyPlanButton({ sourceId, summary, recipients }: { sourceId: string; summary: string; recipients: CopyRecipient[] }) {
+export function CopyPlanButton({ sourceId, summary, recipients }: { sourceId: string; summary: CopySummary; recipients: CopyRecipient[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -43,7 +45,7 @@ function CopyPlanForm({
   onDone,
 }: {
   sourceId: string;
-  summary: string;
+  summary: CopySummary;
   recipients: CopyRecipient[];
   onDone: () => void;
 }) {
@@ -68,15 +70,17 @@ function CopyPlanForm({
       onDone();
     });
 
-  const clients = recipients.map((r) => ({
-    id: r.id,
-    name: r.name,
-    hint: r.overwrite ? `перезапишется ${r.overwrite} ${plural(r.overwrite, "задание", "задания", "заданий")}` : undefined,
-  }));
+  const mode = withWeights ? "on" : "off";
+  const clients = recipients.map((r) => {
+    const n = r.overwrite[mode];
+    // Без весов перезапись стирает вес и шаг получателя — тренер должен это видеть
+    const hint = n ? `перезапишется ${n} ${plural(n, "задание", "задания", "заданий")}${withWeights ? "" : " · вес и шаг сбросятся"}` : undefined;
+    return { id: r.id, name: r.name, hint };
+  });
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Будет скопировано: {summary}</p>
+      <p className="text-sm text-muted-foreground">Будет скопировано: {summary[mode]}</p>
       <ClientPicker clients={clients} picked={picked} onChange={setPicked} />
       <Label className="flex items-center gap-2 font-normal">
         <Checkbox checked={withWeights} onCheckedChange={(v) => setWithWeights(v === true)} />С весами

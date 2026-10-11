@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
 import { AssignDialog, type AssignDialogState, type AssignTemplate } from "@/components/coach/assign-dialog";
 import { ClientTargets } from "@/components/coach/client-targets";
-import { CopyPlanButton, type CopyRecipient } from "@/components/coach/copy-plan-dialog";
+import { CopyPlanButton, type CopyRecipient, type CopySummary } from "@/components/coach/copy-plan-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { deleteAssignmentAction } from "@/lib/coach/plan-actions";
@@ -52,7 +52,7 @@ export function ClientPlan({
 }: {
   clientId: string;
   /** «Скопировать план» — есть что копировать и кому. */
-  copy: { summary: string; recipients: CopyRecipient[] } | null;
+  copy: { summary: CopySummary; recipients: CopyRecipient[] } | null;
   today: string;
   targets: ClientTemplateTargets[];
   timeZone: string;

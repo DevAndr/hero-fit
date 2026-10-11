@@ -198,12 +198,22 @@ async function Plan({ coachId, coachTz, clientId, tz, base }: { coachId: string;
     getPlanCopySource(coachId, clientId),
     getCopyRecipients(coachId, clientId, coachTz),
   ]);
-  // Сводка и «перезапишется» — по копии с весами: какие задания перезапишутся, от галочки почти не зависит
-  const copied = copyPlan(copySource, dayKey(now, tz), { withWeights: true });
-  const summary = copySummary(copied);
+  // Сводка и «перезапишется» — для обоих положений «С весами»: без весов задание только с весом не копируется
+  const today = dayKey(now, tz);
+  const on = copyPlan(copySource, today, { withWeights: true });
+  const off = copyPlan(copySource, today, { withWeights: false });
+  const summaryOn = copySummary(on);
+  const summaryOff = copySummary(off);
   const copy =
-    summary && recipients.length
-      ? { summary, recipients: recipients.map((r) => ({ id: r.id, name: r.name, overwrite: overwriteCount(copied.targets, r.keys) })) }
+    summaryOn && summaryOff && recipients.length
+      ? {
+          summary: { on: summaryOn, off: summaryOff },
+          recipients: recipients.map((r) => ({
+            id: r.id,
+            name: r.name,
+            overwrite: { on: overwriteCount(on.targets, r.keys), off: overwriteCount(off.targets, r.keys) },
+          })),
+        }
       : null;
   const strip = ({ key, title, date, time, durationMin, templateId, recurring, status, workoutId }: (typeof upcoming)[number]) => ({
     key,
