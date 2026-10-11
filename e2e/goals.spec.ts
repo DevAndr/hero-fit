@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { createGoal, goalOf, goalRewardXp, goalsOf, logWeight, withDb, userId } from "./db";
-import { quickWorkout, registerUser } from "./helpers";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { createGoal, enableCoach, goalOf, goalRewardXp, goalsOf, idOf, linkCoach, logWeight, makeFriends, setPrivacy, withDb, userId } from "./db";
+import { quickWorkout, registerUser, runTick } from "./helpers";
 import { E2E_TZ } from "./tz";
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
@@ -130,4 +130,89 @@ test("goal on an archived own exercise still shows its name", async ({ page }) =
   await createGoal(login, { type: "STRENGTH", exerciseName: "Мой жим", target: 50 });
   await page.goto("/goals");
   await expect(page.getByRole("article", { name: "Мой жим — 50 кг" })).toBeVisible();
+});
+
+async function second(browser: Browser, name: string) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const user = await registerUser(page, name);
+  return { context, page, ...user };
+}
+
+test("workout summary: goal reached with a chest, progress for the rest", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await createGoal(login, { type: "STRENGTH", exerciseName: "Жим штанги лёжа", target: 60 });
+  await createGoal(login, { type: "STRENGTH", exerciseName: "Жим штанги лёжа", target: 100 });
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "60", reps: "5" }]);
+  const block = page.getByRole("region", { name: "Цели", exact: true });
+  await expect(block).toContainText("🎯 Цель достигнута: Жим штанги лёжа — 60 кг");
+  await expect(block.getByRole("button", { name: "Открыть сундук" })).toBeVisible();
+  await expect(block).toContainText("Жим штанги лёжа — 100 кг: 0 → 60 %");
+});
+
+test("dashboard goals card", async ({ page }) => {
+  const { login } = await registerUser(page);
+  const empty = page.getByRole("region", { name: "Цели", exact: true });
+  await expect(empty.getByRole("link", { name: /Поставь первую цель/ })).toHaveAttribute("href", "/goals");
+  await createGoal(login, { type: "WORKOUTS", target: 20 });
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Цели", exact: true })).toContainText("20 тренировок");
+  await expect(page.getByRole("region", { name: "Цели", exact: true })).toContainText("0 %");
+});
+
+test("friends feed shows a reached goal, without kilograms when weights are hidden", async ({ page, browser }) => {
+  const { login } = await registerUser(page, "Маша");
+  const friend = await second(browser, "Боря");
+  try {
+    await makeFriends(login, `masha${Date.now() % 100000}`, friend.login, `borya${Date.now() % 100000}`);
+    await createGoal(login, { type: "STRENGTH", exerciseName: "Жим штанги лёжа", target: 60 });
+    await quickWorkout(page, "Жим штанги лёжа", [{ weight: "60", reps: "5" }]);
+
+    await friend.page.goto("/friends");
+    await expect(friend.page.getByText("Цель: Жим штанги лёжа — 60 кг")).toBeVisible();
+    await setPrivacy(login, { hideWeights: true });
+    await friend.page.reload();
+    await expect(friend.page.getByText("Цель: Жим штанги лёжа", { exact: true })).toBeVisible();
+    await expect(friend.page.getByText("Цель: Жим штанги лёжа — 60 кг")).toHaveCount(0);
+  } finally {
+    await friend.context.close();
+  }
+});
+
+test("coach sees the client's goals", async ({ page, browser }) => {
+  const { login } = await registerUser(page, "Клиент");
+  const coach = await second(browser, "Тренер");
+  try {
+    await enableCoach(coach.login, `coach${Date.now() % 100000}`);
+    await linkCoach(coach.login, login);
+    await logWeight(login, daysFromToday(-1), 90);
+    await createGoal(login, { type: "BODY_WEIGHT", target: 80, startValue: 90 });
+    await coach.page.goto(`/coach/clients/${await idOf(login)}`);
+    const goals = coach.page.getByRole("region", { name: "Цели клиента" });
+    await expect(goals.getByRole("article", { name: "Вес тела — 80 кг ↓" })).toBeVisible();
+    await expect(goals.getByRole("button", { name: "Действия с целью" })).toHaveCount(0);
+  } finally {
+    await coach.context.close();
+  }
+});
+
+test("deadline passed: the tick fails the goal, «set again» reopens it", async ({ page, request }) => {
+  const { login } = await registerUser(page);
+  await createGoal(login, {
+    type: "WORKOUTS",
+    target: 20,
+    deadline: daysFromToday(-3),
+    createdAt: new Date(Date.now() - 10 * 86_400_000),
+  });
+  await runTick(request);
+  await page.goto("/goals");
+  const history = page.getByRole("region", { name: "История" });
+  await expect(history).toContainText("Не успел · пройдено 0 %");
+  await history.getByRole("link", { name: "Поставить снова" }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая цель" });
+  await expect(dialog.getByLabel("Цель, тренировок")).toHaveValue("20");
+  await page.keyboard.press("Escape");
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: /Уведомления/ }).click();
+  await expect(page.getByText("Срок цели вышел")).toBeVisible();
 });
