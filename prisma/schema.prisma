@@ -50,6 +50,7 @@ enum AchievementCategory {
   MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
   LEAGUE // места в недельной лиге друзей (из итогов недели)
   BOSS // победы над боссом недели
+  GUILD // победы в рейдах гильдии
 }
 
 enum NotificationType {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createRaid, mondayWeeksAgo, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
+import { achievementCodes, createRaid, mondayWeeksAgo, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
 import { localAt } from "./tz";
 import { raidRewardXp } from "../lib/raid/rules";
 import { inviteUrl, player, twoInGuild, createGuild, guildName } from "./guild-helpers";
@@ -63,6 +63,9 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     const raid = (await raidOf(a.login))!;
     expect(raid.defeated).toBe(true);
     expect(raid.mvp).toBe(a.login);
+    // Добивший получает «Рейдер» сразу при завершении тренировки
+    expect(await achievementCodes(b.login)).toContain("raid:1");
+    expect(await achievementCodes(a.login)).not.toContain("raid:1");
 
     for (const p of [a, b]) {
       await p.page.goto("/guild");
@@ -83,6 +86,8 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     await a.page.getByRole("button", { name: "Открыть сундук рейда" }).click();
     await a.page.getByRole("button", { name: "Открыть сундук", exact: true }).click();
     await expect(a.page.getByTestId("chest-reward")).toHaveText(`+${raidRewardXp(raid.hp, 2, true)} XP`);
+    // Остальным бившим — при открытии сундука
+    await expect.poll(() => achievementCodes(a.login)).toEqual(expect.arrayContaining(["raid:1", "raidmvp:1"]));
 
     await a.page.goto("/dashboard");
     await expect(a.page.getByRole("region", { name: "Гильдия" })).toContainText("Рейд-босс повержен");

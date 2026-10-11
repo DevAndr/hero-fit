@@ -590,3 +590,14 @@ export async function notificationBodies(login: string) {
     return rows.map((r) => r.body);
   });
 }
+
+/** Коды полученных ачивок пользователя. */
+export async function achievementCodes(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ code: string }>(
+      `select a.code from "UserAchievement" a join "User" u on u.id = a."userId" where u.login = $1`,
+      [login],
+    );
+    return rows.map((r) => r.code);
+  });
+}
