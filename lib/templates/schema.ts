@@ -8,6 +8,8 @@ export const templateExerciseSchema = z.object({
   targetReps: z.number().int().min(0).max(100).nullable(),
   targetWeight: z.number().min(0).max(1000).nullable(),
   restSec: z.number().int().min(0).max(MAX_REST_SEC),
+  /** Своя прогрессия: шаг, кг; работает при заданном весе. */
+  step: z.number().min(0.5, "Шаг от 0,5 кг").max(20, "Шаг до 20 кг").nullable().default(null),
 });
 
 export const templateSchema = z.object({
@@ -20,7 +22,12 @@ export const templateSchema = z.object({
   exercises: z
     .array(templateExerciseSchema)
     .min(1, "Добавьте хотя бы одно упражнение")
-    .max(MAX_EXERCISES, `Максимум ${MAX_EXERCISES} упражнений`),
+    .max(MAX_EXERCISES, `Максимум ${MAX_EXERCISES} упражнений`)
+    .superRefine((items, ctx) =>
+      items.forEach((e, i) => {
+        if (e.step !== null && e.targetWeight === null) ctx.addIssue({ code: "custom", message: "Для прогрессии нужен вес", path: [i, "step"] });
+      }),
+    ),
 });
 
 export type TemplateInput = z.input<typeof templateSchema>;
