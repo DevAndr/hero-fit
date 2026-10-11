@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ScopeChoice } from "@/components/calendar/plan-dialog";
+import { ClientPicker } from "@/components/coach/client-picker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -239,31 +240,5 @@ function AssignForm({
         </Button>
       </DialogFooter>
     </form>
-  );
-}
-
-/** Клиенты для назначения нескольким: «Выбрать всех» и по галочке на клиента. */
-function ClientPicker({ clients, picked, onChange }: { clients: AssignClient[]; picked: string[]; onChange: (ids: string[]) => void }) {
-  const all = clients.length > 0 && picked.length === clients.length;
-  return (
-    <div role="group" aria-label="Клиенты" className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3">
-      <Label className="flex items-center gap-2 font-semibold">
-        {/* Без «частично»: наш Checkbox рисует ту же галочку — её легко принять за «отмечены все» */}
-        <Checkbox
-          checked={all}
-          onCheckedChange={(v) => onChange(v === true ? clients.map((c) => c.id) : [])}
-        />
-        Выбрать всех
-      </Label>
-      {clients.map((c) => (
-        <Label key={c.id} className="flex items-center gap-2 font-normal">
-          <Checkbox
-            checked={picked.includes(c.id)}
-            onCheckedChange={(v) => onChange(v === true ? [...picked, c.id] : picked.filter((id) => id !== c.id))}
-          />
-          {c.name}
-        </Label>
-      ))}
-    </div>
   );
 }

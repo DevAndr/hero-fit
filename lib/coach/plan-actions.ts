@@ -7,6 +7,9 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireClientOf, requireCoach } from "@/lib/coach/access";
 import { ASSIGN_MANY_MAX, assignInputSchema, assignmentText, pickClients, type AssignInput } from "@/lib/coach/assign";
+import { copyPlan, copySummary } from "@/lib/coach/plan-copy";
+import { getPlanCopySource } from "@/lib/coach/plan-copy-queries";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notifications/service";
 import { planEdit, type PlanScope } from "@/lib/plans/edit";
@@ -106,6 +109,68 @@ export async function assignManyAction(
   for (const clientId of chosen) revalidatePath(`/coach/clients/${clientId}`);
   revalidatePath("/coach");
   return { ok: true, assigned: chosen.length, skipped };
+}
+
+/**
+ * Копировать план клиента (будущие назначения тренера и задания по их шаблонам) другим своим клиентам. Добавляется
+ * рядом с их планом; задания по тем же шаблону и упражнению перезаписываются, счётчик неудач — с нуля.
+ */
+export async function copyPlanAction(
+  sourceId: string,
+  clientIds: string[],
+  opts: { withWeights: boolean },
+): Promise<{ ok: true; copied: number; skipped: number } | { ok: false; error: string }> {
+  const { client: source, coach } = await requireClientOf(String(sourceId));
+  const ids = clientIdsSchema.safeParse(clientIds);
+  if (!ids.success) return { ok: false, error: ids.error.issues[0]?.message ?? "Выберите клиентов" };
+  const today = dayKey(new Date(), safeTimeZone(source.timeZone));
+  const plan = copyPlan(await getPlanCopySource(coach.id, source.id), today, { withWeights: opts?.withWeights === true });
+  const summary = copySummary(plan);
+  if (!summary) return { ok: false, error: "Нечего копировать" };
+
+  const links = await db.coachLink.findMany({
+    where: { coachId: coach.id, endedAt: null, clientId: { not: source.id } },
+    select: { clientId: true },
+  });
+  const { ids: chosen, skipped } = pickClients(ids.data, links.map((l) => l.clientId));
+  if (!chosen.length) return { ok: false, error: "Клиенты не найдены" };
+
+  // Ссылка уведомления — на первую скопированную дату
+  const first = [...plan.series.map((s) => addDays(s.startDate, (s.weekday - weekdayOf(s.startDate) + 7) % 7)), ...plan.entries.map((e) => e.date)]
+    .toSorted()[0] ?? today;
+  await db.$transaction(
+    async (tx) => {
+      // По очереди: у транзакции одно соединение
+      for (const clientId of chosen) {
+        if (plan.series.length)
+          await tx.planSeries.createMany({ data: plan.series.map((s) => ({ ...s, userId: clientId, coachId: coach.id })) });
+        if (plan.entries.length)
+          await tx.planEntry.createMany({
+            data: plan.entries.map(({ cancelled: _, ...e }) => ({ ...e, userId: clientId, coachId: coach.id })),
+          });
+        for (const { templateId, exerciseId, sets, reps, weight, step } of plan.targets) {
+          await tx.coachTarget.upsert({
+            where: { clientId_templateId_exerciseId: { clientId, templateId, exerciseId } },
+            create: { clientId, templateId, exerciseId, sets, reps, weight, step },
+            update: { sets, reps, weight, step, fails: 0, unloadedAt: null },
+          });
+        }
+        await notify(
+          tx,
+          clientId,
+          { type: NotificationType.COACH, title: "Новый план от тренера", body: summary, url: `/calendar?date=${first}` },
+          { push: true },
+        );
+      }
+    },
+    // До 50 клиентов по нескольку запросов — стандартных 5 с может не хватить
+    { timeout: 30_000 },
+  );
+  await queueGoal("coach_copy_plan");
+  for (const clientId of chosen) revalidatePath(`/coach/clients/${clientId}`);
+  revalidatePath("/coach");
+  revalidatePath("/training");
+  return { ok: true, copied: chosen.length, skipped };
 }
 
 /** Вхождение назначено именно этим тренером — иначе тренер его не трогает. */

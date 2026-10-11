@@ -285,6 +285,17 @@ export async function coachTargetRow(clientLogin: string, exerciseName: string) 
   });
 }
 
+/** Задание целиком (подходы, повторы, вес, шаг, неудачи) — для проверки копирования плана. */
+export async function coachTargetFull(clientLogin: string, exerciseName: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ sets: number | null; reps: number | null; weight: number | null; step: number | null; fails: number }>(
+      `select t.sets, t.reps, t.weight, t.step, t.fails from "CoachTarget" t join "Exercise" e on e.id = t."exerciseId" where t."clientId" = $1 and e.name = $2`,
+      [await userId(db, clientLogin), exerciseName],
+    );
+    return rows[0];
+  });
+}
+
 /** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
 export async function coachProfile(
   coachLogin: string,
