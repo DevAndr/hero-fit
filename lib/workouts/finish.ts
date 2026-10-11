@@ -5,6 +5,7 @@ import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/en
 import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
+import { applyRaidHit } from "@/lib/raid/apply";
 import { titlesUnlockedByWin } from "@/lib/titles/catalog";
 import { notifyCoachOnFinish } from "@/lib/coach/finish-notify";
 import type { ProgressionItem } from "@/lib/coach/progression";
@@ -53,6 +54,18 @@ export type FinishMeta = {
     defeated: boolean;
     /** Титулы, открытые этой победой (названия). */
     titles?: string[];
+  };
+  /** Рейд-босс гильдии: урон этой тренировки, HP до/после, победа; rewardXp — моя награда, если победа дала сундук. */
+  raid?: {
+    raidId: string;
+    code: string;
+    name: string;
+    damage: number;
+    hpBefore: number;
+    hpAfter: number;
+    hp: number;
+    defeated: boolean;
+    rewardXp?: number;
   };
 };
 
@@ -235,6 +248,9 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       ...(titles.length ? { titles } : {}),
     };
 
+    // Рейд гильдии — тем же уроном; окно рейда — по реальному времени (офлайн-финиш прошлой недели не бьёт)
+    const raid = await applyRaidHit(tx, { userId, workoutId, finishedAt: now, damage: hit.damage, crits: hit.crits, now: new Date() });
+
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
     const unlocked = await evaluateAchievements(tx, userId);
 
@@ -253,6 +269,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       usedFreezes: streak.frozenWeeks.length,
       weekCount,
       boss,
+      ...(raid ? { raid } : {}),
       ...(progression.items.length ? { progression: progression.items } : {}),
       ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };

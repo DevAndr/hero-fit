@@ -25,6 +25,7 @@ import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { GuildCard } from "@/components/guild/guild-card";
 import { getMyGuild } from "@/lib/guild/queries";
+import { getRaidView } from "@/lib/raid/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { BodyMap } from "@/components/progress/body-map";
@@ -132,6 +133,7 @@ export default async function DashboardPage() {
     activeCoachOf(user.id),
     getMyGuild(user.id, userTz),
   ]);
+  const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
@@ -265,7 +267,7 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <GuildCard guild={guild} />
+      <GuildCard guild={guild} raid={raid} />
 
       <section aria-label="Друзья недавно" className="space-y-3">
         <div className="flex items-center justify-between">
