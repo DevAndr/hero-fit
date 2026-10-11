@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { notificationUrls, raidOf, setRaidHp } from "./db";
+import { createRaid, mondayWeeksAgo, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
+import { localAt } from "./tz";
 import { raidRewardXp } from "../lib/raid/rules";
 import { inviteUrl, player, twoInGuild, createGuild, guildName } from "./guild-helpers";
-import { quickWorkout } from "./helpers";
+import { quickWorkout, runTick } from "./helpers";
 
 const BENCH = "Жим штанги лёжа";
 
@@ -93,6 +94,34 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     await expect(b.page.getByRole("button", { name: "Создать гильдию" })).toBeVisible();
     await a.page.goto("/guild");
     await expect(a.page.getByRole("list", { name: "Вклад в рейд" }).getByRole("listitem").filter({ hasText: "бывший участник" })).toHaveCount(1);
+  } finally {
+    await a.context.close();
+    await b.context.close();
+  }
+});
+
+test("thursday reminder: guild is short of damage, once per raid", async ({ browser, request }) => {
+  test.slow();
+  const { a, b } = await twoInGuild(browser);
+  try {
+    // Неделя в прошлом: фоновый воркер тикает по реальному времени и в неё не попадёт
+    const week = mondayWeeksAgo(3);
+    await createRaid(a.login, week, 5000);
+    // Только напоминания этого рейда (HP 5000): в реальный четверг воркер напомнит и про рейд текущей недели
+    const reminders = async (login: string) => (await notificationBodies(login)).filter((t) => t.includes("не хватает 5000")).length;
+
+    await runTick(request, localAt(week, "11:00", 3));
+    expect(await reminders(a.login)).toBe(0);
+
+    await runTick(request, localAt(week, "12:30", 3));
+    for (const p of [a, b]) {
+      expect(await notificationBodies(p.login)).toContain("Гильдии не хватает 5000 урона — до конца рейда 4 дня");
+      expect(await reminders(p.login)).toBe(1);
+    }
+
+    await runTick(request, localAt(week, "13:00", 3));
+    expect(await reminders(a.login)).toBe(1);
+    expect(await reminders(b.login)).toBe(1);
   } finally {
     await a.context.close();
     await b.context.close();

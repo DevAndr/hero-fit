@@ -89,7 +89,8 @@ describe("raidReminderDue", () => {
   const base = { tz: "Europe/Moscow", startsAt: new Date("2026-10-04T21:00:00Z"), defeated: false, notified: false };
   it("before Thursday noon", () => expect(raidReminderDue({ ...base, now: new Date("2026-10-08T08:59:00Z") })).toBe(false));
   it("Thursday noon", () => expect(raidReminderDue({ ...base, now: new Date("2026-10-08T09:00:00Z") })).toBe(true));
-  it("Friday", () => expect(raidReminderDue({ ...base, now: new Date("2026-10-09T05:00:00Z") })).toBe(true));
+  it("only on Thursday — not on Friday (the text says 4 days left)", () =>
+    expect(raidReminderDue({ ...base, now: new Date("2026-10-09T10:00:00Z") })).toBe(false));
   it("defeated", () => expect(raidReminderDue({ ...base, defeated: true, now: new Date("2026-10-08T10:00:00Z") })).toBe(false));
   it("already sent", () => expect(raidReminderDue({ ...base, notified: true, now: new Date("2026-10-08T10:00:00Z") })).toBe(false));
 });

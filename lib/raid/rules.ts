@@ -10,7 +10,7 @@ export const RAID_HP_FACTOR = 1.2;
 export const RAID_REWARD_CAP = 400;
 /** Сколько недель после победы можно открыть сундук. */
 export const RAID_CHEST_WEEKS = 4;
-/** Напоминание «не хватает урона» — с четверга этого часа (пояс главы). */
+/** Напоминание «не хватает урона» — в четверг с этого часа (пояс главы). */
 export const RAID_REMINDER_HOUR = 12;
 /** Сколько прошлых недель смотрим для доли участника. */
 export const RAID_HISTORY_WEEKS = 4;
@@ -70,13 +70,13 @@ export function chestOpenable(defeatedAt: Date, now: Date): boolean {
   return now.getTime() < defeatedAt.getTime() + RAID_CHEST_WEEKS * 7 * DAY_MS;
 }
 
-/** Пора напомнить: не повержен, не отправляли, с четверга 12:00 недели рейда в поясе tz. */
+/** Пора напомнить: не повержен, не отправляли, четверг недели рейда с 12:00 в поясе tz (только четверг — в тексте «4 дня»). */
 export function raidReminderDue(a: { now: Date; tz: string; startsAt: Date; defeated: boolean; notified: boolean }): boolean {
   if (a.defeated || a.notified) return false;
   // Середина четверга недели рейда → его календарный день
   const thursday = dayKey(new Date(localMidnight(weekKey(a.startsAt, a.tz), a.tz).getTime() + 3.5 * DAY_MS), a.tz);
   const today = dayKey(a.now, a.tz);
-  return today > thursday || (today === thursday && localHour(a.now, a.tz) >= RAID_REMINDER_HOUR);
+  return today === thursday && localHour(a.now, a.tz) >= RAID_REMINDER_HOUR;
 }
 
 export function raidReminderText(left: number): { title: string; body: string } {

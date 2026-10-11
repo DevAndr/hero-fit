@@ -567,3 +567,26 @@ export async function setRaidHp(login: string, hp: number) {
     if (!rowCount) throw new Error(`setRaidHp: нет рейда у ${login}`);
   });
 }
+
+/** Рейд гильдии игрока на неделю `week` (понедельник в поясе e2e) с заданным HP — для тиков с тестовыми часами. */
+export async function createRaid(login: string, week: string, hp: number) {
+  await withDb(async (db) => {
+    const startsAt = localAt(week, "00:00");
+    await db.query(
+      `insert into "RaidWeek" (id, "guildId", week, "startsAt", "endsAt", "bossCode", hp)
+       select $2, m."guildId", $3, $4, $5, 'golem', $6 from "GuildMember" m join "User" u on u.id = m."userId" where u.login = $1`,
+      [login, randomUUID(), week, startsAt, new Date(startsAt.getTime() + 7 * 86_400_000), hp],
+    );
+  });
+}
+
+/** Тексты уведомлений пользователя (новые первыми). */
+export async function notificationBodies(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ body: string }>(
+      `select n.body from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 order by n."createdAt" desc`,
+      [login],
+    );
+    return rows.map((r) => r.body);
+  });
+}
