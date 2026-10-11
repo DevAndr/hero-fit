@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { coachNotifications, enableCoach, idOf, linkCoach } from "./db";
+import { coachNotifications, enableCoach, idOf, linkCoach, readNotifications } from "./db";
 import { quickWorkout, registerUser } from "./helpers";
 
 /** Ник ≤ 20 символов и уникален между прогонами: хвост логина с меткой времени. */
@@ -40,7 +40,16 @@ test("rate a workout: save, see it after reload, edit", async ({ page }) => {
   await expect(card(page)).toContainText("Тяжесть 7 — Тяжело");
   await expect(card(page)).toContainText("болела спина");
 
+  // «Отмена» возвращает сохранённое
   await card(page).getByRole("button", { name: "Изменить" }).click();
+  await card(page).getByRole("radio", { name: "Тяжесть 3" }).click();
+  await card(page).getByLabel("Заметка").fill("всё отлично");
+  await card(page).getByRole("button", { name: "Отмена" }).click();
+  await expect(card(page)).toContainText("Тяжесть 7 — Тяжело");
+  await expect(card(page)).toContainText("болела спина");
+  await card(page).getByRole("button", { name: "Изменить" }).click();
+  await expect(card(page).getByRole("radio", { name: "Тяжесть 7" })).toBeChecked();
+  await expect(card(page).getByLabel("Заметка")).toHaveValue("болела спина");
   await rate(page, 5, "болела спина");
   await expect(card(page)).toContainText("Тяжесть 5 — Нормально");
 
@@ -50,7 +59,7 @@ test("rate a workout: save, see it after reload, edit", async ({ page }) => {
   await expect(history.getByRole("row").nth(1).getByRole("cell").last()).toHaveText("5");
 });
 
-test("the coach gets one notice for a hard workout and sees the rating", async ({ page, browser }) => {
+test("the coach gets a notice for a hard workout, then for a new note, and sees the rating", async ({ page, browser }) => {
   const { coach, clientPage, context, clientId } = await coachAndClient(page, browser);
   await quickWorkout(clientPage, "Жим штанги лёжа", [{ weight: "60", reps: "10" }]);
   const workoutId = new URL(clientPage.url()).pathname.split("/").pop()!;
@@ -65,16 +74,33 @@ test("the coach gets one notice for a hard workout and sees the rating", async (
   await card(clientPage).getByRole("button", { name: "Изменить" }).click();
   await rate(clientPage, 10, "болела спина");
   await expect(card(clientPage)).toContainText("Тяжесть 10 — На пределе");
-  expect(await coachNotifications(coach.login)).toHaveLength(1);
+  // Дописанная заметка: непрочитанное уведомление обновляется, второго нет
+  let all = await coachNotifications(coach.login);
+  expect(all).toHaveLength(1);
+  expect(all[0].title).toMatch(/: тяжесть 10\/10 · болела спина$/);
+
+  // Тренер прочитал — изменённая заметка приходит новым уведомлением; правка одной тяжести — нет
+  await readNotifications(coach.login);
+  await card(clientPage).getByRole("button", { name: "Изменить" }).click();
+  await rate(clientPage, 10, "болит колено");
+  // Пока сервер не ответил, текст ещё в поле — ждём свёрнутую карточку
+  await expect(card(clientPage).getByRole("button", { name: "Изменить" })).toBeVisible();
+  all = await coachNotifications(coach.login);
+  expect(all).toHaveLength(2);
+  expect(all[1].title).toMatch(/· болит колено$/);
+  await card(clientPage).getByRole("button", { name: "Изменить" }).click();
+  await rate(clientPage, 9, "болит колено");
+  await expect(card(clientPage)).toContainText("Тяжесть 9 — На пределе");
+  expect(await coachNotifications(coach.login)).toHaveLength(2);
 
   await page.goto(`/coach/clients/${clientId}/workouts/${workoutId}`);
   const block = page.getByRole("region", { name: "Оценка клиента" });
-  await expect(block).toContainText("Тяжесть 10 — На пределе");
-  await expect(block).toContainText("болела спина");
+  await expect(block).toContainText("Тяжесть 9 — На пределе");
+  await expect(block).toContainText("болит колено");
 
   // Вкладка «Тренировки» клиента — значок оценки
   await page.goto(`/coach/clients/${clientId}?tab=workouts`);
-  await expect(page.getByRole("list", { name: "Тренировки клиента" })).toContainText("RPE 10");
+  await expect(page.getByRole("list", { name: "Тренировки клиента" })).toContainText("RPE 9");
   await context.close();
 });
 

@@ -23,10 +23,22 @@ export function rpeLabel(rpe: number): string {
 /** Тяжесть, о которой тренеру стоит узнать сразу. */
 const HARD_RPE = 9;
 
-/** Тренеру — только если есть что сказать (заметка) или было на пределе, и только один раз на тренировку. */
-export function shouldNotifyCoach(f: { rpe: number; note: string | null; notifiedAt: Date | null }): boolean {
-  return f.notifiedAt === null && (f.note !== null || f.rpe >= HARD_RPE);
+/**
+ * Что сказать тренеру: `first` — первое уведомление (есть заметка или было на пределе), `update` — после него
+ * появилась или изменилась заметка; правка одной тяжести и удаление заметки не уведомляют.
+ */
+export function coachNotice(f: {
+  rpe: number;
+  note: string | null;
+  prevNote: string | null;
+  notifiedAt: Date | null;
+}): "first" | "update" | null {
+  if (f.notifiedAt === null) return f.note !== null || f.rpe >= HARD_RPE ? "first" : null;
+  return f.note !== null && f.note !== f.prevNote ? "update" : null;
 }
+
+/** Подпись уведомлений об оценке: по ней их отличают от других уведомлений тренера с той же ссылкой. */
+export const FEEDBACK_NOTICE_BODY = "Оценка тренировки";
 
 const NOTE_MAX = 80;
 

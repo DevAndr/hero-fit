@@ -55,6 +55,14 @@ export function WorkoutFeedback({ workoutId, rpe, note }: { workoutId: string; r
     });
   };
 
+  // Отмена правки: вернуть сохранённое
+  const cancel = () => {
+    if (!saved) return;
+    setValue(saved.rpe);
+    setText(saved.note ?? "");
+    setEditing(false);
+  };
+
   return (
     <section aria-label="Как прошла тренировка?" className="space-y-3 rounded-xl border bg-card p-4">
       <h2 className="font-bold">Как прошла тренировка?</h2>
@@ -107,9 +115,16 @@ export function WorkoutFeedback({ workoutId, rpe, note }: { workoutId: string; r
               {text.length}/{NOTE_MAX}
             </p>
           </div>
-          <Button onClick={save} disabled={value === null || pending}>
-            Сохранить
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={value === null || pending}>
+              Сохранить
+            </Button>
+            {saved ? (
+              <Button variant="ghost" onClick={cancel} disabled={pending}>
+                Отмена
+              </Button>
+            ) : null}
+          </div>
         </>
       )}
     </section>

@@ -388,6 +388,13 @@ export async function coachNotifications(coachLogin: string) {
   });
 }
 
+/** Отметить все уведомления пользователя прочитанными (как открытый колокольчик). */
+export async function readNotifications(login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "Notification" set "readAt" = now() where "userId" = $1 and "readAt" is null`, [await userId(db, login)]);
+  });
+}
+
 /** Сигналы тренера (для проверки тика): тип и снят ли. */
 export async function coachSignals(coachLogin: string) {
   return withDb(async (db) => {
