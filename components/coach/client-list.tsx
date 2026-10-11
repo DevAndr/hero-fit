@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { CalendarCheck, CircleAlert, Flame, TrendingUp } from "lucide-react";
+import { CalendarCheck, Flame, TrendingUp } from "lucide-react";
+import { SignalBadge } from "@/components/coach/signal-badge";
 import { lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 
-/** Клиенты тренера: метки внимания и сортировка — чистые функции lib/coach/clients.ts. */
+/** Клиенты тренера: сигналы риска (lib/coach/signals.ts) и сортировка (lib/coach/clients.ts). */
 export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
   return (
     <ul aria-label="Клиенты" className="divide-y divide-border/60 rounded-xl border bg-card">
@@ -19,12 +20,9 @@ export function ClientList({ rows, now }: { rows: ClientRow[]; now: Date }) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {r.signals.includes("INACTIVE") ? (
-                <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 font-semibold text-destructive">
-                  <CircleAlert className="size-3.5" aria-hidden />
-                  7+ дней без тренировок
-                </span>
-              ) : null}
+              {r.signals.map((kind) => (
+                <SignalBadge key={kind} kind={kind} />
+              ))}
               {r.hints ? (
                 <span className="flex items-center gap-1 rounded-full bg-xp/10 px-2 py-0.5 font-semibold text-xp">
                   <TrendingUp className="size-3.5" aria-hidden />

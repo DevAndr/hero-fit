@@ -355,3 +355,36 @@ export async function telegramLoginId(login: string) {
     return rows[0]?.id ?? null;
   });
 }
+
+/** Подправить задание тренера (неудачи подряд, время разгрузки) — минуя прогрессию. */
+export async function coachTargetSet(clientLogin: string, exerciseName: string, patch: { fails?: number; unloadedAt?: Date }) {
+  await withDb(async (db) => {
+    await db.query(
+      `update "CoachTarget" t set fails = coalesce($3, t.fails), "unloadedAt" = coalesce($4, t."unloadedAt")
+       from "Exercise" e where e.id = t."exerciseId" and e.name = $2 and t."clientId" = $1`,
+      [await userId(db, clientLogin), exerciseName, patch.fails ?? null, patch.unloadedAt ?? null],
+    );
+  });
+}
+
+/** Уведомления тренеру (тип COACH) по порядку. */
+export async function coachNotifications(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; url: string }>(
+      `select title, url from "Notification" where "userId" = $1 and type = 'COACH' order by "createdAt"`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}
+
+/** Сигналы тренера (для проверки тика): тип и снят ли. */
+export async function coachSignals(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ kind: string; resolvedAt: Date | null }>(
+      `select kind, "resolvedAt" from "CoachSignal" where "coachId" = $1 order by "createdAt"`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}

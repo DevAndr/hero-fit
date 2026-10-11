@@ -23,6 +23,8 @@ async function dropAssignments(tx: Tx, coachId: string, clientId: string) {
   await tx.planSeries.deleteMany({ where: { userId: clientId, coachId } });
   await tx.planEntry.deleteMany({ where: { userId: clientId, coachId, seriesId: null } });
   await tx.coachTarget.deleteMany({ where: { clientId, template: { userId: coachId } } });
+  // Сигналы пары закрываются: при повторной связи появятся заново и уведомят снова
+  await tx.coachSignal.updateMany({ where: { coachId, clientId, resolvedAt: null }, data: { resolvedAt: new Date() } });
 }
 
 /** Включить/выключить режим тренера. Выключение не разрывает связи — только скрывает раздел. */

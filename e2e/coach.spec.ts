@@ -158,7 +158,7 @@ test("coach sees clients sorted with attention flags", async ({ page, browser })
     const rows = page.getByRole("list", { name: "Клиенты" }).getByRole("listitem");
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText(nickOf(stale.login, "Stale"));
-    await expect(rows.nth(0)).toContainText("7+ дней без тренировок");
+    await expect(rows.nth(0).getByTestId("client-signal")).toHaveText(["Неактивен"]);
     await expect(rows.nth(1)).toContainText(nickOf(fresh.login, "Fresh"));
     await expect(rows.nth(1)).toContainText("вчера");
   } finally {
