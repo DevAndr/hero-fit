@@ -82,3 +82,27 @@ export function raidReminderDue(a: { now: Date; tz: string; startsAt: Date; defe
 export function raidReminderText(left: number): { title: string; body: string } {
   return { title: "Рейд-босс ещё стоит", body: `Гильдии не хватает ${left} урона — до конца рейда 4 дня` };
 }
+
+/**
+ * Окно нового рейда в поясе главы. Обычно — местная неделя now. Если глава сменил пояс: на восток — новый рейд
+ * начинается, когда кончился прошлый (окна не перекрываются); на запад, пока у него та же неделя, — прошлый рейд
+ * продлевается до его нового понедельника (иначе урон до него никуда не шёл бы).
+ */
+export function raidWindow(a: {
+  now: Date;
+  tz: string;
+  last: { week: string; endsAt: Date } | null;
+}): { week: string; startsAt: Date; endsAt: Date } | { extendTo: Date } {
+  const week = weekKey(a.now, a.tz);
+  const endsAt = localMidnight(addWeeks(week, 1), a.tz);
+  if (a.last && a.last.week >= week) return { extendTo: endsAt };
+  const start = localMidnight(week, a.tz);
+  const startsAt = a.last && a.last.endsAt > start ? a.last.endsAt : start;
+  return { week, startsAt, endsAt };
+}
+
+/** Дешёвый предфильтр тика: четверг 12:00 в любом поясе (−12…+14) выпадает на ср–пт по UTC; в другие дни рейды не читаем. */
+export function raidReminderDay(now: Date): boolean {
+  const d = now.getUTCDay();
+  return d >= 3 && d <= 5;
+}

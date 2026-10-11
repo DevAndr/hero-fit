@@ -12,6 +12,8 @@ import {
   raidReminderDue,
   raidReminderText,
   raidRewardXp,
+  raidReminderDay,
+  raidWindow,
 } from "./rules";
 
 const DAY = 24 * 3_600_000;
@@ -97,4 +99,37 @@ describe("raidReminderDue", () => {
 
 it("raidReminderText", () => {
   expect(raidReminderText(1200).body).toBe("Гильдии не хватает 1200 урона — до конца рейда 4 дня");
+});
+
+describe("raidWindow", () => {
+  const msk = "Europe/Moscow";
+  it("first raid — local week of now", () => {
+    const w = raidWindow({ now: new Date("2026-10-07T10:00:00Z"), tz: msk, last: null });
+    expect(w).toEqual({ week: "2026-10-05", startsAt: new Date("2026-10-04T21:00:00Z"), endsAt: new Date("2026-10-11T21:00:00Z") });
+  });
+  it("leader moved east: the new raid starts when the previous one ends (no overlap)", () => {
+    // Прошлый рейд по −10 кончается пн 10:00Z; глава теперь в +3 — его понедельник начался в вс 21:00Z
+    const last = { week: "2026-10-05", endsAt: new Date("2026-10-12T10:00:00Z") };
+    const w = raidWindow({ now: new Date("2026-10-12T11:00:00Z"), tz: msk, last });
+    expect(w).toEqual({ week: "2026-10-12", startsAt: last.endsAt, endsAt: new Date("2026-10-18T21:00:00Z") });
+  });
+  it("leader moved west: the same local week — the previous raid is extended to the new local Monday", () => {
+    // Прошлый рейд по +12 кончился вс 12:00Z; глава теперь в −10 — у него ещё воскресенье
+    const last = { week: "2026-10-05", endsAt: new Date("2026-10-11T12:00:00Z") };
+    const w = raidWindow({ now: new Date("2026-10-11T13:00:00Z"), tz: "Etc/GMT+10", last });
+    expect(w).toEqual({ extendTo: new Date("2026-10-12T10:00:00Z") });
+  });
+});
+
+describe("raidReminderDay", () => {
+  // Четверг 12:00 в поясах −12…+14 — это UTC от ср 22:00 до пт 00:00
+  it("Wednesday–Friday UTC — maybe", () => {
+    expect(raidReminderDay(new Date("2026-10-07T22:00:00Z"))).toBe(true);
+    expect(raidReminderDay(new Date("2026-10-08T12:00:00Z"))).toBe(true);
+    expect(raidReminderDay(new Date("2026-10-09T00:30:00Z"))).toBe(true);
+  });
+  it("other days — no work", () => {
+    expect(raidReminderDay(new Date("2026-10-05T12:00:00Z"))).toBe(false);
+    expect(raidReminderDay(new Date("2026-10-11T12:00:00Z"))).toBe(false);
+  });
 });
