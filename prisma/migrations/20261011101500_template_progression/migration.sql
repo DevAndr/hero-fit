@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "TemplateExercise" ADD COLUMN     "fails" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "step" DOUBLE PRECISION;

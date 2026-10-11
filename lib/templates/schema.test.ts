@@ -6,7 +6,7 @@ const item = { exerciseId: "e1", targetSets: 3, targetReps: 8, targetWeight: 60,
 describe("templateSchema", () => {
   it("accepts a valid template, trims name, empty description → null", () => {
     const r = templateSchema.parse({ name: "  Грудь  ", description: "", exercises: [item] });
-    expect(r).toEqual({ name: "Грудь", description: null, exercises: [item] });
+    expect(r).toEqual({ name: "Грудь", description: null, exercises: [{ ...item, step: null }] });
   });
 
   it("allows empty reps/weight targets", () => {

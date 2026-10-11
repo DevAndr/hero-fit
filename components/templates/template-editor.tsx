@@ -15,15 +15,18 @@ import type { MuscleGroup } from "@/generated/prisma/enums";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { saveTemplateAction } from "@/lib/templates/actions";
+import { progressionHint } from "@/lib/templates/progression";
 import type { TemplateForEdit } from "@/lib/templates/queries";
 
 type Item = {
   key: string;
-  exercise: { id: string; name: string; muscleGroups: MuscleGroup[]; archived: boolean };
+  exercise: { id: string; name: string; muscleGroups: MuscleGroup[]; archived: boolean; isBodyweight: boolean };
   targetSets: string;
   targetReps: string;
   targetWeight: string;
   restSec: string;
+  /** Своя прогрессия: шаг, кг. */
+  step: string;
 };
 
 let seq = 0;
@@ -38,6 +41,7 @@ function fromTemplate(template?: TemplateForEdit): Item[] {
     targetReps: str(e.targetReps),
     targetWeight: str(e.targetWeight),
     restSec: String(e.restSec ?? e.exercise.defaultRestSec),
+    step: str(e.step).replace(".", ","),
   }));
 }
 
@@ -91,11 +95,12 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
       ...cur,
       ...picked.map((e) => ({
         key: key(),
-        exercise: { id: e.id, name: e.name, muscleGroups: e.muscleGroups, archived: false },
+        exercise: { id: e.id, name: e.name, muscleGroups: e.muscleGroups, archived: false, isBodyweight: e.isBodyweight },
         targetSets: "3",
         targetReps: "",
         targetWeight: "",
         restSec: String(e.defaultRestSec),
+        step: "",
       })),
     ]);
 
@@ -110,6 +115,7 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
           targetReps: Math.round(parseNumber(i.targetReps)) || null,
           targetWeight: parseNumber(i.targetWeight) || null,
           restSec: Math.round(parseNumber(i.restSec)),
+          step: parseNumber(i.step) || null,
         })),
       });
       if (result.ok) {
@@ -190,6 +196,20 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
             <NumberCell label="Повторы" value={item.targetReps} onChange={(v) => update(item.key, { targetReps: v })} />
             <NumberCell label="Вес, кг" decimal value={item.targetWeight} onChange={(v) => update(item.key, { targetWeight: v })} />
             <NumberCell label="Отдых, с" value={item.restSec} onChange={(v) => update(item.key, { restSec: v })} />
+          </div>
+          <div className="mt-2 grid grid-cols-4 items-end gap-2">
+            <NumberCell label="Шаг, кг" decimal value={item.step} onChange={(v) => update(item.key, { step: v })} />
+            <p className="col-span-3 pb-2 text-xs text-muted-foreground">
+              {progressionHint(
+                {
+                  targetSets: Math.round(parseNumber(item.targetSets)) || 1,
+                  targetReps: Math.round(parseNumber(item.targetReps)) || null,
+                  targetWeight: parseNumber(item.targetWeight) || null,
+                  step: parseNumber(item.step) || null,
+                },
+                { bodyweight: item.exercise.isBodyweight },
+              ) ?? "Шаг — вес растёт сам, когда цель выполнена"}
+            </p>
           </div>
         </section>
       ))}

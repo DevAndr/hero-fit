@@ -356,6 +356,10 @@ model TemplateExercise {
   targetReps   Int?
   targetWeight Float?
   restSec      Int?
+  /// своя прогрессия: шаг, кг (0,5…20); работает при заданном targetWeight
+  step         Float?
+  /// неудач подряд (своя прогрессия): на 3-й — разгрузка −10 %
+  fails        Int    @default(0)
 
   template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)

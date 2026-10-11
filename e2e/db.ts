@@ -61,6 +61,37 @@ export async function seedWorkouts(
   });
 }
 
+/** Свой шаблон с одним упражнением (минуя UI); step — своя прогрессия. */
+export async function ownTemplate(
+  login: string,
+  name: string,
+  exerciseName: string,
+  row: { sets: number; reps: number | null; weight: number | null; step: number | null; fails?: number },
+) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "WorkoutTemplate" (id, "userId", name, "updatedAt") values ($1, $2, $3, now())`, [id, await userId(db, login), name]);
+    await db.query(
+      `insert into "TemplateExercise" (id, "templateId", "exerciseId", "order", "targetSets", "targetReps", "targetWeight", step, fails)
+       select $1, $2, e.id, 0, $4, $5, $6, $7, $8 from "Exercise" e where e.name = $3 and e."userId" is null`,
+      [randomUUID(), id, exerciseName, row.sets, row.reps, row.weight, row.step, row.fails ?? 0],
+    );
+    return id;
+  });
+}
+
+/** Строка своего шаблона по названию упражнения: вес цели, шаг, неудачи. */
+export async function templateRow(templateId: string, exerciseName: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ targetWeight: number | null; step: number | null; fails: number }>(
+      `select t."targetWeight", t.step, t.fails from "TemplateExercise" t join "Exercise" e on e.id = t."exerciseId"
+       where t."templateId" = $1 and e.name = $2`,
+      [templateId, exerciseName],
+    );
+    return rows[0];
+  });
+}
+
 /** Два пользователя-друга с никами — без прокликивания заявок. */
 export async function makeFriends(loginA: string, nickA: string, loginB: string, nickB: string) {
   await withDb(async (db) => {
