@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feedbackNotice, feedbackSchema, rpeLabel, shouldNotifyCoach } from "./feedback";
+import { coachNotice, feedbackNotice, feedbackSchema, rpeLabel } from "./feedback";
 
 describe("feedbackSchema", () => {
   it("тяжесть — целое 1…10, заметка до 500 символов", () => {
@@ -30,12 +30,19 @@ describe("rpeLabel", () => {
   });
 });
 
-describe("shouldNotifyCoach", () => {
-  it("заметка или тяжесть 9+, и только один раз", () => {
-    expect(shouldNotifyCoach({ rpe: 8, note: null, notifiedAt: null })).toBe(false);
-    expect(shouldNotifyCoach({ rpe: 9, note: null, notifiedAt: null })).toBe(true);
-    expect(shouldNotifyCoach({ rpe: 5, note: "плохо спал", notifiedAt: null })).toBe(true);
-    expect(shouldNotifyCoach({ rpe: 10, note: "x", notifiedAt: new Date() })).toBe(false);
+describe("coachNotice", () => {
+  const at = new Date();
+  it("первое — при заметке или тяжести 9+", () => {
+    expect(coachNotice({ rpe: 8, note: null, prevNote: null, notifiedAt: null })).toBeNull();
+    expect(coachNotice({ rpe: 9, note: null, prevNote: null, notifiedAt: null })).toBe("first");
+    expect(coachNotice({ rpe: 5, note: "плохо спал", prevNote: null, notifiedAt: null })).toBe("first");
+  });
+
+  it("после уведомления — только новая или изменённая заметка", () => {
+    expect(coachNotice({ rpe: 9, note: "болела спина", prevNote: null, notifiedAt: at })).toBe("update");
+    expect(coachNotice({ rpe: 9, note: "болит колено", prevNote: "болела спина", notifiedAt: at })).toBe("update");
+    expect(coachNotice({ rpe: 10, note: "болела спина", prevNote: "болела спина", notifiedAt: at })).toBeNull();
+    expect(coachNotice({ rpe: 10, note: null, prevNote: "болела спина", notifiedAt: at })).toBeNull();
   });
 });
 
