@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createRaid, mondayWeeksAgo, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
+import { achievementCodes, createRaid, mondayWeeksAgo, seedRaidHits, seedRecapWeek, notificationBodies, notificationUrls, raidOf, setRaidHp } from "./db";
 import { localAt } from "./tz";
 import { raidRewardXp } from "../lib/raid/rules";
 import { inviteUrl, player, twoInGuild, createGuild, guildName } from "./guild-helpers";
@@ -63,6 +63,9 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     const raid = (await raidOf(a.login))!;
     expect(raid.defeated).toBe(true);
     expect(raid.mvp).toBe(a.login);
+    // Добивший получает «Рейдер» сразу при завершении тренировки
+    expect(await achievementCodes(b.login)).toContain("raid:1");
+    expect(await achievementCodes(a.login)).not.toContain("raid:1");
 
     for (const p of [a, b]) {
       await p.page.goto("/guild");
@@ -83,6 +86,11 @@ test("victory: chest for every hitter, MVP bonus, a leaver keeps the damage", as
     await a.page.getByRole("button", { name: "Открыть сундук рейда" }).click();
     await a.page.getByRole("button", { name: "Открыть сундук", exact: true }).click();
     await expect(a.page.getByTestId("chest-reward")).toHaveText(`+${raidRewardXp(raid.hp, 2, true)} XP`);
+    // Остальным бившим — при открытии сундука
+    await expect.poll(() => achievementCodes(a.login)).toEqual(expect.arrayContaining(["raid:1", "raidmvp:1"]));
+
+    await a.page.goto("/guild");
+    await expect(a.page.getByRole("region", { name: "Лента гильдии" })).toContainText("повергла: Древний");
 
     await a.page.goto("/dashboard");
     await expect(a.page.getByRole("region", { name: "Гильдия" })).toContainText("Рейд-босс повержен");
@@ -122,6 +130,24 @@ test("thursday reminder: guild is short of damage, once per raid", async ({ brow
     await runTick(request, localAt(week, "13:00", 3));
     expect(await reminders(a.login)).toBe(1);
     expect(await reminders(b.login)).toBe(1);
+  } finally {
+    await a.context.close();
+    await b.context.close();
+  }
+});
+
+test("weekly recap shows the guild raid", async ({ browser }) => {
+  test.slow();
+  const { a, b } = await twoInGuild(browser);
+  try {
+    const week = mondayWeeksAgo(2);
+    await seedRecapWeek(a.login, week, [{ day: 1, time: "19:00", exercise: BENCH, weight: 100, reps: 5, sets: 3, xp: 80 }]);
+    // Глава восточнее на 4 часа: рейд недели начался раньше понедельника игрока
+    await seedRaidHits(a.login, week, 300, true, 4);
+    await a.page.goto(`/recap/${week}`);
+    const block = a.page.getByRole("region", { name: "Рейд гильдии" });
+    await expect(block).toContainText("Повержен: Древний");
+    await expect(block).toContainText("мой вклад 300 · 1-е место из 1");
   } finally {
     await a.context.close();
     await b.context.close();

@@ -76,6 +76,10 @@ export type AchievementStats = {
   leaguePlaces: Record<LeaguePlace, number>;
   /** Побед над боссом недели (BossWeek с defeatedAt). */
   bossWins: number;
+  /** Побед в рейдах гильдии, где бил до победы (RaidReward). */
+  raidWins: number;
+  /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
+  raidMvps: number;
 };
 
 export type LeaguePlace = 1 | 2 | 3;
@@ -112,6 +116,8 @@ export const EMPTY_STATS: AchievementStats = {
   freezeSaves: 0,
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
   bossWins: 0,
+  raidWins: 0,
+  raidMvps: 0,
 };
 
 export const WORKOUT_STEP = 5;
@@ -611,6 +617,33 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 1 ? "Победитель босса" : `Охотник на боссов ×${n}`,
           description: n === 1 ? "Победить босса недели" : `Победить ${n} ${plural(n, "босса", "боссов", "боссов")} недели`,
           xpReward: 30 + n * 5,
+        }),
+    },
+
+    // Рейды гильдии
+    {
+      fixed: [1, 5, 10, 25],
+      value: s.raidWins,
+      def: (n) =>
+        def(n, {
+          code: `raid:${n}`,
+          category: "GUILD",
+          title: n === 1 ? "Рейдер" : `Рейдер ×${n}`,
+          description:
+            n === 1 ? "Победить рейд-босса с гильдией" : `Победить ${n} ${plural(n, "рейд-босса", "рейд-боссов", "рейд-боссов")} с гильдией`,
+          xpReward: 30 + n * 5,
+        }),
+    },
+    {
+      fixed: [1, 5, 10],
+      value: s.raidMvps,
+      def: (n) =>
+        def(n, {
+          code: `raidmvp:${n}`,
+          category: "GUILD",
+          title: n === 1 ? "MVP рейда" : `MVP рейда ×${n}`,
+          description: n === 1 ? "Нанести больше всех урона в победном рейде" : `Стать MVP ${n} победных рейдов`,
+          xpReward: 40 + n * 5,
         }),
     },
 

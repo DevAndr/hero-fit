@@ -26,7 +26,7 @@ export async function createGuild(page: Page, name: string, emblem = "Молот
 }
 
 /** Ссылка-приглашение со страницы гильдии. */
-export const inviteUrl = async (page: Page) => (await page.getByRole("region", { name: "Пригласить" }).getByRole("textbox", { name: "Ссылка" }).inputValue());
+export const inviteUrl = async (page: Page) => (await page.getByRole("region", { name: "Пригласить" }).getByRole("textbox", { name: "Ссылка", exact: true }).inputValue());
 
 /** A создаёт гильдию, B вступает по ссылке. */
 export async function twoInGuild(browser: Browser) {

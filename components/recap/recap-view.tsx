@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
-import { ArrowDown, ArrowUp, Award, CalendarCheck, Flame, Medal, Snowflake, Swords, Trophy, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Award, CalendarCheck, Crown, Flame, Medal, Shield, Snowflake, Swords, Trophy, Users } from "lucide-react";
 import { BossChestButton } from "@/components/boss/boss-chest-button";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { bossName } from "@/lib/boss/bosses";
@@ -199,6 +199,31 @@ function Boss({ boss, week, chest }: { boss: NonNullable<RecapData["boss"]>; wee
   );
 }
 
+function Raid({ raid }: { raid: NonNullable<RecapData["raid"]> }) {
+  return (
+    <Block label="Рейд гильдии" icon={Shield}>
+      <div className="flex items-center gap-3" data-testid="recap-raid">
+        <BossSprite code={raid.code} raid defeated={raid.defeated} size={48} />
+        <div>
+          <p className="text-xl font-black">{raid.defeated ? `Повержен: ${raid.name}` : `${raid.name} устоял`}</p>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            Урон гильдии: {raid.damage} из {raid.hp}
+          </p>
+          <p className="flex items-center gap-1 text-sm tabular-nums">
+            {raid.mvp ? (
+              <>
+                <Crown className="size-4 text-xp" aria-hidden />
+                <span className="sr-only">MVP</span>
+              </>
+            ) : null}
+            мой вклад {raid.mine} · {raid.place}-е место из {raid.members}
+          </p>
+        </div>
+      </div>
+    </Block>
+  );
+}
+
 /** Полные итоги недели: герой, прирост и блоки (пустые не показываются). */
 export function RecapView({ data, bossChest = false }: { data: RecapData; /** Сундук босса этой недели можно забрать. */ bossChest?: boolean }) {
   return (
@@ -221,6 +246,7 @@ export function RecapView({ data, bossChest = false }: { data: RecapData; /** С
         {data.muscles ? <RecapMuscles muscles={data.muscles} /> : null}
         {data.plan ? <Plan plan={data.plan} week={data.week} /> : null}
         {data.boss ? <Boss boss={data.boss} week={data.week} chest={bossChest} /> : null}
+        {data.raid ? <Raid raid={data.raid} /> : null}
       </div>
     </div>
   );

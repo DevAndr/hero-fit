@@ -111,27 +111,35 @@ export function GuildMembers({ members, meId, iLead }: { members: GuildMemberVie
 }
 
 /** Ссылка-приглашение: копировать; главе — «Сменить ссылку». */
-export function GuildInvite({ url, code, iLead }: { url: string; code: string; iLead: boolean }) {
+/** Поле со ссылкой и «Копировать». */
+function CopyLink({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <Input aria-label={label} readOnly value={value} onFocus={(e) => e.currentTarget.select()} />
+      <Button
+        variant="outline"
+        onClick={() => {
+          navigator.clipboard?.writeText(value).then(
+            () => toast.success("Ссылка скопирована"),
+            () => toast.error("Не удалось скопировать"),
+          );
+        }}
+      >
+        <Copy />
+        Копировать
+      </Button>
+    </div>
+  );
+}
+
+export function GuildInvite({ url, telegramUrl, code, iLead }: { url: string; telegramUrl: string | null; code: string; iLead: boolean }) {
   const { pending, run } = useGuildAction();
   return (
     <section aria-label="Пригласить" className="space-y-2 rounded-xl border bg-card p-4">
       <h2 className="font-bold">Пригласить</h2>
       <p className="text-sm text-muted-foreground">Отправьте ссылку — по ней вступают сразу. Код: <span className="font-mono">{code}</span></p>
-      <div className="flex gap-2">
-        <Input aria-label="Ссылка" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
-        <Button
-          variant="outline"
-          onClick={() => {
-            navigator.clipboard?.writeText(url).then(
-              () => toast.success("Ссылка скопирована"),
-              () => toast.error("Не удалось скопировать"),
-            );
-          }}
-        >
-          <Copy />
-          Копировать
-        </Button>
-      </div>
+      <CopyLink label="Ссылка" value={url} />
+      {telegramUrl ? <CopyLink label="Ссылка для Telegram" value={telegramUrl} /> : null}
       {iLead ? (
         <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(regenerateGuildCodeAction, () => toast.success("Старая ссылка больше не работает"))}>
           <RefreshCw />

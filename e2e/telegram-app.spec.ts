@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { coachProfile, createTelegramUser, createUserRow, enableCoach, linkTelegram, telegramChat, telegramLoginId, withDb } from "./db";
+import { coachProfile, createTelegramUser, createUserRow, enableCoach, guildOf, linkTelegram, telegramChat, telegramLoginId, withDb } from "./db";
+import { createGuild, guildName, player } from "./guild-helpers";
 import { PASSWORD, registerUser } from "./helpers";
 import { e2eInitData, mockTelegram } from "./telegram-webapp";
 
@@ -332,4 +333,24 @@ test("coach sees the Telegram invite link; trainer page offers Telegram", async 
   await guestPage.goto(`/trainer/${nick}`);
   await expect(guestPage.getByRole("link", { name: "Заниматься в Telegram" }).first()).toHaveAttribute("href", url);
   await guest.close();
+});
+
+// ───────────────────────────── Приглашение в гильдию через Telegram ─────────────────────────────
+
+test("guild invite via start_param; the guild page offers a Telegram link", async ({ browser, page }) => {
+  const lead = await player(browser, "Глава");
+  try {
+    const name = guildName(lead.login);
+    await createGuild(lead.page, name);
+    const { code } = (await guildOf(lead.login))!;
+    await expect(lead.page.getByRole("region", { name: "Пригласить" }).getByRole("textbox", { name: "Ссылка для Telegram" })).toHaveValue(
+      `https://t.me/hero_fit_e2e_bot?startapp=guild_${code}`,
+    );
+
+    await registerViaTelegram(page, newTelegramId(), "Маша", `guild_${code}`);
+    await expect(page).toHaveURL(new RegExp(`/guild/join/${code}$`));
+    await expect(page.getByRole("heading", { name: `Вступить в гильдию «${name}»?` })).toBeVisible();
+  } finally {
+    await lead.context.close();
+  }
 });

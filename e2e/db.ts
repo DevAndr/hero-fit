@@ -590,3 +590,41 @@ export async function notificationBodies(login: string) {
     return rows.map((r) => r.body);
   });
 }
+
+/** Коды полученных ачивок пользователя. */
+export async function achievementCodes(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ code: string }>(
+      `select a.code from "UserAchievement" a join "User" u on u.id = a."userId" where u.login = $1`,
+      [login],
+    );
+    return rows.map((r) => r.code);
+  });
+}
+
+/**
+ * Рейд гильдии игрока на неделю `week` (понедельник в поясе e2e) с ударами по его завершённым тренировкам этой недели:
+ * 100 за выполненный рабочий подход. defeated — рейд повержен (MVP — этот игрок); leaderEastHours — пояс главы восточнее.
+ */
+export async function seedRaidHits(login: string, week: string, hp: number, defeated: boolean, leaderEastHours = 0) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    // Окно рейда — в поясе главы: восточнее игрока на leaderEastHours часов
+    const startsAt = new Date(localAt(week, "00:00").getTime() - leaderEastHours * 3600_000);
+    const endsAt = new Date(startsAt.getTime() + 7 * 86_400_000);
+    const raidId = randomUUID();
+    await db.query(
+      `insert into "RaidWeek" (id, "guildId", week, "startsAt", "endsAt", "bossCode", hp, "defeatedAt", "mvpUserId")
+       select $1, m."guildId", $2, $3, $4, 'golem', $5, $6, $7 from "GuildMember" m where m."userId" = $8`,
+      [raidId, week, startsAt, endsAt, hp, defeated ? endsAt : null, defeated ? uid : null, uid],
+    );
+    await db.query(
+      `insert into "RaidHit" (id, "raidId", "userId", "workoutId", damage, crits)
+       select gen_random_uuid()::text, $1, $2, w.id,
+              100 * (select count(*) from "WorkoutExercise" we join "WorkoutSet" s on s."workoutExerciseId" = we.id
+                     where we."workoutId" = w.id and not s."isWarmup" and s."completedAt" is not null), 0
+       from "Workout" w where w."userId" = $2 and w.status = 'COMPLETED' and w."finishedAt" >= $3 and w."finishedAt" < $4`,
+      [raidId, uid, startsAt, endsAt],
+    );
+  });
+}

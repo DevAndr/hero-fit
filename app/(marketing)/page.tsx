@@ -3,6 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Users, X } from "lucide-react";
 import { Faq, FAQ } from "@/components/marketing/faq";
+import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
@@ -142,12 +143,19 @@ const COMPARE: [feature: string, notebook: boolean][] = [
 ];
 
 /** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
+const GUILD_POINTS = [
+  "Гильдия до 10 человек: вступают по ссылке, видят опыт друг друга за неделю и ленту тренировок",
+  "Рейд-босс недели — общий: HP подстраивается под силы гильдии",
+  "Сундук с опытом — каждому участнику, кто бил до победы; MVP, нанёсший больше всех урона, получает больше",
+];
+
 const FREE_PLAN = [
   "Тренировки без ограничений, шаблоны и готовые программы",
   "Своя база упражнений, таймер отдыха, калькуляторы",
   "Работа без интернета и push-уведомления",
   "Уровни, XP, ачивки, недельный streak и сундуки",
   "Босс недели, бестиарий и титулы",
+  "Гильдии до 10 человек и рейд-босс недели",
   "Друзья, лента и недельная лига",
   "Рекорды, подсказки прогрессии и основная статистика",
 ];
@@ -381,6 +389,40 @@ export default async function Home() {
           />
           <Reveal className="mt-12 lg:mt-14">
             <BestiaryStrip />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Гильдии и рейды */}
+      <section aria-labelledby="guilds" className="relative scroll-mt-20 overflow-hidden border-t">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_70%_30%,color-mix(in_oklch,var(--destructive)_12%,transparent),transparent_60%)]"
+        />
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-20 sm:py-24 lg:grid-cols-2 lg:gap-14">
+          <div>
+            <p className="text-sm font-semibold tracking-wide text-primary uppercase">Гильдии</p>
+            <h2 id="guilds" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+              Гильдии и рейды
+            </h2>
+            <p className="mt-4 text-pretty text-muted-foreground">
+              Собери команду и бейте общего босса. Каждая тренировка участника снимает ему HP — тот же урон, что и личному боссу недели.
+            </p>
+            <ul className="mt-6 space-y-3 text-sm">
+              {GUILD_POINTS.map((t) => (
+                <li key={t} className="flex gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8">
+              <Link href="/register" className={buttonVariants({ size: "lg" })}>
+                Собрать гильдию <ArrowRight aria-hidden />
+              </Link>
+            </div>
+          </div>
+          <Reveal>
+            <RaidInfographic />
           </Reveal>
         </div>
       </section>

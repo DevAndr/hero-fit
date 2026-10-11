@@ -50,6 +50,7 @@ enum AchievementCategory {
   MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
   LEAGUE // места в недельной лиге друзей (из итогов недели)
   BOSS // победы над боссом недели
+  GUILD // победы в рейдах гильдии
 }
 
 enum NotificationType {
@@ -873,6 +874,8 @@ model RaidWeek {
   @@unique([guildId, week])
   /// тик напоминаний: рейды текущего окна
   @@index([endsAt])
+  /// счётчик MVP (ачивки)
+  @@index([mvpUserId])
 }
 
 /// Урон одной тренировки по рейду: остаётся и после выхода игрока из гильдии.
@@ -890,6 +893,8 @@ model RaidHit {
   workout Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
 
   @@index([raidId])
+  /// итоги недели: мои удары
+  @@index([userId])
 }
 
 /// Награда из сундука рейда: создаётся при победе каждому бившему участнику.
@@ -906,4 +911,6 @@ model RaidReward {
   user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([raidId, userId])
+  /// счётчик побед в рейдах (ачивки)
+  @@index([userId])
 }

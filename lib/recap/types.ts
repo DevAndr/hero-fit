@@ -29,7 +29,12 @@ export type RecapData = {
   plan?: { done: number; planned: number };
   /** Босс недели (lib/boss): урон за неделю, победа — время. */
   boss?: RecapBoss;
+  /** Рейд гильдии недели (lib/raid), если игрок в нём бил. */
+  raid?: RecapRaid;
 };
+
+/** Рейд недели: урон гильдии, мой вклад и место среди бивших (1 — больше всех). */
+export type RecapRaid = { name: string; code: string; defeated: boolean; damage: number; hp: number; mine: number; place: number; members: number; mvp: boolean };
 
 export type RecapBoss = { code: string; hp: number; damage: number; defeatedAt: string | null };
 
@@ -55,4 +60,6 @@ export type RecapInput = {
   plan: { done: number; planned: number } | null;
   /** null — босса той недели не было (не открывали приложение). */
   boss?: RecapBoss | null;
+  /** null — в рейдах недели игрок не бил. */
+  raid?: RecapRaid | null;
 };

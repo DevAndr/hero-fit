@@ -87,3 +87,11 @@ describe("bossTitles", () => {
     ]);
   });
 });
+
+describe("raid titles", () => {
+  it("вершины рейдовых лестниц", () => {
+    expect(titleLabel("ach:raid:25")).toBe("Гроза рейдов");
+    expect(titleLabel("ach:raidmvp:10")).toBe("Сердце гильдии");
+    expect(availableTitles({ achievementCodes: ["raid:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:raid:25");
+  });
+});

@@ -296,3 +296,23 @@ describe("boss hunter", () => {
     });
   });
 });
+
+describe("raids", () => {
+  it("лестница побед в рейдах: 1, 5, 10, 25", () => {
+    expect(codesOf("raid", { raidWins: 5 })).toEqual(["raid:1", "raid:5"]);
+    expect(codesOf("raid", { raidWins: 0 })).toEqual([]);
+    const earned = earnedAchievements({ ...empty, raidWins: 5 });
+    expect(earned.find((a) => a.code === "raid:1")).toMatchObject({ category: "GUILD", title: "Рейдер", xpReward: 35 });
+    expect(earned.find((a) => a.code === "raid:5")).toMatchObject({ title: "Рейдер ×5" });
+    expect(nextGoals({ ...empty, raidWins: 5 }).find((g) => g.code.startsWith("raid:"))).toMatchObject({ code: "raid:10", target: 10 });
+  });
+
+  it("MVP рейда: 1, 5, 10", () => {
+    expect(codesOf("raidmvp", { raidMvps: 1 })).toEqual(["raidmvp:1"]);
+    expect(earnedAchievements({ ...empty, raidMvps: 1 }).find((a) => a.code === "raidmvp:1")).toMatchObject({
+      category: "GUILD",
+      title: "MVP рейда",
+      xpReward: 45,
+    });
+  });
+});
