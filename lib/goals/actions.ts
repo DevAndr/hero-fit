@@ -10,7 +10,7 @@ import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
 import { currentValueFor } from "@/lib/goals/queries";
 import { markAchieved, writeWeight } from "@/lib/goals/mutations";
-import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
+import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalOpenAt, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
 import { levelProgress } from "@/lib/progress/level";
 import { initialReminderAt } from "@/lib/goals/tick-rules";
 
@@ -51,7 +51,7 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
       if (!w.success) return { ok: false, error: w.error.issues[0].message, field: "currentWeight" };
       await writeWeight(tx, user.id, tz, w.data);
     }
-    const current = await currentValueFor(tx, user.id, g);
+    const current = await currentValueFor(tx, user.id, g, tz);
     if (current === null) return { ok: false, error: "Сначала запиши текущий вес", field: "currentWeight" };
     const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true } });
     const refusal = canCreate(g, { active, current, isBodyweight, hasWeight: true });
@@ -82,6 +82,10 @@ export async function updateGoalDeadlineAction(goalId: string, deadline: string 
   const user = await requireUser();
   const parsed = deadlineSchema(dayKey(new Date(), user.timeZone)).safeParse(deadline);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message, field: "deadline" };
+  // Срок уже вышел (идёт фора на офлайн-тренировки) — переносить поздно, иначе провал легко обойти
+  const goal = await db.goal.findFirst({ where: { id: goalId, userId: user.id, status: GoalStatus.ACTIVE }, select: { deadline: true } });
+  if (!goal) return { ok: false, error: "Цель не найдена" };
+  if (!goalOpenAt(goal, new Date(), user.timeZone)) return { ok: false, error: "Срок уже вышел", field: "deadline" };
   // Новый срок — новое напоминание за 7 дней
   const { count } = await db.goal.updateMany({
     where: { id: goalId, userId: user.id, status: GoalStatus.ACTIVE },
@@ -108,7 +112,8 @@ export async function logBodyWeightAction(weight: number): Promise<{ ok: true; a
   const achieved = await db.$transaction(async (tx) => {
     const current = await writeWeight(tx, user.id, user.timeZone, parsed.data);
     const goal = await tx.goal.findFirst({ where: { userId: user.id, type: "BODY_WEIGHT", status: GoalStatus.ACTIVE } });
-    if (!goal || !isAchieved(goal, current)) return null;
+    // Фора после срока — только для офлайн-тренировок; взвешивание всегда «сегодня»
+    if (!goal || !isAchieved(goal, current) || !goalOpenAt(goal, new Date(), user.timeZone)) return null;
     const title = goalTitle(goal);
     return (await markAchieved(tx, user.id, { id: goal.id, title }, new Date(), true)) ? title : null;
   });

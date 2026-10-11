@@ -6,6 +6,7 @@ import {
   deadlineText,
   goalValueText,
   goalNotice,
+  goalOpenAt,
   goalProgress,
   goalSchema,
   goalTitle,
@@ -167,4 +168,24 @@ test("deadlineText", () => {
   expect(deadlineText("2026-10-12", "2026-10-11")).toBe("до 12 октября · остался 1 день");
   expect(deadlineText("2026-10-11", "2026-10-11")).toBe("до 11 октября · последний день");
   expect(deadlineText("2027-01-15", "2026-10-11")).toBe("до 15 января 2027 · осталось 96 дней");
+});
+
+describe("goalOpenAt — срок ещё не вышел на момент", () => {
+  test("офлайн-тренировка до конца срока засчитывается, после — нет", () => {
+    const goal = { deadline: "2026-10-20" };
+    expect(goalOpenAt(goal, new Date("2026-10-20T23:59:00Z"), "UTC")).toBe(true);
+    expect(goalOpenAt(goal, new Date("2026-10-21T00:00:00Z"), "UTC")).toBe(false);
+    expect(goalOpenAt(goal, new Date("2026-10-20T15:30:00Z"), "Asia/Tokyo")).toBe(false);
+    expect(goalOpenAt({ deadline: null }, new Date("2030-01-01T00:00:00Z"), "UTC")).toBe(true);
+  });
+});
+
+test("goalSchema: ошибки текущего веса — по-русски", () => {
+  const r = goalSchema.safeParse({ type: "BODY_WEIGHT", target: 80, deadline: null, currentWeight: Number.NaN });
+  expect(r.success).toBe(false);
+  expect(r.error?.issues.find((i) => i.path[0] === "currentWeight")?.message).toBe("Вес — от 30 до 300 кг");
+});
+
+test("deadlineText: срок прошёл", () => {
+  expect(deadlineText("2026-10-10", "2026-10-11")).toBe("до 10 октября · срок вышел");
 });

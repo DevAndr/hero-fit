@@ -6,8 +6,11 @@ const goal = { type: "WORKOUTS" as const, target: 10, startValue: 0, deadline: "
 const at = (iso: string) => new Date(iso);
 
 describe("goalTickAction", () => {
-  test("выполнена в пределах форы — засчитать", () => {
-    expect(goalTickAction(goal, 10, at("2026-10-21T23:00:00Z"), "UTC")).toBe("achieve");
+  test("выполнена до конца срока — засчитать", () => {
+    expect(goalTickAction(goal, 10, at("2026-10-20T23:00:00Z"), "UTC")).toBe("achieve");
+  });
+  test("в форе после срока тик не засчитывает (это делает только финиш офлайн-тренировки)", () => {
+    expect(goalTickAction(goal, 10, at("2026-10-21T23:00:00Z"), "UTC")).toBeNull();
   });
   test("не выполнена, фора ещё идёт — ждать", () => {
     expect(goalTickAction(goal, 9, at("2026-10-21T23:59:00Z"), "UTC")).toBeNull();

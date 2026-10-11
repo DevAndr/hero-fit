@@ -34,7 +34,7 @@ export const goalSchema = z
     target: z.number().finite(),
     deadline: z.string().nullable(),
     /** Только BODY_WEIGHT без взвешиваний: текущий вес пишется вместе с целью. */
-    currentWeight: z.number().min(30).max(300).optional(),
+    currentWeight: z.number({ error: "Вес — от 30 до 300 кг" }).min(30, "Вес — от 30 до 300 кг").max(300, "Вес — от 30 до 300 кг").optional(),
   })
   .superRefine((g, ctx) => {
     const bad = (message: string, path = "target") => ctx.addIssue({ code: "custom", message, path: [path] });
@@ -107,6 +107,11 @@ export function goalProgress(goal: Shape, current: number): number {
 /** Конец срока — начало дня после `deadline` в поясе пользователя. */
 export function deadlineEnd(deadline: string, tz: string): Date {
   return localMidnight(addDays(deadline, 1), tz);
+}
+
+/** Срок цели ещё не вышел в момент `at` (финиш тренировки, взвешивание, перенос срока). */
+export function goalOpenAt(goal: { deadline: string | null }, at: Date, tz: string): boolean {
+  return !goal.deadline || at < deadlineEnd(goal.deadline, tz);
 }
 
 export function paceStatus(
@@ -242,6 +247,7 @@ export function deadlineText(deadline: string, today: string): string {
   const d = new Date(`${deadline}T12:00:00Z`);
   const date = deadline.slice(0, 4) === today.slice(0, 4) ? dayMonth.format(d) : dayMonthYear.format(d).replace(/\s*г\.$/, "");
   const left = Math.round((d.getTime() - new Date(`${today}T12:00:00Z`).getTime()) / 86_400_000);
-  if (left <= 0) return `до ${date} · последний день`;
+  if (left < 0) return `до ${date} · срок вышел`;
+  if (left === 0) return `до ${date} · последний день`;
   return `до ${date} · ${plural(left, "остался", "осталось", "осталось")} ${left} ${plural(left, "день", "дня", "дней")}`;
 }

@@ -14,6 +14,8 @@ export function goalTickAction(
   if (!goal.deadline) return isAchieved(goal, current) ? "achieve" : null;
   const end = deadlineEnd(goal.deadline, tz).getTime();
   if (now.getTime() >= end + GOAL_FAIL_GRACE_MS) return "fail";
+  // После конца срока значение могло вырасти уже вне срока — в форе засчитывает только финиш тренировки
+  if (now.getTime() >= end) return null;
   if (isAchieved(goal, current)) return "achieve";
   if (!goal.reminderAt && now.getTime() < end && end - now.getTime() <= REMIND_BEFORE_MS) return "remind";
   return null;

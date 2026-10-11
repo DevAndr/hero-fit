@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { createGoal, enableCoach, goalOf, goalRewardXp, goalsOf, idOf, linkCoach, logWeight, makeFriends, setPrivacy, withDb, userId } from "./db";
+import { createGoal, enableCoach, goalOf, goalRewardXp, goalsOf, idOf, linkCoach, logWeight, makeFriends, mondayWeeksAgo, setPrivacy, withDb, userId } from "./db";
 import { quickWorkout, registerUser, runTick } from "./helpers";
 import { E2E_TZ } from "./tz";
 
@@ -215,4 +215,39 @@ test("deadline passed: the tick fails the goal, «set again» reopens it", async
   await page.goto("/dashboard");
   await page.getByRole("button", { name: /Уведомления/ }).click();
   await expect(page.getByText("Срок цели вышел")).toBeVisible();
+});
+
+test("a lost streak counts as 0 for streak goals", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await withDb((db) =>
+    db.query(`update "User" set "currentStreak" = 10, "longestStreak" = 10, "lastStreakWeek" = $2 where login = $1`, [login, mondayWeeksAgo(6)]),
+  );
+  await page.goto("/goals");
+  const dialog = await newGoal(page, "Серия");
+  await expect(dialog.getByText("Сейчас: 0 недель")).toBeVisible();
+  await dialog.getByLabel("Цель, недель").fill("8");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("article", { name: "Серия 8 недель" })).toContainText("0 / 8 недель");
+});
+
+test("after the deadline: a weigh-in doesn't complete the goal and the deadline can't be moved", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await logWeight(login, daysFromToday(-5), 90);
+  await createGoal(login, { type: "BODY_WEIGHT", target: 85, startValue: 90, deadline: daysFromToday(-1), createdAt: new Date(Date.now() - 10 * 86_400_000) });
+  await page.goto("/goals");
+  const card = page.getByRole("article", { name: "Вес тела — 85 кг ↓" });
+  await expect(card).toContainText("срок вышел");
+
+  await page.getByRole("region", { name: "Вес тела" }).getByLabel("Вес сегодня, кг").fill("84");
+  await page.getByRole("region", { name: "Вес тела" }).getByRole("button", { name: "Записать вес" }).click();
+  await expect(page.getByText("Вес записан")).toBeVisible();
+  expect((await goalsOf(login))[0].status).toBe("ACTIVE");
+
+  await card.getByRole("button", { name: "Действия с целью" }).click();
+  await page.getByRole("menuitem", { name: "Перенести срок" }).click();
+  const dialog = page.getByRole("dialog", { name: "Срок цели" });
+  await dialog.getByRole("button", { name: "1 мес" }).click();
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog.getByText("Срок уже вышел")).toBeVisible();
 });

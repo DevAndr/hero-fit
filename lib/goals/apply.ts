@@ -4,7 +4,7 @@ import { GoalStatus } from "@/generated/prisma/enums";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getCurrentValues } from "@/lib/goals/queries";
 import { markAchieved } from "@/lib/goals/mutations";
-import { deadlineEnd, goalProgress, goalTitle, isAchieved, type FinishGoals, type GoalRow } from "@/lib/goals/rules";
+import { goalOpenAt, goalProgress, goalTitle, isAchieved, type FinishGoals, type GoalRow } from "@/lib/goals/rules";
 
 type Client = Prisma.TransactionClient;
 
@@ -31,7 +31,7 @@ export async function snapshotGoals(tx: Client, userId: string): Promise<GoalSna
  * уведомления (человек видит сводку), продвинутые — для строк прироста. Срок сравнивается с finishedAt тренировки.
  */
 export async function applyGoals(tx: Client, userId: string, finishedAt: Date, snap: GoalSnapshot): Promise<FinishGoals | undefined> {
-  const eligible = snap.goals.filter((g) => !g.deadline || finishedAt < deadlineEnd(g.deadline, snap.tz));
+  const eligible = snap.goals.filter((g) => goalOpenAt(g, finishedAt, snap.tz));
   if (eligible.length === 0) return undefined;
   const after = await getCurrentValues(tx, userId, eligible, snap.tz);
   const result: FinishGoals = { achieved: [], advanced: [] };

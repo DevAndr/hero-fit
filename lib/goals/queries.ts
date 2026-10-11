@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { GoalStatus, WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { dayKey } from "@/lib/daily-login";
+import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import {
   deadlineEnd,
   goalProgress,
@@ -53,8 +54,7 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
         select: { exerciseId: true, type: true, value: true },
       })
     : [];
-  const needUser = goals.some((g) => g.type === "STREAK");
-  const user = needUser ? await client.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } }) : null;
+  const streak = goals.some((g) => g.type === "STREAK") ? await effectiveStreak(client, userId, tz) : 0;
   const needWeight = goals.some((g) => g.type === "BODY_WEIGHT");
   const weight = needWeight ? await latestWeight(client, userId) : null;
 
@@ -64,7 +64,7 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
         out.set(g.id, records.find((r) => r.exerciseId === g.exerciseId && r.type === g.metric)?.value ?? 0);
         break;
       case "STREAK":
-        out.set(g.id, user!.currentStreak);
+        out.set(g.id, streak);
         break;
       case "BODY_WEIGHT":
         out.set(g.id, weight ?? g.startValue);
@@ -88,13 +88,27 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
   return out;
 }
 
+/** Серия, как её видит пользователь: сгоревшая — 0 (User.currentStreak хранит прежнее число до новой недели). */
+export async function effectiveStreak(client: Client, userId: string, tz: string, now = new Date()): Promise<number> {
+  const user = await client.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { currentStreak: true, lastStreakWeek: true, streakFreezes: true, weekWorkouts: true, weekWorkoutsKey: true, freezeGrantedAt: true },
+  });
+  return streakValue(streakStatus(user, now, tz));
+}
+
 export async function latestWeight(client: Client, userId: string): Promise<number | null> {
   const row = await client.bodyWeightEntry.findFirst({ where: { userId }, orderBy: { date: "desc" }, select: { weight: true } });
   return row?.weight ?? null;
 }
 
 /** Текущее значение того, что улучшает новая цель (счётчики — «с момента постановки», т. е. 0). */
-export async function currentValueFor(client: Client, userId: string, input: Pick<GoalInput, "type" | "exerciseId" | "metric">): Promise<number | null> {
+export async function currentValueFor(
+  client: Client,
+  userId: string,
+  input: Pick<GoalInput, "type" | "exerciseId" | "metric">,
+  tz: string,
+): Promise<number | null> {
   switch (input.type) {
     case "STRENGTH": {
       const pr = await client.personalRecord.findUnique({
@@ -104,7 +118,7 @@ export async function currentValueFor(client: Client, userId: string, input: Pic
       return pr?.value ?? 0;
     }
     case "STREAK":
-      return (await client.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } })).currentStreak;
+      return effectiveStreak(client, userId, tz);
     case "BODY_WEIGHT":
       return latestWeight(client, userId);
     default:
@@ -193,9 +207,9 @@ async function getSuggestions(userId: string, tz: string, goals: GoalView[]): Pr
     GROUP BY e.id, e.name
     ORDER BY COUNT(DISTINCT w.id) DESC, MAX(s.weight) DESC
     LIMIT 1`;
-  const { currentStreak } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } });
+  const streak = await effectiveStreak(db, userId, tz);
   return suggestGoals(
-    { topExercise: top ? { id: top.id, name: top.name, workWeight: Number(top.work) } : null, streak: currentStreak },
+    { topExercise: top ? { id: top.id, name: top.name, workWeight: Number(top.work) } : null, streak },
     dayKey(new Date(), tz),
   );
 }
@@ -236,21 +250,21 @@ export type GoalFormData = { exercises: GoalFormExercise[]; streak: number; weig
 
 /** Диалог «Новая цель»: упражнения с текущими рекордами («сейчас: …»), серия, последний вес. */
 export async function getGoalFormData(userId: string, tz: string): Promise<GoalFormData> {
-  const [exercises, records, user, weight] = await Promise.all([
+  const [exercises, records, streak, weight] = await Promise.all([
     db.exercise.findMany({
       where: { archivedAt: null, OR: [{ userId: null }, { userId }] },
       select: { id: true, name: true, isBodyweight: true },
       orderBy: { name: "asc" },
     }),
     db.personalRecord.findMany({ where: { userId }, select: { exerciseId: true, type: true, value: true } }),
-    db.user.findUniqueOrThrow({ where: { id: userId }, select: { currentStreak: true } }),
+    effectiveStreak(db, userId, tz),
     latestWeight(db, userId),
   ]);
   const byExercise = new Map<string, GoalFormExercise["records"]>();
   for (const r of records) byExercise.set(r.exerciseId, { ...byExercise.get(r.exerciseId), [r.type]: r.value });
   return {
     exercises: exercises.map((e) => ({ ...e, records: byExercise.get(e.id) ?? {} })),
-    streak: user.currentStreak,
+    streak,
     weight,
     today: dayKey(new Date(), tz),
   };
