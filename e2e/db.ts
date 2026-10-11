@@ -296,6 +296,13 @@ export async function coachTargetFull(clientLogin: string, exerciseName: string)
   });
 }
 
+/** Закрыть все активные связи тренера (минуя UI и `dropAssignments`). */
+export async function endCoachLinks(coachLogin: string) {
+  await withDb(async (db) => {
+    await db.query(`update "CoachLink" set "endedAt" = now() where "coachId" = $1 and "endedAt" is null`, [await userId(db, coachLogin)]);
+  });
+}
+
 /** Строк членства в группах тренера (разрыв связи их удаляет). */
 export async function coachGroupMembers(coachLogin: string) {
   return withDb(async (db) => {

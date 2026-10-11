@@ -55,7 +55,8 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
           </Link>
         }
       />
-      {clients.length ? (
+      {/* Группы правятся и без клиентов: иначе оставшийся фильтр «Утро (0)» не убрать */}
+      {clients.length || groups.length ? (
         <div className="flex flex-wrap gap-2">
           {clients.length > 1 ? <AssignManyButton clients={picker} groups={groups} templates={templates} today={dayKey(now, tz)} /> : null}
           <GroupsButton groups={groups} clients={picker} />

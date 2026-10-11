@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { coachGroupMembers, enableCoach, idOf, linkCoach, setTimeZone } from "./db";
+import { coachGroupMembers, enableCoach, endCoachLinks, idOf, linkCoach, setTimeZone } from "./db";
 import { registerUser } from "./helpers";
 
 /** Ник ≤ 20 символов и уникален между прогонами: хвост логина с меткой времени. */
@@ -112,6 +112,26 @@ test("a removed client leaves the group", async ({ page, browser }) => {
     await expect(page).toHaveURL(/\/coach$/);
     await expect(page.getByRole("navigation", { name: "Фильтр по группе" }).getByRole("link", { name: "Утро (1)" })).toBeVisible();
     expect(await coachGroupMembers(coach.login)).toBe(1);
+  } finally {
+    for (const c of clients) await c.context.close();
+  }
+});
+
+test("groups stay manageable when the coach has no clients left", async ({ page, browser }) => {
+  const { coach, clients } = await setup(page, browser);
+  try {
+    await page.goto("/coach");
+    await page.getByRole("button", { name: "Группы" }).click();
+    await createGroup(page, "Утро", ["Аня"]);
+    await close(page);
+    await endCoachLinks(coach.login);
+
+    await page.goto("/coach");
+    await expect(page.getByRole("link", { name: "Утро (0)" })).toBeVisible();
+    await page.getByRole("button", { name: "Группы" }).click();
+    await groupsDialog(page).getByRole("listitem").filter({ hasText: "Утро" }).getByRole("button", { name: "Удалить" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Удалить" }).click();
+    await expect(page.getByRole("navigation", { name: "Фильтр по группе" })).toHaveCount(0);
   } finally {
     for (const c of clients) await c.context.close();
   }
