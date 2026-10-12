@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, createClub } from "./db";
+import { addFlagUser, clubOf, createClub, joinClub, seedXpWorkout, setClubStatus, setNickname, setPrivacy } from "./db";
 import { registerUser } from "./helpers";
 
 // Флаг clubs — списком на пользователя (addFlagUser): спеки идут параллельно. Модерация — e2e/clubs-moderation.spec.ts
@@ -98,4 +98,114 @@ test("menu item with the flag", async ({ page }) => {
     await page.getByRole("menuitem", { name: "Клуб", exact: true }).click();
   }
   await expect(page).toHaveURL(/\/clubs$/);
+});
+
+const nick = () => `Клубень${unique()}`;
+
+/** Второй игрок в своём контексте. */
+async function secondUser(browser: import("@playwright/test").Browser) {
+  const page = await (await browser.newContext()).newPage();
+  const user = await clubsUser(page);
+  return { page, user };
+}
+
+test("join by link: nickname, consent, switching clubs, leave", async ({ page, browser }) => {
+  const me = await clubsUser(page);
+  const owner = await secondUser(browser);
+  const old = await createClub(owner.user.login, { name: `Старый ${unique()}` });
+  const club = await createClub(owner.user.login, { name: `Новый ${unique()}` });
+
+  // Не участник: шапка и «Вступить», без ленты
+  await page.goto(`/clubs/${club.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: /Новый/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Лента" })).toHaveCount(0);
+
+  // Без ника — форма ника
+  await page.goto(`/clubs/join/${club.code}`);
+  await expect(page.getByRole("textbox", { name: "Ник" })).toBeVisible();
+  await setNickname(me.login, nick());
+  await joinClub(me.login, old.id);
+  await page.reload();
+  await expect(page.getByText("Участники клуба увидят твой ник, уровень, опыт и достижения. Тренировки — нет.")).toBeVisible();
+  await expect(page.getByText(/Ты выйдешь из «Старый/)).toBeVisible();
+  await page.getByRole("button", { name: "Вступить" }).click();
+  await expect(page).toHaveURL(new RegExp(`/clubs/${club.id}`));
+  expect(await clubOf(me.login)).toBe(club.id);
+
+  await page.getByRole("button", { name: "Выйти из клуба" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Выйти" }).click();
+  await expect.poll(() => clubOf(me.login)).toBeNull();
+});
+
+test("rating and feed: events only, after joining, privacy", async ({ page, browser }) => {
+  const me = await clubsUser(page);
+  await setNickname(me.login, nick());
+  const other = await secondUser(browser);
+  const otherNick = nick();
+  await setNickname(other.user.login, otherNick);
+  const idle = await secondUser(browser);
+  await setNickname(idle.user.login, nick());
+  const club = await createClub(me.login);
+  await joinClub(me.login, club.id);
+  await joinClub(other.user.login, club.id, new Date(Date.now() - 60_000 * 60));
+  await joinClub(idle.user.login, club.id);
+
+  // До вступления — не видно; после — только события
+  await seedXpWorkout(other.user.login, { xp: 50, finishedAt: new Date(Date.now() - 60_000 * 120), name: "Тайная", meta: { achievements: [{ code: "workouts:1", title: "Ранняя ачивка" }] } });
+  await seedXpWorkout(other.user.login, { xp: 300, name: "Грудь секретная", meta: { achievements: [{ code: "workouts:1", title: "Первая тренировка" }] } });
+  await seedXpWorkout(me.login, { xp: 120 });
+
+  await page.goto(`/clubs/${club.id}`);
+  const rating = page.getByRole("table", { name: "Рейтинг клуба" });
+  await expect(rating.getByRole("row").nth(1)).toContainText(otherNick);
+  await expect(rating.getByRole("row", { name: /ты/ })).toBeVisible();
+  await expect(page.getByText("Ещё 1 без тренировок")).toBeVisible();
+  const sections = page.getByRole("navigation", { name: "Разделы клуба" });
+  await page.getByRole("navigation", { name: "Период" }).getByRole("link", { name: "Месяц" }).click();
+  await expect(rating.getByRole("row").nth(1)).toContainText(otherNick);
+
+  await sections.getByRole("link", { name: "Лента" }).click();
+  const feed = page.getByRole("list", { name: "Лента клуба" });
+  await expect(feed.getByText("Первая тренировка")).toBeVisible();
+  await expect(feed.getByText("Ранняя ачивка")).toHaveCount(0);
+  await expect(page.getByText("Грудь секретная")).toHaveCount(0);
+  await expect(page.getByText(/4\s?321/)).toHaveCount(0);
+
+  await setPrivacy(other.user.login, { shareActivity: false });
+  await page.reload();
+  await expect(page.getByText("Первая тренировка")).toHaveCount(0);
+  await sections.getByRole("link", { name: "Рейтинг" }).click();
+  await expect(page.getByRole("table", { name: "Рейтинг клуба" })).toContainText(otherNick);
+});
+
+test("hidden and pending clubs", async ({ page, browser }) => {
+  const me = await clubsUser(page);
+  await setNickname(me.login, nick());
+  const stranger = await secondUser(browser);
+  const club = await createClub(stranger.user.login);
+  await joinClub(me.login, club.id);
+
+  // Экран вступления открыт, клуб скрыли — вступить нельзя
+  const other = await createClub(stranger.user.login);
+  await page.goto(`/clubs/join/${other.code}`);
+  await setClubStatus(other.id, "HIDDEN");
+  await page.getByRole("button", { name: "Вступить" }).click();
+  await expect(page.getByText("Клуб недоступен")).toBeVisible();
+  expect((await page.goto(`/clubs/join/${other.code}`))?.status()).toBe(404);
+
+  await setClubStatus(club.id, "HIDDEN");
+  await page.goto(`/clubs/${club.id}`);
+  await expect(page.getByText("Клуб скрыт модератором")).toBeVisible();
+  expect((await stranger.page.goto(`/clubs/${other.id}`))?.status()).toBe(200); // админ видит свой скрытый
+  const outsider = await secondUser(browser);
+  expect((await outsider.page.goto(`/clubs/${club.id}`))?.status()).toBe(404);
+
+  // На проверке и отклонённая — только своему админу
+  const pending = await createClub(me.login, { status: "PENDING" });
+  await page.goto(`/clubs/${pending.id}`);
+  await expect(page.getByText("На проверке")).toBeVisible();
+  expect((await outsider.page.goto(`/clubs/${pending.id}`))?.status()).toBe(404);
+  const rejected = await createClub(me.login, { status: "REJECTED", rejectReason: "Нет такого зала" });
+  await page.goto(`/clubs/${rejected.id}`);
+  await expect(page.getByText("Заявка отклонена: Нет такого зала")).toBeVisible();
 });

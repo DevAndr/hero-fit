@@ -836,3 +836,22 @@ export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
     ),
   );
 }
+
+/** Завершённая тренировка с событием WORKOUT_COMPLETED (опыт и meta сводки) — для рейтинга и ленты клуба. */
+export async function seedXpWorkout(login: string, o: { xp: number; meta?: object; finishedAt?: Date; name?: string }) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    const finished = o.finishedAt ?? new Date();
+    const started = new Date(finished.getTime() - 3600 * 1000);
+    const workoutId = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 4321, 5, 50, $4, $5)`,
+      [workoutId, uid, o.name ?? "Seed", started, finished],
+    );
+    await db.query(
+      `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
+      [randomUUID(), uid, o.xp, workoutId, JSON.stringify(o.meta ?? {}), finished],
+    );
+  });
+}

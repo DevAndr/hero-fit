@@ -16,7 +16,7 @@ const minutes = (sec: number) => (sec >= 3600 ? `${Math.floor(sec / 3600)} ч ${
 const rtf = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-function ago(iso: string) {
+export function ago(iso: string) {
   const diff = (new Date(iso).getTime() - Date.now()) / 1000;
   const abs = Math.abs(diff);
   if (abs < 60) return "только что";
@@ -28,7 +28,7 @@ function ago(iso: string) {
 
 const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы" } as const;
 
-function recordText(r: FeedEntry["records"][number]) {
+export function recordText(r: FeedEntry["records"][number]) {
   if (r.value === null) return `${r.exerciseName}: ${RECORD_LABEL[r.type]}`;
   return `${r.exerciseName}: ${r.type === "MAX_REPS" ? `${r.value} повт.` : `${fmt(r.value)} кг`}`;
 }
