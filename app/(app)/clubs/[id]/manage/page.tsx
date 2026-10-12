@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/app-shell";
 import { EditClubButton } from "@/components/club/edit-club";
 import { ClubInvite, ClubMembersManage, TransferClub } from "@/components/club/manage-club";
+import { ManageTasks } from "@/components/club/manage-tasks";
+import { builtinExercises, getManageTasks } from "@/lib/club/tasks-queries";
 import { buttonVariants } from "@/components/ui/button";
 import { requireClubs } from "@/lib/club/access";
 import { getClubManage } from "@/lib/club/queries";
@@ -39,6 +41,7 @@ export default async function ManageClubPage({ params }: PageProps<"/clubs/[id]/
       ) : (
         <ClubInvite clubId={club.id} url={new URL(`/clubs/join/${club.code}`, env.APP_URL).toString()} />
       )}
+      {club.status === "APPROVED" ? <ManageTasks clubId={club.id} tasks={await getManageTasks(club.id)} exercises={await builtinExercises()} /> : null}
       <ClubMembersManage clubId={club.id} meId={user.id} members={data.members} banned={data.banned} />
       <TransferClub clubId={club.id} />
     </div>

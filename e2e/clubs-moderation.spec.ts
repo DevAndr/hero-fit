@@ -36,7 +36,8 @@ test("reject with reason, approve once, hide and restore", async ({ browser }) =
   await expect(adminPage.getByRole("menuitem", { name: /Клубы\s*\d+/ })).toBeVisible();
   await adminPage.keyboard.press("Escape");
 
-  await adminPage.goto("/admin/clubs");
+  // Своя заявка — поиском: параллельные прогоны копят в очереди сотни заявок
+  await adminPage.goto(`/admin/clubs?q=${encodeURIComponent(name)}`);
   const card = adminPage.getByRole("article", { name });
   await expect(card.filter({ hasText: "ул. Пушкина, 5" })).toBeVisible();
   const pending = card.filter({ hasText: "ул. Пушкина, 5" });
@@ -59,9 +60,9 @@ test("reject with reason, approve once, hide and restore", async ({ browser }) =
 
   // Одобрение; повторное решение со старой страницы — «Заявка уже рассмотрена»
   const second = await createClub(applicant.login, { status: "PENDING", city, name: `${name} 2` });
-  await adminPage.goto("/admin/clubs");
+  await adminPage.goto(`/admin/clubs?q=${encodeURIComponent(name)}`);
   const stale = await (await browser.newContext({ storageState: await adminPage.context().storageState() })).newPage();
-  await stale.goto("/admin/clubs");
+  await stale.goto(`/admin/clubs?q=${encodeURIComponent(name)}`);
   await adminPage.getByRole("article", { name: `${name} 2` }).getByRole("button", { name: "Одобрить" }).click();
   await expect.poll(() => clubStatus(second.id)).toBe("APPROVED");
   await stale.getByRole("article", { name: `${name} 2` }).getByRole("button", { name: "Одобрить" }).click();
