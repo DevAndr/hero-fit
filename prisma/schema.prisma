@@ -208,6 +208,9 @@ model User {
   coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
   guildLed            Guild[]              @relation("GuildLeader")
   guildMember         GuildMember?         @relation("GuildMember")
+  clubsAdmin          Club[]               @relation("ClubAdmin")
+  clubMember          ClubMember?          @relation("ClubMember")
+  clubBans            ClubBan[]            @relation("ClubBan")
   raidMvp             RaidWeek[]           @relation("RaidMvp")
   raidHits            RaidHit[]
   raidRewards         RaidReward[]
@@ -1003,4 +1006,68 @@ model FeatureFlag {
   updatedAt DateTime @updatedAt
   /// логин админа, менявшего последним
   updatedBy String?
+}
+
+/// Клубы залов (спека: docs/superpowers/specs/2026-10-12-clubs-design.md).
+enum ClubStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+}
+
+model Club {
+  id           String     @id @default(cuid())
+  /// 3–60
+  name         String
+  /// clubKey(name) — похожие; не уникален (сети залов)
+  nameKey      String
+  /// 2–40, как ввёл заявитель (модератор может поправить)
+  city         String
+  /// clubKey(city) — поиск и подсказки
+  cityKey      String
+  /// 5–120
+  address      String
+  /// clubKey(address) — похожие
+  addressKey   String
+  /// телефон/сайт зала — видит только админ приложения
+  contact      String
+  /// приглашение, алфавит кода друга
+  code         String     @unique
+  adminId      String
+  status       ClubStatus @default(PENDING)
+  rejectReason String?
+  reviewedAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  admin   User         @relation("ClubAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+  members ClubMember[]
+  bans    ClubBan[]
+
+  @@index([status, cityKey])
+  @@index([adminId])
+}
+
+/// Участник клуба: один клуб на человека.
+model ClubMember {
+  userId   String   @id
+  clubId   String
+  joinedAt DateTime @default(now())
+
+  user User @relation("ClubMember", fields: [userId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([clubId])
+}
+
+/// Исключённый админом клуба: не вступит снова до разблокировки.
+model ClubBan {
+  clubId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user User @relation("ClubBan", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([clubId, userId])
 }
