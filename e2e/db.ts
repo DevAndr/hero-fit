@@ -29,6 +29,7 @@ export async function seedWorkouts(
   exerciseName: string,
   workouts: { weight: number; reps: number; sets: number }[],
   daysAgo = workouts.length + 1,
+  opts: { templateId?: string } = {},
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
@@ -42,9 +43,9 @@ export async function seedWorkouts(
       const workoutId = randomUUID();
       const weId = randomUUID();
       await db.query(
-        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
-         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4)`,
-        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets],
+        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt", "templateId")
+         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4, $8)`,
+        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets, opts.templateId ?? null],
       );
       await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [
         weId,

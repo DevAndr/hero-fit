@@ -21,6 +21,7 @@ export function AchievementToaster({ achievements }: { achievements: Unseen[] })
       shown.current.add(a.id);
       const title = titleForAchievement(a.code);
       toast.success(`🏆 ${a.title}`, {
+        id: a.id, // тостеры layout и страницы (/coach) не задваивают одну ачивку
         description: `${a.description} · +${a.xpReward} XP${title ? ` · + титул «${title.label}»` : ""}`,
         icon: <AchievementIcon code={a.code} size={40} />,
         duration: 6000,

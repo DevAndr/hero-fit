@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { NotificationType, WorkoutStatus } from "@/generated/prisma/enums";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { queueGoal } from "@/lib/analytics/queue";
 import { requireClientOf } from "@/lib/coach/access";
 import { commentPreview, commentTextSchema } from "@/lib/coach/comments";
@@ -66,6 +67,7 @@ export async function saveCoachCommentAction(clientId: string, workoutId: string
     }
     await notifyClient(clientId, workout, parsed.data);
     await queueGoal("coach_comment");
+    await evaluateAchievementsNow(coach.id); // «Первый разбор»
   }
   revalidate(clientId, workout.id);
   return { ok: true };
