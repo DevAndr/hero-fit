@@ -12,3 +12,8 @@ export const flagPatchSchema = z.object({
   removeUserId: z.string().min(1).optional(),
 });
 export type FlagPatch = z.infer<typeof flagPatchSchema>;
+
+/** Кого добавить в список: точный логин важнее совпадения по нику другого пользователя. */
+export function pickFlagUser(byLogin: { id: string } | null, byNickname: { id: string } | null): string | null {
+  return byLogin?.id ?? byNickname?.id ?? null;
+}

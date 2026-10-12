@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flagPatchSchema } from "./schema";
+import { flagPatchSchema, pickFlagUser } from "./schema";
 
 const error = (patch: unknown) => {
   const r = flagPatchSchema.safeParse(patch);
@@ -22,5 +22,16 @@ describe("flagPatchSchema", () => {
   it("переключатель и удаление", () => {
     expect(error({ enabled: true })).toBeNull();
     expect(error({ removeUserId: "u1" })).toBeNull();
+  });
+});
+
+describe("pickFlagUser", () => {
+  it("точный логин важнее чужого ника", () => {
+    expect(pickFlagUser({ id: "a" }, { id: "b" })).toBe("a");
+  });
+
+  it("нет логина — по нику; ничего — null", () => {
+    expect(pickFlagUser(null, { id: "b" })).toBe("b");
+    expect(pickFlagUser(null, null)).toBeNull();
   });
 });

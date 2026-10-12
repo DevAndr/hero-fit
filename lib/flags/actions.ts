@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/admin";
 import { db } from "@/lib/db";
 import { isFlagKey } from "@/lib/flags/registry";
-import { flagPatchSchema, MAX_FLAG_USERS } from "@/lib/flags/schema";
+import { flagPatchSchema, MAX_FLAG_USERS, pickFlagUser } from "@/lib/flags/schema";
 import { invalidateFlags } from "@/lib/flags/server";
 import { nicknameKey } from "@/lib/social/league";
 
@@ -22,14 +22,16 @@ export async function saveFlagAction(key: string, patch: unknown): Promise<Resul
   let userIds = current?.userIds ?? [];
   if (p.addUser) {
     const q = p.addUser;
-    const user = await db.user.findFirst({
-      where: { OR: [{ login: { equals: q, mode: "insensitive" } }, { nicknameKey: nicknameKey(q) }] },
-      select: { id: true },
-    });
-    if (!user) return { ok: false, error: "Пользователь не найден" };
-    if (!userIds.includes(user.id)) {
+    // Сначала точный логин, потом ник: у одного может быть логин «bob», у другого — ник «Bob»
+    const [byLogin, byNickname] = await Promise.all([
+      db.user.findFirst({ where: { login: { equals: q, mode: "insensitive" } }, select: { id: true } }),
+      db.user.findFirst({ where: { nicknameKey: nicknameKey(q) }, select: { id: true } }),
+    ]);
+    const id = pickFlagUser(byLogin, byNickname);
+    if (!id) return { ok: false, error: "Пользователь не найден" };
+    if (!userIds.includes(id)) {
       if (userIds.length >= MAX_FLAG_USERS) return { ok: false, error: `Не больше ${MAX_FLAG_USERS} пользователей` };
-      userIds = [...userIds, user.id];
+      userIds = [...userIds, id];
     }
   }
   if (p.removeUserId) userIds = userIds.filter((id) => id !== p.removeUserId);
