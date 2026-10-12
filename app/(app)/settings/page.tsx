@@ -1,4 +1,7 @@
+import { DeleteAccount } from "@/components/account/delete-account-dialog";
 import { MyDataCard } from "@/components/account/my-data-card";
+import { getDeletionInput } from "@/lib/account/delete";
+import { deletionPreview } from "@/lib/account/rules";
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
@@ -25,7 +28,7 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant, deletion] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
@@ -33,6 +36,7 @@ export default async function SettingsPage() {
     getTelegramStatus(user.id),
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } }).then((u) => u.passwordHash !== null),
     isEnabled("smart_coach", user.id),
+    getDeletionInput(user.id),
   ]);
 
   return (
@@ -53,6 +57,7 @@ export default async function SettingsPage() {
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />
       <MyDataCard />
+      <DeleteAccount hasPassword={hasPassword} preview={deletionPreview(deletion)} />
     </div>
   );
 }
