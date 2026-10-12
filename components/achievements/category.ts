@@ -16,6 +16,7 @@ export const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   LEAGUE: "Лига",
   BOSS: "Боссы",
   GUILD: "Гильдия",
+  CLUB: "Клуб",
   GOAL: "Цели",
   COACH: "Тренер",
 };
