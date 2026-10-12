@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { COACH_NAV_ITEM, NAV_ITEMS } from "@/components/app/nav";
+import { CLUB_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS } from "@/components/app/nav";
+import { useFlag } from "@/components/flags/flags-provider";
 
 function useIsActive() {
   const pathname = usePathname();
@@ -12,7 +13,10 @@ function useIsActive() {
 
 export function SidebarNav({ isCoach }: { isCoach: boolean }) {
   const isActive = useIsActive();
-  const items = isCoach ? [...NAV_ITEMS, COACH_NAV_ITEM] : NAV_ITEMS;
+  const clubs = useFlag("clubs");
+  type Item = (typeof NAV_ITEMS)[number] | typeof CLUB_NAV_ITEM | typeof COACH_NAV_ITEM;
+  const base: Item[] = clubs ? NAV_ITEMS.flatMap((item): Item[] => (item.href === "/guild" ? [item, CLUB_NAV_ITEM] : [item])) : [...NAV_ITEMS];
+  const items = isCoach ? [...base, COACH_NAV_ITEM] : base;
   return (
     <nav className="flex flex-col gap-1" data-tour="nav">
       {items.map(({ href, label, icon: Icon }) => (

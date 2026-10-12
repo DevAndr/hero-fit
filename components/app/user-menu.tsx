@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
 import { logoutAction } from "@/lib/auth/actions";
 
@@ -38,6 +39,7 @@ export function UserMenu({
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
+  const clubs = useFlag("clubs");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
   const [opened, setOpened] = useState(false);
@@ -115,6 +117,12 @@ export function UserMenu({
           <Shield />
           Гильдия
         </DropdownMenuItem>
+        {clubs ? (
+          <DropdownMenuItem render={<Link href="/clubs" />}>
+            <Building2 />
+            Клуб
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem render={<Link href="/leaderboard" />}>
           <Swords />
           Рейтинг
