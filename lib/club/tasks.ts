@@ -145,3 +145,12 @@ export function taskWindow(startDay: string, days: number, timeZone: string): { 
   const end = new Date(Date.parse(`${startDay}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
   return { startsAt: localMidnight(startDay, timeZone), endsAt: localMidnight(end, timeZone) };
 }
+
+/**
+ * Задание для карточки на дашборде: начавшиеся раньше не начавшихся, невыполненные (мной — у «каждому») раньше
+ * выполненных, дальше — что раньше кончается.
+ */
+export function pickCardTask<T extends { started: boolean; completed: boolean; endsAt: string }>(active: T[]): T | null {
+  const rank = (t: T) => (t.started ? 0 : 2) + (t.completed ? 1 : 0);
+  return [...active].sort((a, b) => rank(a) - rank(b) || a.endsAt.localeCompare(b.endsAt))[0] ?? null;
+}
