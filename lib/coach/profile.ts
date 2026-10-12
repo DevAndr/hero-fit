@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COACH_CODE_PREFIX, COACH_LADDERS, type CoachLadderKey } from "@/lib/achievements/definitions";
 import { plural } from "@/lib/format";
 
 /** Публичная страница тренера: специализации, формат, цифры и правила показа (чистые). */
@@ -38,6 +39,7 @@ export const coachProfileSchema = z.object({
     .refine((a) => new Set(a).size === a.length, "Специализации повторяются"),
   about: z.string().trim().max(1000, "О себе — максимум 1000 символов"),
   hiddenStats: z.array(z.enum(STAT_CODES)).refine((a) => new Set(a).size === a.length),
+  showAwards: z.boolean().default(true),
 });
 export type CoachProfileInput = z.input<typeof coachProfileSchema>;
 
@@ -86,4 +88,25 @@ export function visibleStats(s: CoachStats, hidden: readonly string[]): { code: 
   add("plan", enough && s.plan !== null && s.planTotal >= MIN_PLAN_ENTRIES, `${Math.round((s.plan ?? 0) * 100)} %`, "плана выполнено");
   if (s.since) add("since", true, `с ${MONTHS_GEN[s.since.getUTCMonth()]} ${s.since.getUTCFullYear()}`, "в Hero Fit");
   return out;
+}
+
+export const MAX_PUBLIC_AWARDS = 6;
+
+/**
+ * Ачивки тренера для публичной страницы: только тренерские лестницы (без «На виду» — страница и так опубликована),
+ * сначала старшие ступени своей лестницы, при равенстве — порядок лестниц; до MAX_PUBLIC_AWARDS.
+ */
+export function publicAwards(codes: string[]): string[] {
+  const keys = Object.keys(COACH_LADDERS) as CoachLadderKey[];
+  const ranked = [...new Set(codes)].flatMap((code) => {
+    const [prefix, n] = code.split(":");
+    const ladder = keys.findIndex((k) => COACH_CODE_PREFIX[k] === prefix);
+    if (ladder < 0) return [];
+    const step = (COACH_LADDERS[keys[ladder]] as number[]).indexOf(Number(n));
+    return step < 0 ? [] : [{ code, ladder, step }];
+  });
+  return ranked
+    .sort((a, b) => b.step - a.step || a.ladder - b.ladder)
+    .slice(0, MAX_PUBLIC_AWARDS)
+    .map((a) => a.code);
 }

@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { BadgeCheck, MapPin } from "lucide-react";
+import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { FORMAT_LABELS, SPECIALTIES, visibleStats } from "@/lib/coach/profile";
+import { FORMAT_LABELS, publicAwards, SPECIALTIES, visibleStats } from "@/lib/coach/profile";
 import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -52,10 +53,15 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   const isOwner = viewer?.id === coach.id;
   if (!coach.profile.publishedAt && !isOwner) notFound();
 
-  const [stats, link] = await Promise.all([
+  const [stats, link, earned] = await Promise.all([
     getCoachPublicStats(coach.id, new Date(), coach.profile.hiddenStats),
     viewer && !isOwner ? db.coachLink.findFirst({ where: { coachId: coach.id, clientId: viewer.id, endedAt: null }, select: { id: true } }) : null,
+    coach.profile.showAwards
+      ? db.userAchievement.findMany({ where: { userId: coach.id, category: "COACH" }, select: { code: true, title: true } })
+      : [],
   ]);
+  const titles = new Map(earned.map((a) => [a.code, a.title]));
+  const awards = publicAwards(earned.map((a) => a.code)).map((code) => ({ code, title: titles.get(code)! }));
   const shown = visibleStats(stats, coach.profile.hiddenStats);
   const name = nameOf(coach);
   const initials = name
@@ -143,6 +149,22 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
               <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
             </div>
           ))}
+        </section>
+      ) : null}
+
+      {awards.length ? (
+        <section aria-labelledby="awards" className="mt-8">
+          <h2 id="awards" className="font-display text-xl font-bold">
+            Награды тренера
+          </h2>
+          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {awards.map((a) => (
+              <li key={a.code} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                <AchievementIcon code={a.code} size={44} />
+                <span className="text-sm font-semibold">{a.title}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
