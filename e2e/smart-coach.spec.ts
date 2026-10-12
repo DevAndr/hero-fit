@@ -49,6 +49,41 @@ test("settings toggle hides the assistant", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Помощник" })).toHaveCount(0);
 });
 
+test("launcher can be dragged and keeps its place", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("smart_coach", me.login);
+  await page.goto("/dashboard");
+  const launcher = page.getByRole("button", { name: "Помощник" });
+  await expect(launcher).toBeVisible();
+  const before = (await launcher.boundingBox())!;
+  const x = before.x + before.width / 2;
+  const y = before.y + before.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 80, y - 120, { steps: 8 });
+  await page.mouse.up();
+  // Перетаскивание не открывает чат
+  await expect(chat(page)).toHaveCount(0);
+  const after = (await launcher.boundingBox())!;
+  // ±1 px: положение округляется до целых
+  expect(Math.abs(after.x - before.x + 80)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - before.y + 120)).toBeLessThanOrEqual(1);
+
+  // Положение — на устройстве; за край экрана кнопка не уходит
+  await page.reload();
+  await expect.poll(async () => Math.round((await launcher.boundingBox())!.x)).toBe(Math.round(after.x));
+  await page.mouse.move(after.x + 24, after.y + 24);
+  await page.mouse.down();
+  await page.mouse.move(-500, -500, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => (await launcher.boundingBox())!.x).toBe(8);
+  await expect.poll(async () => (await launcher.boundingBox())!.y).toBe(8);
+
+  // Обычное нажатие по-прежнему открывает чат
+  await launcher.click();
+  await expect(chat(page)).toBeVisible();
+});
+
 test("weight for today from history fills the sets", async ({ page }) => {
   const me = await registerUser(page);
   await addFlagUser("smart_coach", me.login);

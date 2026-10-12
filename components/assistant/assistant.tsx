@@ -1,12 +1,25 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { Loader2, MessageCircleQuestion, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Action, ExerciseState } from "@/components/training/workout-state";
 import { askAssistantAction, saveWellbeingAction } from "@/lib/assistant/actions";
 import { reachGoal } from "@/lib/analytics/reach";
+import { clampPos, DRAG_THRESHOLD, parsePos, popoverSide, type FloatPos } from "@/lib/assistant/position";
 import { painRelated, replacementCandidates, repsOrWeight, weightAdvice, type PainSpot, type Wellbeing } from "@/lib/assistant/rules";
 import {
   BACK,
@@ -131,8 +144,10 @@ function Launcher({ workout, onOpen }: { workout: WorkoutBridge | null; onOpen: 
     setHideCheckin(workoutId ? checkinDone(workoutId) : true);
   }, [workoutId]);
 
+  const drag = useDraggable();
+
   return (
-    <div className={cn(FLOAT, "flex flex-col items-end gap-2")}>
+    <div className={cn(drag.style ? "fixed z-40" : FLOAT, "flex gap-2", drag.className)} style={drag.style}>
       {workout && needCheckin && !hideCheckin ? (
         <CheckIn
           workout={workout}
@@ -142,11 +157,107 @@ function Launcher({ workout, onOpen }: { workout: WorkoutBridge | null; onOpen: 
           }}
         />
       ) : null}
-      <Button size="icon-lg" className="size-12 rounded-full shadow-lg" aria-label="Помощник" onClick={() => onOpen("menu")}>
+      <Button
+        size="icon-lg"
+        className="size-12 touch-none rounded-full shadow-lg"
+        aria-label="Помощник"
+        title="Помощник — можно перетащить"
+        {...drag.handlers}
+        onClick={() => {
+          if (drag.consumeDrag()) return;
+          onOpen("menu");
+        }}
+      >
         <MessageCircleQuestion className="size-6" />
       </Button>
     </div>
   );
+}
+
+const LAUNCHER_SIZE = 48;
+
+/** Область для fixed-элементов — без полос прокрутки (innerWidth их включает). */
+const viewport = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight });
+const POS_KEY = "hf:assistant-pos";
+
+/** Перетаскивание кнопки помощника: положение — на устройстве, кнопка всегда целиком на экране. */
+function useDraggable() {
+  const [pos, setPos] = useState<FloatPos | null>(null);
+  const [view, setView] = useState({ width: 0, height: 0 });
+  const start = useRef<{ x: number; y: number; pos: FloatPos; last: FloatPos | null } | null>(null);
+  const dragged = useRef(false);
+
+  useEffect(() => {
+    const fit = () => {
+      const v = viewport();
+      setView(v);
+      setPos((p) => (p ? clampPos(p, LAUNCHER_SIZE, v.width, v.height) : p));
+    };
+    let saved: FloatPos | null = null;
+    try {
+      saved = parsePos(localStorage.getItem(POS_KEY));
+    } catch {}
+    // localStorage и размер окна — только после монтирования
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) setPos(saved);
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+
+  const handlers = {
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const v = viewport();
+      const from = pos ?? { right: v.width - rect.right, bottom: v.height - rect.bottom };
+      start.current = { x: e.clientX, y: e.clientY, pos: from, last: null };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: PointerEvent<HTMLButtonElement>) => {
+      const s = start.current;
+      if (!s) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (!s.last && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      const v = viewport();
+      s.last = clampPos({ right: s.pos.right - dx, bottom: s.pos.bottom - dy }, LAUNCHER_SIZE, v.width, v.height);
+      setPos(s.last);
+    },
+    onPointerUp: () => {
+      const s = start.current;
+      start.current = null;
+      if (!s?.last) return;
+      dragged.current = true;
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify(s.last));
+      } catch {}
+    },
+    onPointerCancel: () => {
+      start.current = null;
+    },
+  };
+
+  /** Клик после перетаскивания — не открывает чат. */
+  const consumeDrag = () => {
+    const was = dragged.current;
+    dragged.current = false;
+    return was;
+  };
+
+  if (!pos || !view.width) return { handlers, consumeDrag, style: undefined, className: "flex-col items-end" };
+  // Карточка чек-ина раскрывается к центру экрана
+  const side = popoverSide(pos, LAUNCHER_SIZE, view.width, view.height);
+  const style: CSSProperties = {
+    ...(side.left ? { left: view.width - pos.right - LAUNCHER_SIZE } : { right: pos.right }),
+    ...(side.below ? { top: view.height - pos.bottom - LAUNCHER_SIZE } : { bottom: pos.bottom }),
+  };
+  return {
+    handlers,
+    consumeDrag,
+    style,
+    className: cn(side.below ? "flex-col-reverse" : "flex-col", side.left ? "items-start" : "items-end"),
+  };
 }
 
 /** Чек-ин самочувствия: карточка над кнопкой помощника, не блокирует тренировку. Боль на сервер не уходит. */
