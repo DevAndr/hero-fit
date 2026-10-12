@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, clubOf, createClub, joinClub, seedXpWorkout, setClubStatus, setNickname, setPrivacy } from "./db";
+import { addFlagUser, clubAdminLogin, clubOf, createClub, joinClub, seedXpWorkout, setClubStatus, setNickname, setPrivacy } from "./db";
 import { registerUser } from "./helpers";
 
 // Флаг clubs — списком на пользователя (addFlagUser): спеки идут параллельно. Модерация — e2e/clubs-moderation.spec.ts
@@ -208,4 +208,69 @@ test("hidden and pending clubs", async ({ page, browser }) => {
   const rejected = await createClub(me.login, { status: "REJECTED", rejectReason: "Нет такого зала" });
   await page.goto(`/clubs/${rejected.id}`);
   await expect(page.getByText("Заявка отклонена: Нет такого зала")).toBeVisible();
+});
+
+test("manage: edit, kick with ban, unban, transfer, new link", async ({ page, browser }) => {
+  const admin = await clubsUser(page);
+  await setNickname(admin.login, nick());
+  const member = await secondUser(browser);
+  const memberNick = nick();
+  await setNickname(member.user.login, memberNick);
+  const outsider = await secondUser(browser);
+  const outsiderNick = nick();
+  await setNickname(outsider.user.login, outsiderNick);
+  const club = await createClub(admin.login, { city: `Управград${unique()}` });
+  await joinClub(admin.login, club.id);
+  await joinClub(member.user.login, club.id);
+
+  // Не админу — 404
+  expect((await member.page.goto(`/clubs/${club.id}/manage`))?.status()).toBe(404);
+
+  await page.goto(`/clubs/${club.id}/manage`);
+  // Правка адреса
+  await page.getByRole("button", { name: "Изменить" }).click();
+  const edit = page.getByRole("dialog");
+  await edit.getByLabel("Адрес").fill("пр. Новый, 10");
+  await edit.getByRole("button", { name: "Сохранить" }).click();
+  await expect(edit).toBeHidden();
+  await page.goto(`/clubs/${club.id}`);
+  await expect(page.getByText(/пр\. Новый, 10/)).toBeVisible();
+
+  // Исключение = бан; у своей строки кнопки нет
+  await page.goto(`/clubs/${club.id}/manage`);
+  const members = page.getByRole("list", { name: "Участники" });
+  await expect(members.getByRole("listitem").filter({ hasText: "(вы)" }).getByRole("button", { name: /Исключить/ })).toHaveCount(0);
+  await members.getByRole("listitem").filter({ hasText: memberNick }).getByRole("button", { name: /Исключить/ }).click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm.getByText("Он не сможет вступить снова, пока вы не разблокируете")).toBeVisible();
+  await confirm.getByRole("button", { name: "Исключить" }).click();
+  await expect.poll(() => clubOf(member.user.login)).toBeNull();
+  await member.page.goto(`/clubs/join/${club.code}`);
+  await expect(member.page.getByText("Админ клуба ограничил вступление")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("list", { name: "Заблокированные" }).getByRole("listitem").filter({ hasText: memberNick }).getByRole("button", { name: "Разблокировать" }).click();
+  await expect(page.getByRole("list", { name: "Заблокированные" })).toHaveCount(0);
+  await member.page.reload();
+  await member.page.getByRole("button", { name: "Вступить" }).click();
+  await expect.poll(() => clubOf(member.user.login)).toBe(club.id);
+
+  // Передача: не участнику — отказ, участнику — переходит
+  await page.reload();
+  const transfer = page.getByRole("form", { name: "Передать клуб" });
+  await transfer.getByLabel("Ник участника").fill(outsiderNick);
+  await transfer.getByRole("button", { name: "Передать" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Передать" }).click();
+  await expect(transfer.getByText("Передать можно только участнику клуба")).toBeVisible();
+  await transfer.getByLabel("Ник участника").fill(memberNick);
+  await transfer.getByRole("button", { name: "Передать" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Передать" }).click();
+  await expect.poll(() => clubAdminLogin(club.id)).toBe(member.user.login);
+  expect((await page.goto(`/clubs/${club.id}/manage`))?.status()).toBe(404);
+
+  // Новый админ меняет ссылку — старая перестаёт работать
+  await member.page.goto(`/clubs/${club.id}/manage`);
+  await member.page.getByRole("button", { name: "Сменить ссылку" }).click();
+  await member.page.getByRole("alertdialog").getByRole("button", { name: "Сменить" }).click();
+  await expect.poll(async () => (await outsider.page.goto(`/clubs/join/${club.code}`))?.status()).toBe(404);
 });
