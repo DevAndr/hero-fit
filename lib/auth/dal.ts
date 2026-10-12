@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { ACCESS_COOKIE } from "@/lib/auth/cookies";
 import { verifyAccessToken } from "@/lib/auth/tokens";
+import { isAdminLogin } from "@/lib/auth/admin-login";
+import { env } from "@/lib/env";
 
 /** Данные пользователя, которые можно отдавать в UI (без хеша пароля). */
 export type CurrentUser = {
@@ -32,6 +34,8 @@ export type CurrentUser = {
   isCoach: boolean;
   /** Сессия из Telegram Mini App: кабинет подстраивается под Telegram. */
   embedded: boolean;
+  /** Логин в ADMIN_LOGINS: страница /admin/flags. */
+  isAdmin: boolean;
 };
 
 /**
@@ -78,7 +82,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!session || session.revokedAt || session.expiresAt <= new Date()) return null;
   if (session.user.id !== payload.userId) return null;
 
-  return { ...session.user, sessionId: payload.sessionId, embedded: session.embedded };
+  return {
+    ...session.user,
+    sessionId: payload.sessionId,
+    embedded: session.embedded,
+    isAdmin: isAdminLogin(session.user.login, env.ADMIN_LOGINS),
+  };
 });
 
 export async function requireUser(): Promise<CurrentUser> {
