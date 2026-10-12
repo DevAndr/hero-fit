@@ -8,6 +8,7 @@ import { MyClubs } from "@/components/club/my-clubs";
 import { buttonVariants } from "@/components/ui/button";
 import { requireClubs } from "@/lib/club/access";
 import { getMyClubs, searchClubs } from "@/lib/club/queries";
+import { clubKey } from "@/lib/club/rules";
 
 export const metadata: Metadata = { title: "Клубы" };
 
@@ -22,7 +23,8 @@ export default async function ClubsPage({ searchParams }: PageProps<"/clubs">) {
   if (mine.member && !params.list) redirect(`/clubs/${mine.member.id}`);
   const city = param(params.city, 40);
   const q = param(params.q, 60);
-  const searched = Boolean(city.trim() || q.trim());
+  // «%» или «!!!» без города — не «все клубы»: после очистки искать нечего
+  const searched = Boolean(clubKey(city) || clubKey(q));
   const results = searched ? await searchClubs(city, q) : [];
 
   return (

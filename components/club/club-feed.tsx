@@ -26,11 +26,12 @@ export function ClubFeed({ clubId, initial }: { clubId: string; initial: { event
   const [next, setNext] = useState(initial.next);
   const [pending, start] = useTransition();
 
-  if (!events.length && !next) {
-    return <p className="text-sm text-muted-foreground">Пока тихо: здесь появятся ачивки, рекорды и новые уровни участников.</p>;
-  }
+  const quiet = <p className="text-sm text-muted-foreground">Пока тихо: здесь появятся ачивки, рекорды и новые уровни участников.</p>;
+  if (!events.length && !next) return quiet;
   return (
     <div className="space-y-3">
+      {/* Свежие тренировки без событий — текст и «Показать ещё» к более старым */}
+      {events.length ? null : quiet}
       <ul aria-label="Лента клуба" className="space-y-2">
         {events.map((e) => (
           <li key={e.key} className={cn("rounded-xl border bg-card p-4", e.me && "border-primary/30")}>

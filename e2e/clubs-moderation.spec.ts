@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { clubStatus, createClub, makeAdmin, notificationBodies, withDb } from "./db";
+import { clubStatus, createClub, makeAdmin, notificationBodies, notificationUrls, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // makeAdmin переименовывает глобального админа — сценарии по очереди и только на desktop
@@ -54,6 +54,8 @@ test("reject with reason, approve once, hide and restore", async ({ browser }) =
   await expect(dialog).toBeHidden();
   await expect.poll(() => clubStatus(first.id)).toBe("REJECTED");
   await expect.poll(() => notificationBodies(applicant.login)).toContain("Нет такого зала");
+  // Ссылка — на «Мои клубы» с причиной, а не на клуб, где заявитель состоит
+  expect(await notificationUrls(applicant.login)).toContain("/clubs?list=1");
 
   // Одобрение; повторное решение со старой страницы — «Заявка уже рассмотрена»
   const second = await createClub(applicant.login, { status: "PENDING", city, name: `${name} 2` });

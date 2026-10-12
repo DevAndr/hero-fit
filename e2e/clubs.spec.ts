@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, clubAdminLogin, clubOf, createClub, joinClub, seedXpWorkout, setClubStatus, setNickname, setPrivacy } from "./db";
+import { addFlagUser, clubAdminLogin, clubOf, createClub, joinClub, seedXpWorkout, seedXpWorkouts, setClubStatus, setNickname, setPrivacy } from "./db";
 import { registerUser } from "./helpers";
 
 // Флаг clubs — списком на пользователя (addFlagUser): спеки идут параллельно. Модерация — e2e/clubs-moderation.spec.ts
@@ -44,6 +44,12 @@ test("search finds approved clubs only, literally", async ({ page }) => {
   await search.getByLabel("Название или адрес").fill("%");
   await search.getByRole("button", { name: "Найти" }).click();
   await expect(page.getByText("Ничего не нашлось")).toBeVisible();
+
+  // «%» без города — не «все клубы»: после очистки текста искать нечего
+  await search.getByLabel("Город").fill("");
+  await search.getByRole("button", { name: "Найти" }).click();
+  await expect(page).toHaveURL(/q=%25/);
+  await expect(page.getByRole("list", { name: "Клубы" })).toHaveCount(0);
 });
 
 test("application: consent checkbox, my clubs, pending limit, rejected reason", async ({ page }) => {
@@ -166,6 +172,8 @@ test("rating and feed: events only, after joining, privacy", async ({ page, brow
   await expect(rating.getByRole("row").nth(1)).toContainText(otherNick);
   await expect(rating.getByRole("row", { name: /ты/ })).toBeVisible();
   await expect(page.getByText("Ещё 1 без тренировок")).toBeVisible();
+  // Согласие обещает «Тренировки — нет»: число тренировок участников не показывается
+  await expect(rating.getByRole("columnheader", { name: "Тренировки" })).toHaveCount(0);
   const sections = page.getByRole("navigation", { name: "Разделы клуба" });
   await page.getByRole("navigation", { name: "Период" }).getByRole("link", { name: "Месяц" }).click();
   await expect(rating.getByRole("row").nth(1)).toContainText(otherNick);
@@ -279,4 +287,39 @@ test("manage: edit, kick with ban, unban, transfer, new link", async ({ page, br
   await member.page.getByRole("button", { name: "Сменить ссылку" }).click();
   await member.page.getByRole("alertdialog").getByRole("button", { name: "Сменить" }).click();
   await expect.poll(async () => (await outsider.page.goto(`/clubs/join/${club.code}`))?.status()).toBe(404);
+});
+
+test("feed: no events in the first batch — «quiet» text with «show more»", async ({ page, browser }) => {
+  const me = await clubsUser(page);
+  await setNickname(me.login, nick());
+  const other = await secondUser(browser);
+  await setNickname(other.user.login, nick());
+  const club = await createClub(me.login);
+  await joinClub(me.login, club.id, new Date(Date.now() - 7 * 24 * 3600 * 1000));
+  await joinClub(other.user.login, club.id, new Date(Date.now() - 7 * 24 * 3600 * 1000));
+  // Событие — самое старое; сверху 46 тренировок без событий (больше, чем 3 запроса по 15)
+  await seedXpWorkout(other.user.login, { xp: 50, finishedAt: new Date(Date.now() - 6 * 24 * 3600 * 1000), meta: { achievements: [{ code: "workouts:1", title: "Первая тренировка" }] } });
+  await seedXpWorkouts(other.user.login, 46);
+
+  await page.goto(`/clubs/${club.id}?tab=feed`);
+  await expect(page.getByText(/Пока тихо/)).toBeVisible();
+  await page.getByRole("button", { name: "Показать ещё" }).click();
+  await expect(page.getByText("Первая тренировка")).toBeVisible();
+});
+
+test("joining two clubs at once from two tabs — no server error", async ({ page }) => {
+  const me = await clubsUser(page);
+  await setNickname(me.login, nick());
+  const a = await createClub(me.login);
+  const b = await createClub(me.login);
+  const tab2 = await page.context().newPage();
+  await page.goto(`/clubs/join/${a.code}`);
+  await tab2.goto(`/clubs/join/${b.code}`);
+  const errors: string[] = [];
+  for (const p of [page, tab2]) p.on("response", (r) => r.status() >= 500 && errors.push(r.url()));
+  await Promise.all([page.getByRole("button", { name: "Вступить" }).click(), tab2.getByRole("button", { name: "Вступить" }).click()]);
+  await expect.poll(() => clubOf(me.login)).not.toBeNull();
+  await page.waitForTimeout(500);
+  expect(errors).toEqual([]);
+  expect([a.id, b.id]).toContain(await clubOf(me.login));
 });
