@@ -66,7 +66,18 @@ export default async function TrainingPage() {
   // key: после отмены/новой тренировки редактор монтируется с чистым состоянием.
   return (
     <MuscleRecoveryProvider recovery={recovery}>
-      <WorkoutEditor key={workout.id} workout={workout} exercises={exercises} last={last} hints={hints} coachTargets={coachTargets} plan={plan} boss={boss} />
+      <WorkoutEditor
+        key={workout.id}
+        workout={workout}
+        exercises={exercises}
+        last={last}
+        hints={hints}
+        coachTargets={coachTargets}
+        plan={plan}
+        boss={boss}
+        targets={Object.fromEntries(targets)}
+        own={Object.fromEntries(own)}
+      />
     </MuscleRecoveryProvider>
   );
 }

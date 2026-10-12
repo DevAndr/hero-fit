@@ -12,6 +12,8 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
 import { FlagsProvider } from "@/components/flags/flags-provider";
+import { AssistantProvider } from "@/components/assistant/assistant";
+import { assistantAvailable } from "@/lib/assistant/access";
 import { RELEASES } from "@/lib/changelog/releases";
 import { userChangelog } from "@/lib/changelog/view";
 import { env } from "@/lib/env";
@@ -52,8 +54,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <FlagsProvider flags={flags}>
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
-        {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
-        {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
+        {/* Умный помощник: флаг smart_coach и выключатель в /settings */}
+        <AssistantProvider available={assistantAvailable(flags.includes("smart_coach"), user.assistantEnabled)}>
+          {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
+          {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
+        </AssistantProvider>
       </PushProvider>
     </FlagsProvider>
   );

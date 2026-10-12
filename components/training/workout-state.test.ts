@@ -134,3 +134,53 @@ describe("toDraft", () => {
     expect(draft.exercises[0].sets[1]).toMatchObject({ weight: 0, reps: 0 });
   });
 });
+
+describe("assistant actions", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const press = { id: "press", name: "Жим ногами", muscleGroups: ["LEGS" as const], isBodyweight: false };
+
+  it("applySets replaces only unfinished working sets", () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [{ exercise: bench, restSec: 90 }],
+      last: { bench: { date: NOW, sets: [{ weight: 60, reps: 8 }, { weight: 60, reps: 8 }, { weight: 60, reps: 8 }] } },
+    });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "setWarmup", key: k, sets: [{ weight: 20, reps: 10 }] });
+    const firstWork = s.exercises[0].sets[1].key;
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: firstWork, now: NOW });
+    s = reducer(s, { type: "applySets", key: k, sets: [{ weight: 62.5, reps: 8 }, { weight: 62.5, reps: 8 }, { weight: 62.5, reps: 8 }] });
+    expect(s.exercises[0].sets.map((x) => [x.weight, x.reps, x.isWarmup, Boolean(x.completedAt)])).toEqual([
+      ["20", "10", true, false],
+      ["60", "8", false, true],
+      ["62.5", "8", false, false],
+      ["62.5", "8", false, false],
+    ]);
+  });
+
+  it("applySets adds missing sets and drops extra unfinished ones", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "applySets", key: k, sets: Array.from({ length: 4 }, () => ({ weight: 40, reps: 10 })) });
+    expect(s.exercises[0].sets).toHaveLength(4);
+    s = reducer(s, { type: "applySets", key: k, sets: [{ weight: 0, reps: 12 }] });
+    expect(s.exercises[0].sets.map((x) => [x.weight, x.reps])).toEqual([["", "12"]]);
+  });
+
+  it("replaceExercise swaps in place without completed sets, otherwise inserts after", () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [{ exercise: squat, restSec: 120 }, { exercise: bench, restSec: 90 }],
+      last: {},
+    });
+    const k = s.exercises[0].key;
+    const last = { press: { date: NOW, sets: [{ weight: 100, reps: 10 }] } };
+    const swapped = reducer(s, { type: "replaceExercise", key: k, exercise: press, restSec: 120, last });
+    expect(swapped.exercises.map((e) => e.exercise.id)).toEqual(["press", "bench"]);
+    expect(swapped.exercises[0].sets.map((x) => [x.weight, x.reps])).toEqual([["100", "10"]]);
+
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[0].key, now: NOW });
+    const added = reducer(s, { type: "replaceExercise", key: k, exercise: press, restSec: 120, last });
+    expect(added.exercises.map((e) => e.exercise.id)).toEqual(["squat", "press", "bench"]);
+  });
+});

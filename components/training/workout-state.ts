@@ -81,12 +81,32 @@ export type Action =
   | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup" | "rir">> }
   | { type: "toggleComplete"; key: string; setKey: string; now: string }
   /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
-  | { type: "setWarmup"; key: string; sets: { weight: number; reps: number }[] };
+  | { type: "setWarmup"; key: string; sets: { weight: number; reps: number }[] }
+  /** Совет помощника: невыполненные рабочие подходы — по совету (выполненные и разминка не трогаются). */
+  | { type: "applySets"; key: string; sets: { weight: number; reps: number }[] }
+  /** Замена от помощника: без выполненных подходов — на месте, иначе новое упражнение сразу после текущего. */
+  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance };
 
 const DEFAULT_SETS = 3;
 
 function mapExercise(state: WorkoutState, exerciseKey: string, fn: (e: ExerciseState) => ExerciseState): WorkoutState {
   return { ...state, exercises: state.exercises.map((e) => (e.key === exerciseKey ? fn(e) : e)) };
+}
+
+const workingSet = (s: { weight: number; reps: number }): SetState => ({
+  key: key(),
+  weight: fmt(s.weight),
+  reps: fmt(s.reps),
+  isWarmup: false,
+  rir: null,
+  completedAt: null,
+});
+
+/** Подходы — по прошлой тренировке («как в прошлый раз»), иначе 3 пустых. */
+function newExercise(exercise: ExerciseInfo, restSec: number, last: LastPerformance): ExerciseState {
+  const previous = last[exercise.id]?.sets ?? [];
+  const template = previous.length ? previous : Array.from({ length: DEFAULT_SETS }, () => ({ weight: 0, reps: 0 }));
+  return { key: key(), exercise, restSec, sets: template.map(workingSet) };
 }
 
 export function reducer(state: WorkoutState, action: Action): WorkoutState {
@@ -101,24 +121,7 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       return { ...state, status: "IN_PROGRESS", startedAt: action.startedAt };
 
     case "addExercises": {
-      const added = action.exercises.map(({ exercise, restSec }) => {
-        // Подходы заполняем по прошлой тренировке — «как в прошлый раз».
-        const previous = action.last[exercise.id]?.sets ?? [];
-        const template = previous.length ? previous : Array.from({ length: DEFAULT_SETS }, () => ({ weight: 0, reps: 0 }));
-        return {
-          key: key(),
-          exercise,
-          restSec,
-          sets: template.map((s) => ({
-            key: key(),
-            weight: fmt(s.weight),
-            reps: fmt(s.reps),
-            isWarmup: false,
-            rir: null,
-            completedAt: null,
-          })),
-        };
-      });
+      const added = action.exercises.map(({ exercise, restSec }) => newExercise(exercise, restSec, action.last));
       const at = Math.min(Math.max(action.index ?? state.exercises.length, 0), state.exercises.length);
       return { ...state, exercises: [...state.exercises.slice(0, at), ...added, ...state.exercises.slice(at)] };
     }
@@ -183,6 +186,23 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
         const index = at === -1 ? kept.length : at;
         return { ...e, sets: [...kept.slice(0, index), ...warmups, ...kept.slice(index)] };
       });
+
+    case "applySets":
+      return mapExercise(state, action.key, (e) => {
+        const kept = e.sets.filter((s) => s.isWarmup || s.completedAt);
+        const done = kept.filter((s) => !s.isWarmup).length;
+        return { ...e, sets: [...kept, ...action.sets.slice(done).map(workingSet)] };
+      });
+
+    case "replaceExercise": {
+      const at = state.exercises.findIndex((e) => e.key === action.key);
+      if (at < 0) return state;
+      const fresh = newExercise(action.exercise, action.restSec, action.last);
+      const started = state.exercises[at].sets.some((s) => s.completedAt);
+      const exercises = [...state.exercises];
+      exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
+      return { ...state, exercises };
+    }
 
     case "toggleComplete":
       return mapExercise(state, action.key, (e) => ({
