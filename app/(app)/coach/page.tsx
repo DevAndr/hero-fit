@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Globe, Users } from "lucide-react";
+import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
 import { AssignManyButton } from "@/components/coach/assign-many";
 import { ClientList } from "@/components/coach/client-list";
@@ -8,6 +9,9 @@ import { GroupFilter } from "@/components/coach/group-filter";
 import { GroupsButton } from "@/components/coach/groups-dialog";
 import { InviteCard } from "@/components/coach/invite-card";
 import { buttonVariants } from "@/components/ui/button";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { getUnseenAchievements } from "@/lib/achievements/queries";
+import { quietly } from "@/lib/achievements/quietly";
 import { requireCoach } from "@/lib/coach/access";
 import { clientPickLabels } from "@/lib/coach/assign";
 import { sortClients } from "@/lib/coach/clients";
@@ -28,6 +32,10 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   const coach = await requireCoach();
   const now = new Date();
   const query = await searchParams;
+  // Результаты клиентов (тренировки, рекорды, цели) — ачивки тренера сразу, без ожидания следующего входа.
+  // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
+  const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0 });
+  const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
   const [code, clients, templates, groups] = await Promise.all([
     ensureCoachCode(coach.id),
     getCoachClients(coach.id, now),
@@ -79,6 +87,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
         code={pretty(code)}
         telegramUrl={telegramEnabled(env) ? telegramJoinUrl(code, env.TELEGRAM_BOT_USERNAME) : null}
       />
+      {unseen.length > 0 && <AchievementToaster achievements={unseen} />}
     </div>
   );
 }

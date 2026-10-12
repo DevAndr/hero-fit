@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { quietly } from "@/lib/achievements/quietly";
 import { queueGoal } from "@/lib/analytics/queue";
 import { requireCoach } from "@/lib/coach/access";
 import { canPublish, coachProfileSchema, type CoachProfileInput } from "@/lib/coach/profile";
@@ -41,6 +43,7 @@ export async function publishCoachProfileAction(on: boolean): Promise<Result> {
       await ensureCoachCode(coach.id);
       await db.coachProfile.update({ where: { userId: coach.id }, data: { publishedAt: new Date() } });
       await queueGoal("coach_page_published");
+      await quietly(() => evaluateAchievementsNow(coach.id), null); // «На виду»
     }
   } else if (profile) {
     await db.coachProfile.update({ where: { userId: coach.id }, data: { publishedAt: null } });

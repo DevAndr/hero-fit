@@ -29,6 +29,7 @@ export type ProfileForm = {
   specialties: string[];
   about: string;
   hiddenStats: StatCode[];
+  showAwards: boolean;
 };
 
 const STAT_TITLES: Record<StatCode, string> = {
@@ -211,6 +212,13 @@ export function ProfileEditor({
               />
             </li>
           ))}
+          <li className="flex items-center justify-between gap-3 py-2">
+            <span className="text-sm">
+              Показывать награды
+              <span className="block text-xs text-muted-foreground">Тренерские ачивки — за клиентов, разборы и их результаты</span>
+            </span>
+            <Switch aria-label="Показывать награды" checked={form.showAwards} onCheckedChange={(v) => set({ showAwards: v })} />
+          </li>
         </ul>
       </section>
 

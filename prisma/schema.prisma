@@ -52,6 +52,7 @@ enum AchievementCategory {
   BOSS // победы над боссом недели
   GUILD // победы в рейдах гильдии
   GOAL // выполненные личные цели (lib/goals)
+  COACH // ачивки тренера (lib/achievements/coach-stats.ts)
 }
 
 enum NotificationType {
@@ -744,6 +745,8 @@ model CoachProfile {
   /// скрытые цифры — коды STAT_CODES
   hiddenStats String[]    @default([])
   publishedAt DateTime?
+  /// блок «Награды тренера» на публичной странице
+  showAwards  Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

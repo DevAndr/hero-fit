@@ -36,6 +36,7 @@ export default async function CoachProfilePage() {
           specialties: profile?.specialties ?? [],
           about: profile?.about ?? "",
           hiddenStats: (profile?.hiddenStats ?? []) as StatCode[],
+          showAwards: profile?.showAwards ?? true,
         }}
         published={Boolean(profile?.publishedAt)}
         url={user.nickname ? new URL(`/trainer/${encodeURIComponent(user.nickname)}`, env.APP_URL).toString() : null}

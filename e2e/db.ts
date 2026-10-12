@@ -29,6 +29,7 @@ export async function seedWorkouts(
   exerciseName: string,
   workouts: { weight: number; reps: number; sets: number }[],
   daysAgo = workouts.length + 1,
+  opts: { templateId?: string } = {},
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
@@ -42,9 +43,9 @@ export async function seedWorkouts(
       const workoutId = randomUUID();
       const weId = randomUUID();
       await db.query(
-        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
-         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4)`,
-        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets],
+        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt", "templateId")
+         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4, $8)`,
+        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets, opts.templateId ?? null],
       );
       await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [
         weId,
@@ -404,14 +405,31 @@ export async function coachGroupMembers(coachLogin: string) {
 /** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
 export async function coachProfile(
   coachLogin: string,
-  p: { about: string; publish?: boolean; city?: string; displayName?: string; hiddenStats?: string[]; specialties?: string[] },
+  p: {
+    about: string;
+    publish?: boolean;
+    city?: string;
+    displayName?: string;
+    hiddenStats?: string[];
+    specialties?: string[];
+    showAwards?: boolean;
+  },
 ) {
   await withDb(async (db) => {
     await db.query(
-      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, now())
-       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "updatedAt" = now()`,
-      [await userId(db, coachLogin), p.displayName ?? null, p.city ?? null, p.about, p.specialties ?? [], p.hiddenStats ?? [], p.publish ? new Date() : null],
+      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "showAwards" = $8, "updatedAt" = now()`,
+      [
+        await userId(db, coachLogin),
+        p.displayName ?? null,
+        p.city ?? null,
+        p.about,
+        p.specialties ?? [],
+        p.hiddenStats ?? [],
+        p.publish ? new Date() : null,
+        p.showAwards ?? true,
+      ],
     );
   });
 }
