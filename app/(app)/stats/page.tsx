@@ -10,13 +10,14 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getStats, getTrends } from "@/lib/stats/queries";
 import { getMonthCompare } from "@/lib/stats/strength-queries";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Статистика" };
 
 export default async function StatsPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
-  const [stats, trends, month] = await Promise.all([getStats(user.id, timeZone), getTrends(user.id, timeZone), getMonthCompare(user.id, timeZone)]);
+  const [stats, trends, month] = await Promise.all([getStats(user.id, timeZone), getTrends(user.id, timeZone), isEnabled("strength_analytics", user.id).then((on) => (on ? getMonthCompare(user.id, timeZone) : null))]);
   const empty = stats.totals.total === 0;
 
   return (

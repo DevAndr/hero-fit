@@ -37,6 +37,7 @@ import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-que
 import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
@@ -170,7 +171,7 @@ export default async function DashboardPage() {
       <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey}
         coachName={coach ? clientDisplayName(coach) : null}
       />
-      {recap ? <RecapCard recap={recap} /> : null}
+      {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
