@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mondayWeeksAgo, seedRecapWeek } from "./db";
+import { mondayWeeksAgo, seedRecapWeek, seedWorkouts } from "./db";
 import { registerUser } from "./helpers";
 
 const press = (day: number, weight: number) => ({ day, time: "19:00", exercise: "Жим штанги лёжа", weight, reps: 5, sets: 3, xp: 80 });
@@ -15,4 +15,13 @@ test("weekly recap shows «Ты стал сильнее» with the exercise", as
   const block = page.getByRole("region", { name: "Сильнее" });
   await expect(block).toContainText("Ты стал сильнее в 1 из 1 упражнения");
   await expect(block).toContainText("Жим штанги лёжа · 1ПМ 70 → 81,5 кг · +17 %");
+});
+
+test("stats shows the month-to-month card", async ({ page }) => {
+  const me = await registerUser(page);
+  await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 60, reps: 5, sets: 3 }], 0);
+  await page.goto("/stats");
+  const card = page.getByRole("region", { name: "Месяц к месяцу" });
+  await expect(card).toContainText("Тренировки");
+  await expect(card).toContainText(/против/);
 });

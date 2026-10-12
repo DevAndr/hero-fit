@@ -30,6 +30,7 @@ import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-queries";
 import { getProgressionHints, getStats, getTrends } from "@/lib/stats/queries";
+import { getMonthCompare } from "@/lib/stats/strength-queries";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Клиент" };
@@ -310,10 +311,10 @@ async function Workouts({ clientId, coachId, tz, base, cursor }: { clientId: str
 }
 
 async function Stats({ clientId, tz, base }: { clientId: string; tz: string; base: string }) {
-  const [stats, trends] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz)]);
+  const [stats, trends, month] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz), getMonthCompare(clientId, tz)]);
   return (
     <StatsView
-      data={{ stats, trends }}
+      data={{ stats, trends, month }}
       exerciseHref={(id) => `${base}/exercises/${id}`}
       workoutHref={(id) => `${base}/workouts/${id}`}
       emptyText="Клиент ещё не завершил ни одной тренировки."

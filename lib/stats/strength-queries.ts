@@ -1,7 +1,10 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import type { WeekBest } from "@/lib/stats/strength";
+import { dayKey } from "@/lib/daily-login";
+import { localMidnight } from "@/lib/progress/weekly-streak";
+import { monthCompare, monthRanges, monthWeeks, type MonthCompare, type MonthTotals } from "@/lib/stats/month";
+import { strengthTrend, type WeekBest } from "@/lib/stats/strength";
 
 type Client = Prisma.TransactionClient | typeof db;
 
@@ -39,4 +42,40 @@ export async function exerciseWeekBests(
     GROUP BY we."exerciseId", e.name, e."isBodyweight", 4
     ORDER BY we."exerciseId", week
   `;
+}
+
+const nextDay = (day: string) => {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Тренировки, часы, объём и побитые рекорды за местные дни [from, to]. */
+async function monthTotals(userId: string, timeZone: string, from: string, to: string): Promise<MonthTotals> {
+  const start = localMidnight(from, timeZone);
+  const end = localMidnight(nextDay(to), timeZone);
+  const [row] = await db.$queryRaw<MonthTotals[]>`
+    SELECT COUNT(*)::int AS workouts,
+           (COALESCE(SUM("durationSec"), 0) / 3600.0)::float8 AS hours,
+           COALESCE(SUM("totalVolume"), 0)::float8 AS volume,
+           (SELECT COALESCE(SUM(jsonb_array_length(meta->'records')), 0) FROM "XpEvent"
+             WHERE "userId" = ${userId} AND reason = 'PERSONAL_RECORD' AND jsonb_typeof(meta->'records') = 'array'
+               AND "createdAt" >= ${start} AND "createdAt" < ${end})::int AS records
+    FROM "Workout"
+    WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "finishedAt" >= ${start} AND "finishedAt" < ${end}
+  `;
+  return row;
+}
+
+/** Карточка «Месяц к месяцу» в /stats (и у тренера во вкладке «Статистика»). */
+export async function getMonthCompare(userId: string, timeZone: string, now = new Date()): Promise<MonthCompare> {
+  const today = dayKey(now, timeZone);
+  const r = monthRanges(today);
+  const weeks = monthWeeks(today);
+  const [cur, prev, bests] = await Promise.all([
+    monthTotals(userId, timeZone, r.cur.from, r.cur.to),
+    monthTotals(userId, timeZone, r.prev.from, r.prev.to),
+    exerciseWeekBests(userId, timeZone, localMidnight(weeks.before[0], timeZone)),
+  ]);
+  return monthCompare(cur, prev, strengthTrend(bests, weeks), today);
 }
