@@ -48,7 +48,8 @@ export async function getDeletionInput(userId: string): Promise<DeletionInput> {
  * админа клуба — их снимаем раньше). Порядок блокировок как везде: пользователь → гильдия/клуб.
  */
 export async function deleteAccount(tx: Tx, userId: string): Promise<void> {
-  const [me] = await tx.$queryRaw<{ nickname: string | null }[]>`SELECT nickname FROM "User" WHERE id = ${userId} FOR UPDATE`;
+  const [me] = await tx.$queryRaw<{ nickname: string | null; login: string; email: string | null }[]>`
+    SELECT nickname, login, email FROM "User" WHERE id = ${userId} FOR UPDATE`;
   if (!me) return;
 
   const guilds = await tx.$queryRaw<{ id: string; name: string }[]>`SELECT id, name FROM "Guild" WHERE "leaderId" = ${userId} FOR UPDATE`;
@@ -94,5 +95,48 @@ export async function deleteAccount(tx: Tx, userId: string): Promise<void> {
     }
   }
 
+  // Счётчик входа хранит логин и email ключом — после удаления их не остаётся
+  await tx.loginThrottle.deleteMany({ where: { key: { in: [`id:${me.login.toLowerCase()}`, ...(me.email ? [`id:${me.email.toLowerCase()}`] : [])] } } });
+
+  await rehomeExercises(tx, userId);
+  // Свои тренировки и шаблоны — раньше пользователя: на свои упражнения из них ссылки с Restrict
+  await tx.workout.deleteMany({ where: { userId } });
+  await tx.workoutTemplate.deleteMany({ where: { userId } });
   await tx.user.delete({ where: { id: userId } });
+}
+
+/**
+ * Мои упражнения в чужих данных (клиент тренировался по шаблону тренера, добавил его упражнение в свой шаблон):
+ * каждому такому пользователю — своя архивная копия упражнения, его тренировки, шаблоны, рекорды, цели, ачивки и
+ * задания тренера переводятся на неё. Иначе удаление упадёт на Restrict, а Cascade унёс бы чужие рекорды и цели.
+ */
+async function rehomeExercises(tx: Tx, userId: string) {
+  const pairs = await tx.$queryRaw<{ exerciseId: string; ownerId: string }[]>`
+    WITH mine AS (SELECT id FROM "Exercise" WHERE "userId" = ${userId})
+    SELECT DISTINCT "exerciseId", "ownerId" FROM (
+      SELECT we."exerciseId", w."userId" AS "ownerId" FROM "WorkoutExercise" we JOIN "Workout" w ON w.id = we."workoutId"
+        WHERE we."exerciseId" IN (SELECT id FROM mine)
+      UNION SELECT te."exerciseId", t."userId" FROM "TemplateExercise" te JOIN "WorkoutTemplate" t ON t.id = te."templateId"
+        WHERE te."exerciseId" IN (SELECT id FROM mine) AND t."userId" IS NOT NULL
+      UNION SELECT "exerciseId", "userId" FROM "PersonalRecord" WHERE "exerciseId" IN (SELECT id FROM mine)
+      UNION SELECT "exerciseId", "userId" FROM "Goal" WHERE "exerciseId" IN (SELECT id FROM mine)
+      UNION SELECT "exerciseId", "userId" FROM "UserAchievement" WHERE "exerciseId" IN (SELECT id FROM mine)
+      UNION SELECT "exerciseId", "clientId" FROM "CoachTarget" WHERE "exerciseId" IN (SELECT id FROM mine)
+    ) refs
+    WHERE "ownerId" <> ${userId}`;
+  for (const { exerciseId: from, ownerId } of pairs) {
+    const source = await tx.exercise.findUniqueOrThrow({
+      where: { id: from },
+      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, defaultRestSec: true },
+    });
+    const { id: to } = await tx.exercise.create({ data: { ...source, userId: ownerId, archivedAt: new Date() }, select: { id: true } });
+    await tx.$executeRaw`UPDATE "WorkoutExercise" we SET "exerciseId" = ${to} FROM "Workout" w
+      WHERE w.id = we."workoutId" AND w."userId" = ${ownerId} AND we."exerciseId" = ${from}`;
+    await tx.$executeRaw`UPDATE "TemplateExercise" te SET "exerciseId" = ${to} FROM "WorkoutTemplate" t
+      WHERE t.id = te."templateId" AND t."userId" = ${ownerId} AND te."exerciseId" = ${from}`;
+    await tx.personalRecord.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
+    await tx.goal.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
+    await tx.userAchievement.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
+    await tx.coachTarget.updateMany({ where: { clientId: ownerId, exerciseId: from }, data: { exerciseId: to } });
+  }
 }

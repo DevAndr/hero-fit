@@ -76,10 +76,17 @@ test("delete: wrong password is refused and throttled like sign-in", async ({ pa
 
 test("delete: the account is gone, sign-in fails", async ({ page }) => {
   const me = await registerUser(page);
-  await deleteAccount(page, PASSWORD);
+  // Неудача пишет логин в счётчик входа — после удаления его там быть не должно
+  const dialog = await deleteAccount(page, "wrong-password");
+  await expect(dialog.getByText("Неверный пароль")).toBeVisible();
+  await dialog.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
   await expect(page).toHaveURL(/\/\?deleted=1$/);
   await expect(page.getByText("Аккаунт удалён. Спасибо, что тренировались с Hero Fit")).toBeVisible();
   expect(await userExists(me.login)).toBe(false);
+  expect(
+    await withDb(async (db) => (await db.query(`select 1 from "LoginThrottle" where key in ($1, $2)`, [`id:${me.login}`, `id:${me.email}`])).rowCount),
+  ).toBe(0);
   await page.goto("/login");
   await page.getByLabel("Логин или email").fill(me.login);
   await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
@@ -176,4 +183,75 @@ test("passwordless Telegram account confirms with its login", async ({ page }) =
   await dialog.getByLabel("Логин", { exact: true }).fill(login);
   await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
   await expect.poll(() => userExists(login)).toBe(false);
+});
+
+/** Своё упражнение пользователя (минуя UI). */
+async function ownExercise(login: string, name: string): Promise<string> {
+  const id = randomUUID();
+  await withDb((db) =>
+    db.query(
+      `insert into "Exercise" (id, "userId", name, "muscleGroups", "isBodyweight", "defaultRestSec", "createdAt", "updatedAt")
+       select $1, id, $2, array['CHEST']::"MuscleGroup"[], false, 90, now(), now() from "User" where login = $3`,
+      [id, name, login],
+    ),
+  );
+  return id;
+}
+
+/** Завершённая тренировка с упражнением и рекорд по нему (минуя UI). */
+async function workoutWith(login: string, exerciseId: string) {
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select id from "User" where login = $1`, [login]);
+    const uid = rows[0].id;
+    const [w, we, set] = [randomUUID(), randomUUID(), randomUUID()];
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, 'Своё', 'COMPLETED', now() - interval '2 hours', now() - interval '1 hour', 3600, 400, 1, 10, now(), now())`,
+      [w, uid],
+    );
+    await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [we, w, exerciseId]);
+    await db.query(`insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, 0, 40, 10, false, now())`, [set, we]);
+    await db.query(`insert into "PersonalRecord" (id, "userId", "exerciseId", type, value, "setId", "achievedAt") values ($1, $2, $3, 'MAX_WEIGHT', 40, $4, now())`, [
+      randomUUID(),
+      uid,
+      exerciseId,
+      set,
+    ]);
+  });
+}
+
+test("own exercise used in own workout and template does not block deletion", async ({ page }) => {
+  const me = await registerUser(page);
+  const ex = await ownExercise(me.login, `Моё ${randomUUID().slice(0, 6)}`);
+  await workoutWith(me.login, ex);
+  await withDb(async (db) => {
+    const t = randomUUID();
+    await db.query(`insert into "WorkoutTemplate" (id, "userId", name, "createdAt", "updatedAt") select $1, id, 'Мой шаблон', now(), now() from "User" where login = $2`, [t, me.login]);
+    await db.query(`insert into "TemplateExercise" (id, "templateId", "exerciseId", "order", "targetSets", "targetReps") values ($1, $2, $3, 0, 3, 10)`, [randomUUID(), t, ex]);
+  });
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await userExists(me.login)).toBe(false);
+});
+
+test("coach's own exercise in a client's history: the client keeps the workout and the record", async ({ browser }) => {
+  const coach = await player(browser, "Тренер");
+  const client = await player(browser, "Клиент");
+  const name = `Тренерское ${randomUUID().slice(0, 6)}`;
+  const ex = await ownExercise(coach.login, name);
+  await workoutWith(client.login, ex);
+  await deleteAccount(coach.page, PASSWORD);
+  await expect(coach.page).toHaveURL(/deleted=1/);
+  const kept = await withDb(async (db) =>
+    (
+      await db.query<{ name: string; owner: string; archived: boolean; records: number }>(
+        `select e.name, u.login as owner, e."archivedAt" is not null as archived,
+                (select count(*) from "PersonalRecord" pr where pr."exerciseId" = e.id and pr."userId" = u.id)::int as records
+         from "WorkoutExercise" we join "Workout" w on w.id = we."workoutId" join "User" u on u.id = w."userId" join "Exercise" e on e.id = we."exerciseId"
+         where u.login = $1`,
+        [client.login],
+      )
+    ).rows,
+  );
+  expect(kept).toEqual([{ name, owner: client.login, archived: true, records: 1 }]);
 });

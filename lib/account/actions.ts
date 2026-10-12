@@ -41,7 +41,8 @@ export async function deleteAccountAction(input: { password?: string; confirm?: 
   const refresh = await verifyRefreshToken(store.get(REFRESH_COOKIE)?.value);
   const embedded = await sessionEmbedded(access?.sessionId ?? refresh?.sessionId);
 
-  await db.$transaction((tx) => deleteAccount(tx, user.id));
+  // Каскады по многим таблицам и чужие итоги недели — дольше умолчания в 5 с (как у завершения тренировки)
+  await db.$transaction((tx) => deleteAccount(tx, user.id), { timeout: 30_000 });
   clearAuthCookies(store, { embedded });
   await queueGoal("account_deleted");
   redirect("/?deleted=1");
