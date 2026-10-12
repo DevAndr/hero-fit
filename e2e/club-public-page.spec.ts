@@ -12,6 +12,7 @@ import {
   setClubStatus,
   setFlag,
   setNickname,
+  withDb,
 } from "./db";
 import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
@@ -188,4 +189,32 @@ test("same name in the same city gets the street; renaming keeps the address", a
   const after = await clubSlug(first.id);
   expect(`/gym/${after.citySlug}/${after.slug}`).toBe(firstPath);
   await expect((await page.goto(firstPath))?.status()).toBe(200);
+});
+
+test("landing: clubs section, menu item and FAQ only when clubs are open to everyone", async ({ page, browser }) => {
+  await resetFlag("clubs");
+  // «Популярные города» — до 6: страницы публикует только этот файл, прошлые прогоны снимаем с публикации
+  await withDb((db) => db.query(`update "Club" set "publishedAt" = null where "publishedAt" is not null`));
+  const g = await guest(browser);
+  try {
+    await g.page.goto("/");
+    await expect(g.page.locator("#clubs")).toHaveCount(0);
+    await expect(g.page.getByRole("banner").getByRole("link", { name: "Клубы", exact: true })).toHaveCount(0);
+    await expect(g.page.getByText("Как добавить свой зал?")).toHaveCount(0);
+    expect((await g.page.locator('script[type="application/ld+json"]').allTextContents()).join()).not.toContain("Как добавить свой зал?");
+
+    await setFlag("clubs", FULL);
+    const { citySlug } = await publishedClub(page);
+    await g.page.reload();
+    await expect(g.page.locator("#clubs")).toBeVisible();
+    await expect(g.page.getByRole("banner").getByRole("link", { name: "Клубы", exact: true })).toBeVisible();
+    await expect(g.page.getByText("Как добавить свой зал?")).toBeVisible();
+    expect((await g.page.locator('script[type="application/ld+json"]').allTextContents()).join()).toContain("Как добавить свой зал?");
+    const section = g.page.getByRole("region", { name: "Клубы залов" });
+    await expect(section.locator(`a[href="/gym/${citySlug}"]`)).toBeVisible();
+    await section.getByRole("link", { name: "Найти свой зал" }).click();
+    await expect(g.page).toHaveURL(/\/register\?next=%2Fclubs$/);
+  } finally {
+    await g.context.close();
+  }
 });

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Users, X } from "lucide-react";
-import { Faq, FAQ } from "@/components/marketing/faq";
+import { ClubInfographic } from "@/components/marketing/club-infographics";
+import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
@@ -23,8 +25,11 @@ import {
   StreakWeeks,
 } from "@/components/marketing/infographics";
 import { buttonVariants } from "@/components/ui/button";
+import { ACCESS_COOKIE } from "@/lib/auth/cookies";
+import { getPopularCities } from "@/lib/club/public-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { isEnabled } from "@/lib/flags/server";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramAppUrl } from "@/lib/telegram/links";
@@ -144,6 +149,12 @@ const COMPARE: [feature: string, notebook: boolean][] = [
 ];
 
 /** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
+const CLUB_POINTS = [
+  "Найдите свой зал или добавьте его — заявку проверит модератор",
+  "Соревнуйтесь в рейтинге недели с теми, кто тренируется рядом",
+  "Выполняйте задания клуба вместе и открывайте сундуки",
+];
+
 const GUILD_POINTS = [
   "Гильдия до 10 человек: вступают по ссылке, видят опыт друг друга за неделю и ленту тренировок",
   "Рейд-босс недели — общий: HP подстраивается под силы гильдии",
@@ -157,6 +168,7 @@ const FREE_PLAN = [
   "Уровни, XP, ачивки, недельный streak и сундуки",
   "Босс недели, бестиарий и титулы",
   "Гильдии до 10 человек и рейд-босс недели",
+  "Клубы залов: рейтинг и общие задания",
   "Друзья, лента и недельная лига",
   "Рекорды, подсказки прогрессии и основная статистика",
 ];
@@ -220,10 +232,16 @@ export default async function Home() {
   await connection();
   // Mini App в Telegram — только при настроенном боте
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
-  const [exercises, programs] = await Promise.all([
+  // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ
+  const [exercises, programs, clubs, cities, authed] = await Promise.all([
     db.exercise.count({ where: { userId: null } }),
     db.workoutTemplate.count({ where: { userId: null } }),
+    isEnabled("clubs", null),
+    getPopularCities(6),
+    cookies().then((c) => c.has(ACCESS_COOKIE)),
   ]);
+  const freePlan = FREE_PLAN.filter((t) => clubs || !t.startsWith("Клубы залов"));
+  const faq = faqFor(clubs);
   const site = env.APP_URL;
   const structured = [
     {
@@ -249,7 +267,7 @@ export default async function Home() {
     {
       "@context": "https://schema.org",
       "@type": "FAQPage",
-      mainEntity: FAQ.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+      mainEntity: faq.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
     },
   ];
 
@@ -429,6 +447,62 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Клубы залов */}
+      {clubs ? (
+        <section aria-labelledby="clubs" className="relative scroll-mt-20 overflow-hidden border-t">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_30%_40%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_60%)]"
+          />
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-20 sm:py-24 lg:grid-cols-2 lg:gap-14">
+            <Reveal className="lg:order-last">
+              <ClubInfographic />
+            </Reveal>
+            <div>
+              <p className="text-sm font-semibold tracking-wide text-primary uppercase">Клубы</p>
+              <h2 id="clubs" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+                Клубы залов
+              </h2>
+              <p className="mt-4 text-pretty text-muted-foreground">
+                Вступите в клуб своего зала: общий рейтинг недели и задания, которые выполняют все вместе.
+              </p>
+              <ul className="mt-6 space-y-3 text-sm">
+                {CLUB_POINTS.map((t) => (
+                  <li key={t} className="flex gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href={authed ? "/clubs" : `/register?next=${encodeURIComponent("/clubs")}`} className={buttonVariants({ size: "lg" })}>
+                  Найти свой зал <ArrowRight aria-hidden />
+                </Link>
+                <Link
+                  href={authed ? "/clubs/new" : `/register?next=${encodeURIComponent("/clubs/new")}`}
+                  className={buttonVariants({ variant: "outline", size: "lg" })}
+                >
+                  Добавить свой зал
+                </Link>
+              </div>
+              {cities.length ? (
+                <div className="mt-8">
+                  <p className="text-sm font-semibold">Популярные города</p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {cities.map((c) => (
+                      <li key={c.path}>
+                        <Link href={c.path} className="inline-flex rounded-full border px-3 py-1 text-sm transition-colors hover:border-primary/50">
+                          {c.city}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {/* Для тренеров */}
       <section aria-labelledby="coaches" className="relative scroll-mt-20 overflow-hidden border-t">
         {/* «Пульт тренера»: сетка рабочего экрана и свечение фирменного цвета */}
@@ -546,7 +620,7 @@ export default async function Home() {
             <h3 className="text-lg font-bold">Бесплатно</h3>
             <p className="mt-1 text-sm text-muted-foreground">Навсегда</p>
             <ul className="mt-5 space-y-3 text-sm">
-              {FREE_PLAN.map((t) => (
+              {freePlan.map((t) => (
                 <li key={t} className="flex gap-2">
                   <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
                 </li>
@@ -583,7 +657,7 @@ export default async function Home() {
       <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
         <div className="mt-12">
-          <Faq />
+          <Faq clubs={clubs} />
         </div>
       </section>
 
