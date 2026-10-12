@@ -42,6 +42,7 @@ import type { LastPerformance } from "@/lib/workouts/queries";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 import { cn } from "@/lib/utils";
 import { readPain, writePain } from "./pain-store";
+import { flushWellbeing, sendWellbeing } from "./wellbeing-queue";
 
 /** Что редактор тренировки сообщает помощнику: упражнения, данные для советов и dispatch редьюсера. */
 export type WorkoutBridge = {
@@ -99,6 +100,8 @@ export function AssistantProvider({ available, children }: { available: boolean;
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState<NodeId>("menu");
   const [session, setSession] = useState(0);
+  // Закрыли чат — фокус обратно на кнопку «Помощник» (а не в начало страницы)
+  const [refocus, setRefocus] = useState(false);
 
   const openExercise = useCallback((exerciseId: string) => {
     setStart(`exercise:${exerciseId}`);
@@ -108,6 +111,15 @@ export function AssistantProvider({ available, children }: { available: boolean;
 
   const value = useMemo(() => ({ available, setWorkout, openExercise }), [available, openExercise]);
 
+  // Чек-ин, отвеченный без сети, — досылаем при появлении сети и при открытии кабинета
+  useEffect(() => {
+    if (!available) return;
+    const flush = () => void flushWellbeing(saveWellbeingAction);
+    flush();
+    window.addEventListener("online", flush);
+    return () => window.removeEventListener("online", flush);
+  }, [available]);
+
   return (
     <AssistantContext.Provider value={value}>
       {children}
@@ -115,9 +127,18 @@ export function AssistantProvider({ available, children }: { available: boolean;
         // ym-hide-content — Вебвизор не пишет текст чата: боль (данные о здоровье) и веса
         <div className="ym-hide-content">
           {open ? (
-            <Chat key={session} start={start} workout={workout} onClose={() => setOpen(false)} />
+            <Chat
+              key={session}
+              start={start}
+              workout={workout}
+              onClose={() => {
+                setOpen(false);
+                setRefocus(true);
+              }}
+            />
           ) : (
             <Launcher
+              focus={refocus}
               workout={workout}
               onOpen={(node) => {
                 setStart(node);
@@ -132,10 +153,16 @@ export function AssistantProvider({ available, children }: { available: boolean;
   );
 }
 
-const FLOAT = "fixed right-4 z-40 bottom-[calc(9.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom))] lg:right-6 lg:bottom-6";
+/** Над таймером отдыха, если он виден (`--rest-timer-clear` ставит таймер). */
+const FLOAT =
+  "fixed right-4 z-40 bottom-[max(calc(9.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom)),var(--rest-timer-clear,0px))] lg:right-6 lg:bottom-[max(1.5rem,var(--rest-timer-clear,0px))]";
 
-function Launcher({ workout, onOpen }: { workout: WorkoutBridge | null; onOpen: (node: NodeId) => void }) {
+function Launcher({ workout, onOpen, focus }: { workout: WorkoutBridge | null; onOpen: (node: NodeId) => void; focus: boolean }) {
   const [hideCheckin, setHideCheckin] = useState(true);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (focus) button.current?.focus();
+  }, [focus]);
   const workoutId = workout?.workoutId;
   const needCheckin = Boolean(workout?.started && workout.wellbeing === null);
   useEffect(() => {
@@ -158,6 +185,7 @@ function Launcher({ workout, onOpen }: { workout: WorkoutBridge | null; onOpen: 
         />
       ) : null}
       <Button
+        ref={button}
         size="icon-lg"
         className="size-12 touch-none rounded-full shadow-lg"
         aria-label="Помощник"
@@ -267,7 +295,7 @@ function CheckIn({ workout, onDone }: { workout: WorkoutBridge; onDone: (pain: b
     markCheckin(workout.workoutId);
     if (payload === "GREAT" || payload === "OK" || payload === "TIRED") {
       workout.setWellbeing(payload);
-      void saveWellbeingAction(workout.workoutId, payload).catch(() => {});
+      void sendWellbeing(workout.workoutId, payload, saveWellbeingAction);
     }
     onDone(payload === "PAIN");
   };
@@ -426,7 +454,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
       if (v === "GREAT" || v === "OK" || v === "TIRED") {
         setWellbeing(v);
         w.setWellbeing(v);
-        void saveWellbeingAction(w.workoutId, v).catch(() => {});
+        void sendWellbeing(w.workoutId, v, saveWellbeingAction);
         push({ from: "bot", text: v === "TIRED" ? "Принято. Сегодня без прибавок — повторить прошлый результат уже хорошо." : "Отлично, учту." });
         return show("menu", pain);
       }
@@ -489,11 +517,22 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
 
   const lastBot = [...messages].reverse().find((m) => m.from === "bot");
 
+  // Открыли — фокус в чат (иначе с клавиатуры и скринридером до него не добраться); Escape — закрыть
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    panel.current?.focus();
+  }, []);
+
   return (
     <section
+      ref={panel}
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
       role="dialog"
       aria-label="Помощник"
-      className={cn(FLOAT, "flex max-h-[min(70dvh,36rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border bg-popover shadow-2xl")}
+      className={cn(FLOAT, "flex max-h-[min(70dvh,36rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl outline-none border bg-popover shadow-2xl")}
     >
       <header className="flex items-center gap-2 border-b px-4 py-2.5">
         <MessageCircleQuestion className="size-4 text-primary" />

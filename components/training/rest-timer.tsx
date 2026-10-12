@@ -10,6 +10,7 @@ import {
   useState,
   useSyncExternalStore,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Bell, BellOff, SkipForward, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -183,12 +184,42 @@ export function RestTimerSpacer() {
 
 /** Плавающая панель над нижней навигацией. */
 export function RestTimerBar() {
+  const { rest } = useRestTimer();
+  return rest ? <RestTimerPanel /> : null;
+}
+
+/**
+ * Сколько места снизу занимает таймер — CSS-переменная `--rest-timer-clear` (от нижнего края экрана до верха
+ * таймера с зазором): кнопка и чат помощника поднимаются над ним, а не перекрывают.
+ */
+function useBottomClearance(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const update = () => root.style.setProperty("--rest-timer-clear", `${Math.round(window.innerHeight - el.getBoundingClientRect().top + 12)}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      root.style.removeProperty("--rest-timer-clear");
+    };
+  }, [ref]);
+}
+
+function RestTimerPanel() {
   const { rest, remaining, adjust, skip } = useRestTimer();
+  const ref = useRef<HTMLDivElement>(null);
+  useBottomClearance(ref);
   if (!rest) return null;
   const progress = Math.min(100, (remaining / rest.total) * 100);
 
   return (
     <div
+      ref={ref}
       role="timer"
       aria-label="Таймер отдыха"
       className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom))] z-40 mx-auto max-w-md overflow-hidden rounded-2xl border bg-popover shadow-2xl lg:bottom-6"
