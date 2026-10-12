@@ -22,9 +22,10 @@ export type ExportRaw = {
   /** Строка пользователя — может содержать и секреты: профиль берёт только PROFILE_FIELDS и notify*. */
   user: Record<string, unknown> & { telegramChatId?: unknown; telegramId?: unknown };
   workouts: ExportWorkout[];
-  friends: { nickname: string | null; status: string; since: Dated }[];
-  coach: { nickname: string | null; since: Dated; until: Dated }[];
-  clients: { nickname: string | null; since: Dated; until: Dated }[];
+  /** Люди — могут прийти с лишними полями (id, логин): в выгрузку идут только ник и даты. */
+  friends: ({ nickname: string | null; status: string; since: Dated } & Record<string, unknown>)[];
+  coach: ({ nickname: string | null; since: Dated; until: Dated } & Record<string, unknown>)[];
+  clients: ({ nickname: string | null; since: Dated; until: Dated } & Record<string, unknown>)[];
   exercises: unknown[];
   templates: unknown[];
   plans: unknown[];
