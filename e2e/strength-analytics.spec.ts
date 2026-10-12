@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mondayWeeksAgo, seedRecapWeek, seedWorkouts } from "./db";
+import { createGoal, mondayWeeksAgo, seedRecapWeek, seedWorkouts } from "./db";
 import { registerUser } from "./helpers";
 
 const press = (day: number, weight: number) => ({ day, time: "19:00", exercise: "Жим штанги лёжа", weight, reps: 5, sets: 3, xp: 80 });
@@ -24,4 +24,15 @@ test("stats shows the month-to-month card", async ({ page }) => {
   const card = page.getByRole("region", { name: "Месяц к месяцу" });
   await expect(card).toContainText("Тренировки");
   await expect(card).toContainText(/против/);
+});
+
+test("strength goal shows a forecast from the weekly trend", async ({ page }) => {
+  const me = await registerUser(page);
+  // Рабочий вес растёт по 2 кг в неделю три недели подряд
+  for (const [weeksAgo, weight] of [[3, 60], [2, 62], [1, 64]] as const) {
+    await seedRecapWeek(me.login, mondayWeeksAgo(weeksAgo), [press(1, weight)]);
+  }
+  await createGoal(me.login, { type: "STRENGTH", exerciseName: "Жим штанги лёжа", metric: "MAX_WEIGHT", target: 70, startValue: 64 });
+  await page.goto("/goals");
+  await expect(page.getByTestId("goal-forecast")).toContainText("≈");
 });

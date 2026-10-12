@@ -45,7 +45,16 @@ function ProgressTooltip({
  * изменение к первой тренировке и плавный график с заливкой без осей. Значения по точкам — в подсказке и таблице.
  */
 /** goal — активная цель по показателю этого графика (рабочий вес или повторы) — пунктирная линия. */
-export function ExerciseProgressChart({ sessions, goal = null }: { sessions: ExerciseSession[]; goal?: number | null }) {
+export function ExerciseProgressChart({
+  sessions,
+  goal = null,
+  forecast = null,
+}: {
+  sessions: ExerciseSession[];
+  goal?: number | null;
+  /** Прогноз цели по динамике (текст) — ось графика по тренировкам, поэтому строкой, а не линией. */
+  forecast?: string | null;
+}) {
   // useId содержит символы, недопустимые в url(#…) — оставляем только безопасные.
   const gradientId = `progress-${useId().replace(/[^\w-]/g, "")}`;
   const bodyweight = sessions.every((s) => s.topWeight === 0);
@@ -94,6 +103,7 @@ export function ExerciseProgressChart({ sessions, goal = null }: { sessions: Exe
       {goal !== null ? (
         <p className="text-xs text-muted-foreground">
           Цель — {fmt(goal)} {unit}
+          {forecast ? ` · ${forecast}` : ""}
         </p>
       ) : null}
 

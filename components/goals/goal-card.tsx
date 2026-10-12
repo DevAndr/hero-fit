@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { EllipsisVertical, Loader2, Target, TriangleAlert } from "lucide-react";
+import { EllipsisVertical, Loader2, Target, TrendingUp, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { DeadlinePicker } from "@/components/goals/deadline-picker";
 import { GoalChestButton } from "@/components/goals/goal-chest-button";
@@ -23,7 +23,8 @@ import { deadlineText, goalValueText } from "@/lib/goals/rules";
 import type { GoalView } from "@/lib/goals/queries";
 import { cn } from "@/lib/utils";
 
-export type GoalCardData = Pick<GoalView, "id" | "type" | "metric" | "title" | "target" | "current" | "progress" | "pace" | "deadline" | "status" | "chestOpenedAt">;
+export type GoalCardData = Pick<GoalView, "id" | "type" | "metric" | "title" | "target" | "current" | "progress" | "pace" | "deadline" | "status" | "chestOpenedAt"> &
+  Partial<Pick<GoalView, "forecast">>;
 
 /** Полоса прогресса цели (общая для страницы, дашборда и тренера). */
 export function GoalBar({ goal }: { goal: Pick<GoalCardData, "title" | "progress" | "status"> }) {
@@ -60,7 +61,12 @@ export function GoalCard({ goal, today, readOnly = false }: { goal: GoalCardData
         </span>
         {!achieved && goal.deadline ? <span className="text-muted-foreground">{deadlineText(goal.deadline, today)}</span> : null}
       </div>
-      {!achieved && goal.pace === "behind" ? (
+      {!achieved && goal.forecast ? (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="goal-forecast">
+          <TrendingUp className="size-3.5" aria-hidden />
+          {goal.forecast.text}
+        </p>
+      ) : !achieved && goal.pace === "behind" ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <TriangleAlert className="size-3.5" />
           Отстаёшь от темпа
