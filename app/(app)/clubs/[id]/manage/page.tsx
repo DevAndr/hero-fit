@@ -12,6 +12,7 @@ import { requireClubs } from "@/lib/club/access";
 import { clubPath } from "@/lib/club/public";
 import { getClubManage } from "@/lib/club/queries";
 import { isEnabled } from "@/lib/flags/server";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Управление клубом" };
@@ -52,7 +53,10 @@ export default async function ManageClubPage({ params }: PageProps<"/clubs/[id]/
         url={data.page.slug && data.page.citySlug ? new URL(clubPath(data.page.citySlug, data.page.slug), env.APP_URL).toString() : null}
         flagFull={await isEnabled("clubs", null)}
       />
-      {club.status === "APPROVED" ? <ManageTasks clubId={club.id} tasks={await getManageTasks(club.id)} exercises={await builtinExercises()} /> : null}
+      <ManageTasks clubId={club.id} tasks={await getManageTasks(club.id)} exercises={await builtinExercises()} canCreate={club.status === "APPROVED"}
+        today={dayKey(new Date(), safeTimeZone(user.timeZone))}
+        timeZone={safeTimeZone(user.timeZone)}
+      />
       <ClubMembersManage clubId={club.id} meId={user.id} members={data.members} banned={data.banned} />
       <TransferClub clubId={club.id} />
     </div>
