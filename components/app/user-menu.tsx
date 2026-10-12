@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
+import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
 import { logoutAction } from "@/lib/auth/actions";
 
@@ -24,6 +25,7 @@ export function UserMenu({
   isCoach,
   isAdmin = false,
   unseen = false,
+  pendingClubs = 0,
 }: {
   name: string | null;
   login: string;
@@ -32,9 +34,12 @@ export function UserMenu({
   isAdmin?: boolean;
   /** Есть непросмотренный релиз «Что нового» — точка на аватаре и у пункта. */
   unseen?: boolean;
+  /** Заявок на клубы на проверке (админу приложения). */
+  pendingClubs?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
+  const clubs = useFlag("clubs");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
   const [opened, setOpened] = useState(false);
@@ -79,6 +84,13 @@ export function UserMenu({
             Флаги
           </DropdownMenuItem>
         ) : null}
+        {isAdmin ? (
+          <DropdownMenuItem render={<Link href="/admin/clubs" />}>
+            <Building2 />
+            Клубы
+            {pendingClubs > 0 ? <span className="ml-auto rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">{pendingClubs}</span> : null}
+          </DropdownMenuItem>
+        ) : null}
         {/* Без prefetch={true}: открытие страницы помечает релиз просмотренным */}
         <DropdownMenuItem render={<Link href="/whats-new" />} onClick={() => setOpened(true)}>
           <Sparkles />
@@ -105,6 +117,12 @@ export function UserMenu({
           <Shield />
           Гильдия
         </DropdownMenuItem>
+        {clubs ? (
+          <DropdownMenuItem render={<Link href="/clubs" />}>
+            <Building2 />
+            Клуб
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem render={<Link href="/leaderboard" />}>
           <Swords />
           Рейтинг

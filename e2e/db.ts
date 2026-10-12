@@ -781,3 +781,77 @@ export async function addFlagUser(key: string, login: string) {
     ),
   );
 }
+
+/** Алфавит кода друга (lib/social/league.ts). */
+const CLUB_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** Клуб в БД минуя заявку; админ — login. Ключи — как clubKey (нижний регистр, без пунктуации). */
+export async function createClub(
+  login: string,
+  o: { status?: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN"; name?: string; city?: string; address?: string; rejectReason?: string } = {},
+): Promise<{ id: string; code: string }> {
+  const key = (s: string) => s.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const name = o.name ?? `E2E Клуб ${Math.random().toString(36).slice(2, 8)}`;
+  const city = o.city ?? "Тестоград";
+  const address = o.address ?? "ул. Тестовая, 1";
+  const code = Array.from({ length: 8 }, () => CLUB_CODE_ALPHABET[Math.floor(Math.random() * CLUB_CODE_ALPHABET.length)]).join("");
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "Club" (id, name, "nameKey", city, "cityKey", address, "addressKey", contact, code, "adminId", status, "rejectReason")
+       select 'club_' || md5(random()::text), $1, $2, $3, $4, $5, $6, '+7 900 000-00-00', $7, id, $8::"ClubStatus", $9 from "User" where login = $10
+       returning id`,
+      [name, key(name), city, key(city), address, key(address), code, o.status ?? "APPROVED", o.rejectReason ?? null, login],
+    );
+    return { id: rows[0].id, code };
+  });
+}
+
+/** Id клуба, в котором состоит пользователь. */
+export async function clubOf(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select m."clubId" as id from "ClubMember" m join "User" u on u.id = m."userId" where u.login = $1`, [login]);
+    return rows[0]?.id ?? null;
+  });
+}
+
+export async function clubStatus(id: string): Promise<string> {
+  return withDb(async (db) => (await db.query<{ status: string }>(`select status::text from "Club" where id = $1`, [id])).rows[0].status);
+}
+
+export async function setClubStatus(id: string, status: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN") {
+  await withDb((db) => db.query(`update "Club" set status = $2::"ClubStatus" where id = $1`, [id, status]));
+}
+
+export async function clubAdminLogin(id: string): Promise<string> {
+  return withDb(async (db) => (await db.query<{ login: string }>(`select u.login from "Club" c join "User" u on u.id = c."adminId" where c.id = $1`, [id])).rows[0].login);
+}
+
+/** Вступить в клуб минуя интерфейс. */
+export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
+  await withDb((db) =>
+    db.query(
+      `insert into "ClubMember" ("userId", "clubId", "joinedAt") select id, $2, coalesce($3, now()) from "User" where login = $1
+       on conflict ("userId") do update set "clubId" = excluded."clubId", "joinedAt" = excluded."joinedAt"`,
+      [login, clubId, joinedAt ?? null],
+    ),
+  );
+}
+
+/** Завершённая тренировка с событием WORKOUT_COMPLETED (опыт и meta сводки) — для рейтинга и ленты клуба. */
+export async function seedXpWorkout(login: string, o: { xp: number; meta?: object; finishedAt?: Date; name?: string }) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    const finished = o.finishedAt ?? new Date();
+    const started = new Date(finished.getTime() - 3600 * 1000);
+    const workoutId = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 4321, 5, 50, $4, $5)`,
+      [workoutId, uid, o.name ?? "Seed", started, finished],
+    );
+    await db.query(
+      `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
+      [randomUUID(), uid, o.xp, workoutId, JSON.stringify(o.meta ?? {}), finished],
+    );
+  });
+}

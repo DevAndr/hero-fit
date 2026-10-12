@@ -1,4 +1,4 @@
-import { CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, ListChecks, Shield, Swords, Target, Trophy, Users } from "lucide-react";
+import { Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, ListChecks, Shield, Swords, Target, Trophy, Users } from "lucide-react";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Кабинет", icon: LayoutDashboard, mobile: true },
@@ -14,6 +14,9 @@ export const NAV_ITEMS = [
   { href: "/guild", label: "Гильдия", icon: Shield, mobile: false },
   { href: "/leaderboard", label: "Рейтинг", icon: Swords, mobile: false },
 ] as const;
+
+/** Клуб зала (флаг `clubs`): в боковом меню после «Гильдии», на телефоне — в меню профиля. */
+export const CLUB_NAV_ITEM = { href: "/clubs", label: "Клуб", icon: Building2, mobile: false } as const;
 
 /** Режим тренера: в боковом меню после остальных, на телефоне — в меню профиля. */
 export const COACH_NAV_ITEM = { href: "/coach", label: "Клиенты", icon: ClipboardCheck, mobile: false } as const;
