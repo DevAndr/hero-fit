@@ -12,6 +12,8 @@ import { PR_XP, workoutXp } from "../lib/progress/xp";
 import { bossForWeek } from "../lib/boss/bosses";
 import { addDays } from "../lib/plans/expand";
 import { MIN_HP, SET_DAMAGE } from "../lib/boss/damage";
+import { clubKey } from "../lib/club/rules";
+import { slugify } from "../lib/club/public";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -821,6 +823,102 @@ async function seedDemoGoals() {
   return created.length ? created.join(", ") : "уже есть";
 }
 
+type SeedClub = {
+  code: string;
+  name: string;
+  city: string;
+  address: string;
+  about: string;
+  admin: string;
+  members: string[];
+  /** Публичная страница /gym/<город>/<зал> опубликована. */
+  published: boolean;
+  task: { type: "WORKOUTS"; mode: "CLUB" | "EACH"; target: number };
+};
+
+/**
+ * Клубы залов: у Маши — опубликованный с тремя участниками (цифры на странице видны) и заданием «всем клубом»,
+ * у demo — свой, ещё не опубликованный (проверять редактор), с заданием «каждому». В клуб Маши demo вступает по
+ * приглашению /clubs/join/<код>. Состав, задания и вклад пересоздаются при каждом сиде.
+ */
+const DEMO_CLUBS: SeedClub[] = [
+  {
+    code: "DEMGYM22",
+    name: "Железный двор",
+    city: "Москва",
+    address: "ул. Тверская, 12",
+    about:
+      "Зал в центре: шесть силовых рам, помосты для становой, гантели до 60 кг и отдельная зона кардио.\n\nОткрыты с 7:00 до 23:00, по выходным — с 9:00.",
+    admin: "demo.masha",
+    members: ["demo.masha", "demo.boris", "demo.coach"],
+    published: true,
+    task: { type: "WORKOUTS", mode: "CLUB", target: 30 },
+  },
+  {
+    code: "DEMGYM33",
+    name: "Демо Фитнес",
+    city: "Казань",
+    address: "ул. Баумана, 7",
+    about: "Небольшой зал у дома: стойки для приседа, скамьи, блочные тренажёры и дружная утренняя компания.",
+    admin: DEMO_USER.login,
+    members: [DEMO_USER.login, "demo.kate"],
+    published: false,
+    task: { type: "WORKOUTS", mode: "EACH", target: 12 },
+  },
+];
+
+async function seedDemoClubs() {
+  const day = 86_400_000;
+  const now = Date.now();
+  const logins = [...new Set(DEMO_CLUBS.flatMap((c) => [c.admin, ...c.members]))];
+  const users = new Map((await db.user.findMany({ where: { login: { in: logins } }, select: { id: true, login: true } })).map((u) => [u.login, u.id]));
+  // Флаг clubs демо-учёткам — списком, не затирая остальных и не включая выключенный флаг
+  await db.$executeRaw`
+    INSERT INTO "FeatureFlag" (key, enabled, percent, "userIds", "updatedAt")
+    VALUES ('clubs', true, 0, ${[...users.values()]}, now())
+    ON CONFLICT (key) DO UPDATE SET "userIds" = ARRAY(SELECT DISTINCT unnest("FeatureFlag"."userIds" || EXCLUDED."userIds")), "updatedAt" = now()`;
+
+  for (const c of DEMO_CLUBS) {
+    const adminId = users.get(c.admin)!;
+    const data = {
+      name: c.name,
+      nameKey: clubKey(c.name),
+      city: c.city,
+      cityKey: clubKey(c.city),
+      address: c.address,
+      addressKey: clubKey(c.address),
+      contact: "+7 900 000-00-00",
+      adminId,
+      status: "APPROVED" as const,
+      reviewedAt: new Date(),
+      about: c.about,
+      slug: c.published ? slugify(c.name) : null,
+      citySlug: c.published ? slugify(c.city, "city") : null,
+      publishedAt: c.published ? new Date() : null,
+    };
+    const club = await db.club.upsert({ where: { code: c.code }, create: { code: c.code, ...data }, update: data, select: { id: true } });
+    const memberIds = c.members.map((l) => users.get(l)!);
+    const joinedAt = new Date(now - 30 * day);
+    await db.clubMember.deleteMany({ where: { OR: [{ clubId: club.id }, { userId: { in: memberIds } }] } });
+    await db.clubBan.deleteMany({ where: { clubId: club.id } });
+    await db.clubMember.createMany({ data: memberIds.map((userId) => ({ userId, clubId: club.id, joinedAt })) });
+
+    // Задание: две недели назад … через две недели; вклад — завершённые тренировки участников в окне
+    await db.clubTask.deleteMany({ where: { clubId: club.id } });
+    const startsAt = new Date(now - 14 * day);
+    const task = await db.clubTask.create({
+      data: { clubId: club.id, ...c.task, startsAt, endsAt: new Date(now + 14 * day), membersAtStart: memberIds.length, createdById: adminId },
+      select: { id: true },
+    });
+    const workouts = await db.workout.findMany({
+      where: { userId: { in: memberIds }, status: "COMPLETED", finishedAt: { gte: startsAt } },
+      select: { id: true, userId: true },
+    });
+    await db.clubTaskHit.createMany({ data: workouts.map((w) => ({ taskId: task.id, userId: w.userId, workoutId: w.id, amount: 1 })) });
+  }
+  return DEMO_CLUBS.map((c) => `«${c.name}» /clubs/join/${c.code}${c.published ? ` (страница /gym/${slugify(c.city, "city")}/${slugify(c.name)})` : ""}`).join(", ");
+}
+
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
@@ -837,6 +935,7 @@ async function main() {
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
     await seedDemoCoach(demoHash, exerciseIds);
     console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")} (Маше назначен «${COACH_TEMPLATE.name}» пн/ср/пт и оставлены комментарии к свежей тренировке), приглашение /coach/join/${DEMO_COACH.code}`);
+    console.log(`Demo clubs: ${await seedDemoClubs()}`);
   }
 }
 
