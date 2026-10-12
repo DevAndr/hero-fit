@@ -4,6 +4,8 @@ import { registerUser } from "./helpers";
 
 // Аналитика — под глобальным флагом strength_analytics: сценарии по очереди, флаг включён у всех, кроме проверок флага
 test.describe.configure({ mode: "serial" });
+// Проекты desktop и mobile идут параллельно — с одним глобальным флагом и одним логином админа только desktop
+test.skip(({}, info) => info.project.name !== "desktop", "глобальный флаг — один проект");
 test.beforeEach(() => setFlag("strength_analytics", { enabled: true, percent: 100 }));
 test.afterEach(() => resetFlag("strength_analytics"));
 
