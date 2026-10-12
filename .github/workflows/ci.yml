@@ -1,20 +1,19 @@
 name: CI
 
 # Экономия минут Actions: CI — только на PR и на main (не на каждый пуш ветки — иначе ветка с PR гоняется дважды);
-# правки одних документов CI не запускают. На PR — быстрые проверки, полный e2e — на main (перед деплоем),
-# на PR — по метке «e2e» или вручную (Run workflow). Полный e2e перед PR гоняется локально.
+# правки одних документов CI не запускают. Автоматически — только быстрые проверки; e2e на CI — только вручную
+# (Run workflow): полный e2e гоняется локально перед PR, результат — в описании PR.
 on:
   push:
     branches: [main]
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
-# Метка «e2e» — своя группа: иначе она отменила бы идущие быстрые проверки того же PR
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event.action == 'labeled' && 'label' || 'code' }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 # Только для CI: секреты-заглушки, БД — сервис-контейнер. e2e сами создают и засевают базу herofit_test.
@@ -29,8 +28,6 @@ env:
 jobs:
   checks:
     name: Typecheck, lint, unit tests
-    # Повесили метку — код не менялся, быстрые проверки уже прошли
-    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -46,8 +43,8 @@ jobs:
 
   e2e:
     name: Build + e2e (desktop)
-    # main и ручной запуск — всегда; PR — только с меткой «e2e» (повесить метку = запустить)
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    # Только вручную (Run workflow): лимит бесплатных минут Actions, e2e гоняется локально перед PR
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # ~560 сценариев на 2 ядрах приватного раннера не укладываются в 30 мин — задача отменялась по лимиту
     timeout-minutes: 60
