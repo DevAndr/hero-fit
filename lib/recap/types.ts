@@ -1,3 +1,4 @@
+import type { StrengthTrend, WeekBest } from "@/lib/stats/strength";
 import type { MuscleGroup, RecordType } from "@/generated/prisma/enums";
 import type { FinishMeta } from "@/lib/workouts/finish";
 
@@ -29,7 +30,14 @@ export type RecapData = {
   plan?: { done: number; planned: number };
   /** Босс недели (lib/boss): урон за неделю, победа — время. */
   boss?: RecapBoss;
+  /** Рейд гильдии недели (lib/raid), если игрок в нём бил. */
+  raid?: RecapRaid;
+  /** Тренд силы: 4 недели по неделю итогов против 4 перед ними (lib/stats/strength). */
+  strength?: StrengthTrend;
 };
+
+/** Рейд недели: урон гильдии, мой вклад и место среди бивших (1 — больше всех). */
+export type RecapRaid = { name: string; code: string; defeated: boolean; damage: number; hp: number; mine: number; place: number; members: number; mvp: boolean };
 
 export type RecapBoss = { code: string; hp: number; damage: number; defeatedAt: string | null };
 
@@ -37,6 +45,8 @@ export type RecapBoss = { code: string; hp: number; damage: number; defeatedAt: 
 export type RecapInput = {
   week: string;
   workouts: { minutes: number; volume: number; sets: number; finishedAt: Date }[];
+  /** Лучшее по неделям за 8 недель по неделю итогов (lib/stats/strength-queries). */
+  strengthWeeks: WeekBest[];
   prevWorkouts: { minutes: number; volume: number; sets: number }[];
   /** Выполненные рабочие подходы недели. */
   sets: { exerciseId: string; exerciseName: string; isBodyweight: boolean; weight: number; reps: number }[];
@@ -55,4 +65,6 @@ export type RecapInput = {
   plan: { done: number; planned: number } | null;
   /** null — босса той недели не было (не открывали приложение). */
   boss?: RecapBoss | null;
+  /** null — в рейдах недели игрок не бил. */
+  raid?: RecapRaid | null;
 };

@@ -5,14 +5,17 @@ import badge100 from "@/assets/icons/achievements/100_weigth_push.png";
 import add5 from "@/assets/icons/achievements/add_5_kg.png";
 import threeWeek from "@/assets/icons/achievements/3x_training.png";
 import fallback from "@/assets/icons/achievements/default.png";
+import firstComment from "@/assets/icons/achievements/first_comment.png";
 import firstTemplate from "@/assets/icons/achievements/first_template.png";
 import firstTraining from "@/assets/icons/achievements/first_training.png";
+import goal from "@/assets/icons/achievements/goal.png";
 import inStreak from "@/assets/icons/achievements/in_streak.png";
 import manySet from "@/assets/icons/achievements/many_set.png";
 import league1 from "@/assets/icons/achievements/number_one_in_league.png";
 import league3 from "@/assets/icons/achievements/number_three_in_league.png";
 import league2 from "@/assets/icons/achievements/number_two_in_league.png";
 import progress from "@/assets/icons/achievements/progress_in_training.png";
+import publishProfile from "@/assets/icons/achievements/publish_profile.png";
 import push100 from "@/assets/icons/achievements/push_100_kg.png";
 import stableStreak from "@/assets/icons/achievements/stable_in_streak.png";
 import visit from "@/assets/icons/achievements/visit.png";
@@ -33,6 +36,9 @@ const ICONS: Record<AchievementIconKey, StaticImageData> = {
   in_streak: inStreak,
   stable_in_streak: stableStreak,
   progress_in_training: progress,
+  first_comment: firstComment,
+  publish_profile: publishProfile,
+  goal,
 };
 
 /** Значок ачивки. Декоративный: название ачивки всегда рядом текстом. */

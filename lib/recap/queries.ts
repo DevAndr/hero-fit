@@ -1,5 +1,6 @@
 import "server-only";
 import { weekDamage } from "@/lib/boss/queries";
+import { raidBossName } from "@/lib/raid/rules";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
@@ -9,9 +10,11 @@ import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
 import type { FinishMeta } from "@/lib/workouts/finish";
+import { isEnabled } from "@/lib/flags/server";
+import { exerciseWeekBests } from "@/lib/stats/strength-queries";
 import { buildRecap } from "./build";
 import { isRecapWeek } from "./schedule";
-import type { RecapData, RecapInput } from "./types";
+import type { RecapData, RecapInput, RecapRaid } from "./types";
 
 export type WeeklyRecapRow = { id: string; week: string; data: RecapData; createdAt: Date; pushedAt: Date | null; seenAt: Date | null };
 
@@ -70,11 +73,41 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
   `;
 }
 
+/**
+ * Рейд гильдии недели: рейды, в которые игрок бил тренировками, завершёнными в [start, end) (его неделя — окно рейда
+ * в поясе главы может не совпадать); при нескольких — с наибольшим моим уроном за весь рейд. Место — среди всех бивших,
+ * включая вышедших.
+ */
+export async function weekRaid(userId: string, start: Date, end: Date): Promise<RecapRaid | null> {
+  const rows = await db.$queryRaw<{ id: string; bossCode: string; hp: number; defeated: boolean; mvp: boolean; damage: number; mine: number; place: number; members: number }[]>`
+    WITH mine AS (
+      -- Рейды, в которые бил игрок тренировками своей недели (окно рейда — в поясе главы, может сдвигаться)
+      SELECT DISTINCT h."raidId" AS id FROM "RaidHit" h JOIN "Workout" w ON w.id = h."workoutId"
+      WHERE h."userId" = ${userId} AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
+    ),
+    per AS (
+      SELECT h."raidId", h."userId", SUM(h.damage)::int AS damage FROM "RaidHit" h
+      WHERE h."raidId" IN (SELECT id FROM mine) GROUP BY 1, 2
+    )
+    SELECT r.id, r."bossCode", r.hp, r."defeatedAt" IS NOT NULL AS defeated, r."mvpUserId" IS NOT DISTINCT FROM ${userId} AS mvp,
+           (SELECT SUM(p.damage) FROM per p WHERE p."raidId" = r.id)::int AS damage,
+           me.damage AS mine,
+           (1 + (SELECT COUNT(*) FROM per p WHERE p."raidId" = r.id AND p.damage > me.damage))::int AS place,
+           (SELECT COUNT(*) FROM per p WHERE p."raidId" = r.id)::int AS members
+    FROM "RaidWeek" r JOIN per me ON me."raidId" = r.id AND me."userId" = ${userId}
+    ORDER BY me.damage DESC
+    LIMIT 1
+  `;
+  const r = rows[0];
+  if (!r) return null;
+  return { name: raidBossName(r.bossCode), code: r.bossCode, defeated: r.defeated, damage: r.damage, hp: r.hp, mine: r.mine, place: r.place, members: r.members, mvp: r.mvp };
+}
+
 /** Всё, что нужно buildRecap о неделе week пользователя (в поясе tz). */
 export async function loadRecapInput(userId: string, week: string, tz: string): Promise<RecapInput> {
   const { start, end } = bounds(week, tz);
   const prev = bounds(addWeeks(week, -1), tz);
-  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit] = await Promise.all([
+  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
     db.user.findUniqueOrThrow({
@@ -93,6 +126,9 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     getCalendar(userId, week, addDays(week, 6), tz, end),
     db.bossWeek.findUnique({ where: { userId_week: { userId, week } } }),
     weekDamage(db, userId, week, tz),
+    weekRaid(userId, start, end),
+    // 8 недель по неделю итогов: окна тренда силы (флаг strength_analytics владельца итогов)
+    isEnabled("strength_analytics", userId).then((on) => (on ? exerciseWeekBests(userId, tz, bounds(addWeeks(week, -7), tz).start) : [])),
   ]);
 
   const ids = workouts.map((w) => w.id);
@@ -118,6 +154,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     week,
     workouts: workouts.map((w) => ({ ...totals(w), finishedAt: w.finishedAt! })),
     prevWorkouts: prevWorkouts.map(totals),
+    strengthWeeks: weekBests.filter((b) => b.week <= week),
     sets: sets.map((s) => ({
       exerciseId: s.workoutExercise.exercise.id,
       exerciseName: s.workoutExercise.exercise.name,
@@ -136,6 +173,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     boss: bossWeek
       ? { code: bossWeek.bossCode, hp: bossWeek.hp, damage: bossHit.damage, defeatedAt: bossWeek.defeatedAt?.toISOString() ?? null }
       : null,
+    raid,
     plan: occurrences.length ? { done: occurrences.filter((o) => o.status === "done").length, planned: occurrences.length } : null,
   };
 }

@@ -50,6 +50,9 @@ enum AchievementCategory {
   MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
   LEAGUE // места в недельной лиге друзей (из итогов недели)
   BOSS // победы над боссом недели
+  GUILD // победы в рейдах гильдии
+  GOAL // выполненные личные цели (lib/goals)
+  COACH // ачивки тренера (lib/achievements/coach-stats.ts)
 }
 
 enum NotificationType {
@@ -61,7 +64,9 @@ enum NotificationType {
   PLAN // «Сегодня по плану»
   RECAP // «Итоги недели» и «Новый старт»
   BOSS // босс недели повержен
+  RAID // рейд-босс гильдии: повержен, «не хватает урона»
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
+  GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
 }
 
 enum FriendshipStatus {
@@ -77,6 +82,8 @@ enum XpReason {
   DAILY_LOGIN
   STREAK_RESTORE // выкуп сгоревшей серии (отрицательная сумма)
   BOSS_REWARD // сундук за победу над боссом недели (lib/boss)
+  RAID_REWARD // сундук рейда гильдии (lib/raid)
+  GOAL_REWARD // сундук за выполненную цель (lib/goals)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -138,6 +145,7 @@ model User {
   notifySocial       Boolean   @default(true)
   notifyPlan         Boolean   @default(true)
   notifyRecap        Boolean   @default(true)
+  notifyGoal         Boolean   @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
   /// вход в Telegram Mini App (id пользователя Telegram) — отдельно от уведомлений: /stop, «Отключить» и 403 его не трогают;
@@ -187,10 +195,17 @@ model User {
   coachTargets        CoachTarget[]
   coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
   coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
+  guildLed            Guild[]              @relation("GuildLeader")
+  guildMember         GuildMember?         @relation("GuildMember")
+  raidMvp             RaidWeek[]           @relation("RaidMvp")
+  raidHits            RaidHit[]
+  raidRewards         RaidReward[]
   coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
   coachProfile        CoachProfile?
   kudos               Kudos[]
+  goals               Goal[]
+  bodyWeights         BodyWeightEntry[]
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -320,6 +335,7 @@ model Exercise {
   personalRecords   PersonalRecord[]
   achievements      UserAchievement[]
   coachTargets      CoachTarget[]
+  goals             Goal[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -399,6 +415,7 @@ model Workout {
   xpEvents  XpEvent[]
   kudos     Kudos[]
   comments  CoachComment[]
+  raidHit   RaidHit?
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -728,6 +745,8 @@ model CoachProfile {
   /// скрытые цифры — коды STAT_CODES
   hiddenStats String[]    @default([])
   publishedAt DateTime?
+  /// блок «Награды тренера» на публичной странице
+  showAwards  Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -808,4 +827,167 @@ model CoachGroupMember {
 
   @@id([groupId, clientId])
   @@index([clientId])
+}
+
+/// Гильдия игроков (рейды): до 10 участников, вход по ссылке /guild/join/<code>
+model Guild {
+  id        String   @id @default(cuid())
+  name      String
+  /// название без учёта регистра и лишних пробелов — уникально
+  nameKey   String   @unique
+  /// код значка — GUILD_EMBLEMS
+  emblem    String
+  /// приглашение; «Сменить ссылку» выдаёт новый
+  code      String   @unique
+  leaderId  String
+  createdAt DateTime @default(now())
+
+  leader  User          @relation("GuildLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  members GuildMember[]
+  raids   RaidWeek[]
+}
+
+/// Участник гильдии: у игрока одна гильдия (userId — ключ); joinedAt — с него урон в рейд
+model GuildMember {
+  userId   String   @id
+  guildId  String
+  joinedAt DateTime @default(now())
+
+  user  User  @relation("GuildMember", fields: [userId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+}
+
+/// Рейд гильдии за неделю (спека: docs/superpowers/specs/2026-10-11-raid-boss-design.md).
+/// Окно — пн 00:00 … следующий пн 00:00 в поясе главы на момент создания, в UTC; HP фиксируется при создании.
+model RaidWeek {
+  id                 String    @id @default(cuid())
+  guildId            String
+  /// понедельник «YYYY-MM-DD» в поясе главы
+  week               String
+  startsAt           DateTime
+  endsAt             DateTime
+  bossCode           String
+  hp                 Int
+  defeatedAt         DateTime?
+  mvpUserId          String?
+  /// когда ушло напоминание «не хватает урона» (одно на рейд)
+  thursdayNotifiedAt DateTime?
+  createdAt          DateTime  @default(now())
+
+  guild   Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  mvp     User?        @relation("RaidMvp", fields: [mvpUserId], references: [id], onDelete: SetNull)
+  hits    RaidHit[]
+  rewards RaidReward[]
+
+  @@unique([guildId, week])
+  /// тик напоминаний: рейды текущего окна
+  @@index([endsAt])
+  /// счётчик MVP (ачивки)
+  @@index([mvpUserId])
+}
+
+/// Урон одной тренировки по рейду: остаётся и после выхода игрока из гильдии.
+model RaidHit {
+  id        String   @id @default(cuid())
+  raidId    String
+  userId    String
+  workoutId String   @unique
+  damage    Int
+  crits     Int
+  createdAt DateTime @default(now())
+
+  raid    RaidWeek @relation(fields: [raidId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@index([raidId])
+  /// итоги недели: мои удары
+  @@index([userId])
+}
+
+/// Награда из сундука рейда: создаётся при победе каждому бившему участнику.
+model RaidReward {
+  id        String    @id @default(cuid())
+  raidId    String
+  userId    String
+  xp        Int
+  mvp       Boolean   @default(false)
+  openedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  raid RaidWeek @relation(fields: [raidId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([raidId, userId])
+  /// счётчик побед в рейдах (ачивки)
+  @@index([userId])
+}
+
+// ───────────────────────────── Личные цели (lib/goals) ─────────────────────────────
+
+enum GoalType {
+  STRENGTH // упражнение + метрика RecordType
+  WORKOUTS // завершённые тренировки с момента постановки
+  STREAK // недели серии (User.currentStreak)
+  HOURS // часы в зале с момента постановки
+  BODY_WEIGHT // последнее взвешивание
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  FAILED
+}
+
+/// Цель хранит условие и стартовое значение; текущее значение считается из данных (lib/goals/queries.ts).
+model Goal {
+  id            String      @id @default(cuid())
+  userId        String
+  type          GoalType
+  exerciseId    String? // только STRENGTH
+  metric        RecordType? // только STRENGTH
+  target        Float
+  startValue    Float // значение при постановке (полоса «от старта к цели», направление веса)
+  deadline      String? // местная дата "YYYY-MM-DD" в User.timeZone
+  status        GoalStatus  @default(ACTIVE)
+  createdAt     DateTime    @default(now())
+  achievedAt    DateTime? // из тренировки — её finishedAt
+  closedAt      DateTime? // когда стала ACHIEVED/FAILED
+  chestOpenedAt DateTime?
+  reminderAt    DateTime? // «7 дней до срока» отправлено
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+/// Журнал взвешиваний: одна запись на местный день; последняя дублируется в User.bodyWeight.
+model BodyWeightEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String // местная дата "YYYY-MM-DD"
+  weight    Float // кг, 30…300
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// ───────────────────────────── Фича-флаги ─────────────────────────────
+
+/// Состояние флага из реестра lib/flags/registry.ts; нет строки — выключен. enabled = false — выключен для всех (kill switch).
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  /// доля пользователей 0…100 (стабильно по userId — lib/flags/eval.ts)
+  percent   Int      @default(0)
+  /// всегда включён этим пользователям (при enabled)
+  userIds   String[] @default([])
+  updatedAt DateTime @updatedAt
+  /// логин админа, менявшего последним
+  updatedBy String?
 }

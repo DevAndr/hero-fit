@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMPTY_COACH_STATS,
   EMPTY_STATS,
+  type CoachAchievementStats,
   earnedAchievements,
   nextGoals,
   thresholdsUpTo,
@@ -294,5 +296,78 @@ describe("boss hunter", () => {
       code: "boss:1",
       target: 1,
     });
+  });
+});
+
+describe("raids", () => {
+  it("лестница побед в рейдах: 1, 5, 10, 25", () => {
+    expect(codesOf("raid", { raidWins: 5 })).toEqual(["raid:1", "raid:5"]);
+    expect(codesOf("raid", { raidWins: 0 })).toEqual([]);
+    const earned = earnedAchievements({ ...empty, raidWins: 5 });
+    expect(earned.find((a) => a.code === "raid:1")).toMatchObject({ category: "GUILD", title: "Рейдер", xpReward: 35 });
+    expect(earned.find((a) => a.code === "raid:5")).toMatchObject({ title: "Рейдер ×5" });
+    expect(nextGoals({ ...empty, raidWins: 5 }).find((g) => g.code.startsWith("raid:"))).toMatchObject({ code: "raid:10", target: 10 });
+  });
+
+  it("MVP рейда: 1, 5, 10", () => {
+    expect(codesOf("raidmvp", { raidMvps: 1 })).toEqual(["raidmvp:1"]);
+    expect(earnedAchievements({ ...empty, raidMvps: 1 }).find((a) => a.code === "raidmvp:1")).toMatchObject({
+      category: "GUILD",
+      title: "MVP рейда",
+      xpReward: 45,
+    });
+  });
+});
+
+describe("goals", () => {
+  it("лестница выполненных целей: 1, 5, 10, 25", () => {
+    expect(codesOf("goal", { goalsAchieved: 5 })).toEqual(["goal:1", "goal:5"]);
+    expect(codesOf("goal", { goalsAchieved: 0 })).toEqual([]);
+    const earned = earnedAchievements({ ...empty, goalsAchieved: 5 });
+    expect(earned.find((a) => a.code === "goal:1")).toMatchObject({ category: "GOAL", title: "Целеустремлённый" });
+    expect(earned.find((a) => a.code === "goal:5")).toMatchObject({ title: "Целеустремлённый ×5" });
+    expect(nextGoals({ ...empty, goalsAchieved: 5 }).find((g) => g.code.startsWith("goal:"))).toMatchObject({ code: "goal:10", target: 10 });
+  });
+});
+
+describe("ачивки тренера", () => {
+  const coachStats = (c: Partial<CoachAchievementStats>, coachMode = true): AchievementStats => ({
+    ...empty,
+    coachMode,
+    coach: { ...EMPTY_COACH_STATS, ...c },
+  });
+
+  it("лестницы: пороги и XP по ступени", () => {
+    const coach = earnedAchievements(
+      coachStats({ clients: 5, workouts: 100, comments: 1, prs: 10, progressions: 5, goals: 1, pagePublished: true }),
+    ).filter((a) => a.category === "COACH");
+    expect(coach.map((a) => a.code).sort()).toEqual(
+      [
+        "coachclients:1", "coachclients:3", "coachclients:5", "coachcomments:1", "coachgoals:1", "coachpage:1",
+        "coachprog:5", "coachprs:10", "coachworkouts:10", "coachworkouts:50", "coachworkouts:100",
+      ].sort(),
+    );
+    const by = (code: string) => coach.find((a) => a.code === code)!;
+    expect(by("coachworkouts:10").xpReward).toBe(40);
+    expect(by("coachworkouts:100").xpReward).toBe(80);
+    expect(by("coachpage:1").xpReward).toBe(40);
+    expect(by("coachclients:1").title).toBe("Первый ученик");
+    expect(by("coachclients:3").title).toBe("Ученики ×3");
+    expect(by("coachclients:3").description).toBe("3 клиента провели с вами по 3 тренировки");
+    expect(by("coachcomments:1").title).toBe("Первый разбор");
+    expect(by("coachgoals:1").description).toBe("Клиент выполнил цель, занимаясь с вами");
+  });
+
+  it("без режима тренера — ни выдачи, ни целей", () => {
+    const s = coachStats({ clients: 5, pagePublished: true }, false);
+    expect(earnedAchievements(s).some((a) => a.category === "COACH")).toBe(false);
+    expect(nextGoals(s).some((g) => g.category === "COACH")).toBe(false);
+  });
+
+  it("цель — одна на семейство, у обычного игрока целей нет", () => {
+    expect(nextGoals(coachStats({ clients: 1 })).filter((g) => g.code.startsWith("coachclients:")).map((g) => g.code)).toEqual([
+      "coachclients:3",
+    ]);
+    expect(nextGoals(empty).some((g) => g.category === "COACH")).toBe(false);
   });
 });

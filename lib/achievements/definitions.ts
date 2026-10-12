@@ -76,6 +76,63 @@ export type AchievementStats = {
   leaguePlaces: Record<LeaguePlace, number>;
   /** Побед над боссом недели (BossWeek с defeatedAt). */
   bossWins: number;
+  /** Побед в рейдах гильдии, где бил до победы (RaidReward). */
+  raidWins: number;
+  /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
+  raidMvps: number;
+  /** Выполненные личные цели (Goal ACHIEVED). */
+  goalsAchieved: number;
+  /** Режим тренера включён (User.isCoach): без него тренерские ачивки не выдаются и не показываются целями. */
+  coachMode: boolean;
+  /** Тренерские счётчики из истории (lib/achievements/coach-stats.ts). */
+  coach: CoachAchievementStats;
+};
+
+/** Счётчики тренера по окнам связи CoachLink (lib/achievements/coach-stats.ts). */
+export type CoachAchievementStats = {
+  /** Клиенты, у которых за время связи ≥ COACH_ACTIVE_CLIENT_WORKOUTS тренировок. */
+  clients: number;
+  comments: number;
+  /** Тренировки клиентов по шаблонам тренера. */
+  workouts: number;
+  prs: number;
+  /** Шаги прогрессии «вес + шаг» по заданиям тренера. */
+  progressions: number;
+  goals: number;
+  pagePublished: boolean;
+};
+
+export const EMPTY_COACH_STATS: CoachAchievementStats = {
+  clients: 0,
+  comments: 0,
+  workouts: 0,
+  prs: 0,
+  progressions: 0,
+  goals: 0,
+  pagePublished: false,
+};
+
+/** Сколько тренировок за время связи делают пользователя «клиентом» тренера (против накрутки пустыми аккаунтами). */
+export const COACH_ACTIVE_CLIENT_WORKOUTS = 3;
+
+export const COACH_LADDERS = {
+  clients: [1, 3, 5, 10, 25],
+  comments: [1, 10, 50, 200],
+  workouts: [10, 50, 100, 250, 500, 1000],
+  prs: [10, 50, 100, 250],
+  progressions: [5, 25, 100],
+  goals: [1, 5, 25],
+} satisfies Record<Exclude<keyof CoachAchievementStats, "pagePublished">, number[]>;
+export type CoachLadderKey = keyof typeof COACH_LADDERS;
+
+/** Префикс кода ачивки тренерской лестницы. */
+export const COACH_CODE_PREFIX: Record<CoachLadderKey, string> = {
+  clients: "coachclients",
+  comments: "coachcomments",
+  workouts: "coachworkouts",
+  prs: "coachprs",
+  progressions: "coachprog",
+  goals: "coachgoals",
 };
 
 export type LeaguePlace = 1 | 2 | 3;
@@ -112,6 +169,11 @@ export const EMPTY_STATS: AchievementStats = {
   freezeSaves: 0,
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
   bossWins: 0,
+  raidWins: 0,
+  raidMvps: 0,
+  goalsAchieved: 0,
+  coachMode: false,
+  coach: EMPTY_COACH_STATS,
 };
 
 export const WORKOUT_STEP = 5;
@@ -614,6 +676,47 @@ function ladders(s: AchievementStats): Ladder[] {
         }),
     },
 
+    // Рейды гильдии
+    {
+      fixed: [1, 5, 10, 25],
+      value: s.raidWins,
+      def: (n) =>
+        def(n, {
+          code: `raid:${n}`,
+          category: "GUILD",
+          title: n === 1 ? "Рейдер" : `Рейдер ×${n}`,
+          description:
+            n === 1 ? "Победить рейд-босса с гильдией" : `Победить ${n} ${plural(n, "рейд-босса", "рейд-боссов", "рейд-боссов")} с гильдией`,
+          xpReward: 30 + n * 5,
+        }),
+    },
+    {
+      fixed: [1, 5, 10],
+      value: s.raidMvps,
+      def: (n) =>
+        def(n, {
+          code: `raidmvp:${n}`,
+          category: "GUILD",
+          title: n === 1 ? "MVP рейда" : `MVP рейда ×${n}`,
+          description: n === 1 ? "Нанести больше всех урона в победном рейде" : `Стать MVP ${n} победных рейдов`,
+          xpReward: 40 + n * 5,
+        }),
+    },
+
+    // Личные цели
+    {
+      fixed: [1, 5, 10, 25],
+      value: s.goalsAchieved,
+      def: (n) =>
+        def(n, {
+          code: `goal:${n}`,
+          category: "GOAL",
+          title: n === 1 ? "Целеустремлённый" : `Целеустремлённый ×${n}`,
+          description: n === 1 ? "Выполнить свою цель" : `Выполнить ${n} ${plural(n, "цель", "цели", "целей")}`,
+          xpReward: 30 + n * 5,
+        }),
+    },
+
     // Лига друзей
     {
       fixed: LEAGUE_WIN_THRESHOLDS,
@@ -644,7 +747,77 @@ function ladders(s: AchievementStats): Ladder[] {
       goal: false,
       def: single("league3", "LEAGUE", "Бронза лиги", "Закончить неделю на 3-м месте в лиге друзей", 20),
     },
+
+    // Тренер: без режима тренера — ни выдачи, ни целей
+    ...coachLadders(s),
   ];
+}
+
+/** Тексты тренерских лестниц: название и описание для порога n (first — первая ступень). */
+const COACH_TEXTS: Record<CoachLadderKey, { title: (n: number, first: boolean) => string; description: (n: number, first: boolean) => string }> = {
+  clients: {
+    title: (n, first) => (first ? "Первый ученик" : `Ученики ×${n}`),
+    description: (n, first) =>
+      first
+        ? `Клиент провёл с вами ${COACH_ACTIVE_CLIENT_WORKOUTS} тренировки`
+        : `${n} ${plural(n, "клиент", "клиента", "клиентов")} провели с вами по ${COACH_ACTIVE_CLIENT_WORKOUTS} тренировки`,
+  },
+  comments: {
+    title: (n, first) => (first ? "Первый разбор" : `Разборы ×${n}`),
+    description: (n, first) =>
+      first ? "Прокомментировать тренировку клиента" : `Оставить ${n} ${plural(n, "комментарий", "комментария", "комментариев")} клиентам`,
+  },
+  workouts: {
+    title: (n) => `По плану ×${n}`,
+    description: (n) => `Клиенты провели ${n} ${plural(n, "тренировку", "тренировки", "тренировок")} по вашим шаблонам`,
+  },
+  prs: {
+    title: (n) => `Рекорды учеников ×${n}`,
+    description: (n) => `Клиенты побили ${n} ${plural(n, "рекорд", "рекорда", "рекордов")}, занимаясь с вами`,
+  },
+  progressions: {
+    title: (n) => `Прогрессия ×${n}`,
+    description: (n) => `Клиенты ${n} ${plural(n, "раз", "раза", "раз")} подняли вес по вашим заданиям`,
+  },
+  goals: {
+    title: (n, first) => (first ? "Цель ученика" : `Цели учеников ×${n}`),
+    description: (n, first) =>
+      first ? "Клиент выполнил цель, занимаясь с вами" : `Клиенты выполнили ${n} ${plural(n, "цель", "цели", "целей")}, занимаясь с вами`,
+  },
+};
+
+/** XP тренерской ступени — от её номера, не от порога (пороги до 1000). */
+const coachXp = (i: number) => 40 + 20 * i;
+
+function coachLadders(s: AchievementStats): Ladder[] {
+  const on = s.coachMode;
+  const ladders: Ladder[] = (Object.keys(COACH_LADDERS) as CoachLadderKey[]).map((key) => {
+    const fixed = COACH_LADDERS[key];
+    const text = COACH_TEXTS[key];
+    return {
+      fixed,
+      value: on ? s.coach[key] : 0,
+      goal: on,
+      goalGroup: `coach-${key}`,
+      def: (n: number) => {
+        const i = fixed.indexOf(n);
+        return def(n, {
+          code: `${COACH_CODE_PREFIX[key]}:${n}`,
+          category: "COACH",
+          title: text.title(n, i === 0),
+          description: text.description(n, i === 0),
+          xpReward: coachXp(i),
+        });
+      },
+    };
+  });
+  ladders.splice(1, 0, {
+    fixed: [1],
+    value: on && s.coach.pagePublished ? 1 : 0,
+    goal: false,
+    def: (n) => def(n, { code: `coachpage:${n}`, category: "COACH", title: "На виду", description: "Опубликовать страницу тренера", xpReward: coachXp(0) }),
+  });
+  return ladders;
 }
 
 export function earnedAchievements(stats: AchievementStats): AchievementDef[] {

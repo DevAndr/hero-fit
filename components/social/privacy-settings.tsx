@@ -12,7 +12,7 @@ type Privacy = { shareActivity: boolean; hideWeights: boolean };
 const OPTIONS: { key: keyof Privacy; label: string; description: string }[] = [
   {
     key: "shareActivity",
-    label: "Показывать мои тренировки друзьям",
+    label: "Показывать мои тренировки друзьям и гильдии",
     description: "В ленте активности. Выключите — друзья не увидят ни новых, ни прошлых тренировок",
   },
   {

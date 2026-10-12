@@ -6,6 +6,7 @@ const COLUMNS = [
     links: [
       { href: "/#features", label: "Возможности" },
       { href: "/#how", label: "Как это работает" },
+      { href: "/#guilds", label: "Гильдии" },
       { href: "/#coaches", label: "Тренерам" },
       { href: "/#faq", label: "Частые вопросы" },
     ],

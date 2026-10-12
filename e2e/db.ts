@@ -29,6 +29,7 @@ export async function seedWorkouts(
   exerciseName: string,
   workouts: { weight: number; reps: number; sets: number }[],
   daysAgo = workouts.length + 1,
+  opts: { templateId?: string } = {},
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
@@ -42,9 +43,9 @@ export async function seedWorkouts(
       const workoutId = randomUUID();
       const weId = randomUUID();
       await db.query(
-        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
-         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4)`,
-        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets],
+        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt", "templateId")
+         values ($1, $2, 'Seed', 'COMPLETED', $3, $4, 3600, $5, $6, $7, $3, $4, $8)`,
+        [workoutId, uid, started, finished, w.weight * w.reps * w.sets, w.sets, w.reps * w.sets, opts.templateId ?? null],
       );
       await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [
         weId,
@@ -89,6 +90,62 @@ export async function templateRow(templateId: string, exerciseName: string) {
       [templateId, exerciseName],
     );
     return rows[0];
+  });
+}
+
+/** Ник пользователю (минуя UI). */
+export async function setNickname(login: string, nickname: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2) where login = $1`, [login, nickname]);
+  });
+}
+
+/** Настройки приватности пользователя (минуя UI). */
+export async function setPrivacy(login: string, p: { shareActivity?: boolean; hideWeights?: boolean }) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "shareActivity" = coalesce($2, "shareActivity"), "hideWeights" = coalesce($3, "hideWeights") where login = $1`, [
+      login,
+      p.shareActivity ?? null,
+      p.hideWeights ?? null,
+    ]);
+  });
+}
+
+/** Ссылки уведомлений пользователя (новые первыми). */
+export async function notificationUrls(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ url: string | null }>(
+      `select n.url from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 order by n."createdAt" desc`,
+      [login],
+    );
+    return rows.map((r) => r.url);
+  });
+}
+
+/** Гильдия пользователя: название и глава ли он; нет гильдии — null. */
+export async function guildOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; leader: boolean; code: string }>(
+      `select g.name, g."leaderId" = u.id as leader, g.code from "GuildMember" m join "Guild" g on g.id = m."guildId" join "User" u on u.id = m."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Добить гильдию пользователями-заглушками до n участников. */
+export async function fillGuild(code: string, n: number) {
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; c: number }>(
+      `select g.id, (select count(*)::int from "GuildMember" m where m."guildId" = g.id) c from "Guild" g where g.code = $1`,
+      [code],
+    );
+    for (let i = rows[0].c; i < n; i++) {
+      const uid = randomUUID();
+      const login = `e2e_fill_${uid.slice(0, 12)}`;
+      await db.query(`insert into "User" (id, login, email, "passwordHash", "updatedAt") values ($1, $2, $3, 'x', now())`, [uid, login, `${login}@test.local`]);
+      await db.query(`insert into "GuildMember" ("userId", "guildId") values ($1, $2)`, [uid, rows[0].id]);
+    }
   });
 }
 
@@ -348,14 +405,31 @@ export async function coachGroupMembers(coachLogin: string) {
 /** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
 export async function coachProfile(
   coachLogin: string,
-  p: { about: string; publish?: boolean; city?: string; displayName?: string; hiddenStats?: string[]; specialties?: string[] },
+  p: {
+    about: string;
+    publish?: boolean;
+    city?: string;
+    displayName?: string;
+    hiddenStats?: string[];
+    specialties?: string[];
+    showAwards?: boolean;
+  },
 ) {
   await withDb(async (db) => {
     await db.query(
-      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, now())
-       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "updatedAt" = now()`,
-      [await userId(db, coachLogin), p.displayName ?? null, p.city ?? null, p.about, p.specialties ?? [], p.hiddenStats ?? [], p.publish ? new Date() : null],
+      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "showAwards" = $8, "updatedAt" = now()`,
+      [
+        await userId(db, coachLogin),
+        p.displayName ?? null,
+        p.city ?? null,
+        p.about,
+        p.specialties ?? [],
+        p.hiddenStats ?? [],
+        p.publish ? new Date() : null,
+        p.showAwards ?? true,
+      ],
     );
   });
 }
@@ -478,4 +552,206 @@ export async function resetCoachSignalsDay(coachLogin: string) {
   await withDb(async (db) => {
     await db.query(`update "User" set "coachSignalsDay" = null where id = $1`, [await userId(db, coachLogin)]);
   });
+}
+
+/** Рейд текущего окна гильдии игрока: HP, суммарный урон, победа, MVP (логин) и удары по игрокам; нет — null. */
+export async function raidOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; hp: number; defeated: boolean; mvp: string | null }>(
+      `select r.id, r.hp, r."defeatedAt" is not null as defeated, mu.login as mvp
+       from "GuildMember" m join "User" u on u.id = m."userId" join "RaidWeek" r on r."guildId" = m."guildId"
+       left join "User" mu on mu.id = r."mvpUserId"
+       where u.login = $1 and r."startsAt" <= (now() at time zone 'UTC') and r."endsAt" > (now() at time zone 'UTC')`,
+      [login],
+    );
+    if (!rows[0]) return null;
+    const hits = await db.query<{ login: string; damage: number }>(
+      `select u.login, sum(h.damage)::int as damage from "RaidHit" h join "User" u on u.id = h."userId"
+       where h."raidId" = $1 group by u.login order by u.login`,
+      [rows[0].id],
+    );
+    return { ...rows[0], damage: hits.rows.reduce((s, h) => s + h.damage, 0), hits: hits.rows };
+  });
+}
+
+/** HP рейда текущего окна гильдии игрока (рейд уже должен быть создан — тренировкой или заходом на /guild). */
+export async function setRaidHp(login: string, hp: number) {
+  await withDb(async (db) => {
+    const { rowCount } = await db.query(
+      `update "RaidWeek" r set hp = $2 from "GuildMember" m join "User" u on u.id = m."userId"
+       where u.login = $1 and r."guildId" = m."guildId" and r."startsAt" <= (now() at time zone 'UTC') and r."endsAt" > (now() at time zone 'UTC')`,
+      [login, hp],
+    );
+    if (!rowCount) throw new Error(`setRaidHp: нет рейда у ${login}`);
+  });
+}
+
+/** Рейд гильдии игрока на неделю `week` (понедельник в поясе e2e) с заданным HP — для тиков с тестовыми часами. */
+export async function createRaid(login: string, week: string, hp: number) {
+  await withDb(async (db) => {
+    const startsAt = localAt(week, "00:00");
+    await db.query(
+      `insert into "RaidWeek" (id, "guildId", week, "startsAt", "endsAt", "bossCode", hp)
+       select $2, m."guildId", $3, $4, $5, 'golem', $6 from "GuildMember" m join "User" u on u.id = m."userId" where u.login = $1`,
+      [login, randomUUID(), week, startsAt, new Date(startsAt.getTime() + 7 * 86_400_000), hp],
+    );
+  });
+}
+
+/** Тексты уведомлений пользователя (новые первыми). */
+export async function notificationBodies(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ body: string }>(
+      `select n.body from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 order by n."createdAt" desc`,
+      [login],
+    );
+    return rows.map((r) => r.body);
+  });
+}
+
+/** Коды полученных ачивок пользователя. */
+export async function achievementCodes(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ code: string }>(
+      `select a.code from "UserAchievement" a join "User" u on u.id = a."userId" where u.login = $1`,
+      [login],
+    );
+    return rows.map((r) => r.code);
+  });
+}
+
+/**
+ * Рейд гильдии игрока на неделю `week` (понедельник в поясе e2e) с ударами по его завершённым тренировкам этой недели:
+ * 100 за выполненный рабочий подход. defeated — рейд повержен (MVP — этот игрок); leaderEastHours — пояс главы восточнее.
+ */
+export async function seedRaidHits(login: string, week: string, hp: number, defeated: boolean, leaderEastHours = 0) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    // Окно рейда — в поясе главы: восточнее игрока на leaderEastHours часов
+    const startsAt = new Date(localAt(week, "00:00").getTime() - leaderEastHours * 3600_000);
+    const endsAt = new Date(startsAt.getTime() + 7 * 86_400_000);
+    const raidId = randomUUID();
+    await db.query(
+      `insert into "RaidWeek" (id, "guildId", week, "startsAt", "endsAt", "bossCode", hp, "defeatedAt", "mvpUserId")
+       select $1, m."guildId", $2, $3, $4, 'golem', $5, $6, $7 from "GuildMember" m where m."userId" = $8`,
+      [raidId, week, startsAt, endsAt, hp, defeated ? endsAt : null, defeated ? uid : null, uid],
+    );
+    await db.query(
+      `insert into "RaidHit" (id, "raidId", "userId", "workoutId", damage, crits)
+       select gen_random_uuid()::text, $1, $2, w.id,
+              100 * (select count(*) from "WorkoutExercise" we join "WorkoutSet" s on s."workoutExerciseId" = we.id
+                     where we."workoutId" = w.id and not s."isWarmup" and s."completedAt" is not null), 0
+       from "Workout" w where w."userId" = $2 and w.status = 'COMPLETED' and w."finishedAt" >= $3 and w."finishedAt" < $4`,
+      [raidId, uid, startsAt, endsAt],
+    );
+  });
+}
+
+/** Цель минуя UI (по умолчанию активная, без срока); exerciseName — встроенное или своё упражнение пользователя. */
+export async function createGoal(
+  login: string,
+  g: {
+    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT";
+    target: number;
+    startValue?: number;
+    exerciseName?: string;
+    metric?: "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS";
+    deadline?: string | null;
+    createdAt?: Date;
+    status?: "ACTIVE" | "ACHIEVED";
+  },
+) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    let exerciseId: string | null = null;
+    if (g.exerciseName) {
+      const { rows } = await db.query<{ id: string }>(
+        `select id from "Exercise" where name = $1 and ("userId" is null or "userId" = $2) order by "userId" nulls last limit 1`,
+        [g.exerciseName, uid],
+      );
+      exerciseId = rows[0].id;
+    }
+    const id = randomUUID();
+    const achieved = g.status === "ACHIEVED" ? new Date() : null;
+    await db.query(
+      `insert into "Goal" (id, "userId", type, "exerciseId", metric, target, "startValue", deadline, status, "createdAt", "achievedAt", "closedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved],
+    );
+    return id;
+  });
+}
+
+export async function goalOf(id: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ status: string; chestOpenedAt: Date | null; deadline: string | null }>(
+      `select status, "chestOpenedAt", deadline from "Goal" where id = $1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Цели пользователя (id и статус) — по порядку постановки. */
+export async function goalsOf(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ id: string; status: string; target: number }>(
+      `select id, status, target from "Goal" where "userId" = $1 order by "createdAt"`,
+      [uid],
+    );
+    return rows;
+  });
+}
+
+/** Взвешивание за местную дату `date`. */
+export async function logWeight(login: string, date: string, weight: number) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(
+      `insert into "BodyWeightEntry" (id, "userId", date, weight) values ($1, $2, $3, $4)
+       on conflict ("userId", date) do update set weight = excluded.weight`,
+      [randomUUID(), uid, date, weight],
+    );
+    await db.query(`update "User" set "bodyWeight" = $2 where id = $1`, [uid, weight]);
+  });
+}
+
+/** Сколько XP начислено сундуками целей. */
+export async function goalRewardXp(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ xp: number }>(
+      `select coalesce(sum(amount), 0)::int as xp from "XpEvent" where "userId" = $1 and reason = 'GOAL_REWARD'`,
+      [uid],
+    );
+    return rows[0].xp;
+  });
+}
+
+/** Логин админа в e2e (ADMIN_LOGINS в playwright.config.ts). */
+export const E2E_ADMIN = "e2e_flag_admin";
+
+/** Сделать пользователя админом: логин E2E_ADMIN освобождается у прежнего владельца (прошлые прогоны). */
+export async function makeAdmin(login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set login = 'e2e_old_' || id where login = $1`, [E2E_ADMIN]);
+    await db.query(`update "User" set login = $2 where login = $1`, [login, E2E_ADMIN]);
+  });
+}
+
+/** Состояние фича-флага (минуя админку); logins — список «всегда включён». */
+export async function setFlag(key: string, s: { enabled: boolean; percent?: number; logins?: string[] }) {
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select id from "User" where login = any($1)`, [s.logins ?? []]);
+    await db.query(
+      `insert into "FeatureFlag" (key, enabled, percent, "userIds", "updatedAt") values ($1, $2, $3, $4, now())
+       on conflict (key) do update set enabled = $2, percent = $3, "userIds" = $4, "updatedAt" = now()`,
+      [key, s.enabled, s.percent ?? 0, rows.map((r) => r.id)],
+    );
+  });
+}
+
+export async function resetFlag(key: string) {
+  await withDb((db) => db.query(`delete from "FeatureFlag" where key = $1`, [key]));
 }

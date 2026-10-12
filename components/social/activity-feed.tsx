@@ -2,7 +2,7 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Swords, Timer, Trophy, Weight } from "lucide-react";
+import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Shield, Swords, Target, Timer, Trophy, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { weeksText } from "@/lib/progress/streak-copy";
@@ -78,8 +78,12 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
   const highlights = [
     ...entry.records.map((r) => ({ icon: Medal, text: `Рекорд — ${recordText(r)}`, className: "text-xp" })),
     ...entry.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
+    ...entry.goals.map((t) => ({ icon: Target, text: `Цель: ${t}`, className: "text-xp" })),
     ...(entry.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${entry.levelUp}`, className: "text-primary" }] : []),
     ...(entry.bossDefeated ? [{ icon: Swords, text: `Босс повержен: ${entry.bossDefeated}`, className: "text-streak" }] : []),
+    ...(entry.raidDefeated
+      ? [{ icon: Shield, text: `Гильдия «${entry.raidDefeated.guild}» повергла: ${entry.raidDefeated.boss}`, className: "text-destructive" }]
+      : []),
     ...(entry.streakMilestone
       ? [{ icon: Flame, text: `${weeksText(entry.streakMilestone)} подряд в ударе`, className: "text-streak" }]
       : []),
@@ -169,7 +173,16 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
 }
 
 /** Лента с подгрузкой «Показать ещё». */
-export function ActivityFeed({ initial, next: initialNext }: { initial: FeedEntry[]; next: string | null }) {
+export function ActivityFeed({
+  initial,
+  next: initialNext,
+  source = "friends",
+}: {
+  initial: FeedEntry[];
+  next: string | null;
+  /** Чья лента подгружается «Показать ещё». */
+  source?: "friends" | "guild";
+}) {
   const [extra, setExtra] = useState<FeedEntry[]>([]);
   const [next, setNext] = useState(initialNext);
   const [pending, startTransition] = useTransition();
@@ -188,7 +201,7 @@ export function ActivityFeed({ initial, next: initialNext }: { initial: FeedEntr
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const page = await loadFeedPageAction(next);
+              const page = await loadFeedPageAction(next, source);
               setExtra((prev) => [...prev, ...page.entries]);
               setNext(page.next);
             })

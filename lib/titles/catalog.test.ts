@@ -87,3 +87,26 @@ describe("bossTitles", () => {
     ]);
   });
 });
+
+describe("raid titles", () => {
+  it("вершины рейдовых лестниц", () => {
+    expect(titleLabel("ach:raid:25")).toBe("Гроза рейдов");
+    expect(titleLabel("ach:raidmvp:10")).toBe("Сердце гильдии");
+    expect(availableTitles({ achievementCodes: ["raid:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:raid:25");
+  });
+});
+
+describe("goal titles", () => {
+  it("вершина лестницы целей", () => {
+    expect(titleLabel("ach:goal:25")).toBe("Человек слова");
+    expect(availableTitles({ achievementCodes: ["goal:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:goal:25");
+  });
+});
+
+describe("титулы тренера", () => {
+  it("вершины тренерских лестниц", () => {
+    expect(titleLabel("ach:coachclients:25")).toBe("Наставник");
+    expect(titleLabel("ach:coachworkouts:1000")).toBe("Кузница чемпионов");
+    expect(titleLabel("ach:coachprs:250")).toBe("Создатель рекордов");
+  });
+});

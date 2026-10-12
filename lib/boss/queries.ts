@@ -17,7 +17,7 @@ const DAY_MS = 24 * 3_600_000;
  * Урон по неделям [fromWeek … toWeek] (понедельники в поясе tz): выполненные рабочие подходы завершённых
  * тренировок недели их `finishedAt` + криты — различные упражнения с побитым рекордом (`XpEvent.meta.records`).
  */
-async function damageByWeek(client: Client, userId: string, tz: string, fromWeek: string, toWeek: string, excludeWorkoutId?: string) {
+export async function damageByWeek(client: Client, userId: string, tz: string, fromWeek: string, toWeek: string, excludeWorkoutId?: string) {
   const rows = await client.$queryRaw<{ week: string; sets: number; crits: number }[]>`
     WITH ws AS (
       SELECT w.id,

@@ -43,11 +43,14 @@ export function bossImage(code: string): StaticImageData | null {
 export function BossSprite({
   code,
   defeated = false,
+  raid = false,
   size,
   className,
 }: {
   code: string;
   defeated?: boolean;
+  /** Рейд-босс гильдии: тот же спрайт с красной аурой. */
+  raid?: boolean;
   size: number;
   className?: string;
 }) {
@@ -57,6 +60,7 @@ export function BossSprite({
       aria-hidden
       className={cn(
         "relative flex shrink-0 items-center justify-center transition-[filter,transform] duration-500 motion-reduce:transition-none",
+        raid && !defeated && "drop-shadow-[0_0_10px_var(--destructive)] saturate-150",
         defeated && "translate-y-1 rotate-12 grayscale",
         className,
       )}

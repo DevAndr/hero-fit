@@ -775,6 +775,52 @@ async function seedCoachComments(coachId: string) {
   });
 }
 
+/**
+ * Цели demo: силовая по жиму (+15 % к рекорду, без рекорда — 60 кг; срок — 3 месяца) и журнал веса за 4 недели. Только пока у demo
+ * нет своих целей и взвешиваний — настоящие данные сид не трогает.
+ */
+async function seedDemoGoals() {
+  const demo = await db.user.findUniqueOrThrow({ where: { login: DEMO_USER.login }, select: { id: true, timeZone: true } });
+  const tz = demo.timeZone;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+  const shift = (days: number) => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const created: string[] = [];
+  if ((await db.goal.count({ where: { userId: demo.id } })) === 0) {
+    const bench = await db.exercise.findFirst({ where: { name: "Жим штанги лёжа", userId: null }, select: { id: true } });
+    const pr = bench
+      ? await db.personalRecord.findUnique({ where: { userId_exerciseId_type: { userId: demo.id, exerciseId: bench.id, type: "MAX_WEIGHT" } } })
+      : null;
+    if (bench) {
+      const d = new Date(`${today}T12:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() + 3);
+      await db.goal.create({
+        data: {
+          userId: demo.id,
+          type: "STRENGTH",
+          exerciseId: bench.id,
+          metric: "MAX_WEIGHT",
+          startValue: pr?.value ?? 0,
+          target: pr ? Math.ceil((pr.value * 1.15) / 2.5) * 2.5 : 60,
+          deadline: d.toISOString().slice(0, 10),
+          createdAt: new Date(Date.now() - 14 * 86_400_000),
+        },
+      });
+      created.push("жим");
+    }
+  }
+  if ((await db.bodyWeightEntry.count({ where: { userId: demo.id } })) === 0) {
+    const weights: [number, number][] = [[-28, 82.4], [-21, 82], [-14, 81.6], [-7, 81.1], [0, 80.8]];
+    await db.bodyWeightEntry.createMany({ data: weights.map(([days, weight]) => ({ userId: demo.id, date: shift(days), weight })) });
+    await db.user.update({ where: { id: demo.id }, data: { bodyWeight: 80.8 } });
+    created.push("вес");
+  }
+  return created.length ? created.join(", ") : "уже есть";
+}
+
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
@@ -787,6 +833,7 @@ async function main() {
     const demo = await db.user.findUniqueOrThrow({ where: { login: DEMO_USER.login }, select: { id: true } });
     await recomputeStreak(db, demo.id, new Date());
     console.log(`Demo weekly recaps: ${await seedDemoRecaps(exerciseIds)}`);
+    console.log(`Demo goals: ${await seedDemoGoals()}`);
     console.log(`Demo friends: ${DEMO_FRIENDS.map((f) => f.login).join(", ")} (тот же пароль)`);
     await seedDemoCoach(demoHash, exerciseIds);
     console.log(`Demo coach: ${DEMO_COACH.login} (тот же пароль), клиенты ${DEMO_COACH.clients.join(", ")} (Маше назначен «${COACH_TEMPLATE.name}» пн/ср/пт и оставлены комментарии к свежей тренировке), приглашение /coach/join/${DEMO_COACH.code}`);

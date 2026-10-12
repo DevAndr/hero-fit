@@ -4,6 +4,8 @@ import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, Layers, Medal, Repeat, Rota
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
+import { RaidDamage } from "@/components/raid/raid-damage";
+import { GoalsReached } from "@/components/goals/goals-reached";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
@@ -56,6 +58,7 @@ export function WorkoutSummaryView({
   exerciseHref,
   renderComment,
   feedback,
+  goalChests = [],
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -70,6 +73,8 @@ export function WorkoutSummaryView({
   renderComment?: (workoutExerciseId: string | null) => ReactNode;
   /** Оценка тренировки: форма у владельца, блок «Оценка клиента» у тренера. */
   feedback?: ReactNode;
+  /** Цели этой тренировки с ещё не открытым сундуком. */
+  goalChests?: string[];
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const achievementsXp = meta?.achievementsXp ?? 0;
@@ -157,6 +162,8 @@ export function WorkoutSummaryView({
       {meta?.boss ? (
         <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
       ) : null}
+      {meta?.raid ? <RaidDamage raid={meta.raid} readOnly={readOnly} /> : null}
+      {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
 
       {meta?.achievements?.length ? (
         <section className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-4">

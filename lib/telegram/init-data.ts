@@ -64,8 +64,10 @@ export function verifyInitData(initData: string, botToken: string, now: Date): I
   return { ok: true, user, startParam: params.get("start_param") || null, authDate };
 }
 
-/** Куда вести после входа: приглашение тренера по коду из startapp, иначе дашборд (без открытых редиректов). */
+/** Куда вести после входа: приглашение тренера (`join_`) или гильдии (`guild_`) по коду из startapp, иначе дашборд (без открытых редиректов). */
 export function startTarget(startParam: string | null): string {
-  const code = startParam?.startsWith("join_") ? normalizeFriendCode(startParam.slice(5)) : null;
-  return code ? `/coach/join/${code}` : "/dashboard";
+  const coach = startParam?.startsWith("join_") ? normalizeFriendCode(startParam.slice(5)) : null;
+  if (coach) return `/coach/join/${coach}`;
+  const guild = startParam?.startsWith("guild_") ? normalizeFriendCode(startParam.slice(6)) : null;
+  return guild ? `/guild/join/${guild}` : "/dashboard";
 }

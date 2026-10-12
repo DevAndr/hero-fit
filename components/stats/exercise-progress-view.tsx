@@ -26,10 +26,13 @@ export function ExerciseProgressView({
   data,
   back,
   workoutHref,
+  goal = null,
 }: {
   data: ExerciseProgressData;
   back: { href: string; label: string };
   workoutHref: (workoutId: string) => string;
+  /** Своя активная силовая цель по упражнению (линия на графике, если показатель совпадает). */
+  goal?: { metric: "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS"; target: number; forecast?: string | null } | null;
 }) {
   const { exercise, sessions, records, hint } = data;
 
@@ -67,7 +70,10 @@ export function ExerciseProgressView({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ExerciseProgressChart sessions={sessions} />
+          {(() => {
+            const shown = goal?.metric === (exercise.isBodyweight ? "MAX_REPS" : "MAX_WEIGHT") ? goal : null;
+            return <ExerciseProgressChart sessions={sessions} goal={shown?.target ?? null} forecast={shown?.forecast ?? null} />;
+          })()}
         </div>
         <OneRmCalculator
           initialWeight={bestSet ? String(bestSet.weight) : ""}

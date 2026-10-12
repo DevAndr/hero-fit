@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { Area, AreaChart, YAxis } from "recharts";
+import { Area, AreaChart, ReferenceLine, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import type { ExerciseSession } from "@/lib/stats/queries";
 import { formatSet } from "@/lib/format";
@@ -44,7 +44,17 @@ function ProgressTooltip({
  * Карточка-показатель: последний рабочий вес (для упражнений со своим весом — макс. повторы),
  * изменение к первой тренировке и плавный график с заливкой без осей. Значения по точкам — в подсказке и таблице.
  */
-export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[] }) {
+/** goal — активная цель по показателю этого графика (рабочий вес или повторы) — пунктирная линия. */
+export function ExerciseProgressChart({
+  sessions,
+  goal = null,
+  forecast = null,
+}: {
+  sessions: ExerciseSession[];
+  goal?: number | null;
+  /** Прогноз цели по динамике (текст) — ось графика по тренировкам, поэтому строкой, а не линией. */
+  forecast?: string | null;
+}) {
   // useId содержит символы, недопустимые в url(#…) — оставляем только безопасные.
   const gradientId = `progress-${useId().replace(/[^\w-]/g, "")}`;
   const bodyweight = sessions.every((s) => s.topWeight === 0);
@@ -62,7 +72,7 @@ export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[
   const change = first && last && first.value > 0 ? ((last.value - first.value) / first.value) * 100 : null;
 
   // Шкала по диапазону значений с запасом — колебания видны, линия не прилипает к краям.
-  const values = data.map((p) => p.value);
+  const values = data.map((p) => p.value).concat(goal ?? []);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const pad = max === min ? Math.max(1, max * 0.1) : (max - min) * 0.25;
@@ -90,6 +100,12 @@ export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[
           ) : null}
         </p>
       ) : null}
+      {goal !== null ? (
+        <p className="text-xs text-muted-foreground">
+          Цель — {fmt(goal)} {unit}
+          {forecast ? ` · ${forecast}` : ""}
+        </p>
+      ) : null}
 
       {data.length < 2 ? (
         <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
@@ -110,6 +126,7 @@ export function ExerciseProgressChart({ sessions }: { sessions: ExerciseSession[
                 cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
                 content={<ProgressTooltip bodyweight={bodyweight} />}
               />
+              {goal !== null ? <ReferenceLine y={goal} stroke="var(--muted-foreground)" strokeDasharray="4 4" /> : null}
               <Area
                 dataKey="value"
                 type="monotone"

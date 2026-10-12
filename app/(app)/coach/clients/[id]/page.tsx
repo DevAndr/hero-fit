@@ -7,6 +7,8 @@ import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
 import { BodyMap } from "@/components/progress/body-map";
+import { ClientGoals } from "@/components/goals/client-goals";
+import { getClientGoals } from "@/lib/goals/queries";
 import { HintBadge } from "@/components/stats/hint-badge";
 import { StatsView } from "@/components/stats/stats-view";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,7 +30,9 @@ import { formatClock, plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-queries";
 import { getProgressionHints, getStats, getTrends } from "@/lib/stats/queries";
+import { getMonthCompare } from "@/lib/stats/strength-queries";
 import { cn } from "@/lib/utils";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Клиент" };
 
@@ -131,7 +135,7 @@ async function Overview({
   base: string;
 }) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, recent, signalInput] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent, signalInput, goals] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
@@ -141,6 +145,7 @@ async function Overview({
       distinct: ["exerciseId"],
     }),
     getSignalInput(coachId, clientId, tz, linkedAt, now),
+    getClientGoals(clientId, tz),
   ]);
   const signals = clientSignals(signalInput, now, tz);
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
@@ -174,6 +179,7 @@ async function Overview({
         <Tile label="Серия, недель" value={String(streak)} />
         <Tile label="Уровень" value={String(levelProgress(xp).level)} />
       </div>
+      <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} />
       <BodyMap recovery={recovery} balance={balance} />
       {hinted.length ? (
         <section aria-label="Пора увеличить вес" className="space-y-2 rounded-xl border bg-card p-4">
@@ -306,10 +312,10 @@ async function Workouts({ clientId, coachId, tz, base, cursor }: { clientId: str
 }
 
 async function Stats({ clientId, tz, base }: { clientId: string; tz: string; base: string }) {
-  const [stats, trends] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz)]);
+  const [stats, trends, month] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz), isEnabled("strength_analytics", clientId).then((on) => (on ? getMonthCompare(clientId, tz) : null))]);
   return (
     <StatsView
-      data={{ stats, trends }}
+      data={{ stats, trends, month }}
       exerciseHref={(id) => `${base}/exercises/${id}`}
       workoutHref={(id) => `${base}/workouts/${id}`}
       emptyText="Клиент ещё не завершил ни одной тренировки."

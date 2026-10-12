@@ -28,6 +28,14 @@ describe("achievementIconKey", () => {
     expect(achievementIconKey("streakw:104")).toBe("stable_in_streak");
   });
 
+  it("coach badges and goals", () => {
+    expect(achievementIconKey("coachcomments:1")).toBe("first_comment");
+    expect(achievementIconKey("coachcomments:200")).toBe("first_comment");
+    expect(achievementIconKey("coachpage:1")).toBe("publish_profile");
+    expect(achievementIconKey("coachgoals:5")).toBe("goal");
+    expect(achievementIconKey("goal:1")).toBe("goal");
+  });
+
   it("falls back to default", () => {
     expect(achievementIconKey("workouts:5")).toBe("default");
     expect(achievementIconKey("streak:7")).toBe("default"); // прежний дневной streak

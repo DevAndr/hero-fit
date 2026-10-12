@@ -7,7 +7,7 @@ import { weekRangeLabel } from "@/lib/recap/view";
 import { cn } from "@/lib/utils";
 
 /** Карточка «Итоги недели» на дашборде: до просмотра — акцентная с меткой «новое», после — компактная. */
-export function RecapCard({ recap }: { recap: WeeklyRecapRow }) {
+export function RecapCard({ recap, strength = true }: { recap: WeeklyRecapRow; /** Флаг strength_analytics. */ strength?: boolean }) {
   const fresh = recap.seenAt === null;
   const highlights = recapHighlights(recap.data);
   return (
@@ -23,6 +23,11 @@ export function RecapCard({ recap }: { recap: WeeklyRecapRow }) {
           {fresh ? <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">новое</span> : null}
         </p>
         <p className={cn("mt-1 text-sm", fresh ? "font-semibold" : "truncate text-muted-foreground")}>{highlights.join(" · ")}</p>
+        {strength && recap.data.strength?.stronger ? (
+          <p className="mt-1 text-sm font-semibold text-primary">
+            Сильнее в {recap.data.strength.stronger} из {recap.data.strength.of}
+          </p>
+        ) : null}
       </div>
       <Link href={`/recap/${recap.week}`} className={buttonVariants({ variant: fresh ? "default" : "outline", size: "sm" })}>
         Смотреть итоги

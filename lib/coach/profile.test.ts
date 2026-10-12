@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { canPublish, coachProfileSchema, statsToCompute, visibleStats, type CoachStats } from "./profile";
+import { canPublish, coachProfileSchema, publicAwards, statsToCompute, visibleStats, type CoachStats } from "./profile";
 
-const ok = { displayName: "Иван", city: "Казань", format: "BOTH", specialties: ["strength"], about: "x".repeat(60), hiddenStats: [] };
+const ok = { displayName: "Иван", city: "Казань", format: "BOTH", specialties: ["strength"], about: "x".repeat(60), hiddenStats: [], showAwards: true };
 
 describe("coachProfileSchema", () => {
   it("пустые строки — null, about обрезается", () => {
@@ -71,5 +71,32 @@ describe("statsToCompute", () => {
     expect(statsToCompute(3, ["plan"])).toEqual({ activity: true, plan: false });
     expect(statsToCompute(3, ["workouts", "records"])).toEqual({ activity: false, plan: true });
     expect(statsToCompute(3, ["workouts"])).toEqual({ activity: true, plan: true });
+  });
+});
+
+describe("publicAwards", () => {
+  it("только тренерские, без «На виду», одна высшая ступень на лестницу", () => {
+    expect(publicAwards(["coachclients:1", "coachclients:3", "coachpage:1", "workouts:5", "coachworkouts:1000"])).toEqual([
+      "coachworkouts:1000",
+      "coachclients:3",
+    ]);
+  });
+
+  it("вершина короткой лестницы выше середины длинной; при равной доле — порядок лестниц", () => {
+    expect(publicAwards(["coachworkouts:250", "coachprog:100", "coachgoals:1", "coachclients:1"])).toEqual([
+      "coachprog:100",
+      "coachworkouts:250",
+      "coachclients:1",
+      "coachgoals:1",
+    ]);
+  });
+
+  it("не больше 6 (по числу лестниц)", () => {
+    const codes = ["coachclients:1", "coachcomments:1", "coachworkouts:10", "coachprs:10", "coachprog:5", "coachgoals:1", "coachgoals:5"];
+    expect(publicAwards([...codes, ...codes])).toHaveLength(6);
+  });
+
+  it("showAwards по умолчанию включён", () => {
+    expect(coachProfileSchema.parse({ ...ok, showAwards: undefined }).showAwards).toBe(true);
   });
 });

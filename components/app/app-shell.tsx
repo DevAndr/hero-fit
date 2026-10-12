@@ -91,7 +91,7 @@ export function AppShell({
               Начать тренировку
             </Link>
             {notifications}
-            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} />
+            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} isAdmin={user.isAdmin} />
           </div>
         </header>
 

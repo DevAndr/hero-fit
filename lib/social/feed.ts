@@ -1,7 +1,9 @@
 import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
+import { raidBossName } from "@/lib/raid/rules";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 import { titleLabel } from "@/lib/titles/catalog";
+import type { FinishGoals } from "@/lib/goals/rules";
 
 /** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
 export type FeedRow = {
@@ -26,7 +28,11 @@ export type FeedRow = {
     streakExtended?: boolean;
     weekCount?: number;
     boss?: { code: string; defeated: boolean };
+    raid?: { raidId: string; code: string; defeated: boolean };
+    goals?: FinishGoals;
   } | null;
+  /** Название гильдии рейда из meta.raid (на момент показа); рейд или гильдия удалены — null. */
+  raidGuild?: string | null;
   kudos: number;
   byMe: boolean;
   kudosNames: string[] | null;
@@ -54,6 +60,10 @@ export type FeedEntry = {
   streakMilestone: number | null;
   /** Имя босса недели, повергнутого этой тренировкой. */
   bossDefeated: string | null;
+  /** Рейд-босс, повергнутый этой тренировкой, и гильдия. */
+  raidDefeated: { boss: string; guild: string } | null;
+  /** Выполненные этой тренировкой цели (без веса тела; при скрытых весах — без килограммов). */
+  goals: string[];
   kudos: { count: number; byMe: boolean; names: string[] };
 };
 
@@ -98,6 +108,8 @@ export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
     levelUp: meta.levelAfter && meta.levelBefore && meta.levelAfter > meta.levelBefore ? meta.levelAfter : null,
     streakMilestone: streakMilestone(row.meta),
     bossDefeated: meta.boss?.defeated ? bossName(meta.boss.code) : null,
+    raidDefeated: meta.raid?.defeated && row.raidGuild ? { boss: raidBossName(meta.raid.code), guild: row.raidGuild } : null,
+    goals: (meta.goals?.achieved ?? []).filter((g) => g.type !== "BODY_WEIGHT").map((g) => (hide && g.feedTitle) || g.title),
     kudos: { count: row.kudos, byMe: row.byMe, names: row.kudosNames ?? [] },
   };
 }

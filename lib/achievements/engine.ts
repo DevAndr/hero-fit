@@ -1,4 +1,5 @@
 import "server-only";
+import { coachStats } from "@/lib/achievements/coach-stats";
 import { bossWins } from "@/lib/boss/queries";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, RecordType, XpReason, type MuscleGroup } from "@/generated/prisma/enums";
@@ -223,11 +224,12 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       timeZone: true,
       weekWorkouts: true,
       weekWorkoutsKey: true,
+      isCoach: true,
     },
   });
   const tz = safeTimeZone(timeZone);
-  const { weekWorkouts, weekWorkoutsKey, ...rest } = user;
-  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins] =
+  const { weekWorkouts, weekWorkoutsKey, isCoach, ...rest } = user;
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, raidWins, raidMvps, goalsAchieved, coach] =
     await Promise.all([
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
@@ -241,12 +243,21 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       client.userAchievement.count({ where: { userId } }),
       leagueStats(client, userId),
       bossWins(client, userId),
+      client.raidReward.count({ where: { userId } }),
+      client.raidWeek.count({ where: { mvpUserId: userId } }),
+      client.goal.count({ where: { userId, status: "ACHIEVED" } }),
+      coachStats(client, userId, isCoach),
     ]);
   return {
     ...rest,
     weekWorkouts: weekWorkoutsKey === weekKey(new Date(), tz) ? weekWorkouts : 0,
     leaguePlaces,
     bossWins: wins,
+    raidWins,
+    raidMvps,
+    goalsAchieved,
+    coach,
+    coachMode: isCoach,
     workouts: totals.workouts,
     exercises,
     achievements,

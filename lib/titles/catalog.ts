@@ -39,6 +39,12 @@ const ACHIEVEMENT_TITLES: [achievementCode: string, label: string][] = [
   ["league1:1", "Чемпион лиги"],
   [`allgroups:${MUSCLE_GROUPS.length}`, "Без слабых мест"],
   ["login:100", "Завсегдатай"],
+  ["raid:25", "Гроза рейдов"],
+  ["raidmvp:10", "Сердце гильдии"],
+  ["goal:25", "Человек слова"],
+  ["coachclients:25", "Наставник"],
+  ["coachworkouts:1000", "Кузница чемпионов"],
+  ["coachprs:250", "Создатель рекордов"],
 ];
 
 const achievementTitle = ([code, label]: [string, string]): Title => ({ code: `ach:${code}`, label, source: "achievement" });

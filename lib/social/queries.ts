@@ -46,7 +46,7 @@ export async function friendIds(userId: string) {
  * Границы недели (пн 00:00 – следующий пн 00:00) в поясе пользователя как timestamptz; offset 1 — прошлая.
  * Колонки хранят UTC без пояса, поэтому сравниваем с ("col" AT TIME ZONE 'UTC').
  */
-const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
+export const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
   SELECT (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset})) AT TIME ZONE ${timeZone} AS start_at,
          (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}) + interval '7 days') AT TIME ZONE ${timeZone} AS end_at
 `;
@@ -181,29 +181,63 @@ export type Friends = Awaited<ReturnType<typeof getFriends>>;
 
 export const FEED_PAGE = 15;
 
-/** Чью активность я вижу: свою и друзей, которые делятся тренировками. */
-async function feedAuthorIds(userId: string) {
-  const friends = await friendIds(userId);
-  if (friends.length === 0) return [userId];
-  const sharing = await db.user.findMany({ where: { id: { in: friends }, shareActivity: true }, select: { id: true } });
+/** Я и те из `others`, кто делится тренировками. */
+async function sharingWith(userId: string, others: string[]) {
+  if (others.length === 0) return [userId];
+  const sharing = await db.user.findMany({ where: { id: { in: others }, shareActivity: true }, select: { id: true } });
   return [userId, ...sharing.map((u) => u.id)];
 }
 
-/** Можно ли пользователю видеть (и поддержать) тренировку — та же проверка, что и для ленты. */
+/** Чью активность я вижу: свою и друзей, которые делятся тренировками. */
+async function feedAuthorIds(userId: string) {
+  return sharingWith(userId, await friendIds(userId));
+}
+
+/** Согильдийцы (без меня). */
+export async function guildMateIds(userId: string): Promise<string[]> {
+  const me = await db.guildMember.findUnique({ where: { userId }, select: { guildId: true } });
+  if (!me) return [];
+  const rows = await db.guildMember.findMany({ where: { guildId: me.guildId, userId: { not: userId } }, select: { userId: true } });
+  return rows.map((r) => r.userId);
+}
+
+/** Чья активность в ленте гильдии: моя и согильдийцев, которые делятся тренировками. */
+async function guildAuthorIds(userId: string) {
+  return sharingWith(userId, await guildMateIds(userId));
+}
+
+/**
+ * Можно ли пользователю видеть (и поддержать) тренировку — та же проверка, что и для лент: автор — я, друг или
+ * согильдиец, который делится тренировками. `friend` — видна через дружбу (для ссылки уведомления).
+ */
 export async function canSeeWorkout(userId: string, workoutId: string) {
   const workout = await db.workout.findUnique({ where: { id: workoutId }, select: { userId: true, status: true } });
   if (!workout || workout.status !== "COMPLETED") return null;
-  const ids = await feedAuthorIds(userId);
-  return ids.includes(workout.userId) ? workout : null;
+  if ((await feedAuthorIds(userId)).includes(workout.userId)) return { ...workout, friend: true };
+  if ((await guildAuthorIds(userId)).includes(workout.userId)) return { ...workout, friend: false };
+  return null;
 }
 
-/** Страница ленты (новые сверху). Скрытие весов применяется здесь же — в браузер они не уходят. */
+/** Лента друзей. */
 export async function getFeed(userId: string, cursor: string | null, limit = FEED_PAGE) {
-  const ids = await feedAuthorIds(userId);
+  return feedPage(userId, await feedAuthorIds(userId), cursor, limit);
+}
+
+/** Лента гильдии; `friends` в ответе — число согильдийцев, которые делятся. */
+export async function getGuildFeed(userId: string, cursor: string | null, limit = FEED_PAGE) {
+  return feedPage(userId, await guildAuthorIds(userId), cursor, limit);
+}
+
+/** Страница ленты по авторам (новые сверху). Скрытие весов применяется здесь же — в браузер они не уходят. */
+async function feedPage(userId: string, ids: string[], cursor: string | null, limit: number) {
   const after = decodeCursor(cursor);
   const rows = await db.$queryRaw<FeedRow[]>`
     SELECT w.id, w."userId", u.nickname, u."titleCode", u."hideWeights", w.name, w."finishedAt", w."durationSec",
            w."totalVolume", w."totalSets", w."totalReps", x.meta,
+           (
+             SELECT g.name FROM "RaidWeek" r JOIN "Guild" g ON g.id = r."guildId"
+             WHERE r.id = x.meta->'raid'->>'raidId'
+           ) AS "raidGuild",
            (
              SELECT json_agg(json_build_object('name', e.name, 'top', t.top) ORDER BY we."order")
              FROM "WorkoutExercise" we

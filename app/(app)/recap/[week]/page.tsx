@@ -12,6 +12,7 @@ import { adjacentRecaps, getOrCreateRecap, getRecap, markRecapSeen } from "@/lib
 import { isRecapWeek } from "@/lib/recap/schedule";
 import { weekRangeLabel } from "@/lib/recap/view";
 import { cn } from "@/lib/utils";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Итоги недели" };
 
@@ -52,7 +53,11 @@ export default async function RecapPage({ params }: PageProps<"/recap/[week]">) 
           </div>
         }
       />
-      <RecapView data={recap.data} bossChest={await bossChestAvailable(user.id, week)} />
+      <RecapView
+        data={recap.data}
+        bossChest={await bossChestAvailable(user.id, week)}
+        strength={await isEnabled("strength_analytics", user.id)}
+      />
     </>
   );
 }

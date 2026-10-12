@@ -254,6 +254,8 @@ export async function finishWorkoutAction(
       await queueGoal("workout_finish");
       const completed = await db.workout.count({ where: { userId: user.id, status: WorkoutStatus.COMPLETED } });
       if (completed === 1) await queueGoal("first_workout");
+      const goals = await db.goal.count({ where: { userId: user.id, status: "ACHIEVED", achievedAt: finishedAt } });
+      if (goals > 0) await queueGoal("goal_achieved");
     }
   }
 

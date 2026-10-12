@@ -23,6 +23,11 @@ import { getTodayPlan } from "@/lib/plans/queries";
 import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
+import { GuildCard } from "@/components/guild/guild-card";
+import { GoalsCard } from "@/components/goals/goals-card";
+import { getDashboardGoals } from "@/lib/goals/queries";
+import { getMyGuild } from "@/lib/guild/queries";
+import { getRaidView } from "@/lib/raid/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { BodyMap } from "@/components/progress/body-map";
@@ -32,6 +37,7 @@ import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-que
 import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
@@ -119,7 +125,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss, coach] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss, coach, guild, goals] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -128,7 +134,10 @@ export default async function DashboardPage() {
     getMuscleBalance(user.id),
     getBossView(user.id, userTz),
     activeCoachOf(user.id),
+    getMyGuild(user.id, userTz),
+    getDashboardGoals(user.id, userTz),
   ]);
+  const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
@@ -162,7 +171,7 @@ export default async function DashboardPage() {
       <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey}
         coachName={coach ? clientDisplayName(coach) : null}
       />
-      {recap ? <RecapCard recap={recap} /> : null}
+      {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
@@ -198,6 +207,8 @@ export default async function DashboardPage() {
       </div>
 
       <BossCard boss={boss} />
+
+      <GoalsCard goals={goals.goals} total={goals.total} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -261,6 +272,8 @@ export default async function DashboardPage() {
           hint={data.counts.week ? `≈ ${Math.round((data.weekHours * 60) / data.counts.week)} мин на тренировку` : undefined}
         />
       </section>
+
+      <GuildCard guild={guild} raid={raid} />
 
       <section aria-label="Друзья недавно" className="space-y-3">
         <div className="flex items-center justify-between">

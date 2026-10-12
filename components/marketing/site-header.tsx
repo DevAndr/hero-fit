@@ -7,6 +7,7 @@ const NAV = [
   { href: "/#how", label: "Как это работает" },
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
   { href: "/tools/plates", label: "Калькулятор блинов" },
+  { href: "/#guilds", label: "Гильдии" },
   { href: "/#coaches", label: "Тренерам" },
   { href: "/#pricing", label: "Тарифы" },
   { href: "/#faq", label: "Вопросы" },

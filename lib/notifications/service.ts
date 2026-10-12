@@ -12,6 +12,8 @@ import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 import { processWeeklyRecaps } from "@/lib/recap/tick";
 import { processCoachSignals } from "@/lib/coach/signals-tick";
+import { processRaidReminders } from "@/lib/raid/tick";
+import { processGoals } from "@/lib/goals/tick";
 
 type Client = Prisma.TransactionClient;
 
@@ -218,6 +220,22 @@ export async function runNotificationTick(now = new Date()) {
     if (signals) pushes += await processDuePushes();
   } catch (e) {
     console.error("[coach-signals] шаг сигналов упал", e);
+  }
+  try {
+    // Рейд гильдии: в четверг с 12:00 по времени главы — «не хватает урона»
+    const raids = await processRaidReminders(now);
+    reminders += raids;
+    if (raids) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[raid] шаг напоминаний рейда упал", e);
+  }
+  try {
+    // Цели: напоминание за 7 дней до срока и провал по сроку
+    const goals = await processGoals(now);
+    reminders += goals;
+    if (goals) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[goals] шаг сроков целей упал", e);
   }
   return { reminders, pushes };
 }

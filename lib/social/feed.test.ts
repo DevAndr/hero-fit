@@ -120,3 +120,44 @@ describe("toFeedEntry: титул", () => {
     expect(toFeedEntry(row(), "viewer").title).toBeNull();
   });
 });
+
+describe("raidDefeated", () => {
+  const raid = { raidId: "r1", code: "golem", defeated: true };
+  it("победный удар по рейд-боссу — босс и гильдия", () => {
+    expect(toFeedEntry(row({ meta: { raid }, raidGuild: "Молоты" }), "viewer").raidDefeated).toEqual({
+      boss: "Древний Железный Голем",
+      guild: "Молоты",
+    });
+  });
+  it("не победный удар, удалённая гильдия, без рейда — нет строки", () => {
+    expect(toFeedEntry(row({ meta: { raid: { ...raid, defeated: false } }, raidGuild: "Молоты" }), "viewer").raidDefeated).toBeNull();
+    expect(toFeedEntry(row({ meta: { raid }, raidGuild: null }), "viewer").raidDefeated).toBeNull();
+    expect(toFeedEntry(row(), "viewer").raidDefeated).toBeNull();
+  });
+});
+
+describe("goals", () => {
+  const goals = {
+    achieved: [
+      { id: "g1", type: "STRENGTH" as const, title: "Жим лёжа — 100 кг", feedTitle: "Жим лёжа" },
+      { id: "g2", type: "WORKOUTS" as const, title: "50 тренировок", feedTitle: null },
+      { id: "g3", type: "BODY_WEIGHT" as const, title: "Вес тела — 80 кг ↓", feedTitle: null },
+    ],
+    advanced: [],
+  };
+
+  it("выполненные цели в ленте, вес тела — никогда", () => {
+    expect(toFeedEntry(row({ meta: { goals } }), "viewer").goals).toEqual(["Жим лёжа — 100 кг", "50 тренировок"]);
+  });
+
+  it("скрытые веса — без килограммов", () => {
+    expect(toFeedEntry(row({ meta: { goals }, hideWeights: true }), "viewer").goals).toEqual([
+      "Жим лёжа",
+      "50 тренировок",
+    ]);
+  });
+
+  it("без целей — пусто", () => {
+    expect(toFeedEntry(row(), "viewer").goals).toEqual([]);
+  });
+});

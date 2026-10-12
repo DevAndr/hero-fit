@@ -9,6 +9,7 @@ import { UpdateTemplateButton } from "@/components/workouts/update-template-butt
 import { WorkoutFeedback } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
+import { db } from "@/lib/db";
 import { bossRewardTaken } from "@/lib/boss/queries";
 import { commentCaption } from "@/lib/coach/comments";
 import { getWorkoutComments, markCommentsRead } from "@/lib/coach/comments-queries";
@@ -29,6 +30,10 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
   const canUpdateTemplate = ownTemplate ? differsFromTemplate(workout.exercises, ownTemplate.exercises) : false;
   const bossTaken = meta?.boss ? await bossRewardTaken(user.id, meta.boss.week) : true;
+  const goalIds = meta?.goals?.achieved.map((g) => g.id) ?? [];
+  const goalChests = goalIds.length
+    ? (await db.goal.findMany({ where: { id: { in: goalIds }, userId: user.id, chestOpenedAt: null }, select: { id: true } })).map((g) => g.id)
+    : [];
   // Комментарии тренеров (и бывших — это история клиента); открыл сводку — прочитал
   const comments = await getWorkoutComments(workout.id);
   if (comments.length) await markCommentsRead(user.id, workout.id);
@@ -41,6 +46,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       title={`${workout.name} — готово!`}
       readOnly={false}
       bossTaken={bossTaken}
+      goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) => {
