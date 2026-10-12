@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { getGoalFormData, getGoalsPage } from "@/lib/goals/queries";
-import type { GoalInput } from "@/lib/goals/rules";
+import { GOALS_ACTIVE_MAX, type GoalInput } from "@/lib/goals/rules";
 
 export const metadata: Metadata = { title: "Цели" };
 
@@ -24,10 +24,13 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
       ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true } })
       : null,
   ]);
-  const again: Partial<GoalInput> | null = againGoal
-    ? { type: againGoal.type, target: againGoal.target, exerciseId: againGoal.exerciseId ?? undefined, metric: againGoal.metric ?? undefined }
-    : null;
   const activeCount = page.active.filter((g) => g.status === "ACTIVE").length;
+  // «Поставить снова»: при 5 активных — не открываем (сохранить нельзя); упражнение в архиве — без него, выберешь заново
+  const againExercise = againGoal?.exerciseId && form.exercises.some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
+  const again: Partial<GoalInput> | null =
+    againGoal && activeCount < GOALS_ACTIVE_MAX
+      ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: againGoal.metric ?? undefined }
+      : null;
   const weightGoal = page.active.find((g) => g.type === "BODY_WEIGHT" && g.status === "ACTIVE");
 
   return (
@@ -54,7 +57,7 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
 
       <BodyWeightBlock weights={page.weights} target={weightGoal?.target ?? null} />
 
-      <GoalHistory goals={page.history} />
+      <GoalHistory goals={page.history} timeZone={tz} />
     </div>
   );
 }
