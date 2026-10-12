@@ -5,6 +5,7 @@ import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
 import { RaidDamage } from "@/components/raid/raid-damage";
+import { ClubTasksSummary } from "@/components/club/club-tasks-summary";
 import { GoalsReached } from "@/components/goals/goals-reached";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
@@ -163,6 +164,7 @@ export function WorkoutSummaryView({
         <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
       ) : null}
       {meta?.raid ? <RaidDamage raid={meta.raid} readOnly={readOnly} /> : null}
+      {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
       {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
 
       {meta?.achievements?.length ? (
