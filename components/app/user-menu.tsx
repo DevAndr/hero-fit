@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -34,21 +35,25 @@ export function UserMenu({
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
+  // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
+  const pathname = usePathname();
+  const [opened, setOpened] = useState(false);
+  const dot = unseen && !opened && pathname !== "/whats-new";
   const display = name ?? login;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="Меню профиля">
+      <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label={dot ? "Меню профиля, есть новое" : "Меню профиля"}>
         <span className="relative block">
           <Avatar>
             <AvatarFallback className="bg-primary/15 font-semibold text-primary">
               {display.slice(0, 1).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          {unseen ? (
+          {dot ? (
             <span
               data-testid="whats-new-dot"
-              aria-label="Есть новое"
+              aria-hidden
               className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-primary ring-2 ring-background"
             />
           ) : null}
@@ -74,10 +79,15 @@ export function UserMenu({
             Флаги
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem render={<Link href="/whats-new" />}>
+        {/* Без prefetch={true}: открытие страницы помечает релиз просмотренным */}
+        <DropdownMenuItem render={<Link href="/whats-new" />} onClick={() => setOpened(true)}>
           <Sparkles />
           Что нового
-          {unseen ? <span className="ml-auto size-2 rounded-full bg-primary" aria-label="есть новое" /> : null}
+          {dot ? (
+            <span className="ml-auto size-2 rounded-full bg-primary" aria-hidden>
+              <span className="sr-only">есть новое</span>
+            </span>
+          ) : null}
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/goals" />}>
           <Target />

@@ -42,3 +42,16 @@ export function isRecent(release: Release, today: string, days = 60): boolean {
   const diff = (Date.parse(`${today}T12:00:00Z`) - Date.parse(`${release.date}T12:00:00Z`)) / 86_400_000;
   return diff <= days;
 }
+
+/**
+ * «Что нового» глазами пользователя: только видимые ему релизы (флаги), «последний» и точка — по ним же. Релиз, целиком
+ * скрытый флагом, не зажигает точку и не записывается просмотренным; включили флаг — появился и зажёг точку.
+ */
+export function userChangelog(
+  releases: Release[],
+  seenId: string | null,
+  enabled: (flag: FlagKey) => boolean,
+): { releases: Release[]; latest: string | null; unseen: boolean } {
+  const visible = releases.map((r) => visibleRelease(r, { enabled, publicOnly: false })).filter((r): r is Release => r !== null);
+  return { releases: visible, latest: latestReleaseId(visible), unseen: hasUnseen(visible, seenId) };
+}

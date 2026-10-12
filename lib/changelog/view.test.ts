@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isFlagKey } from "@/lib/flags/registry";
 import { RELEASES } from "./releases";
 import type { ChangeItem, Release } from "./types";
-import { hasUnseen, isPublicHref, isRecent, latestReleaseId, visibleRelease } from "./view";
+import { hasUnseen, isPublicHref, isRecent, latestReleaseId, userChangelog, visibleRelease } from "./view";
 
 const rel = (id: string, date: string, items: ChangeItem[], improved?: ChangeItem[]): Release => ({
   id,
@@ -84,5 +84,20 @@ describe("RELEASES", () => {
         expect(item.text).not.toMatch(/флаг|админ/i);
       }
     }
+  });
+});
+
+describe("userChangelog", () => {
+  const hidden = rel("b", "2026-11-01", [{ text: "Скрытое", flag: "strength_analytics" }]);
+  const shown = rel("a", "2026-10-01", [{ text: "Обычное" }]);
+
+  it("релиз, целиком скрытый флагом, не зажигает точку и не становится «последним»", () => {
+    const u = userChangelog([hidden, shown], "a", () => false);
+    expect(u).toMatchObject({ unseen: false, latest: "a" });
+    expect(u.releases.map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("флаг включили — релиз появился и точка загорелась", () => {
+    expect(userChangelog([hidden, shown], "a", () => true)).toMatchObject({ unseen: true, latest: "b" });
   });
 });

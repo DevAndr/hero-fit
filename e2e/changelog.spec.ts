@@ -29,3 +29,14 @@ test("new user has no dot; a user with unseen release sees it until /whats-new",
   await page.goto("/dashboard");
   await expect(page.getByTestId("whats-new-dot")).toHaveCount(0);
 });
+
+test("opening «Что нового» from the profile menu clears the dot without a reload", async ({ page }) => {
+  const me = await registerUser(page);
+  await setChangelogSeen(me.login, null);
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("whats-new-dot").first()).toBeVisible();
+  await page.getByRole("button", { name: /Меню профиля/ }).first().click();
+  await page.getByRole("menuitem", { name: /Что нового/ }).click();
+  await expect(page).toHaveURL(/\/whats-new$/);
+  await expect(page.getByTestId("whats-new-dot")).toHaveCount(0);
+});
