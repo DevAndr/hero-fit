@@ -9,7 +9,7 @@ import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progre
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
-import type { FinishMeta } from "@/lib/workouts/finish";
+import { isFinishMeta } from "@/lib/recap/meta";
 import { isEnabled } from "@/lib/flags/server";
 import { exerciseWeekBests } from "@/lib/stats/strength-queries";
 import { buildRecap } from "./build";
@@ -140,8 +140,8 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: XpReason.WORKOUT_COMPLETED }, select: { workoutId: true, meta: true } }),
   ]);
   // meta — в порядке тренировок недели
-  const metaByWorkout = new Map(events.map((e) => [e.workoutId, e.meta as FinishMeta | null]));
-  const finishMetas = ids.map((id) => metaByWorkout.get(id)).filter((m): m is FinishMeta => !!m);
+  const metaByWorkout = new Map(events.map((e) => [e.workoutId, e.meta]));
+  const finishMetas = ids.map((id) => metaByWorkout.get(id)).filter(isFinishMeta);
 
   const totals = (w: { durationSec: number | null; totalVolume: number; totalSets: number }) => ({
     minutes: Math.round((w.durationSec ?? 0) / 60),
