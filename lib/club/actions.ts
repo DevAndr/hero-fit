@@ -6,8 +6,10 @@ import { NotificationType } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { CLUBS_OFF, clubsAllowed } from "@/lib/club/access";
+import { aboutSchema, canPublish, CLUB_ABOUT_MIN, clubPath, slugCandidates, slugify } from "@/lib/club/public";
 import { adminCounts, citySuggestions, findSimilar, getClubFeed } from "@/lib/club/queries";
 import { clubEditSchema, clubKey, clubSchema, createBlock, joinBlock, kickBlock, transferBlock } from "@/lib/club/rules";
+import { queueGoal } from "@/lib/analytics/queue";
 import { notify } from "@/lib/notifications/service";
 import { generateFriendCode, nicknameKey } from "@/lib/social/league";
 
@@ -229,4 +231,76 @@ export async function loadClubFeedAction(clubId: string, cursor: string) {
   const member = await db.clubMember.findFirst({ where: { userId: user.id, clubId: String(clubId) }, select: { userId: true } });
   if (!member) return { events: [], next: null };
   return getClubFeed(String(clubId), user.id, String(cursor));
+}
+
+/** Админ клуба с флагом — для публичной страницы (страница — витрина клуба, не модерация). */
+async function publicPageClub(clubId: string) {
+  const user = await clubUser();
+  if (!user) return { ok: false as const, error: CLUBS_OFF };
+  const club = await db.club.findUnique({
+    where: { id: String(clubId) },
+    select: { id: true, name: true, city: true, address: true, about: true, status: true, adminId: true, slug: true, citySlug: true, publishedAt: true },
+  });
+  if (!club || club.adminId !== user.id) return { ok: false as const, error: NOT_ADMIN };
+  return { ok: true as const, club };
+}
+
+function revalidatePublicPage(c: { id: string; slug: string | null; citySlug: string | null }) {
+  revalidatePath(`/clubs/${c.id}/manage`);
+  if (c.slug && c.citySlug) revalidatePath(clubPath(c.citySlug, c.slug));
+}
+
+/** «О зале»: у опубликованной страницы пустым или коротким не сохраняется — сначала снять с публикации. */
+export async function saveClubAboutAction(clubId: string, about: string): Promise<Result> {
+  const r = await publicPageClub(clubId);
+  if (!r.ok) return r;
+  const parsed = aboutSchema.safeParse(about);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+  if (r.club.publishedAt && parsed.data.length < CLUB_ABOUT_MIN) return { ok: false, error: "Чтобы убрать текст, снимите страницу с публикации" };
+  await db.club.update({ where: { id: r.club.id }, data: { about: parsed.data } });
+  revalidatePublicPage(r.club);
+  return { ok: true };
+}
+
+/** Публикация: адрес выбирается при первой публикации и больше не меняется. */
+export async function publishClubPageAction(clubId: string): Promise<Result & { path?: string }> {
+  const r = await publishPage(clubId);
+  if (r.ok) await queueGoal("club_page_published");
+  return r;
+}
+
+async function publishPage(clubId: string): Promise<Result & { path?: string }> {
+  const r = await publicPageClub(clubId);
+  if (!r.ok) return r;
+  const { club } = r;
+  const block = canPublish(club);
+  if (block) return { ok: false, error: block };
+  if (club.slug && club.citySlug) {
+    await db.club.update({ where: { id: club.id }, data: { publishedAt: new Date() } });
+    revalidatePublicPage(club);
+    return { ok: true, path: clubPath(club.citySlug, club.slug) };
+  }
+  const citySlug = slugify(club.city, "city");
+  for (const slug of slugCandidates(club.name, club.address)) {
+    try {
+      // Условие slug = null: параллельная публикация не перепишет уже выбранный адрес
+      const { count } = await db.club.updateMany({ where: { id: club.id, slug: null }, data: { slug, citySlug, publishedAt: new Date() } });
+      if (!count) return publishPage(clubId);
+      revalidatePublicPage({ id: club.id, slug, citySlug });
+      return { ok: true, path: clubPath(citySlug, slug) };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
+      throw e;
+    }
+  }
+  return { ok: false, error: "Не удалось подобрать адрес, напишите нам" };
+}
+
+/** Снять с публикации: адрес остаётся за клубом. */
+export async function unpublishClubPageAction(clubId: string): Promise<Result> {
+  const r = await publicPageClub(clubId);
+  if (!r.ok) return r;
+  await db.club.update({ where: { id: r.club.id }, data: { publishedAt: null } });
+  revalidatePublicPage(r.club);
+  return { ok: true };
 }

@@ -827,6 +827,27 @@ export async function clubAdminLogin(id: string): Promise<string> {
 }
 
 /** Вступить в клуб минуя интерфейс. */
+/** Публикация страницы клуба минуя интерфейс; адрес по умолчанию — `testograd/e2e-<случайно>`. */
+export async function publishClub(clubId: string, o: { about?: string; slug?: string; citySlug?: string } = {}): Promise<{ path: string }> {
+  const slug = o.slug ?? `e2e-${Math.random().toString(36).slice(2, 8)}`;
+  const citySlug = o.citySlug ?? "testograd";
+  const about = o.about ?? "Просторный зал с тремя стойками для приседа, помостами и зоной кардио. Работаем круглосуточно.";
+  await withDb((db) =>
+    db.query(`update "Club" set about = $2, slug = $3, "citySlug" = $4, "publishedAt" = now() where id = $1`, [clubId, about, slug, citySlug]),
+  );
+  return { path: `/gym/${citySlug}/${slug}` };
+}
+
+export async function clubSlug(clubId: string): Promise<{ slug: string | null; citySlug: string | null; publishedAt: Date | null }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ slug: string | null; citySlug: string | null; publishedAt: Date | null }>(
+      `select slug, "citySlug", "publishedAt" from "Club" where id = $1`,
+      [clubId],
+    );
+    return rows[0];
+  });
+}
+
 export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
   await withDb((db) =>
     db.query(

@@ -1045,15 +1045,25 @@ model Club {
   status       ClubStatus @default(PENDING)
   rejectReason String?
   reviewedAt   DateTime?
+  /// «О зале» на публичной странице, до 1000 (lib/club/public.ts)
+  about        String     @default("")
+  /// транслит названия и города — ставятся при первой публикации и больше не меняются
+  slug         String?
+  citySlug     String?
+  /// публичная страница /gym/<citySlug>/<slug> опубликована
+  publishedAt  DateTime?
   createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
 
   admin   User         @relation("ClubAdmin", fields: [adminId], references: [id], onDelete: Restrict)
   members ClubMember[]
   bans    ClubBan[]
   tasks   ClubTask[]
 
+  @@unique([citySlug, slug])
   @@index([status, cityKey])
   @@index([adminId])
+  @@index([publishedAt, citySlug])
 }
 
 /// Участник клуба: один клуб на человека.

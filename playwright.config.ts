@@ -19,6 +19,9 @@ process.env.DATABASE_URL = TEST_DATABASE_URL;
 const PORT = 3123;
 
 // Перед запуском нужен продакшен-билд: `npm run build && npm run test:e2e`.
+/** Спеки, переключающие флаг `clubs` для всех, — отдельным проектом после остальных. */
+const GLOBAL_CLUBS_FLAG = /club-public-page\.spec\.ts/;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -44,8 +47,10 @@ export default defineConfig({
     contextOptions: { reducedMotion: "reduce" },
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    { name: "desktop", testIgnore: GLOBAL_CLUBS_FLAG, use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", testIgnore: GLOBAL_CLUBS_FLAG, use: { ...devices["Pixel 7"] } },
+    // Глобальный флаг clubs (100 %, kill switch, сброс) ломал бы соседние спеки клубов с флагом списком — после всех
+    { name: "clubs-global", testMatch: GLOBAL_CLUBS_FLAG, dependencies: ["desktop", "mobile"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: [
     {

@@ -11,7 +11,7 @@ import { FORMAT_LABELS, publicAwards, SPECIALTIES, visibleStats } from "@/lib/co
 import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { absoluteUrl, coachDescription, coachJsonLd, jsonLd } from "@/lib/seo";
+import { absoluteUrl, shortDescription, coachJsonLd, jsonLd } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramJoinUrl } from "@/lib/telegram/links";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: PageProps<"/trainer/[nick]">)
   // Неопубликованная — ни имени, ни описания в ответе (кроме предпросмотра самого тренера)
   if (!coach.profile.publishedAt && (await getCurrentUser())?.id !== coach.id) return {};
   const title = `${nameOf(coach)} — тренер${coach.profile.city ? `, ${coach.profile.city}` : ""} · Hero Fit`;
-  const description = coachDescription(coach.profile.about);
+  const description = shortDescription(coach.profile.about);
   return {
     title: { absolute: title },
     description,
