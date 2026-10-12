@@ -8,6 +8,10 @@ export const FLAGS = {
     description: "Аналитика силы: «Ты стал сильнее» в итогах и push, «Месяц к месяцу», прогноз целей",
     expires: "2026-12-31",
   },
+  smart_coach: {
+    description: "Умный помощник: чат с советами на сценариях, чек-ин самочувствия",
+    expires: "2027-02-28",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;
