@@ -52,6 +52,10 @@ function windowOf(rows: WeekBest[], weeks: string[]): Window {
 }
 
 const halfKg = (n: number) => Math.round(n * 2) / 2;
+const tenthKg = (n: number) => Math.round(n * 10) / 10;
+/** До 0,5 кг; если так рост пропадает (лёгкие упражнения) — до 0,1. */
+const shownKg = (from: number, to: number) =>
+  halfKg(from) < halfKg(to) ? { from: halfKg(from), to: halfKg(to) } : { from: tenthKg(from), to: tenthKg(to) };
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
 export function strengthTrend(rows: WeekBest[], windows: { recent: string[]; before: string[] }): StrengthTrend {
@@ -64,8 +68,11 @@ export function strengthTrend(rows: WeekBest[], windows: { recent: string[]; bef
     const before = windowOf(list, windows.before);
     const recent = windowOf(list, windows.recent);
     if (before.sessions < TREND_MIN_SESSIONS || recent.sessions < TREND_MIN_SESSIONS) continue;
-    // Свой вес или нет 1ПМ в одном из окон — сравниваем повторы
-    const byReps = list[0].bodyweight || before.oneRm === null || recent.oneRm === null;
+    // Свой вес или нет 1ПМ ни в одном окне — сравниваем повторы. 1ПМ только в одном окне (сменил диапазон повторов
+    // или записал без веса) — не сравниваем: повторы тяжёлого и лёгкого блока несравнимы
+    const oneRmIn = Number(before.oneRm !== null) + Number(recent.oneRm !== null);
+    if (!list[0].bodyweight && oneRmIn === 1) continue;
+    const byReps = list[0].bodyweight || oneRmIn === 0;
     const from = byReps ? before.reps : before.oneRm!;
     const to = byReps ? recent.reps : recent.oneRm!;
     if (from <= 0 || to <= 0) continue;
@@ -76,8 +83,7 @@ export function strengthTrend(rows: WeekBest[], windows: { recent: string[]; bef
       exerciseId,
       name: list[0].name,
       bodyweight: byReps,
-      from: byReps ? from : halfKg(from),
-      to: byReps ? to : halfKg(to),
+      ...(byReps ? { from, to } : shownKg(from, to)),
       pct: round4((to - from) / from),
     });
   }

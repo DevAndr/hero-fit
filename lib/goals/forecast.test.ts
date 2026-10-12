@@ -9,6 +9,12 @@ const pts = (...values: number[]) => {
 const base = { points: pts(60, 62, 64), current: 64, target: 70, deadline: null, today: TODAY };
 
 describe("forecastGoal", () => {
+  it("рекорд давний, после перерыва ниже — от линии тренда, а не от рекорда", () => {
+    // Рекорд 100 (полгода назад), сейчас 80/82/84, цель 105: от 84 — 10,5 недели (74 дня), а не «2,5»
+    const f = forecastGoal({ ...base, points: pts(80, 82, 84), current: 100, target: 105 });
+    expect(f).toEqual({ kind: "eta", date: "2026-12-25" });
+  });
+
   it("мало данных — нет прогноза", () => {
     expect(forecastGoal({ ...base, points: pts(60, 62) })).toBeNull();
     expect(forecastGoal({ ...base, points: [60, 62, 64].map((value) => ({ week: "2026-10-05", value })) })).toBeNull();

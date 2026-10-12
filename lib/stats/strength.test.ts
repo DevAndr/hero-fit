@@ -58,11 +58,21 @@ describe("strengthTrend", () => {
     expect(same).toEqual({ stronger: 0, of: 1, top: [] });
   });
 
-  it("с весом, но без 1ПМ в окне — по повторам, без NaN", () => {
-    const rows = pair("dips", null, 50).map((r, i) => ({ ...r, maxReps: i ? 12 : 8 }));
+  it("с весом, но 1ПМ только в одном окне (сменил диапазон повторов) — не сравнивается", () => {
+    // «Раньше» 5×100 кг, «сейчас» 15×60 кг (повторы > 12 — без 1ПМ): не «+200 %»
+    const rows = pair("bench", 116, null).map((r, i) => ({ ...r, maxReps: i ? 15 : 5 }));
+    expect(strengthTrend(rows, W)).toEqual({ stronger: 0, of: 0, top: [] });
+  });
+
+  it("с весом, но без 1ПМ в обоих окнах — по повторам, без NaN", () => {
+    const rows = pair("dips", null, null).map((r, i) => ({ ...r, maxReps: i ? 12 : 8 }));
     const t = strengthTrend(rows, W);
     expect(t.top[0]).toMatchObject({ bodyweight: true, from: 8, to: 12 });
     expect(Number.isFinite(t.top[0].pct)).toBe(true);
+  });
+
+  it("лёгкое упражнение: округление не прячет рост", () => {
+    expect(strengthTrend(pair("curl", 16.3, 16.5), W).top[0]).toMatchObject({ from: 16.3, to: 16.5 });
   });
 
   it("«раньше» 0 повторов — не участвует", () => {

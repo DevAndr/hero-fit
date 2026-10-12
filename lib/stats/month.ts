@@ -48,10 +48,13 @@ function mondays({ from, to }: Range): string[] {
   return out;
 }
 
-/** Недели (понедельники), пересекающие текущий месяц по сегодня и весь прошлый — окна тренда силы. */
+/**
+ * Окна тренда силы: «сейчас» — недели, начавшиеся в текущем месяце (пока такой нет — пусто, силу не сравниваем:
+ * неделя на стыке почти целиком из прошлого месяца), «раньше» — недели, пересекающие прошлый месяц.
+ */
 export function monthWeeks(today: string): { recent: string[]; before: string[] } {
   const r = monthRanges(today);
-  return { recent: mondays(r.cur), before: mondays(r.prevFull) };
+  return { recent: mondays(r.cur).filter((w) => w >= r.cur.from), before: mondays(r.prevFull) };
 }
 
 const num = (n: number, digits = 0) => n.toLocaleString("ru-RU", { maximumFractionDigits: digits });

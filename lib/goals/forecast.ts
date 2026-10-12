@@ -26,16 +26,18 @@ function slopePerWeek(points: { week: string; value: number }[]) {
 /** null — меньше 3 точек на 3 разных неделях (показывается paceStatus). */
 export function forecastGoal(input: {
   points: { week: string; value: number }[];
+  /** Текущее значение цели (рекорд) — для прогноза не используется: темп и старт — из ряда. */
   current: number;
   target: number;
   deadline: string | null;
   today: string;
 }): Forecast | null {
-  const { current, target, deadline, today } = input;
+  const { target, deadline, today } = input;
   const points = [...input.points].sort((a, b) => a.week.localeCompare(b.week));
   if (points.length < MIN_POINTS || new Set(points.map((p) => p.week)).size < MIN_POINTS) return null;
   const slope = slopePerWeek(points);
-  const left = target - current;
+  // От последней точки ряда, а не от рекорда за всё время (current): после перерыва рекорд выше текущей формы
+  const left = target - points.at(-1)!.value;
   // Нет роста или движение от цели (вес тела — вниз: знак left отрицательный)
   if (slope * Math.sign(left) <= 1e-9) return { kind: "stalled" };
   const days = Math.round((left / slope) * 7);
