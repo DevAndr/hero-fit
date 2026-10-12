@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { buildRecap, recapHighlights, recapPushBody } from "./build";
 import type { RecapData, RecapInput } from "./types";
+import { trendWindows, type WeekBest } from "@/lib/stats/strength";
 
 const WEEK = "2026-10-05";
 
@@ -43,6 +44,7 @@ const input = (o: Partial<RecapInput> = {}): RecapInput => ({
   achievements: [],
   muscleSets: [],
   plan: null,
+  strengthWeeks: [],
   ...o,
 });
 
@@ -257,5 +259,39 @@ describe("raid block", () => {
     expect(buildRecap(input({ raid }))?.raid).toEqual(raid);
     const data = buildRecap(input());
     expect(data && "raid" in data).toBe(false);
+  });
+});
+
+describe("сила в итогах недели", () => {
+  const win = trendWindows(WEEK);
+  const wb = (id: string, name: string, week: string, oneRm: number | null, maxReps = 5, bodyweight = false): WeekBest => ({
+    exerciseId: id, name, bodyweight, week, oneRm, maxWeight: oneRm ?? 0, maxReps, sessions: 2,
+  });
+  const growth = [
+    wb("bench", "Жим штанги лёжа", win.before[1], 80),
+    wb("bench", "Жим штанги лёжа", win.recent[3], 84),
+    wb("squat", "Приседания со штангой", win.before[0], 100),
+    wb("squat", "Приседания со штангой", win.recent[1], 103),
+    wb("pull", "Подтягивания", win.before[0], null, 9, true),
+    wb("pull", "Подтягивания", win.recent[0], null, 11, true),
+  ];
+
+  it("рост — блок strength", () => {
+    const r = buildRecap(input({ strengthWeeks: growth.slice(0, 2) }))!;
+    expect(r.strength).toMatchObject({ stronger: 1, of: 1, top: [{ exerciseId: "bench", from: 80, to: 84 }] });
+  });
+
+  it("без данных — поля нет", () => {
+    expect(buildRecap(input())!.strength).toBeUndefined();
+  });
+
+  it("push начинается с «Ты стал сильнее», не больше 2 упражнений", () => {
+    const body = recapPushBody(buildRecap(input({ strengthWeeks: growth }))!);
+    expect(body).toBe("Ты стал сильнее: подтягивания +2 повт., жим штанги лёжа +5 %. Смотри итоги недели");
+  });
+
+  it("старый снимок без strength — прежний текст", () => {
+    const data = buildRecap(input())!;
+    expect(recapPushBody(data)).toBe(recapHighlights(data).join(" · "));
   });
 });

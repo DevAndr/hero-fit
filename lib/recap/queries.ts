@@ -10,6 +10,7 @@ import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
 import type { FinishMeta } from "@/lib/workouts/finish";
+import { exerciseWeekBests } from "@/lib/stats/strength-queries";
 import { buildRecap } from "./build";
 import { isRecapWeek } from "./schedule";
 import type { RecapData, RecapInput, RecapRaid } from "./types";
@@ -105,7 +106,7 @@ export async function weekRaid(userId: string, start: Date, end: Date): Promise<
 export async function loadRecapInput(userId: string, week: string, tz: string): Promise<RecapInput> {
   const { start, end } = bounds(week, tz);
   const prev = bounds(addWeeks(week, -1), tz);
-  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid] = await Promise.all([
+  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
     db.user.findUniqueOrThrow({
@@ -125,6 +126,8 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     db.bossWeek.findUnique({ where: { userId_week: { userId, week } } }),
     weekDamage(db, userId, week, tz),
     weekRaid(userId, start, end),
+    // 8 недель по неделю итогов: окна тренда силы
+    exerciseWeekBests(userId, tz, bounds(addWeeks(week, -7), tz).start),
   ]);
 
   const ids = workouts.map((w) => w.id);
@@ -150,6 +153,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     week,
     workouts: workouts.map((w) => ({ ...totals(w), finishedAt: w.finishedAt! })),
     prevWorkouts: prevWorkouts.map(totals),
+    strengthWeeks: weekBests.filter((b) => b.week <= week),
     sets: sets.map((s) => ({
       exerciseId: s.workoutExercise.exercise.id,
       exerciseName: s.workoutExercise.exercise.name,
