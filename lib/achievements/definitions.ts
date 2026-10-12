@@ -80,6 +80,8 @@ export type AchievementStats = {
   raidWins: number;
   /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
   raidMvps: number;
+  /** Полученных сундуков заданий клуба (выполненные задания). */
+  clubTaskRewards: number;
   /** Выполненные личные цели (Goal ACHIEVED). */
   goalsAchieved: number;
   /** Режим тренера включён (User.isCoach): без него тренерские ачивки не выдаются и не показываются целями. */
@@ -171,6 +173,7 @@ export const EMPTY_STATS: AchievementStats = {
   bossWins: 0,
   raidWins: 0,
   raidMvps: 0,
+  clubTaskRewards: 0,
   goalsAchieved: 0,
   coachMode: false,
   coach: EMPTY_COACH_STATS,
@@ -700,6 +703,20 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 1 ? "MVP рейда" : `MVP рейда ×${n}`,
           description: n === 1 ? "Нанести больше всех урона в победном рейде" : `Стать MVP ${n} победных рейдов`,
           xpReward: 40 + n * 5,
+        }),
+    },
+
+    // Задания клуба
+    {
+      fixed: [1, 5, 10, 25],
+      value: s.clubTaskRewards,
+      def: (n) =>
+        def(n, {
+          code: `clubtask:${n}`,
+          category: "CLUB",
+          title: n === 1 ? "Командный игрок" : `Командный игрок ×${n}`,
+          description: n === 1 ? "Выполнить задание клуба" : `Выполнить ${n} ${plural(n, "задание", "задания", "заданий")} клуба`,
+          xpReward: 30 + n * 5,
         }),
     },
 

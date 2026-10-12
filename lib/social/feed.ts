@@ -4,6 +4,7 @@ import { raidBossName } from "@/lib/raid/rules";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 import { titleLabel } from "@/lib/titles/catalog";
 import type { FinishGoals } from "@/lib/goals/rules";
+import type { FinishClubTask } from "@/lib/club/tasks-apply";
 
 /** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
 export type FeedRow = {
@@ -30,6 +31,7 @@ export type FeedRow = {
     boss?: { code: string; defeated: boolean };
     raid?: { raidId: string; code: string; defeated: boolean };
     goals?: FinishGoals;
+    clubTasks?: FinishClubTask[];
   } | null;
   /** Название гильдии рейда из meta.raid (на момент показа); рейд или гильдия удалены — null. */
   raidGuild?: string | null;

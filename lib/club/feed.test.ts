@@ -61,6 +61,22 @@ describe("toClubEvents", () => {
     expect(toClubEvents(row({ userId: "v", hideWeights: true, meta }), "v")!.achievements).toHaveLength(4);
   });
 
+  it("задания клуба: выполненные EACH и добитые CLUB; объём при скрытых весах — без кг", () => {
+    const base = { amount: 1, amountText: "1 тренировка", completed: true, clubCompleted: false };
+    const meta = {
+      clubTasks: [
+        { ...base, taskId: "1", title: "Каждому: 20 000 кг за 28 дней", feedTitle: "задание клуба по объёму", mode: "EACH" as const },
+        { ...base, taskId: "2", title: "Клубом: 100 тренировок за 14 дней", feedTitle: "Клубом: 100 тренировок за 14 дней", mode: "CLUB" as const, clubCompleted: true },
+        { ...base, taskId: "3", title: "Клубом: 50 ч в зале за 30 дней", feedTitle: "Клубом: 50 ч в зале за 30 дней", mode: "CLUB" as const, completed: false },
+      ],
+    };
+    const hidden = toClubEvents(row({ hideWeights: true, meta }), "v")!;
+    expect(hidden.tasks).toEqual(["задание клуба по объёму"]);
+    expect(hidden.clubTasks).toEqual(["Клубом: 100 тренировок за 14 дней"]);
+    expect(toClubEvents(row({ hideWeights: false, meta }), "v")!.tasks).toEqual(["Каждому: 20 000 кг за 28 дней"]);
+    expect(toClubEvents(row({ meta: { clubTasks: [meta.clubTasks[2]] } }), "v")).toBeNull();
+  });
+
   it("свои веса не скрываются", () => {
     expect(toClubEvents(row({ userId: "viewer", hideWeights: true, meta: weightRecord }), "viewer")!.records[0].value).toBe(80);
   });
