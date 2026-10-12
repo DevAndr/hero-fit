@@ -10,8 +10,11 @@ const when = (t: ClubTaskView) =>
 const amount = (t: ClubTaskView, n: number) =>
   t.type === "HOURS" ? (n / 60).toLocaleString("ru-RU", { maximumFractionDigits: 1 }) : n.toLocaleString("ru-RU");
 
-/** Активные задания на публичной странице клуба: у «всем клубом» — общий прогресс, у «каждому» — только название. */
-export function PublicClubTasks({ tasks }: { tasks: ClubTaskView[] }) {
+/**
+ * Активные задания на публичной странице клуба: у «всем клубом» — общий прогресс, у «каждому» — только название.
+ * `showProgress` — от `MIN_MEMBERS_FOR_STATS` участников: в маленьком клубе прогресс выдал бы цифры конкретного человека.
+ */
+export function PublicClubTasks({ tasks, showProgress }: { tasks: ClubTaskView[]; showProgress: boolean }) {
   if (!tasks.length) return null;
   return (
     <section aria-labelledby="tasks" className="mt-8">
@@ -20,7 +23,7 @@ export function PublicClubTasks({ tasks }: { tasks: ClubTaskView[] }) {
       </h2>
       <ul className="mt-3 space-y-3">
         {tasks.map((t) => {
-          const progress = t.mode === "CLUB" ? t.progress : null;
+          const progress = showProgress && t.mode === "CLUB" ? t.progress : null;
           const pct = progress ? Math.min(100, Math.round((progress.done / progress.target) * 100)) : 0;
           return (
             <li key={t.id} className="space-y-2 rounded-xl border bg-card p-4">

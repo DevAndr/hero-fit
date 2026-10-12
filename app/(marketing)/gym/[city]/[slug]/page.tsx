@@ -6,7 +6,7 @@ import { BadgeCheck, MapPin } from "lucide-react";
 import { PublicClubTasks } from "@/components/club/public-club-tasks";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { clubPath, visibleClubStats } from "@/lib/club/public";
+import { clubPath, MIN_MEMBERS_FOR_STATS, visibleClubStats } from "@/lib/club/public";
 import { getClubPublicStats, resolveClubPage } from "@/lib/club/public-queries";
 import { getClubTasks } from "@/lib/club/tasks-queries";
 import { db } from "@/lib/db";
@@ -130,7 +130,7 @@ export default async function GymPage({ params }: PageProps<"/gym/[city]/[slug]"
         </section>
       ) : null}
 
-      <PublicClubTasks tasks={tasks.active} />
+      <PublicClubTasks tasks={tasks.active} showProgress={stats.members >= MIN_MEMBERS_FOR_STATS} />
 
       <section aria-labelledby="how" className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
         <h2 id="how" className="font-display text-xl font-bold">

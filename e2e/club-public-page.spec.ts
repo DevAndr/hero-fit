@@ -69,10 +69,13 @@ test("open page: about, task, stats from 3 members, JSON-LD, city page, sitemap;
     await expect(g.page.getByText(/Просторный зал/)).toBeVisible();
     await expect(g.page.getByText("Клубом: 10 тренировок за 7 дней")).toBeVisible();
     await expect(g.page.getByText(/за неделю/)).toHaveCount(0);
+    // Прогресс «всем клубом» при < 3 участниках выдал бы цифры конкретного человека
+    await expect(g.page.getByText(/\d+ \/ 10/)).toHaveCount(0);
 
     const third = await member(club.id);
     await g.page.reload();
     await expect(g.page.getByText("тренировки за неделю")).toBeVisible();
+    await expect(g.page.getByText(/\d+ \/ 10/)).toBeVisible();
     for (const nick of [second.nick, third.nick]) await expect(g.page.getByText(nick)).toHaveCount(0);
     expect(await g.page.locator('script[type="application/ld+json"]').allTextContents()).toEqual(
       expect.arrayContaining([expect.stringContaining('"ExerciseGym"')]),
