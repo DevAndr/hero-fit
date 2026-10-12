@@ -4,6 +4,8 @@ import type { FinishClubTask } from "@/lib/club/tasks-apply";
 
 /** «Задания клуба» в сводке: что эта тренировка внесла и что выполнила. */
 export function ClubTasksSummary({ tasks, readOnly = false }: { tasks: FinishClubTask[]; readOnly?: boolean }) {
+  // clubId нет у сводок, записанных до его появления, — тогда «Клуб» сам переведёт в клуб игрока
+  const clubId = tasks.find((t) => t.completed)?.clubId;
   return (
     <section aria-label="Задания клуба" className="mt-4 space-y-2 rounded-xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-bold">
@@ -30,7 +32,7 @@ export function ClubTasksSummary({ tasks, readOnly = false }: { tasks: FinishClu
         ))}
       </ul>
       {!readOnly && tasks.some((t) => t.completed) ? (
-        <Link href="/clubs" className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <Link href={clubId ? `/clubs/${clubId}?tab=tasks` : "/clubs"} className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
           Сундук — на странице клуба
         </Link>
       ) : null}

@@ -173,12 +173,7 @@ export default async function ClubPage({
           {tab === "tasks" ? (
             <section aria-label="Задания" className="space-y-2">
               <h2 className="font-bold">Задания клуба</h2>
-              <ClubTasks
-                active={
-                  (await getClubTasks(club.id, user.id, false, timeZone)).active
-                }
-                archive={[]}
-              />
+              <ClubTasks {...await getClubTasks(club.id, user.id, false, timeZone)} />
             </section>
           ) : null}
           <section aria-label="Рейтинг" className="space-y-2">

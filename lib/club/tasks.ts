@@ -9,6 +9,8 @@ export const CLUB_TASK_XP = 75;
 export const CLUB_TASKS_ACTIVE_MAX = 3;
 export const CLUB_TASK_CHESTS_PER_WEEK = 2;
 export const CLUB_TASK_GRACE_MS = 24 * 3_600_000;
+/** Вклад одной тренировки в «часы»: забытая на выходные тренировка не закрывает общее задание. */
+export const CLUB_TASK_MAX_WORKOUT_MIN = 240;
 const CHEST_KEEP_MS = 28 * 24 * 3_600_000;
 const START_AHEAD_DAYS = 14;
 
@@ -52,9 +54,9 @@ export function minTarget(type: ClubTaskType, mode: ClubTaskMode, days: number, 
   return up(raw, 1);
 }
 
-export function taskBlock({ active, target, min }: { active: number; target: number; min: number }): string | null {
+export function taskBlock({ type, active, target, min }: { type: ClubTaskType; active: number; target: number; min: number }): string | null {
   if (active >= CLUB_TASKS_ACTIVE_MAX) return `В клубе уже ${CLUB_TASKS_ACTIVE_MAX} активных задания`;
-  if (target < min) return `Минимум для такого задания: ${min}`;
+  if (target < min) return `Минимум для такого задания: ${unitText(type, min)}`;
   return null;
 }
 
@@ -72,7 +74,7 @@ export function workoutAmount(type: ClubTaskType, workout: WorkoutForTask, exerc
     case "VOLUME":
       return Math.round(workout.totalVolume);
     case "HOURS":
-      return Math.round(workout.durationSec / 60);
+      return Math.min(CLUB_TASK_MAX_WORKOUT_MIN, Math.round(workout.durationSec / 60));
     case "REPS":
       return workout.exercises
         .filter((e) => e.exerciseId === exerciseId)

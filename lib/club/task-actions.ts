@@ -21,7 +21,6 @@ import {
   TASK_TYPES,
 } from "@/lib/club/tasks";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
-import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { weekBounds } from "@/lib/social/queries";
 
@@ -69,7 +68,7 @@ export async function createClubTaskAction(clubId: string, input: unknown): Prom
       tx.clubMember.findMany({ where: { clubId: admin.club.id }, select: { userId: true } }),
       tx.clubTask.count({ where: { clubId: admin.club.id, cancelledAt: null, endsAt: { gt: now }, OR: [{ mode: "EACH" }, { completedAt: null }] } }),
     ]);
-    const block = taskBlock({ active, target: t.target, min: minTarget(t.type, t.mode, t.days, members.length) });
+    const block = taskBlock({ type: t.type, active, target: t.target, min: minTarget(t.type, t.mode, t.days, members.length) });
     if (block) return block;
     await tx.clubTask.create({
       data: {
@@ -85,16 +84,12 @@ export async function createClubTaskAction(clubId: string, input: unknown): Prom
       },
     });
     const title = taskTitle(t, exercise?.name ?? null);
-    // Большой клуб — без push: уведомление в ленте приложения
-    for (const m of members) {
-      if (m.userId === admin.user.id) continue;
-      await notifyMany(
-        tx,
-        m.userId,
-        [{ type: NotificationType.SOCIAL, title: `Новое задание клуба: ${title}`, body: admin.club.name, url: `/clubs/${admin.club.id}?tab=tasks` }],
-        { push: false },
-      );
-    }
+    // Большой клуб — без push и одной вставкой: уведомление в ленте приложения
+    await tx.notification.createMany({
+      data: members
+        .filter((m) => m.userId !== admin.user.id)
+        .map((m) => ({ userId: m.userId, type: NotificationType.SOCIAL, title: `Новое задание клуба: ${title}`, body: admin.club.name, url: `/clubs/${admin.club.id}?tab=tasks` })),
+    });
     return null;
   });
   if (result) return { ok: false, error: result };

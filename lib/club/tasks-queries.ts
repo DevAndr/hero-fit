@@ -113,10 +113,15 @@ export async function getClubTasks(clubId: string, viewerId: string, member: boo
       completedCount: t.mode === "EACH" && member ? taskRewards.length : null,
       completedNames: t.mode === "EACH" && member ? taskRewards.map((r) => r.user.nickname ?? "—") : null,
       completed: t.mode === "CLUB" ? Boolean(t.completedAt) : Boolean(myReward),
-      chest: member ? chest : null,
+      // Сундук — и вышедшему из клуба: он его заработал (уведомление «сундук ждёт» ведёт сюда)
+      chest,
     };
   };
-  return { active: active.map(view), archive: archive.map(view) };
+  const views = { active: active.map(view), archive: archive.map(view) };
+  if (member) return views;
+  // Не участнику — активные без личных данных и прошедшие, где у него есть сундук (вышел из клуба после вклада)
+  const mine = new Set(rewards.filter((r) => r.userId === viewerId).map((r) => r.taskId));
+  return { active: views.active, archive: views.archive.filter((t) => mine.has(t.id)) };
 }
 
 /** Есть ли активные задания — вкладка «Задания» по умолчанию. */

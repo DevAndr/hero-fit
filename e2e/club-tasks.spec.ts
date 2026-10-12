@@ -103,7 +103,7 @@ test("admin creates tasks: minimum hint, limit of 3; member completes EACH and o
   await dialog.getByLabel("Цель", { exact: true }).fill("1");
   await expect(dialog.getByText("Минимум: 2")).toBeVisible();
   await dialog.getByRole("button", { name: "Создать" }).click();
-  await expect(dialog.getByText("Минимум для такого задания: 2")).toBeVisible();
+  await expect(dialog.getByText("Минимум для такого задания: 2 тренировки")).toBeVisible();
   await dialog.getByLabel("Цель", { exact: true }).fill("2");
   await dialog.getByRole("button", { name: "Создать" }).click();
   await expect(dialog).toBeHidden();
@@ -193,4 +193,45 @@ test("weekly chest limit and cancel", async ({ browser }) => {
   const archived = admin.page.getByRole("region", { name: "Архив" }).getByRole("article", { name: "Каждому: 3 тренировки за 7 дней" });
   await expect(archived.getByText("Отменено")).toBeVisible();
   await expect(archived.getByText("Откроется с понедельника")).toBeVisible();
+});
+
+const pushTitles = (login: string) =>
+  withDb(async (db) =>
+    (await db.query<{ title: string }>(`select p.title from "ScheduledPush" p join "User" u on u.id = p."userId" where u.login = $1`, [login])).rows.map(
+      (r) => r.title,
+    ),
+  );
+
+test("a member who left keeps the chest: sees it on the club page and opens it; push respects their setting", async ({ browser }) => {
+  const left = await clubPlayer(browser);
+  const finisher = await clubPlayer(browser);
+  const club = await createClub(finisher.login);
+  for (const p of [left, finisher]) await joinClub(p.login, club.id, new Date(Date.now() - 3600_000));
+  const task = await createClubTask(club.id, { type: "WORKOUTS", mode: "CLUB", target: 2 });
+  await withDb((db) => db.query(`update "User" set "notifyAchievements" = false where login = $1`, [left.login]));
+
+  await quickWorkout(left.page, BENCH, [{ weight: "40", reps: "10" }]);
+  await withDb((db) => db.query(`delete from "ClubMember" where "userId" = (select id from "User" where login = $1)`, [left.login]));
+  await quickWorkout(finisher.page, BENCH, [{ weight: "40", reps: "10" }]);
+  expect((await clubTaskRewards(task)).sort()).toEqual([finisher.login, left.login].sort());
+  // Уведомление есть, push — нет: вышедший выключил уведомления об ачивках
+  expect((await titles(left.login)).some((t) => t.includes("сундук ждёт"))).toBe(true);
+  expect((await pushTitles(left.login)).some((t) => t.includes("сундук ждёт"))).toBe(false);
+
+  await left.page.goto(`/clubs/${club.id}?tab=tasks`);
+  const card = left.page.getByRole("article", { name: "Клубом: 2 тренировки за 7 дней" });
+  await card.getByRole("button", { name: "Открыть сундук" }).click();
+  await left.page.getByRole("dialog", { name: "Сундук задания" }).getByRole("button", { name: "Открыть", exact: true }).click();
+  await expect(left.page.getByRole("dialog", { name: "Награда получена" })).toContainText("+75 XP");
+});
+
+test("without the clubs flag a workout does not count (kill switch)", async ({ browser }) => {
+  const page: Page = await (await browser.newContext()).newPage();
+  const user = await registerUser(page);
+  const club = await createClub(user.login);
+  await joinClub(user.login, club.id, new Date(Date.now() - 3600_000));
+  const task = await createClubTask(club.id, { type: "WORKOUTS", mode: "EACH", target: 1 });
+  await quickWorkout(page, BENCH, [{ weight: "40", reps: "10" }]);
+  await expect(page.getByRole("region", { name: "Задания клуба" })).toHaveCount(0);
+  expect((await clubTaskOf(task)).hits).toBe(0);
 });

@@ -34,9 +34,12 @@ describe("minTarget", () => {
 
 describe("taskBlock и схема", () => {
   it("лимит активных и минимум", () => {
-    expect(taskBlock({ active: 3, target: 999, min: 1 })).toBe("В клубе уже 3 активных задания");
-    expect(taskBlock({ active: 0, target: 7, min: 8 })).toBe("Минимум для такого задания: 8");
-    expect(taskBlock({ active: 2, target: 8, min: 8 })).toBeNull();
+    expect(taskBlock({ type: "WORKOUTS", active: 3, target: 999, min: 1 })).toBe("В клубе уже 3 активных задания");
+    expect(taskBlock({ type: "WORKOUTS", active: 0, target: 7, min: 8 })).toBe("Минимум для такого задания: 8 тренировок");
+    expect(taskBlock({ type: "WORKOUTS", active: 2, target: 8, min: 8 })).toBeNull();
+    // Часы хранятся в минутах, но в тексте — часы; объём — с разделителем
+    expect(taskBlock({ type: "HOURS", active: 0, target: 600, min: 840 })).toBe("Минимум для такого задания: 14 ч");
+    expect(taskBlock({ type: "VOLUME", active: 0, target: 100, min: 7200 })).toBe("Минимум для такого задания: 7 200 кг");
   });
   it("срок 7…31, упражнение для повторов", () => {
     expect(taskSchema.safeParse(ok).success).toBe(true);
@@ -77,6 +80,9 @@ describe("workoutAmount", () => {
     expect(workoutAmount("VOLUME", w, null)).toBe(1235);
     expect(workoutAmount("HOURS", w, null)).toBe(60);
     expect(workoutAmount("WORKOUTS", w, null)).toBe(1);
+  });
+  it("забытая тренировка даёт в «часы» не больше 4 ч", () => {
+    expect(workoutAmount("HOURS", { ...w, durationSec: 72 * 3600 }, null)).toBe(240);
   });
 });
 

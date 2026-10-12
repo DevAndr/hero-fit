@@ -2,11 +2,13 @@ import "server-only";
 import { NotificationType, type Prisma } from "@/generated/prisma/client";
 import type { ClubTaskMode } from "@/generated/prisma/enums";
 import { eligible, hitCounts, taskDays, taskFeedTitle, taskTitle, unitText, workoutAmount, type WorkoutForTask } from "@/lib/club/tasks";
-import { notify } from "@/lib/notifications/service";
+import { isEnabled } from "@/lib/flags/server";
 
 /** Итог задания клуба по тренировке — для сводки и ленты (`FinishMeta.clubTasks`). */
 export type FinishClubTask = {
   taskId: string;
+  /** Клуб задания — ссылка из сводки ведёт на его вкладку «Задания». */
+  clubId?: string;
   title: string;
   /** Для ленты при скрытых весах (выбирает чтение — приватность применяется при показе): у объёма — без килограммов. */
   feedTitle: string;
@@ -27,6 +29,8 @@ export async function applyClubTasks(
   tx: Prisma.TransactionClient,
   a: { userId: string; workoutId: string; finishedAt: Date; now: Date; workout: WorkoutForTask },
 ): Promise<FinishClubTask[] | undefined> {
+  // Флаг игрока: выключенный (kill switch) — вклад не пишется, уведомлений со ссылками на 404 нет
+  if (!(await isEnabled("clubs", a.userId))) return undefined;
   const member = await tx.clubMember.findUnique({ where: { userId: a.userId }, select: { clubId: true, joinedAt: true } });
   if (!member) return undefined;
   const tasks = await tx.clubTask.findMany({
@@ -71,37 +75,35 @@ export async function applyClubTasks(
       }
     }
 
-    results.push({ taskId: task.id, title, feedTitle, amount, amountText: unitText(task.type, amount), mode: task.mode, completed, clubCompleted });
+    results.push({ taskId: task.id, clubId: task.clubId, title, feedTitle, amount, amountText: unitText(task.type, amount), mode: task.mode, completed, clubCompleted });
   }
   return results.length ? results : undefined;
 }
 
-/** Выполнение CLUB: сундуки вышедшим на порог (и вышедшим из клуба), уведомления — им с push, остальным участникам без. */
+/**
+ * Выполнение CLUB: сундуки вышедшим на порог (и вышедшим из клуба), уведомления — им с push (по их `notifyAchievements`),
+ * остальным участникам без. Пакетными вставками: клуб зала — сотни человек, а это транзакция завершения тренировки.
+ */
 async function rewardContributors(tx: Prisma.TransactionClient, task: { id: string; clubId: string; target: number; club: { name: string } }, title: string) {
   const sums = await tx.clubTaskHit.groupBy({ by: ["userId"], where: { taskId: task.id }, _sum: { amount: true }, _count: { _all: true } });
   const winners = sums.filter((s) => eligible({ amount: s._sum.amount ?? 0, workouts: s._count._all, target: task.target })).map((s) => s.userId);
   if (winners.length) {
     await tx.clubTaskReward.createMany({ data: winners.map((userId) => ({ taskId: task.id, userId })), skipDuplicates: true });
   }
-  const members = await tx.clubMember.findMany({
-    where: { clubId: task.clubId },
-    select: { userId: true, user: { select: { notifyAchievements: true } } },
-  });
-  const pushFor = new Map(members.map((m) => [m.userId, m.user.notifyAchievements]));
-  const recipients = new Set([...winners, ...members.map((m) => m.userId)]);
+  const members = await tx.clubMember.findMany({ where: { clubId: task.clubId }, select: { userId: true } });
+  const won = new Set(winners);
+  const others = members.map((m) => m.userId).filter((id) => !won.has(id));
   const url = `/clubs/${task.clubId}?tab=tasks`;
-  for (const userId of recipients) {
-    const won = winners.includes(userId);
-    await notify(
-      tx,
-      userId,
-      {
-        type: NotificationType.SOCIAL,
-        title: won ? `Клуб выполнил задание «${title}» — сундук ждёт` : `Клуб выполнил задание «${title}»`,
-        body: task.club.name,
-        url,
-      },
-      { push: won && (pushFor.get(userId) ?? true) },
-    );
+  const winMessage = { type: NotificationType.SOCIAL, title: `Клуб выполнил задание «${title}» — сундук ждёт`, body: task.club.name, url };
+  const otherMessage = { type: NotificationType.SOCIAL, title: `Клуб выполнил задание «${title}»`, body: task.club.name, url };
+  await tx.notification.createMany({
+    data: [...winners.map((userId) => ({ userId, ...winMessage })), ...others.map((userId) => ({ userId, ...otherMessage }))],
+  });
+  const pushTo = winners.length
+    ? (await tx.user.findMany({ where: { id: { in: winners }, notifyAchievements: true }, select: { id: true } })).map((u) => u.id)
+    : [];
+  if (pushTo.length) {
+    const sendAt = new Date();
+    await tx.scheduledPush.createMany({ data: pushTo.map((userId) => ({ userId, ...winMessage, sendAt })) });
   }
 }
