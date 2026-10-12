@@ -22,6 +22,13 @@ enum MuscleGroup {
   ABS // Пресс
 }
 
+/// Самочувствие перед тренировкой (чек-ин умного помощника)
+enum Wellbeing {
+  GREAT // Отлично
+  OK // Нормально
+  TIRED // Устал
+}
+
 enum WorkoutStatus {
   PLANNED // собрана, но не запущена
   IN_PROGRESS
@@ -91,6 +98,8 @@ enum XpReason {
 model User {
   /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
   changelogSeen String?
+  /// умный помощник (флаг smart_coach): выключается в /settings
+  assistantEnabled Boolean @default(true)
   id                String    @id @default(cuid())
   login             String    @unique
   /// null — аккаунт из Telegram Mini App (email и пароль задаются в «Вход на сайте»)
@@ -406,6 +415,8 @@ model Workout {
   rpe                Int?
   /// заметка к оценке тренировки
   notes              String?
+  /// самочувствие из чек-ина помощника; боль сюда не пишется (152-ФЗ — только на устройстве)
+  wellbeing          Wellbeing?
   /// когда тренеру ушло уведомление об оценке (одно на тренировку)
   feedbackNotifiedAt DateTime?
   createdAt          DateTime      @default(now())

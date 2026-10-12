@@ -11,6 +11,8 @@ import { TelegramThemeNote, ThemeSettings } from "@/components/app/theme-setting
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
 import { TelegramCard } from "@/components/notifications/telegram-settings";
 import { SiteLoginForm } from "@/components/auth/site-login-form";
+import { AssistantSettings } from "@/components/assistant/assistant-settings";
+import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
@@ -22,13 +24,14 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
     db.coachProfile.findFirst({ where: { userId: user.id, publishedAt: { not: null } }, select: { userId: true } }),
     getTelegramStatus(user.id),
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } }).then((u) => u.passwordHash !== null),
+    isEnabled("smart_coach", user.id),
   ]);
 
   return (
@@ -45,6 +48,7 @@ export default async function SettingsPage() {
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
       {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}
       {telegram.enabled ? <TelegramCard status={telegram} /> : null}
+      {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />
     </div>

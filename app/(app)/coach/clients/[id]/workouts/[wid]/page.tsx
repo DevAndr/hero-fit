@@ -44,7 +44,7 @@ export default async function CoachClientWorkoutPage({ params }: PageProps<"/coa
       readOnly
       bossTaken
       exerciseHref={(exerciseId) => `${base}/exercises/${exerciseId}`}
-      feedback={<CoachFeedbackNote rpe={workout.rpe} note={workout.notes} />}
+      feedback={<CoachFeedbackNote rpe={workout.rpe} note={workout.notes} wellbeing={workout.wellbeing} />}
       renderComment={(workoutExerciseId) =>
         workoutExerciseId ? editor(workoutExerciseId) : <CoachCommentSection>{editor(null)}</CoachCommentSection>
       }

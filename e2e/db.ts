@@ -760,3 +760,24 @@ export async function resetFlag(key: string) {
 export async function setChangelogSeen(login: string, id: string | null) {
   await withDb((db) => db.query(`update "User" set "changelogSeen" = $2 where login = $1`, [login, id]));
 }
+
+/** Самочувствие из чек-ина помощника. */
+export async function workoutWellbeing(id: string): Promise<string | null> {
+  return withDb(async (db) => (await db.query<{ wellbeing: string | null }>(`select wellbeing from "Workout" where id = $1`, [id])).rows[0]?.wellbeing ?? null);
+}
+
+export async function assistantEnabled(login: string): Promise<boolean> {
+  return withDb(async (db) => (await db.query<{ v: boolean }>(`select "assistantEnabled" as v from "User" where login = $1`, [login])).rows[0].v);
+}
+
+/** Добавить пользователя в список флага, не затирая чужих (параллельные тесты), флаг включён. */
+export async function addFlagUser(key: string, login: string) {
+  await withDb((db) =>
+    db.query(
+      `insert into "FeatureFlag" (key, enabled, percent, "userIds", "updatedAt")
+       select $1, true, 0, array[id], now() from "User" where login = $2
+       on conflict (key) do update set enabled = true, "userIds" = array_append(array_remove("FeatureFlag"."userIds", excluded."userIds"[1]), excluded."userIds"[1]), "updatedAt" = now()`,
+      [key, login],
+    ),
+  );
+}
