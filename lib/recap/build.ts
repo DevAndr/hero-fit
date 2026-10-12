@@ -3,6 +3,7 @@ import { plural } from "@/lib/format";
 import { addWeeks, STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 import { epley1RM } from "@/lib/progress/records";
 import { rankLeague } from "@/lib/social/league";
+import { strengthTrend, trendWindows, type StrengthTrend } from "@/lib/stats/strength";
 import { RECAP_VERSION, type RecapData, type RecapInput, type RecapTotals } from "./types";
 
 const EPS = 0.01;
@@ -126,6 +127,7 @@ export function buildRecap(input: RecapInput): RecapData | null {
     plan: input.plan ?? undefined,
     boss: input.boss ?? undefined,
     raid: input.raid ?? undefined,
+    strength: strength(input),
   };
   for (const [key, value] of Object.entries(blocks)) if (value !== undefined) Object.assign(data, { [key]: value });
   return data;
@@ -154,7 +156,20 @@ export function recapHighlights(data: RecapData): string[] {
   return facts.slice(0, 3);
 }
 
-/** Текст push «Итоги недели». */
+function strength(input: RecapInput): StrengthTrend | undefined {
+  const t = strengthTrend(input.strengthWeeks, trendWindows(input.week));
+  return t.of > 0 ? t : undefined;
+}
+
+const lowerFirst = (s: string) => s.charAt(0).toLocaleLowerCase("ru") + s.slice(1);
+
+/** Текст push «Итоги недели»: стал сильнее — об этом (до 2 упражнений), иначе — самое яркое. */
 export function recapPushBody(data: RecapData): string {
+  if (data.strength?.stronger) {
+    const items = data.strength.top
+      .slice(0, 2)
+      .map((i) => `${lowerFirst(i.name)} ${i.bodyweight ? `+${i.to - i.from} повт.` : `+${Math.round(i.pct * 100)} %`}`);
+    return `Ты стал сильнее: ${items.join(", ")}. Смотри итоги недели`;
+  }
   return recapHighlights(data).join(" · ");
 }

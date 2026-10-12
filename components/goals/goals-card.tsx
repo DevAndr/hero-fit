@@ -41,6 +41,7 @@ export function GoalsCard({ goals, total }: { goals: GoalView[]; total: number }
               <span className="shrink-0 tabular-nums text-muted-foreground">{g.status === "ACHIEVED" ? "Достигнута" : `${Math.round(g.progress * 100)} %`}</span>
             </div>
             <GoalBar goal={g} />
+            {g.status === "ACTIVE" && g.forecast ? <p className="text-xs text-muted-foreground">Прогноз: {g.forecast.short}</p> : null}
             {g.status === "ACHIEVED" ? <GoalChestButton goalId={g.id} title={g.title} available={!g.chestOpenedAt} /> : null}
           </li>
         ))}

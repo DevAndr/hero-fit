@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChartColumn } from "lucide-react";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
+import { MonthCompareCard } from "@/components/stats/month-compare";
 import { MuscleChart } from "@/components/stats/muscle-chart";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
 import { RepRangeChart } from "@/components/stats/rep-range-chart";
@@ -9,9 +10,14 @@ import { StrengthChart } from "@/components/stats/strength-chart";
 import { WeeklyTrendChart } from "@/components/stats/weekly-trend-chart";
 import { formatClock } from "@/lib/format";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import type { MonthCompare } from "@/lib/stats/month";
 import type { getStats, getTrends } from "@/lib/stats/queries";
 
-export type StatsViewData = { stats: Awaited<ReturnType<typeof getStats>>; trends: Awaited<ReturnType<typeof getTrends>> };
+export type StatsViewData = {
+  stats: Awaited<ReturnType<typeof getStats>>;
+  trends: Awaited<ReturnType<typeof getTrends>>;
+  month: MonthCompare;
+};
 
 const hours = (sec: number) => `${(sec / 3600).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
 const kg = (n: number) => `${Math.round(n).toLocaleString("ru-RU")} кг`;
@@ -63,6 +69,7 @@ export function StatsView({
 
   return (
     <div className="space-y-6">
+      <MonthCompareCard data={data.month} />
       <section aria-label="Тренировки" className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Тренировки</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

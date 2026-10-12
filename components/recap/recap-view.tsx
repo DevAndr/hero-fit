@@ -5,6 +5,7 @@ import { BossChestButton } from "@/components/boss/boss-chest-button";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { bossName } from "@/lib/boss/bosses";
 import { RecapMuscles } from "@/components/recap/recap-muscles";
+import { StrengthBlock } from "@/components/recap/strength-block";
 import { PlaceBadge } from "@/components/social/place-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { plural } from "@/lib/format";
@@ -237,6 +238,7 @@ export function RecapView({ data, bossChest = false }: { data: RecapData; /** С
           ))}
         </ul>
       </section>
+      {data.strength ? <StrengthBlock strength={data.strength} /> : null}
       <Totals totals={data.totals} />
       <div className="grid gap-4 lg:grid-cols-2">
         {data.bestSet ? <BestSet best={data.bestSet} /> : null}

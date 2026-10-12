@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { GoalStatus, WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { getGoalForecasts, type GoalForecastView } from "@/lib/goals/forecast-queries";
 import { dayKey } from "@/lib/daily-login";
 import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import {
@@ -23,6 +24,8 @@ export type GoalView = GoalRow & {
   current: number;
   progress: number;
   pace: "ahead" | "behind" | null;
+  /** Прогноз по динамике (силовые и вес тела, от 3 недель данных); null — показывается pace. */
+  forecast: GoalForecastView | null;
   closedAt: Date | null;
 };
 
@@ -137,6 +140,13 @@ async function toViews(client: Client, userId: string, goals: GoalWithExercise[]
   const rows = goals.map(toRow);
   const active = rows.filter((g) => g.status === GoalStatus.ACTIVE);
   const values = await getCurrentValues(client, userId, active, tz);
+  const forecasts = await getGoalForecasts(
+    client,
+    userId,
+    active.map((g) => ({ ...g, current: values.get(g.id) ?? g.startValue })),
+    tz,
+    now,
+  );
   return rows.map((g) => {
     const closed = g.status !== GoalStatus.ACTIVE;
     const current = values.get(g.id) ?? (g.status === GoalStatus.ACHIEVED ? g.target : g.startValue);
@@ -147,6 +157,7 @@ async function toViews(client: Client, userId: string, goals: GoalWithExercise[]
       current,
       progress,
       pace: closed ? null : paceStatus(g, progress, now, tz),
+      forecast: closed ? null : (forecasts.get(g.id) ?? null),
     };
   });
 }
@@ -235,14 +246,16 @@ export async function getClientGoals(clientId: string, tz: string) {
   return { active: await toViews(db, clientId, active, tz), achieved: await toViews(db, clientId, achieved, tz) };
 }
 
-/** Активная силовая цель по упражнению — для линии цели на графике. */
-export async function getExerciseGoal(userId: string, exerciseId: string) {
+/** Активная силовая цель по упражнению — для линии цели и строки прогноза на графике. */
+export async function getExerciseGoal(userId: string, exerciseId: string, tz: string) {
   const g = await db.goal.findFirst({
     where: { userId, exerciseId, type: "STRENGTH", status: GoalStatus.ACTIVE },
     orderBy: { createdAt: "asc" },
-    select: { metric: true, target: true },
+    select: goalSelect,
   });
-  return g?.metric ? { metric: g.metric, target: g.target } : null;
+  if (!g?.metric) return null;
+  const [view] = await toViews(db, userId, [g], tz);
+  return { metric: g.metric, target: g.target, forecast: view.forecast?.text ?? null };
 }
 
 export type GoalFormExercise = { id: string; name: string; isBodyweight: boolean; records: Partial<Record<"ONE_RM" | "MAX_WEIGHT" | "MAX_REPS", number>> };
