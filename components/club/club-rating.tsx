@@ -2,7 +2,7 @@ import { PlaceBadge } from "@/components/social/place-badge";
 import type { ClubRating } from "@/lib/club/queries";
 import { cn } from "@/lib/utils";
 
-/** Рейтинг клуба: место, ник, уровень, тренировки, XP. Участники без опыта за период — одной строкой ниже. */
+/** Рейтинг клуба: место, ник, уровень, XP (число тренировок не показывается — согласие обещает «Тренировки — нет»). Участники без опыта за период — одной строкой ниже. */
 export function ClubRatingTable({ rating, periodLabel }: { rating: ClubRating; periodLabel: string }) {
   if (!rating.members.length) {
     return <p className="text-sm text-muted-foreground">За {periodLabel} ещё никто не тренировался — будь первым.</p>;
@@ -23,9 +23,6 @@ export function ClubRatingTable({ rating, periodLabel }: { rating: ClubRating; p
                 Ур.
               </th>
               <th scope="col" className="px-3 py-2 text-right font-medium">
-                Тренировки
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
                 XP
               </th>
             </tr>
@@ -42,7 +39,6 @@ export function ClubRatingTable({ rating, periodLabel }: { rating: ClubRating; p
                   {m.title ? <span className="block text-xs text-muted-foreground">{m.title}</span> : null}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{m.level}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{m.workouts}</td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums text-xp">{m.xp.toLocaleString("ru-RU")}</td>
               </tr>
             ))}

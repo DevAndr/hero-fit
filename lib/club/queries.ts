@@ -189,9 +189,9 @@ export async function getMyClubs(userId: string): Promise<MyClubs> {
   return { admin: admin.map(({ _count, ...c }) => ({ ...c, members: _count.members })), member };
 }
 
-/** Счётчики для лимитов заявок. */
-export async function adminCounts(userId: string) {
-  const rows = await db.club.groupBy({ by: ["status"], where: { adminId: userId }, _count: true });
+/** Счётчики для лимитов заявок; в транзакции — передать её клиент. */
+export async function adminCounts(userId: string, client: Pick<typeof db, "club"> = db) {
+  const rows = await client.club.groupBy({ by: ["status"], where: { adminId: userId }, _count: true });
   const count = (s: ClubStatus) => rows.find((r) => r.status === s)?._count ?? 0;
   return { admined: count("PENDING") + count("APPROVED") + count("HIDDEN"), pending: count("PENDING") };
 }

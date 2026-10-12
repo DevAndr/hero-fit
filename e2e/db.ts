@@ -855,3 +855,8 @@ export async function seedXpWorkout(login: string, o: { xp: number; meta?: objec
     );
   });
 }
+
+/** Пачка завершённых тренировок без событий (meta пустая), новые — ближе к текущему времени. */
+export async function seedXpWorkouts(login: string, n: number) {
+  for (let i = 0; i < n; i++) await seedXpWorkout(login, { xp: 50, finishedAt: new Date(Date.now() - (n - i) * 60_000) });
+}

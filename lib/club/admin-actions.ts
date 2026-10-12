@@ -30,7 +30,7 @@ export async function reviewClubAction(id: string, decision: "approve" | "reject
       club.adminId,
       decision === "approve"
         ? { type: NotificationType.SOCIAL, title: `Клуб «${club.name}» одобрен`, body: "Пригласите участников ссылкой или QR", url: `/clubs/${club.id}/manage` }
-        : { type: NotificationType.SOCIAL, title: `Заявка на клуб «${club.name}» отклонена`, body: rejectReason!, url: "/clubs" },
+        : { type: NotificationType.SOCIAL, title: `Заявка на клуб «${club.name}» отклонена`, body: rejectReason!, url: "/clubs?list=1" },
       { push: true },
     );
     return true;
