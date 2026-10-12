@@ -755,3 +755,182 @@ export async function setFlag(key: string, s: { enabled: boolean; percent?: numb
 export async function resetFlag(key: string) {
   await withDb((db) => db.query(`delete from "FeatureFlag" where key = $1`, [key]));
 }
+
+/** Последний просмотренный релиз «Что нового» (null — как у старых пользователей до миграции). */
+export async function setChangelogSeen(login: string, id: string | null) {
+  await withDb((db) => db.query(`update "User" set "changelogSeen" = $2 where login = $1`, [login, id]));
+}
+
+/** Самочувствие из чек-ина помощника. */
+export async function workoutWellbeing(id: string): Promise<string | null> {
+  return withDb(async (db) => (await db.query<{ wellbeing: string | null }>(`select wellbeing from "Workout" where id = $1`, [id])).rows[0]?.wellbeing ?? null);
+}
+
+export async function assistantEnabled(login: string): Promise<boolean> {
+  return withDb(async (db) => (await db.query<{ v: boolean }>(`select "assistantEnabled" as v from "User" where login = $1`, [login])).rows[0].v);
+}
+
+/** Добавить пользователя в список флага, не затирая чужих (параллельные тесты), флаг включён. */
+export async function addFlagUser(key: string, login: string) {
+  await withDb((db) =>
+    db.query(
+      `insert into "FeatureFlag" (key, enabled, percent, "userIds", "updatedAt")
+       select $1, true, 0, array[id], now() from "User" where login = $2
+       on conflict (key) do update set enabled = true, "userIds" = array_append(array_remove("FeatureFlag"."userIds", excluded."userIds"[1]), excluded."userIds"[1]), "updatedAt" = now()`,
+      [key, login],
+    ),
+  );
+}
+
+/** Алфавит кода друга (lib/social/league.ts). */
+const CLUB_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** Клуб в БД минуя заявку; админ — login. Ключи — как clubKey (нижний регистр, без пунктуации). */
+export async function createClub(
+  login: string,
+  o: { status?: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN"; name?: string; city?: string; address?: string; rejectReason?: string } = {},
+): Promise<{ id: string; code: string }> {
+  const key = (s: string) => s.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const name = o.name ?? `E2E Клуб ${Math.random().toString(36).slice(2, 8)}`;
+  const city = o.city ?? "Тестоград";
+  const address = o.address ?? "ул. Тестовая, 1";
+  const code = Array.from({ length: 8 }, () => CLUB_CODE_ALPHABET[Math.floor(Math.random() * CLUB_CODE_ALPHABET.length)]).join("");
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "Club" (id, name, "nameKey", city, "cityKey", address, "addressKey", contact, code, "adminId", status, "rejectReason")
+       select 'club_' || md5(random()::text), $1, $2, $3, $4, $5, $6, '+7 900 000-00-00', $7, id, $8::"ClubStatus", $9 from "User" where login = $10
+       returning id`,
+      [name, key(name), city, key(city), address, key(address), code, o.status ?? "APPROVED", o.rejectReason ?? null, login],
+    );
+    return { id: rows[0].id, code };
+  });
+}
+
+/** Id клуба, в котором состоит пользователь. */
+export async function clubOf(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select m."clubId" as id from "ClubMember" m join "User" u on u.id = m."userId" where u.login = $1`, [login]);
+    return rows[0]?.id ?? null;
+  });
+}
+
+export async function clubStatus(id: string): Promise<string> {
+  return withDb(async (db) => (await db.query<{ status: string }>(`select status::text from "Club" where id = $1`, [id])).rows[0].status);
+}
+
+export async function setClubStatus(id: string, status: "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN") {
+  await withDb((db) => db.query(`update "Club" set status = $2::"ClubStatus" where id = $1`, [id, status]));
+}
+
+export async function clubAdminLogin(id: string): Promise<string> {
+  return withDb(async (db) => (await db.query<{ login: string }>(`select u.login from "Club" c join "User" u on u.id = c."adminId" where c.id = $1`, [id])).rows[0].login);
+}
+
+/** Вступить в клуб минуя интерфейс. */
+/** Публикация страницы клуба минуя интерфейс; адрес по умолчанию — `testograd/e2e-<случайно>`. */
+export async function publishClub(clubId: string, o: { about?: string; slug?: string; citySlug?: string } = {}): Promise<{ path: string }> {
+  const slug = o.slug ?? `e2e-${Math.random().toString(36).slice(2, 8)}`;
+  const citySlug = o.citySlug ?? "testograd";
+  const about = o.about ?? "Просторный зал с тремя стойками для приседа, помостами и зоной кардио. Работаем круглосуточно.";
+  await withDb((db) =>
+    db.query(`update "Club" set about = $2, slug = $3, "citySlug" = $4, "publishedAt" = now() where id = $1`, [clubId, about, slug, citySlug]),
+  );
+  return { path: `/gym/${citySlug}/${slug}` };
+}
+
+export async function clubSlug(clubId: string): Promise<{ slug: string | null; citySlug: string | null; publishedAt: Date | null }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ slug: string | null; citySlug: string | null; publishedAt: Date | null }>(
+      `select slug, "citySlug", "publishedAt" from "Club" where id = $1`,
+      [clubId],
+    );
+    return rows[0];
+  });
+}
+
+export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
+  await withDb((db) =>
+    db.query(
+      `insert into "ClubMember" ("userId", "clubId", "joinedAt") select id, $2, coalesce($3, now()) from "User" where login = $1
+       on conflict ("userId") do update set "clubId" = excluded."clubId", "joinedAt" = excluded."joinedAt"`,
+      [login, clubId, joinedAt ?? null],
+    ),
+  );
+}
+
+/** Завершённая тренировка с событием WORKOUT_COMPLETED (опыт и meta сводки) — для рейтинга и ленты клуба. */
+export async function seedXpWorkout(login: string, o: { xp: number; meta?: object; finishedAt?: Date; name?: string }) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    const finished = o.finishedAt ?? new Date();
+    const started = new Date(finished.getTime() - 3600 * 1000);
+    const workoutId = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 4321, 5, 50, $4, $5)`,
+      [workoutId, uid, o.name ?? "Seed", started, finished],
+    );
+    // Одно упражнение с подходом — как настоящая тренировка (итоги недели ищут лучший подход)
+    const ex = (await db.query<{ id: string }>(`select id from "Exercise" where name = 'Жим штанги лёжа' and "userId" is null`)).rows[0].id;
+    const weId = randomUUID();
+    await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [weId, workoutId, ex]);
+    await db.query(
+      `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, 0, 40, 10, false, $3)`,
+      [randomUUID(), weId, finished],
+    );
+    await db.query(
+      `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
+      // records/achievements — как у настоящей сводки (итоги недели читают их без проверки)
+      [randomUUID(), uid, o.xp, workoutId, JSON.stringify({ records: [], achievements: [], ...o.meta }), finished],
+    );
+  });
+}
+
+/** Пачка завершённых тренировок без событий (meta пустая), новые — ближе к текущему времени. */
+export async function seedXpWorkouts(login: string, n: number) {
+  for (let i = 0; i < n; i++) await seedXpWorkout(login, { xp: 50, finishedAt: new Date(Date.now() - (n - i) * 60_000) });
+}
+
+/** Задание клуба минуя интерфейс и минимумы; окно по умолчанию — со вчера на 7 дней. */
+export async function createClubTask(
+  clubId: string,
+  o: { type: "WORKOUTS" | "VOLUME" | "REPS" | "HOURS"; mode: "CLUB" | "EACH"; target: number; exerciseName?: string; startsAt?: Date; endsAt?: Date },
+): Promise<string> {
+  const startsAt = o.startsAt ?? new Date(Date.now() - 24 * 3600 * 1000);
+  const endsAt = o.endsAt ?? new Date(startsAt.getTime() + 7 * 24 * 3600 * 1000);
+  return withDb(async (db) => {
+    const ex = o.exerciseName
+      ? (await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [o.exerciseName])).rows[0].id
+      : null;
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "ClubTask" (id, "clubId", type, mode, "exerciseId", target, "startsAt", "endsAt", "membersAtStart")
+       values ('task_' || md5(random()::text), $1, $2::"ClubTaskType", $3::"ClubTaskMode", $4, $5, $6, $7,
+               (select count(*) from "ClubMember" where "clubId" = $1)) returning id`,
+      [clubId, o.type, o.mode, ex, o.target, startsAt, endsAt],
+    );
+    return rows[0].id;
+  });
+}
+
+export async function clubTaskOf(id: string): Promise<{ completedAt: Date | null; cancelledAt: Date | null; hits: number; amount: number }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ completedAt: Date | null; cancelledAt: Date | null; hits: number; amount: number }>(
+      `select t."completedAt", t."cancelledAt", (select count(*)::int from "ClubTaskHit" h where h."taskId" = t.id) as hits,
+              (select coalesce(sum(amount), 0)::int from "ClubTaskHit" h where h."taskId" = t.id) as amount
+       from "ClubTask" t where t.id = $1`,
+      [id],
+    );
+    return rows[0];
+  });
+}
+
+/** Логины получивших сундук задания. */
+export async function clubTaskRewards(id: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ login: string }>(
+      `select u.login from "ClubTaskReward" r join "User" u on u.id = r."userId" where r."taskId" = $1 order by u.login`,
+      [id],
+    );
+    return rows.map((r) => r.login);
+  });
+}

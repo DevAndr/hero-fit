@@ -2,19 +2,22 @@ import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 
-const NAV = [
+/** `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %). */
+const NAV: { href: string; label: string; clubs?: true }[] = [
   { href: "/#features", label: "Возможности" },
   { href: "/#how", label: "Как это работает" },
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
   { href: "/tools/plates", label: "Калькулятор блинов" },
   { href: "/#guilds", label: "Гильдии" },
+  { href: "/#clubs", label: "Клубы", clubs: true },
   { href: "/#coaches", label: "Тренерам" },
   { href: "/#pricing", label: "Тарифы" },
+  { href: "/changelog", label: "Что нового" },
   { href: "/#faq", label: "Вопросы" },
 ];
 
 /** Шапка публичных страниц; вошедшему — сразу в кабинет. */
-export function SiteHeader({ authed }: { authed: boolean }) {
+export function SiteHeader({ authed, clubs }: { authed: boolean; clubs: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4">
@@ -25,7 +28,7 @@ export function SiteHeader({ authed }: { authed: boolean }) {
           Hero Fit
         </Link>
         <nav aria-label="Разделы сайта" className="hidden items-center gap-5 text-sm whitespace-nowrap text-muted-foreground xl:flex">
-          {NAV.map((n) => (
+          {NAV.filter((n) => clubs || !n.clubs).map((n) => (
             <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">
               {n.label}
             </Link>

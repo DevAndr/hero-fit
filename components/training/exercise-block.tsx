@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, EllipsisVertical, Minus, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ export function ExerciseBlock({
   last,
   hint,
   coachTarget,
+  onAsk,
   dispatch,
   onComplete,
   handle,
@@ -42,6 +43,8 @@ export function ExerciseBlock({
   hint?: ProgressionHint;
   /** «от тренера: 4 × 8 · 60 кг» — задание активного тренера по этому упражнению шаблона. */
   coachTarget?: string;
+  /** Открыть помощника с этим упражнением (только если помощник доступен). */
+  onAsk?: () => void;
   dispatch: Dispatch<Action>;
   /** Вызывается, когда подход отмечен выполненным (запуск таймера отдыха). */
   onComplete: (item: ExerciseState, set: SetState) => void;
@@ -106,6 +109,15 @@ export function ExerciseBlock({
             <EllipsisVertical />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
+            {onAsk ? (
+              <>
+                <DropdownMenuItem onClick={onAsk}>
+                  <MessageCircleQuestion />
+                  Спросить помощника
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             <DropdownMenuItem disabled={index === 0} onClick={() => dispatch({ type: "moveExercise", key: item.key, delta: -1 })}>
               <ArrowUp />
               Выше

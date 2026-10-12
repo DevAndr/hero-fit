@@ -24,9 +24,11 @@ import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
 import { GuildCard } from "@/components/guild/guild-card";
+import { ClubCard } from "@/components/club/club-card";
 import { GoalsCard } from "@/components/goals/goals-card";
 import { getDashboardGoals } from "@/lib/goals/queries";
 import { getMyGuild } from "@/lib/guild/queries";
+import { getClubDashboard } from "@/lib/club/dashboard";
 import { getRaidView } from "@/lib/raid/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
@@ -125,7 +127,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss, coach, guild, goals] = await Promise.all([
+  const [data, feed, plan, recap, recovery, balance, boss, coach, guild, goals, club] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -136,6 +138,7 @@ export default async function DashboardPage() {
     activeCoachOf(user.id),
     getMyGuild(user.id, userTz),
     getDashboardGoals(user.id, userTz),
+    getClubDashboard(user.id, userTz),
   ]);
   const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
@@ -273,7 +276,14 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <GuildCard guild={guild} raid={raid} />
+      {club ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <GuildCard guild={guild} raid={raid} />
+          <ClubCard data={club} />
+        </div>
+      ) : (
+        <GuildCard guild={guild} raid={raid} />
+      )}
 
       <section aria-label="Друзья недавно" className="space-y-3">
         <div className="flex items-center justify-between">

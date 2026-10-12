@@ -6,6 +6,7 @@ import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
 import { applyRaidHit } from "@/lib/raid/apply";
+import { applyClubTasks, type FinishClubTask } from "@/lib/club/tasks-apply";
 import { applyGoals, snapshotGoals } from "@/lib/goals/apply";
 import type { FinishGoals } from "@/lib/goals/rules";
 import { titlesUnlockedByWin } from "@/lib/titles/catalog";
@@ -71,6 +72,8 @@ export type FinishMeta = {
   };
   /** Личные цели: выполненные этой тренировкой и продвинутые ею (нет — поля нет). */
   goals?: FinishGoals;
+  /** Задания клуба: вклад этой тренировки и выполнение (нет — поля нет). */
+  clubTasks?: FinishClubTask[];
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -258,6 +261,19 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     // Рейд гильдии — тем же уроном; окно рейда — по реальному времени (офлайн-финиш прошлой недели не бьёт)
     const raid = await applyRaidHit(tx, { userId, workoutId, finishedAt: now, damage: hit.damage, crits: hit.crits, now: new Date() });
 
+    // Задания клуба — вклад этой тренировки (только выполненные рабочие подходы); новые сундуки учтёт evaluateAchievements ниже
+    const clubTasks = await applyClubTasks(tx, {
+      userId,
+      workoutId,
+      finishedAt: now,
+      now: new Date(),
+      workout: {
+        totalVolume: totals.volume,
+        durationSec: Math.max(0, Math.round((now.getTime() - workout.startedAt.getTime()) / 1000)),
+        exercises: workout.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets })),
+      },
+    });
+
     // Цели — после рекордов и серии; выполненные учтёт evaluateAchievements ниже
     const goals = await applyGoals(tx, userId, now, goalSnapshot);
 
@@ -281,6 +297,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       boss,
       ...(raid ? { raid } : {}),
       ...(goals ? { goals } : {}),
+      ...(clubTasks ? { clubTasks } : {}),
       ...(progression.items.length ? { progression: progression.items } : {}),
       ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };

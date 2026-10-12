@@ -11,7 +11,7 @@ export function GuildCard({ guild, raid }: { guild: MyGuild | null; raid: RaidVi
       <section aria-label="Гильдия">
       <Link
         href="/guild"
-        className="flex items-center gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-primary/50"
+        className="flex h-full items-center gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-primary/50"
       >
         <Shield className="size-5 shrink-0 text-primary" />
         <span>
@@ -26,7 +26,7 @@ export function GuildCard({ guild, raid }: { guild: MyGuild | null; raid: RaidVi
   const total = guild.members.length;
   return (
     <section aria-label="Гильдия">
-    <Link href="/guild" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50">
+    <Link href="/guild" className="flex h-full items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
         <GuildEmblem code={guild.emblem} />
       </span>

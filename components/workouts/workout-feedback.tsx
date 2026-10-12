@@ -131,13 +131,24 @@ export function WorkoutFeedback({ workoutId, rpe, note }: { workoutId: string; r
   );
 }
 
-/** Оценка клиента глазами тренера (только чтение); без оценки — ничего. */
-export function CoachFeedbackNote({ rpe, note }: { rpe: number | null; note: string | null }) {
-  if (rpe === null) return null;
+const WELLBEING_LABEL = { GREAT: "отлично", OK: "нормально", TIRED: "мало сил" } as const;
+
+/** Оценка клиента глазами тренера (только чтение): самочувствие из чек-ина и тяжесть; без них — ничего. */
+export function CoachFeedbackNote({
+  rpe,
+  note,
+  wellbeing = null,
+}: {
+  rpe: number | null;
+  note: string | null;
+  wellbeing?: keyof typeof WELLBEING_LABEL | null;
+}) {
+  if (rpe === null && wellbeing === null) return null;
   return (
     <section aria-label="Оценка клиента" className="space-y-2 rounded-xl border bg-card p-4">
       <h2 className="font-bold">Оценка клиента</h2>
-      <FeedbackSummary rpe={rpe} note={note} />
+      {wellbeing ? <p className="text-sm">Самочувствие: {WELLBEING_LABEL[wellbeing]}</p> : null}
+      {rpe !== null ? <FeedbackSummary rpe={rpe} note={note} /> : null}
     </section>
   );
 }

@@ -61,9 +61,15 @@ export function AppShell({
   user,
   chest,
   notifications,
+  whatsNewUnseen = false,
+  pendingClubs = 0,
   children,
 }: {
   user: CurrentUser;
+  /** Есть непросмотренный видимый релиз «Что нового» (с учётом флагов — считает layout). */
+  whatsNewUnseen?: boolean;
+  /** Заявок на клубы на проверке — только админу приложения. */
+  pendingClubs?: number;
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
@@ -91,7 +97,11 @@ export function AppShell({
               Начать тренировку
             </Link>
             {notifications}
-            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} isAdmin={user.isAdmin} />
+            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach}
+              isAdmin={user.isAdmin}
+              unseen={whatsNewUnseen}
+              pendingClubs={pendingClubs}
+            />
           </div>
         </header>
 
@@ -114,11 +124,11 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="text-2xl font-black tracking-tight break-words sm:text-3xl">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       </div>
-      {actions ? <div className="flex gap-2">{actions}</div> : null}
+      {actions ? <div className="flex max-w-full flex-wrap gap-2">{actions}</div> : null}
     </div>
   );
 }

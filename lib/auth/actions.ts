@@ -9,6 +9,8 @@ import { safeRedirectPath } from "@/lib/auth/redirect";
 import { ensureCoachCode } from "@/lib/coach/queries";
 import { db } from "@/lib/db";
 import { nicknameKey } from "@/lib/social/league";
+import { RELEASES } from "@/lib/changelog/releases";
+import { latestReleaseId } from "@/lib/changelog/view";
 import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
 import { ACCESS_COOKIE, clearAuthCookies, REFRESH_COOKIE, writeAuthCookies } from "@/lib/auth/cookies";
@@ -92,6 +94,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
     const user = await db.user.create({
       data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date(), ...coachProfile,
         onboardedAt: env.ONBOARDING_TOUR === "off" ? new Date() : null,
+        changelogSeen: latestReleaseId(RELEASES), // новому всё в новинку — без точки «Что нового»
       },
       select: { id: true },
     });

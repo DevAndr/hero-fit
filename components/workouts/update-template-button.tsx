@@ -12,6 +12,7 @@ export function UpdateTemplateButton({ workoutId, templateName }: { workoutId: s
 
   return (
     <Button
+      className="max-w-full"
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
@@ -22,7 +23,7 @@ export function UpdateTemplateButton({ workoutId, templateName }: { workoutId: s
       }
     >
       {pending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-      Обновить шаблон «{templateName}»
+      <span className="truncate">Обновить шаблон «{templateName}»</span>
     </Button>
   );
 }

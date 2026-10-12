@@ -39,6 +39,7 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
   { path: "/tools/1rm", priority: 0.8, changeFrequency: "monthly" },
   { path: "/tools/plates", priority: 0.8, changeFrequency: "monthly" },
   { path: "/register", priority: 0.5, changeFrequency: "monthly" },
+  { path: "/changelog", priority: 0.5, changeFrequency: "weekly" },
   { path: "/privacy", priority: 0.2, changeFrequency: "monthly" },
 ];
 
@@ -46,7 +47,13 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
  * Записи sitemap.xml. lastmod — настоящая дата изменения: статические страницы меняются только с деплоем (дата
  * сборки), страница тренера — по своему updatedAt. «Сейчас» на каждый запрос поисковики считают недостоверным.
  */
-export function sitemapEntries(origin: string, builtAt: Date, coaches: { nickname: string; updatedAt: Date }[]) {
+export function sitemapEntries(
+  origin: string,
+  builtAt: Date,
+  coaches: { nickname: string; updatedAt: Date }[],
+  clubs: { path: string; updatedAt: Date }[] = [],
+  cities: { path: string; updatedAt: Date }[] = [],
+) {
   return [
     ...PUBLIC_SITEMAP.map(({ path, priority, changeFrequency }) => ({ url: absoluteUrl(origin, path), lastModified: builtAt, changeFrequency, priority })),
     ...coaches.map((c) => ({
@@ -55,6 +62,8 @@ export function sitemapEntries(origin: string, builtAt: Date, coaches: { nicknam
       changeFrequency: "weekly" as const,
       priority: 0.6,
     })),
+    ...clubs.map((c) => ({ url: absoluteUrl(origin, c.path), lastModified: c.updatedAt, changeFrequency: "weekly" as const, priority: 0.6 })),
+    ...cities.map((c) => ({ url: absoluteUrl(origin, c.path), lastModified: c.updatedAt, changeFrequency: "weekly" as const, priority: 0.5 })),
   ];
 }
 
@@ -89,8 +98,8 @@ export function toolJsonLd(
   ];
 }
 
-/** Описание страницы тренера для поисковиков: начало «О себе» до 160 символов по слову, в одну строку. */
-export function coachDescription(about: string, max = 160): string {
+/** Описание публичной страницы (тренер, клуб) для поисковиков: начало текста до 160 символов по слову, в одну строку. */
+export function shortDescription(about: string, max = 160): string {
   const text = about.replace(/\s+/g, " ").trim();
   if (text.length <= max) return text;
   const cut = text.slice(0, max - 1);
@@ -107,5 +116,27 @@ export function coachJsonLd(c: { name: string; url: string; city: string | null;
     url: c.url,
     ...(c.city ? { address: { "@type": "PostalAddress", addressLocality: c.city } } : {}),
     ...(c.specialties.length ? { knowsAbout: c.specialties } : {}),
+  };
+}
+
+/** JSON-LD публичной страницы клуба: ExerciseGym с почтовым адресом. */
+export function clubJsonLd(c: { name: string; url: string; city: string; address: string; description: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ExerciseGym",
+    name: c.name,
+    url: c.url,
+    address: { "@type": "PostalAddress", addressLocality: c.city, streetAddress: c.address, addressCountry: "RU" },
+    ...(c.description ? { description: c.description } : {}),
+  };
+}
+
+/** JSON-LD страницы города: список клубов. */
+export function cityJsonLd(c: { city: string; urls: string[] }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `Тренажёрные залы — ${c.city}`,
+    itemListElement: c.urls.map((url, i) => ({ "@type": "ListItem", position: i + 1, url })),
   };
 }

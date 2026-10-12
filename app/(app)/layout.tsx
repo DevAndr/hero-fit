@@ -12,8 +12,13 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
 import { FlagsProvider } from "@/components/flags/flags-provider";
+import { AssistantProvider } from "@/components/assistant/assistant";
+import { assistantAvailable } from "@/lib/assistant/access";
+import { RELEASES } from "@/lib/changelog/releases";
+import { userChangelog } from "@/lib/changelog/view";
 import { env } from "@/lib/env";
 import { enabledFlags } from "@/lib/flags/server";
+import { pendingClubCount } from "@/lib/club/queries";
 import { getNotificationFeed } from "@/lib/notifications/queries";
 
 /** Личный кабинет — вне поиска (и так за входом, но ссылки могут утечь). */
@@ -24,11 +29,18 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const timeZone = (await cookies()).get(TIMEZONE_COOKIE)?.value;
   const visit = await recordDailyVisit(user, timeZone);
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
-  const [unseen, feed, flags] = await Promise.all([getUnseenAchievements(user.id), getNotificationFeed(user.id), enabledFlags(user.id)]);
+  const [unseen, feed, flags, pendingClubs] = await Promise.all([
+    getUnseenAchievements(user.id),
+    getNotificationFeed(user.id),
+    enabledFlags(user.id),
+    user.isAdmin ? pendingClubCount() : 0,
+  ]);
 
   const shell = (
     <AppShell
       user={user}
+      pendingClubs={pendingClubs}
+      whatsNewUnseen={userChangelog(RELEASES, user.changelogSeen, (f) => flags.includes(f)).unseen}
       chest={
         <DailyChest
           day={visit.today}
@@ -49,8 +61,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <FlagsProvider flags={flags}>
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
-        {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
-        {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
+        {/* Умный помощник: флаг smart_coach и выключатель в /settings */}
+        <AssistantProvider available={assistantAvailable(flags.includes("smart_coach"), user.assistantEnabled)}>
+          {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
+          {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
+        </AssistantProvider>
       </PushProvider>
     </FlagsProvider>
   );
