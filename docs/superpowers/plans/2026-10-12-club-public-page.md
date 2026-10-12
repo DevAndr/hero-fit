@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Админ одобренного клуба публикует страницу зала `/gym/<город>/<зал>` с общими цифрами без ников, страницей города, SEO и кнопкой «Вступить»; модератор может снять её с публикации.
+**Goal:** Админ одобренного клуба публикует страницу зала `/gym/<город>/<зал>` с общими цифрами без ников, страницей города, SEO и кнопкой «Вступить»; модератор может снять её с публикации; при 100 % флага на лендинге появляется раздел «Клубы залов».
 
 **Architecture:** Поля `about`/`slug`/`citySlug`/`publishedAt`/`updatedAt` в `Club`; чистые правила — `lib/club/public.ts`, запросы — `lib/club/public-queries.ts`, страницы — `app/(marketing)/gym/`, SEO — `lib/seo.ts`. Видимость — флаг `clubs` на 100 % (`isEnabled("clubs", null)`), иначе предпросмотр админу клуба и админу приложения.
 
@@ -28,6 +28,7 @@
 - Город, записанный по-разному («Санкт-Петербург», «санкт петербург») → один `citySlug`, одна страница города; задача 1, тест `slugify`.
 - Флаг `clubs` выключен kill switch'ем (`enabled = false`) после публикации → гостю 404 и нет в `sitemap.xml`; задача 3, e2e сценарий 2 (выключить в конце).
 - Участник с `hideWeights`/без `shareActivity` → его тренировки всё равно входят в агрегаты (ников нет), но при < 3 участниках цифр нет; задача 3, unit `visibleClubStats`.
+- Флаг `clubs` не на 100 % → лендинг байт-в-байт прежний по содержанию: ни раздела, ни пункта меню, ни вопросов в FAQ и его JSON-LD; задача 5, e2e сценарий 7.
 - Модератор переименовал опубликованный клуб → адрес страницы прежний; задача 4, e2e сценарий 6 (проверить, что `slug` не изменился после `updateClubAction`).
 
 ---
@@ -168,7 +169,25 @@ expect(cityPath("kazan")).toBe("/gym/kazan");
 - [ ] **Step 5:** build + e2e PASS; typecheck, lint.
 - [ ] **Step 6: Commit** `feat(club-page): editor and publishing`
 
-### Task 5: Модерация, «Что нового», документация
+### Task 5: Клубы на лендинге
+
+**Files:**
+- Create: `components/marketing/club-infographics.tsx`
+- Modify: `app/(marketing)/page.tsx` (раздел `#clubs`, `FREE_PLAN`, FAQ JSON-LD), `components/marketing/faq.tsx` (`clubs?: true` у вопросов, `Faq({ clubs })`), `components/marketing/site-header.tsx`, `components/marketing/site-footer.tsx` (проп `clubs: boolean`), `app/(marketing)/layout.tsx`
+- Modify: `lib/club/public-queries.ts`
+- Modify: `e2e/club-public-page.spec.ts` (сценарий 7), при необходимости — существующие проверки лендинга
+
+**Interfaces — Consumes:** `cityPath` (Task 1), открытые клубы (Task 3). **Produces:**
+- `getPopularCities(limit: number): Promise<{ city: string; path: string }[]>` — только при `isEnabled("clubs", null)`, открытые клубы, по числу клубов ↓, затем участников ↓
+- `faqFor(clubs: boolean): { q: string; a: string }[]` в `components/marketing/faq.tsx` — общий для `<Faq>` и JSON-LD
+
+- [ ] **Step 1: e2e (7)** — в том же serial-файле: `resetFlag("clubs")` → `/`: нет `#clubs`, нет ссылки «Клубы» в шапке, нет вопроса «Как добавить свой зал?»; `setFlag(100 %)` + опубликованный клуб в «Казани» → есть раздел, пункт «Клубы», вопрос (и в `application/ld+json`), ссылка на `/gym/<citySlug>` в «Популярных городах»; «Найти свой зал» гостем → URL `/register?next=%2Fclubs`.
+- [ ] **Step 2:** FAIL.
+- [ ] **Step 3:** реализовать по спеке (раздел «Лендинг»): тексты пунктов, кнопок и вопросов — дословно оттуда; инфографика — по образцу `RaidInfographic` (без бесконечных анимаций).
+- [ ] **Step 4:** build + e2e PASS (`e2e/club-public-page.spec.ts` и проверки лендинга, если есть — `grep -l "#guilds\|Гильдии" e2e`); typecheck, lint.
+- [ ] **Step 5: Commit** `feat(club-page): clubs on the landing`
+
+### Task 6: Модерация, «Что нового», документация
 
 **Files:**
 - Modify: `lib/club/actions.ts` (или где `reviewClubAction`), `components/club/review-card.tsx`, `lib/club/queries.ts` (`getClubsForReview` — `about`, `slug`, `citySlug`, `publishedAt`)
@@ -180,6 +199,6 @@ expect(cityPath("kazan")).toBe("/gym/kazan");
 - [ ] **Step 1: e2e (4):** `makeAdmin(moderator)`; в `/admin/clubs?tab=approved&q=<название>` у карточки видно «О зале» и ссылку; «Снять с публикации» → причина → подтвердить → гостю 404; у админа клуба уведомление с причиной (`notificationBodies`/заголовки); админ клуба снова публикует → тот же путь (`clubSlug`).
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3:** действие + `ReviewCard`: «О зале» `line-clamp-3`, ссылка на страницу при `publishedAt`, кнопка с диалогом причины.
-- [ ] **Step 4:** `releases.ts`: в пункте клубов после «…прямо на главной» — «, и страница зала, которую можно найти в поиске». `CLAUDE.md` — абзац «Публичная страница клуба» в разделе клубов (поля, `/gym/…`, видимость `clubPageAccess`, редактор `#public`, модерация, хелперы `publishClub`/`clubSlug`, спек serial/desktop).
+- [ ] **Step 4:** `releases.ts`: в пункте клубов после «…прямо на главной» — «, и страница зала, которую можно найти в поиске». `CLAUDE.md` — абзац «Публичная страница клуба» в разделе клубов (поля, `/gym/…`, видимость `clubPageAccess`, редактор `#public`, модерация, лендинг `#clubs` под флагом, `faqFor`, хелперы `publishClub`/`clubSlug`, спек serial/desktop); в абзаце «Лендинг и SEO» — раздел `#clubs`.
 - [ ] **Step 5:** полный прогон: `npm run typecheck && npm run lint && npm test && npm run build && npx playwright test e2e/club-public-page.spec.ts e2e/clubs*.spec.ts e2e/club-*.spec.ts e2e/coach-page.spec.ts --workers=8` — PASS.
 - [ ] **Step 6: Commit** `feat(club-page): moderation, changelog and notes`; merge `--no-ff` в `release/2026-11-assistant`, удалить ветку.
