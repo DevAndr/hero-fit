@@ -45,11 +45,12 @@ jobs:
       - run: npm test
 
   e2e:
-    name: Build + e2e (desktop & mobile)
+    name: Build + e2e (desktop)
     # main и ручной запуск — всегда; PR — только с меткой «e2e» (повесить метку = запустить)
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # ~560 сценариев на 2 ядрах приватного раннера не укладываются в 30 мин — задача отменялась по лимиту
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17-alpine
@@ -95,7 +96,9 @@ jobs:
       - name: Playwright system deps
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
-      - run: npm run test:e2e
+      # Только desktop: полный прогон desktop + mobile на 2 ядрах — 40–50 мин минут Actions на пуш.
+      # Mobile — в локальном прогоне перед PR (npm run test:e2e -- --workers=8)
+      - run: npm run test:e2e -- --project=desktop
       - name: Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
