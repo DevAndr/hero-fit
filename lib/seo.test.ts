@@ -32,7 +32,7 @@ describe("sitemapEntries", () => {
   it("статические страницы — дата сборки, а не время запроса", () => {
     const home = entries.find((e) => e.url === "https://hero-fit.ru/");
     expect(home).toMatchObject({ lastModified: built, priority: 1, changeFrequency: "weekly" });
-    expect(entries.filter((e) => e.lastModified === built)).toHaveLength(5);
+    expect(entries.filter((e) => e.lastModified === built)).toHaveLength(6);
   });
   it("страница тренера — дата её изменения, ник в адресе закодирован", () => {
     expect(entries.at(-1)).toEqual({

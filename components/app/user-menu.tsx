@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Target, ToggleRight, Users } from "lucide-react";
+import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -22,12 +22,15 @@ export function UserMenu({
   email,
   isCoach,
   isAdmin = false,
+  unseen = false,
 }: {
   name: string | null;
   login: string;
   email: string | null;
   isCoach: boolean;
   isAdmin?: boolean;
+  /** Есть непросмотренный релиз «Что нового» — точка на аватаре и у пункта. */
+  unseen?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
@@ -36,11 +39,20 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="Меню профиля">
-        <Avatar>
-          <AvatarFallback className="bg-primary/15 font-semibold text-primary">
-            {display.slice(0, 1).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative block">
+          <Avatar>
+            <AvatarFallback className="bg-primary/15 font-semibold text-primary">
+              {display.slice(0, 1).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {unseen ? (
+            <span
+              data-testid="whats-new-dot"
+              aria-label="Есть новое"
+              className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-primary ring-2 ring-background"
+            />
+          ) : null}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
@@ -62,6 +74,11 @@ export function UserMenu({
             Флаги
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem render={<Link href="/whats-new" />}>
+          <Sparkles />
+          Что нового
+          {unseen ? <span className="ml-auto size-2 rounded-full bg-primary" aria-label="есть новое" /> : null}
+        </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/goals" />}>
           <Target />
           Цели

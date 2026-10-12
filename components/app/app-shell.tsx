@@ -12,6 +12,8 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { streakHint } from "@/lib/progress/streak-copy";
 import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
+import { RELEASES } from "@/lib/changelog/releases";
+import { hasUnseen } from "@/lib/changelog/view";
 
 function Logo() {
   return (
@@ -91,7 +93,10 @@ export function AppShell({
               Начать тренировку
             </Link>
             {notifications}
-            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} isAdmin={user.isAdmin} />
+            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach}
+              isAdmin={user.isAdmin}
+              unseen={hasUnseen(RELEASES, user.changelogSeen)}
+            />
           </div>
         </header>
 

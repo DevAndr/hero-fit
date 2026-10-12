@@ -755,3 +755,8 @@ export async function setFlag(key: string, s: { enabled: boolean; percent?: numb
 export async function resetFlag(key: string) {
   await withDb((db) => db.query(`delete from "FeatureFlag" where key = $1`, [key]));
 }
+
+/** Последний просмотренный релиз «Что нового» (null — как у старых пользователей до миграции). */
+export async function setChangelogSeen(login: string, id: string | null) {
+  await withDb((db) => db.query(`update "User" set "changelogSeen" = $2 where login = $1`, [login, id]));
+}
