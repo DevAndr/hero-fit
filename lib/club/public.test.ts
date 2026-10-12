@@ -28,6 +28,9 @@ describe("slugCandidates", () => {
     expect(c.at(-1)).toBe("iron-gym-20");
     expect(slugCandidates("Iron Gym", "Пушкина 5")[1]).toBe("iron-gym-pushkina-5");
   });
+  it("название без букв — вариант с улицей не теряет «club»", () => {
+    expect(slugCandidates("🔥", "ул. Пушкина, 5").slice(0, 3)).toEqual(["club", "club-pushkina", "club-2"]);
+  });
   it("без дублей при пустой улице", () => {
     const c = slugCandidates("🔥", "");
     expect(new Set(c).size).toBe(c.length);

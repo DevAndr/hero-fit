@@ -37,7 +37,8 @@ const STREET_PREFIX = /^(ул\.?|улица|пр-т|пр\.|проспект|д\.
 export function slugCandidates(name: string, address: string): string[] {
   const base = slugify(name);
   const street = address.split(",")[0].trim().replace(STREET_PREFIX, "").trim();
-  const withStreet = street ? slugify(`${name} ${street}`) : null;
+  // От готового base: у названия без букв вариант с улицей — `club-pushkina`, а не просто `pushkina`
+  const withStreet = street ? slugify(`${base} ${street}`) : null;
   const numbered = Array.from({ length: NUMBERED_MAX - 1 }, (_, i) => `${base}-${i + 2}`);
   return [...new Set([base, ...(withStreet ? [withStreet] : []), ...numbered])];
 }

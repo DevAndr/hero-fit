@@ -81,9 +81,9 @@ export default async function GymPage({ params }: PageProps<"/gym/[city]/[slug]"
     <Link href={`/clubs/${club.id}/manage#public`} className={buttonVariants({ variant: "outline" })}>
       Редактировать
     </Link>
-  ) : (
+  ) : access === "open" ? (
     join
-  );
+  ) : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
@@ -110,7 +110,7 @@ export default async function GymPage({ params }: PageProps<"/gym/[city]/[slug]"
         </p>
       </header>
 
-      <div className="mt-6">{action}</div>
+      {action ? <div className="mt-6">{action}</div> : null}
 
       <section aria-label="Цифры клуба" className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {shown.map((s) => (
@@ -146,7 +146,7 @@ export default async function GymPage({ params }: PageProps<"/gym/[city]/[slug]"
             </li>
           ))}
         </ol>
-        {!isMember && !isClubAdmin ? <div className="mt-6">{join}</div> : null}
+        {!isMember && !isClubAdmin && access === "open" ? <div className="mt-6">{join}</div> : null}
       </section>
     </div>
   );

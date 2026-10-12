@@ -826,7 +826,6 @@ export async function clubAdminLogin(id: string): Promise<string> {
   return withDb(async (db) => (await db.query<{ login: string }>(`select u.login from "Club" c join "User" u on u.id = c."adminId" where c.id = $1`, [id])).rows[0].login);
 }
 
-/** Вступить в клуб минуя интерфейс. */
 /** Публикация страницы клуба минуя интерфейс; адрес по умолчанию — `testograd/e2e-<случайно>`. */
 export async function publishClub(clubId: string, o: { about?: string; slug?: string; citySlug?: string } = {}): Promise<{ path: string }> {
   const slug = o.slug ?? `e2e-${Math.random().toString(36).slice(2, 8)}`;
@@ -848,6 +847,7 @@ export async function clubSlug(clubId: string): Promise<{ slug: string | null; c
   });
 }
 
+/** Вступить в клуб минуя интерфейс. */
 export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
   await withDb((db) =>
     db.query(

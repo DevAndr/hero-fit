@@ -64,12 +64,16 @@ export async function getClubTasks(clubId: string, viewerId: string, member: boo
   const ids = shown.map((t) => t.id);
   const [sums, rewards, opened] = await Promise.all([
     db.clubTaskHit.groupBy({ by: ["taskId", "userId"], where: { taskId: { in: ids } }, _sum: { amount: true }, _count: { _all: true } }),
-    db.clubTaskReward.findMany({ where: { taskId: { in: ids } }, select: { taskId: true, userId: true, openedAt: true, user: { select: { nickname: true } } } }),
+    // Гостю (публичная страница, viewerId пуст) награды не нужны: ни «выполнили», ни своих сундуков
+    member || viewerId
+      ? db.clubTaskReward.findMany({ where: { taskId: { in: ids } }, select: { taskId: true, userId: true, openedAt: true, user: { select: { nickname: true } } } })
+      : Promise.resolve([]),
     member ? chestsOpenedThisWeek(viewerId, timeZone) : Promise.resolve(0),
   ]);
-  const userIds = [...new Set(sums.map((s) => s.userId))];
+  // Ники вкладчиков — только участнику (топ вкладчиков)
+  const userIds = member ? [...new Set(sums.map((s) => s.userId))] : [];
   const users = new Map(
-    (await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, nickname: true } })).map((u) => [u.id, u.nickname ?? "—"]),
+    (userIds.length ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, nickname: true } }) : []).map((u) => [u.id, u.nickname ?? "—"]),
   );
 
   const view = (t: (typeof tasks)[number]): ClubTaskView => {

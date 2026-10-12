@@ -12,7 +12,7 @@ export const CLUB_TASK_GRACE_MS = 24 * 3_600_000;
 /** Вклад одной тренировки в «часы»: забытая на выходные тренировка не закрывает общее задание. */
 export const CLUB_TASK_MAX_WORKOUT_MIN = 240;
 const CHEST_KEEP_MS = 28 * 24 * 3_600_000;
-const START_AHEAD_DAYS = 14;
+export const START_AHEAD_DAYS = 14;
 
 export const TASK_TYPES = ["WORKOUTS", "VOLUME", "REPS", "HOURS"] as const satisfies readonly ClubTaskType[];
 export const TASK_MODES = ["CLUB", "EACH"] as const satisfies readonly ClubTaskMode[];

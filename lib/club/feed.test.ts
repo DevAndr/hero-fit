@@ -47,6 +47,14 @@ describe("toClubEvents", () => {
     expect(e.key).not.toContain("w1");
   });
 
+  it("ключ уникален и у двух тренировок одного ника в одну секунду (без ника — «—» у всех)", () => {
+    const meta = { levelBefore: 1, levelAfter: 2 };
+    const a = toClubEvents(row({ id: "w1", nickname: null, meta }), "v")!;
+    const b = toClubEvents(row({ id: "w2", nickname: null, meta }), "v")!;
+    expect(a.key).not.toBe(b.key);
+    expect(toClubEvents(row({ id: "w1", nickname: null, meta }), "v")!.key).toBe(a.key);
+  });
+
   it("при hideWeights силовые ачивки с весами не показываются чужим", () => {
     const meta = {
       achievements: [

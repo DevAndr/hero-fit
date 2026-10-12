@@ -56,7 +56,8 @@ export async function resolveClubPage(
     publishedAt: club.publishedAt,
     slug: club.slug,
     flagFull: await isEnabled("clubs", null),
-    canManage: Boolean(viewer && (viewer.id === club.adminId || viewer.isAdmin)),
+    // Предпросмотр — только с флагом у самого смотрящего: kill switch закрывает и его
+    canManage: Boolean(viewer && (viewer.id === club.adminId || viewer.isAdmin) && (await isEnabled("clubs", viewer.id))),
   });
   return access === "none" ? null : { club, access };
 }
@@ -116,24 +117,20 @@ export async function getCityClubs(citySlug: string, now = new Date()): Promise<
   };
 }
 
-/** «Популярные города» лендинга: по числу открытых клубов, затем участников. */
+/** «Популярные города» лендинга: по числу открытых клубов, затем участников; название — как у самого крупного клуба. */
 export async function getPopularCities(limit: number): Promise<{ city: string; path: string }[]> {
   if (!(await isEnabled("clubs", null))) return [];
-  const clubs = await db.club.findMany({
-    where: openClubs,
-    select: { city: true, citySlug: true, _count: { select: { members: true } } },
-  });
-  const cities = new Map<string, { city: string; clubs: number; members: number; top: number }>();
-  for (const c of clubs) {
-    const cur = cities.get(c.citySlug!) ?? { city: c.city, clubs: 0, members: 0, top: -1 };
-    // Название города — как у самого крупного клуба (как на странице города)
-    if (c._count.members > cur.top) Object.assign(cur, { city: c.city, top: c._count.members });
-    cur.clubs += 1;
-    cur.members += c._count.members;
-    cities.set(c.citySlug!, cur);
-  }
-  return [...cities]
-    .sort(([, a], [, b]) => b.clubs - a.clubs || b.members - a.members)
-    .slice(0, limit)
-    .map(([citySlug, c]) => ({ city: c.city, path: cityPath(citySlug) }));
+  const rows = await db.$queryRaw<{ citySlug: string; city: string }[]>`
+    WITH c AS (
+      SELECT c."citySlug", c.city, (SELECT COUNT(*) FROM "ClubMember" m WHERE m."clubId" = c.id) AS members
+      FROM "Club" c
+      WHERE c.status = 'APPROVED' AND c."publishedAt" IS NOT NULL AND c.slug IS NOT NULL AND c."citySlug" IS NOT NULL
+    )
+    SELECT "citySlug", (ARRAY_AGG(city ORDER BY members DESC))[1] AS city
+    FROM c
+    GROUP BY "citySlug"
+    ORDER BY COUNT(*) DESC, SUM(members) DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((r) => ({ city: r.city, path: cityPath(r.citySlug) }));
 }
