@@ -5,9 +5,14 @@ import { registerUser } from "./helpers";
 // Аналитика — под глобальным флагом strength_analytics: сценарии по очереди, флаг включён у всех, кроме проверок флага
 test.describe.configure({ mode: "serial" });
 // Проекты desktop и mobile идут параллельно — с одним глобальным флагом и одним логином админа только desktop
-test.skip(({}, info) => info.project.name !== "desktop", "глобальный флаг — один проект");
-test.beforeEach(() => setFlag("strength_analytics", { enabled: true, percent: 100 }));
-test.afterEach(() => resetFlag("strength_analytics"));
+const DESKTOP_ONLY = "глобальный флаг — один проект";
+test.beforeEach(async ({}, info) => {
+  test.skip(info.project.name !== "desktop", DESKTOP_ONLY);
+  await setFlag("strength_analytics", { enabled: true, percent: 100 });
+});
+test.afterEach(async ({}, info) => {
+  if (info.project.name === "desktop") await resetFlag("strength_analytics");
+});
 
 const press = (day: number, weight: number) => ({ day, time: "19:00", exercise: "Жим штанги лёжа", weight, reps: 5, sets: 3, xp: 80 });
 
