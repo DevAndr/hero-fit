@@ -39,6 +39,7 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
   { path: "/tools/1rm", priority: 0.8, changeFrequency: "monthly" },
   { path: "/tools/plates", priority: 0.8, changeFrequency: "monthly" },
   { path: "/register", priority: 0.5, changeFrequency: "monthly" },
+  { path: "/changelog", priority: 0.5, changeFrequency: "weekly" },
   { path: "/privacy", priority: 0.2, changeFrequency: "monthly" },
 ];
 

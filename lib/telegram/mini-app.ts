@@ -4,6 +4,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import type { TelegramUser } from "@/lib/telegram/init-data";
+import { RELEASES } from "@/lib/changelog/releases";
+import { latestReleaseId } from "@/lib/changelog/view";
 
 /**
  * Вход в Mini App — по User.telegramId; уведомления — по telegramChatId (в личном чате это то же число).
@@ -32,6 +34,7 @@ export async function registerFromTelegram(user: TelegramUser, now = new Date())
     telegramChatId: id,
     telegramUsername: user.username ?? null,
     telegramLinkedAt: now,
+    changelogSeen: latestReleaseId(RELEASES),
     notifyTelegram: true,
     privacyAcceptedAt: now,
     onboardedAt: env.ONBOARDING_TOUR === "off" ? now : null,

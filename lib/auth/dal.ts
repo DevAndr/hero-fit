@@ -36,6 +36,8 @@ export type CurrentUser = {
   embedded: boolean;
   /** Логин в ADMIN_LOGINS: страница /admin/flags. */
   isAdmin: boolean;
+  /** Последний просмотренный релиз «Что нового» (точка в меню профиля). */
+  changelogSeen: string | null;
 };
 
 /**
@@ -74,6 +76,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           timeZone: true,
           onboardedAt: true,
           isCoach: true,
+          changelogSeen: true,
         },
       },
     },

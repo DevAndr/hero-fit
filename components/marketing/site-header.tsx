@@ -10,6 +10,7 @@ const NAV = [
   { href: "/#guilds", label: "Гильдии" },
   { href: "/#coaches", label: "Тренерам" },
   { href: "/#pricing", label: "Тарифы" },
+  { href: "/changelog", label: "Что нового" },
   { href: "/#faq", label: "Вопросы" },
 ];
 

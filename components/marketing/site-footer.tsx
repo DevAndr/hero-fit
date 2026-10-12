@@ -9,6 +9,7 @@ const COLUMNS = [
       { href: "/#guilds", label: "Гильдии" },
       { href: "/#coaches", label: "Тренерам" },
       { href: "/#faq", label: "Частые вопросы" },
+      { href: "/changelog", label: "Что нового" },
     ],
   },
   {

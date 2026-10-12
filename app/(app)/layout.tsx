@@ -12,6 +12,8 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
 import { FlagsProvider } from "@/components/flags/flags-provider";
+import { RELEASES } from "@/lib/changelog/releases";
+import { userChangelog } from "@/lib/changelog/view";
 import { env } from "@/lib/env";
 import { enabledFlags } from "@/lib/flags/server";
 import { getNotificationFeed } from "@/lib/notifications/queries";
@@ -29,6 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const shell = (
     <AppShell
       user={user}
+      whatsNewUnseen={userChangelog(RELEASES, user.changelogSeen, (f) => flags.includes(f)).unseen}
       chest={
         <DailyChest
           day={visit.today}

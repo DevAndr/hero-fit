@@ -61,9 +61,12 @@ export function AppShell({
   user,
   chest,
   notifications,
+  whatsNewUnseen = false,
   children,
 }: {
   user: CurrentUser;
+  /** Есть непросмотренный видимый релиз «Что нового» (с учётом флагов — считает layout). */
+  whatsNewUnseen?: boolean;
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
@@ -91,7 +94,10 @@ export function AppShell({
               Начать тренировку
             </Link>
             {notifications}
-            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach} isAdmin={user.isAdmin} />
+            <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach}
+              isAdmin={user.isAdmin}
+              unseen={whatsNewUnseen}
+            />
           </div>
         </header>
 

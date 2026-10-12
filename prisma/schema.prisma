@@ -89,6 +89,8 @@ enum XpReason {
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
 
 model User {
+  /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
+  changelogSeen String?
   id                String    @id @default(cuid())
   login             String    @unique
   /// null — аккаунт из Telegram Mini App (email и пароль задаются в «Вход на сайте»)
