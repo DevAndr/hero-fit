@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { absoluteUrl, isIndexable, jsonLd, sitemapEntries } from "./seo";
+import { absoluteUrl, cityJsonLd, clubJsonLd, isIndexable, jsonLd, shortDescription, sitemapEntries } from "./seo";
 
 describe("isIndexable", () => {
   it("only production on a public host", () => {
@@ -41,5 +41,57 @@ describe("sitemapEntries", () => {
       changeFrequency: "weekly",
       priority: 0.6,
     });
+  });
+});
+
+describe("sitemapEntries: клубы и города", () => {
+  const built = new Date("2026-10-10T12:00:00Z");
+  const clubUpdated = new Date("2026-10-11T08:00:00Z");
+  const cityUpdated = new Date("2026-10-11T09:00:00Z");
+  const entries = sitemapEntries("https://hero-fit.ru", built, [], [{ path: "/gym/kazan/iron-gym", updatedAt: clubUpdated }], [
+    { path: "/gym/kazan", updatedAt: cityUpdated },
+  ]);
+  it("страница клуба и города со своими датами", () => {
+    expect(entries).toContainEqual({ url: "https://hero-fit.ru/gym/kazan/iron-gym", lastModified: clubUpdated, changeFrequency: "weekly", priority: 0.6 });
+    expect(entries).toContainEqual({ url: "https://hero-fit.ru/gym/kazan", lastModified: cityUpdated, changeFrequency: "weekly", priority: 0.5 });
+  });
+  it("без клубов — как раньше", () => {
+    expect(sitemapEntries("https://hero-fit.ru", built, [])).toHaveLength(6);
+  });
+});
+
+describe("shortDescription", () => {
+  it("короткий текст как есть, переводы строк — пробел", () => {
+    expect(shortDescription("Зал\nу дома")).toBe("Зал у дома");
+  });
+  it("длинный — по слову с многоточием", () => {
+    const d = shortDescription("слово ".repeat(60));
+    expect(d.length).toBeLessThanOrEqual(160);
+    expect(d.endsWith("слово…")).toBe(true);
+  });
+});
+
+describe("clubJsonLd", () => {
+  const club = { name: "</script>Зал", url: "https://hero-fit.ru/gym/kazan/zal", city: "Казань", address: "ул. Пушкина, 5", description: "" };
+  it("ExerciseGym с почтовым адресом", () => {
+    const ld = clubJsonLd(club) as Record<string, unknown>;
+    expect(ld["@type"]).toBe("ExerciseGym");
+    expect(ld.address).toEqual({ "@type": "PostalAddress", addressLocality: "Казань", streetAddress: "ул. Пушкина, 5", addressCountry: "RU" });
+    expect("description" in ld).toBe(false);
+    expect((clubJsonLd({ ...club, description: "О зале" }) as Record<string, unknown>).description).toBe("О зале");
+  });
+  it("не закрывает script", () => {
+    expect(jsonLd(clubJsonLd(club))).not.toContain("</script>");
+  });
+});
+
+describe("cityJsonLd", () => {
+  it("ItemList с позициями от 1", () => {
+    const ld = cityJsonLd({ city: "Казань", urls: ["https://a/1", "https://a/2"] }) as { "@type": string; itemListElement: unknown[] };
+    expect(ld["@type"]).toBe("ItemList");
+    expect(ld.itemListElement).toEqual([
+      { "@type": "ListItem", position: 1, url: "https://a/1" },
+      { "@type": "ListItem", position: 2, url: "https://a/2" },
+    ]);
   });
 });
