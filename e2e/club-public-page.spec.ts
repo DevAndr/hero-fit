@@ -6,6 +6,7 @@ import {
   createClubTask,
   createUserRow,
   joinClub,
+  makeAdmin,
   publishClub,
   resetFlag,
   seedXpWorkout,
@@ -16,14 +17,11 @@ import {
 } from "./db";
 import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
-// Публичная страница клуба (спека 2026-10-12-club-public-page-design). Флаг clubs глобальный — serial и только desktop
+// Публичная страница клуба (спека 2026-10-12-club-public-page-design). Флаг clubs глобальный: файл идёт отдельным
+// проектом clubs-global после desktop и mobile (playwright.config.ts), сценарии — по очереди
 test.describe.configure({ mode: "serial" });
-const DESKTOP_ONLY = "глобальный флаг: проекты desktop и mobile идут параллельно";
-test.beforeEach(({}, info) => {
-  test.skip(info.project.name !== "desktop", DESKTOP_ONLY);
-});
-test.afterAll(async ({}, info) => {
-  if (info.project.name === "desktop") await resetFlag("clubs");
+test.afterAll(async () => {
+  await resetFlag("clubs");
 });
 
 const unique = () => Math.random().toString(36).slice(2, 7);
@@ -217,4 +215,37 @@ test("landing: clubs section, menu item and FAQ only when clubs are open to ever
   } finally {
     await g.context.close();
   }
+});
+
+test("moderator unpublishes with a reason: 404, notification, republish keeps the address", async ({ page, browser, request }) => {
+  await setFlag("clubs", FULL);
+  const { club, name, path, admin } = await publishedClub(page);
+  const modPage = await (await browser.newContext()).newPage();
+  const moderator = await registerUser(modPage);
+  await makeAdmin(moderator.login);
+
+  await modPage.goto(`/admin/clubs?tab=approved&q=${encodeURIComponent(name)}`);
+  const card = modPage.getByRole("article", { name });
+  await expect(card.getByText(/Просторный зал/)).toBeVisible();
+  await expect(card.getByRole("link", { name: "Страница зала" })).toHaveAttribute("href", path);
+  await card.getByRole("button", { name: "Снять с публикации" }).click();
+  const dialog = modPage.getByRole("dialog");
+  await dialog.getByLabel("Причина").fill("Реклама в описании");
+  await dialog.getByRole("button", { name: "Снять с публикации" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  expect((await request.get(path)).status()).toBe(404);
+  const titles = await withDb(async (db) =>
+    (await db.query<{ title: string }>(`select n.title from "Notification" n join "User" u on u.id = n."userId" where u.login = $1`, [admin.login])).rows.map(
+      (r) => r.title,
+    ),
+  );
+  expect(titles).toContain(`Страница клуба «${name}» снята с публикации: Реклама в описании`);
+
+  await page.goto(`/clubs/${club.id}/manage`);
+  await page.getByRole("region", { name: "Публичная страница" }).getByRole("button", { name: "Опубликовать" }).click();
+  await expect(page.getByRole("region", { name: "Публичная страница" }).getByRole("button", { name: "Снять с публикации" })).toBeVisible();
+  const after = await clubSlug(club.id);
+  expect(`/gym/${after.citySlug}/${after.slug}`).toBe(path);
+  expect((await request.get(path)).status()).toBe(200);
 });

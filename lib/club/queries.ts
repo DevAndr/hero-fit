@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { ClubStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { collectEvents, type ClubFeedRow } from "@/lib/club/feed";
+import { clubPath } from "@/lib/club/public";
 import { CITY_SUGGESTIONS, CLUB_RATING_TOP, CLUB_SEARCH_LIMIT, clubKey, likePattern, similarClubs, type SimilarCandidate } from "@/lib/club/rules";
 import { decodeCursor, encodeCursor } from "@/lib/social/feed";
 import { normalizeFriendCode, rankLeague, type RankedMember } from "@/lib/social/league";
@@ -258,6 +259,9 @@ export type ReviewClub = {
   createdAt: string;
   applicant: { login: string; nickname: string | null };
   similar: { id: string; name: string; address: string }[];
+  /** «О зале» и адрес опубликованной страницы (null — не опубликована). */
+  about: string;
+  pagePath: string | null;
 };
 
 /** Модерация: на проверке (старые первыми, с похожими) или одобренные и скрытые; поиск по названию, городу, адресу. */
@@ -281,6 +285,10 @@ export async function getClubsForReview(tab: "pending" | "approved", search: str
       createdAt: true,
       _count: memberCount,
       admin: { select: { login: true, nickname: true } },
+      about: true,
+      slug: true,
+      citySlug: true,
+      publishedAt: true,
     },
   });
   return Promise.all(
@@ -294,6 +302,8 @@ export async function getClubsForReview(tab: "pending" | "approved", search: str
       members: c._count.members,
       createdAt: c.createdAt.toISOString(),
       applicant: c.admin,
+      about: c.about,
+      pagePath: c.publishedAt && c.slug && c.citySlug ? clubPath(c.citySlug, c.slug) : null,
       similar: tab === "pending" ? (await findSimilar(c, { exceptId: c.id, withPending: true })).map(({ id, name, address }) => ({ id, name, address })) : [],
     })),
   );

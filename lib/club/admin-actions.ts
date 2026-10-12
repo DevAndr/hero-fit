@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { NotificationType } from "@/generated/prisma/enums";
 import { requireAdmin } from "@/lib/auth/admin";
 import { db } from "@/lib/db";
+import { z } from "zod";
+import { clubPath, UNPUBLISH_REASON_MAX } from "@/lib/club/public";
 import { rejectReasonSchema } from "@/lib/club/rules";
 import { notify } from "@/lib/notifications/service";
 
@@ -49,5 +51,35 @@ export async function setClubHiddenAction(id: string, hidden: boolean): Promise<
   });
   if (count === 0) return { ok: false, error: "Статус клуба уже изменился" };
   revalidatePath("/admin/clubs");
+  return { ok: true };
+}
+
+const unpublishReasonSchema = z.string().trim().min(1, "Укажите причину").max(UNPUBLISH_REASON_MAX, `Не больше ${UNPUBLISH_REASON_MAX} символов`);
+
+/** Снять публичную страницу клуба модератором — с причиной админу клуба; адрес остаётся, опубликовать снова можно. */
+export async function unpublishClubByModeratorAction(id: string, reason: string): Promise<Result> {
+  await requireAdmin();
+  const parsed = unpublishReasonSchema.safeParse(reason);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Укажите причину" };
+  const club = await db.$transaction(async (tx) => {
+    const { count } = await tx.club.updateMany({ where: { id: String(id), publishedAt: { not: null } }, data: { publishedAt: null } });
+    if (count === 0) return null;
+    const c = await tx.club.findUniqueOrThrow({ where: { id: String(id) }, select: { id: true, name: true, adminId: true, slug: true, citySlug: true } });
+    await notify(
+      tx,
+      c.adminId,
+      {
+        type: NotificationType.SOCIAL,
+        title: `Страница клуба «${c.name}» снята с публикации: ${parsed.data}`,
+        body: "Поправьте страницу и опубликуйте её снова",
+        url: `/clubs/${c.id}/manage#public`,
+      },
+      { push: true },
+    );
+    return c;
+  });
+  if (!club) return { ok: false, error: "Страница уже снята с публикации" };
+  revalidatePath("/admin/clubs");
+  if (club.slug && club.citySlug) revalidatePath(clubPath(club.citySlug, club.slug));
   return { ok: true };
 }

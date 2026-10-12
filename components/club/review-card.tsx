@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { EditClubButton } from "@/components/club/edit-club";
@@ -9,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { reviewClubAction, setClubHiddenAction } from "@/lib/club/admin-actions";
+import { reviewClubAction, setClubHiddenAction, unpublishClubByModeratorAction } from "@/lib/club/admin-actions";
+import { UNPUBLISH_REASON_MAX } from "@/lib/club/public";
 import type { ReviewClub } from "@/lib/club/queries";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
@@ -47,6 +49,17 @@ export function ReviewCard({ club }: { club: ReviewClub }) {
         <dt className="text-muted-foreground">{club.status === "PENDING" ? "Подана" : "Участников"}</dt>
         <dd>{club.status === "PENDING" ? dateFormat.format(new Date(club.createdAt)) : club.members}</dd>
       </dl>
+      {club.about ? (
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">О зале</p>
+          <p className="line-clamp-3 whitespace-pre-line break-words text-muted-foreground">{club.about}</p>
+        </div>
+      ) : null}
+      {club.pagePath ? (
+        <Link href={club.pagePath} target="_blank" className="inline-block text-sm text-primary hover:underline">
+          Страница зала
+        </Link>
+      ) : null}
       {club.similar.length ? (
         <div className="rounded-lg bg-muted/50 p-3 text-sm">
           <p className="font-medium">Похожие клубы</p>
@@ -71,6 +84,7 @@ export function ReviewCard({ club }: { club: ReviewClub }) {
         ) : (
           <>
             <EditClubButton club={club} />
+            {club.pagePath ? <UnpublishButton id={club.id} /> : null}
             {club.status === "APPROVED" ? (
               <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => setClubHiddenAction(club.id, true), "Клуб скрыт")}>
                 Скрыть
@@ -122,6 +136,49 @@ function RejectButton({ id }: { id: string }) {
               }
             >
               Отклонить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function UnpublishButton({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        Снять с публикации
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Снять страницу зала</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor={`unpublish-${id}`}>Причина</Label>
+            <Textarea id={`unpublish-${id}`} value={reason} maxLength={UNPUBLISH_REASON_MAX} onChange={(e) => setReason(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Админ клуба увидит её в уведомлении и сможет опубликовать страницу снова.</p>
+          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await unpublishClubByModeratorAction(id, reason);
+                  if (!r.ok) return setError(r.error);
+                  toast.success("Страница снята с публикации");
+                  setOpen(false);
+                })
+              }
+            >
+              Снять с публикации
             </Button>
           </DialogFooter>
         </DialogContent>
