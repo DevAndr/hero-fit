@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { setChangelogSeen } from "./db";
 import { registerUser } from "./helpers";
+import { RELEASES } from "../lib/changelog/releases";
 
 // Скрытие пунктов под флагом — unit-тест visibleRelease: глобальный флаг здесь не трогаем (strength-analytics.spec)
 test("guest opens the changelog from the landing footer", async ({ page }) => {
@@ -13,7 +14,7 @@ test("guest opens the changelog from the landing footer", async ({ page }) => {
 test("landing «Новое» plaque leads to the release anchor", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /^Новое:/ }).click();
-  await expect(page).toHaveURL(/\/changelog#2026-10$/);
+  await expect(page).toHaveURL(new RegExp(`/changelog#${RELEASES[0].id}$`));
 });
 
 test("new user has no dot; a user with unseen release sees it until /whats-new", async ({ page }) => {
