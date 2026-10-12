@@ -41,6 +41,7 @@ const ACHIEVEMENT_TITLES: [achievementCode: string, label: string][] = [
   ["login:100", "Завсегдатай"],
   ["raid:25", "Гроза рейдов"],
   ["raidmvp:10", "Сердце гильдии"],
+  ["clubtask:25", "Душа клуба"],
   ["goal:25", "Человек слова"],
   ["coachclients:25", "Наставник"],
   ["coachworkouts:1000", "Кузница чемпионов"],

@@ -57,6 +57,7 @@ enum AchievementCategory {
   MILESTONE // уровни, коллекция ачивок, возвращение, спасённый streak
   LEAGUE // места в недельной лиге друзей (из итогов недели)
   BOSS // победы над боссом недели
+  CLUB // задания клуба зала
   GUILD // победы в рейдах гильдии
   GOAL // выполненные личные цели (lib/goals)
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
@@ -91,15 +92,16 @@ enum XpReason {
   BOSS_REWARD // сундук за победу над боссом недели (lib/boss)
   RAID_REWARD // сундук рейда гильдии (lib/raid)
   GOAL_REWARD // сундук за выполненную цель (lib/goals)
+  CLUB_TASK_REWARD // сундук за задание клуба (lib/club/tasks)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
 
 model User {
   /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
-  changelogSeen String?
+  changelogSeen     String?
   /// умный помощник (флаг smart_coach): выключается в /settings
-  assistantEnabled Boolean @default(true)
+  assistantEnabled  Boolean   @default(true)
   id                String    @id @default(cuid())
   login             String    @unique
   /// null — аккаунт из Telegram Mini App (email и пароль задаются в «Вход на сайте»)
@@ -211,6 +213,9 @@ model User {
   clubsAdmin          Club[]               @relation("ClubAdmin")
   clubMember          ClubMember?          @relation("ClubMember")
   clubBans            ClubBan[]            @relation("ClubBan")
+  clubTasksCreated    ClubTask[]           @relation("ClubTaskCreator")
+  clubTaskHits        ClubTaskHit[]        @relation("ClubTaskHit")
+  clubTaskRewards     ClubTaskReward[]     @relation("ClubTaskReward")
   raidMvp             RaidWeek[]           @relation("RaidMvp")
   raidHits            RaidHit[]
   raidRewards         RaidReward[]
@@ -350,6 +355,7 @@ model Exercise {
   achievements      UserAchievement[]
   coachTargets      CoachTarget[]
   goals             Goal[]
+  clubTasks         ClubTask[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -425,13 +431,14 @@ model Workout {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template  WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  exercises WorkoutExercise[]
-  xpEvents  XpEvent[]
-  kudos     Kudos[]
-  comments  CoachComment[]
-  raidHit   RaidHit?
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  exercises    WorkoutExercise[]
+  xpEvents     XpEvent[]
+  kudos        Kudos[]
+  comments     CoachComment[]
+  raidHit      RaidHit?
+  clubTaskHits ClubTaskHit[]
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -1043,6 +1050,7 @@ model Club {
   admin   User         @relation("ClubAdmin", fields: [adminId], references: [id], onDelete: Restrict)
   members ClubMember[]
   bans    ClubBan[]
+  tasks   ClubTask[]
 
   @@index([status, cityKey])
   @@index([adminId])
@@ -1070,4 +1078,78 @@ model ClubBan {
   user User @relation("ClubBan", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([clubId, userId])
+}
+
+/// Задания клуба (спека: docs/superpowers/specs/2026-10-12-club-tasks-design.md).
+enum ClubTaskType {
+  WORKOUTS
+  VOLUME
+  REPS
+  HOURS
+}
+
+enum ClubTaskMode {
+  CLUB
+  EACH
+}
+
+model ClubTask {
+  id             String       @id @default(cuid())
+  clubId         String
+  type           ClubTaskType
+  mode           ClubTaskMode
+  /// только для REPS
+  exerciseId     String?
+  /// базовые единицы: тренировки, кг, повторы, минуты (HOURS)
+  target         Int
+  /// окно в UTC: полночь дня старта … конец последнего дня в поясе админа на момент создания
+  startsAt       DateTime
+  endsAt         DateTime
+  /// участников на момент создания — для минимума цели CLUB
+  membersAtStart Int
+  createdById    String?
+  cancelledAt    DateTime?
+  /// только CLUB: момент выполнения (ставится один раз)
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+
+  club      Club             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  exercise  Exercise?        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  createdBy User?            @relation("ClubTaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  hits      ClubTaskHit[]
+  rewards   ClubTaskReward[]
+
+  @@index([clubId, endsAt])
+}
+
+/// Вклад одной тренировки в задание.
+model ClubTaskHit {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  workoutId String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  task    ClubTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User     @relation("ClubTaskHit", fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, workoutId])
+  @@index([taskId, userId])
+}
+
+/// Сундук за задание: EACH — выполнившему, CLUB — вышедшим на порог вклада.
+model ClubTaskReward {
+  id        String    @id @default(cuid())
+  taskId    String
+  userId    String
+  openedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  task ClubTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User     @relation("ClubTaskReward", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId, openedAt])
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowBigUpDash, Flame, Loader2, Medal, Swords, Target, Trophy } from "lucide-react";
+import { ArrowBigUpDash, Flame, ListChecks, Loader2, Medal, Swords, Target, Trophy, Users } from "lucide-react";
 import { ago, recordText } from "@/components/social/activity-feed";
 import { Button } from "@/components/ui/button";
 import { loadClubFeedAction } from "@/lib/club/actions";
@@ -14,6 +14,8 @@ function highlights(e: ClubEvent) {
     ...e.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
     ...e.records.map((r) => ({ icon: Medal, text: `Рекорд — ${recordText(r)}`, className: "text-xp" })),
     ...e.goals.map((t) => ({ icon: Target, text: `Цель: ${t}`, className: "text-xp" })),
+    ...e.tasks.map((t) => ({ icon: ListChecks, text: `Выполнено задание «${t}»`, className: "text-primary" })),
+    ...e.clubTasks.map((t) => ({ icon: Users, text: `Клуб выполнил «${t}» — последний вклад`, className: "text-primary" })),
     ...(e.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${e.levelUp}`, className: "text-primary" }] : []),
     ...(e.bossDefeated ? [{ icon: Swords, text: `Босс повержен: ${e.bossDefeated}`, className: "text-streak" }] : []),
     ...(e.streakMilestone ? [{ icon: Flame, text: `${weeksText(e.streakMilestone)} подряд в ударе`, className: "text-streak" }] : []),

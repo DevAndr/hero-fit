@@ -849,9 +849,18 @@ export async function seedXpWorkout(login: string, o: { xp: number; meta?: objec
        values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 4321, 5, 50, $4, $5)`,
       [workoutId, uid, o.name ?? "Seed", started, finished],
     );
+    // Одно упражнение с подходом — как настоящая тренировка (итоги недели ищут лучший подход)
+    const ex = (await db.query<{ id: string }>(`select id from "Exercise" where name = 'Жим штанги лёжа' and "userId" is null`)).rows[0].id;
+    const weId = randomUUID();
+    await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 90)`, [weId, workoutId, ex]);
+    await db.query(
+      `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, 0, 40, 10, false, $3)`,
+      [randomUUID(), weId, finished],
+    );
     await db.query(
       `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
-      [randomUUID(), uid, o.xp, workoutId, JSON.stringify(o.meta ?? {}), finished],
+      // records/achievements — как у настоящей сводки (итоги недели читают их без проверки)
+      [randomUUID(), uid, o.xp, workoutId, JSON.stringify({ records: [], achievements: [], ...o.meta }), finished],
     );
   });
 }
@@ -859,4 +868,48 @@ export async function seedXpWorkout(login: string, o: { xp: number; meta?: objec
 /** Пачка завершённых тренировок без событий (meta пустая), новые — ближе к текущему времени. */
 export async function seedXpWorkouts(login: string, n: number) {
   for (let i = 0; i < n; i++) await seedXpWorkout(login, { xp: 50, finishedAt: new Date(Date.now() - (n - i) * 60_000) });
+}
+
+/** Задание клуба минуя интерфейс и минимумы; окно по умолчанию — со вчера на 7 дней. */
+export async function createClubTask(
+  clubId: string,
+  o: { type: "WORKOUTS" | "VOLUME" | "REPS" | "HOURS"; mode: "CLUB" | "EACH"; target: number; exerciseName?: string; startsAt?: Date; endsAt?: Date },
+): Promise<string> {
+  const startsAt = o.startsAt ?? new Date(Date.now() - 24 * 3600 * 1000);
+  const endsAt = o.endsAt ?? new Date(startsAt.getTime() + 7 * 24 * 3600 * 1000);
+  return withDb(async (db) => {
+    const ex = o.exerciseName
+      ? (await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [o.exerciseName])).rows[0].id
+      : null;
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "ClubTask" (id, "clubId", type, mode, "exerciseId", target, "startsAt", "endsAt", "membersAtStart")
+       values ('task_' || md5(random()::text), $1, $2::"ClubTaskType", $3::"ClubTaskMode", $4, $5, $6, $7,
+               (select count(*) from "ClubMember" where "clubId" = $1)) returning id`,
+      [clubId, o.type, o.mode, ex, o.target, startsAt, endsAt],
+    );
+    return rows[0].id;
+  });
+}
+
+export async function clubTaskOf(id: string): Promise<{ completedAt: Date | null; cancelledAt: Date | null; hits: number; amount: number }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ completedAt: Date | null; cancelledAt: Date | null; hits: number; amount: number }>(
+      `select t."completedAt", t."cancelledAt", (select count(*)::int from "ClubTaskHit" h where h."taskId" = t.id) as hits,
+              (select coalesce(sum(amount), 0)::int from "ClubTaskHit" h where h."taskId" = t.id) as amount
+       from "ClubTask" t where t.id = $1`,
+      [id],
+    );
+    return rows[0];
+  });
+}
+
+/** Логины получивших сундук задания. */
+export async function clubTaskRewards(id: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ login: string }>(
+      `select u.login from "ClubTaskReward" r join "User" u on u.id = r."userId" where r."taskId" = $1 order by u.login`,
+      [id],
+    );
+    return rows.map((r) => r.login);
+  });
 }

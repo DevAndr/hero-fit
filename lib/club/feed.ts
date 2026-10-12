@@ -31,6 +31,10 @@ export type ClubEvent = {
   streakMilestone: number | null;
   bossDefeated: string | null;
   goals: string[];
+  /** Выполненные этой тренировкой личные задания клуба (EACH). */
+  tasks: string[];
+  /** Задания «всем клубом», которые эта тренировка добила. */
+  clubTasks: string[];
 };
 
 const QUIET_ACHIEVEMENTS = /^login:/;
@@ -64,11 +68,15 @@ export function toClubEvents(row: ClubFeedRow, viewerId: string): ClubEvent | nu
     streakMilestone: streakMilestone(row.meta),
     bossDefeated: meta.boss?.defeated ? bossName(meta.boss.code) : null,
     goals: (meta.goals?.achieved ?? []).filter((g) => g.type !== "BODY_WEIGHT").map((g) => (hide && g.feedTitle) || g.title),
+    tasks: (meta.clubTasks ?? []).filter((t) => t.mode === "EACH" && t.completed).map((t) => (hide ? t.feedTitle : t.title)),
+    clubTasks: (meta.clubTasks ?? []).filter((t) => t.clubCompleted).map((t) => (hide ? t.feedTitle : t.title)),
   };
   const empty =
     event.achievements.length === 0 &&
     event.records.length === 0 &&
     event.goals.length === 0 &&
+    event.tasks.length === 0 &&
+    event.clubTasks.length === 0 &&
     event.levelUp === null &&
     event.streakMilestone === null &&
     event.bossDefeated === null;

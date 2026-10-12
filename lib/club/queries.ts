@@ -255,17 +255,15 @@ export type ReviewClub = {
   similar: { id: string; name: string; address: string }[];
 };
 
-/** Модерация: на проверке (старые первыми, с похожими) или одобренные и скрытые (поиск по названию, городу, адресу). */
+/** Модерация: на проверке (старые первыми, с похожими) или одобренные и скрытые; поиск по названию, городу, адресу. */
 export async function getClubsForReview(tab: "pending" | "approved", search: string): Promise<ReviewClub[]> {
   const q = clubKey(search);
   const clubs = await db.club.findMany({
-    where:
-      tab === "pending"
-        ? { status: "PENDING" }
-        : {
-            status: { in: ["APPROVED", "HIDDEN"] },
-            ...(q ? { OR: [{ nameKey: { contains: q } }, { cityKey: { contains: q } }, { addressKey: { contains: q } }] } : {}),
-          },
+    // Поиск — в обеих вкладках: в длинной очереди нужную заявку иначе не найти (показываются 100 самых старых)
+    where: {
+      status: tab === "pending" ? "PENDING" : { in: ["APPROVED", "HIDDEN"] },
+      ...(q ? { OR: [{ nameKey: { contains: q } }, { cityKey: { contains: q } }, { addressKey: { contains: q } }] } : {}),
+    },
     orderBy: { createdAt: tab === "pending" ? "asc" : "desc" },
     take: 100,
     select: {

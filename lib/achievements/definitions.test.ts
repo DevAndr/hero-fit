@@ -301,6 +301,9 @@ describe("boss hunter", () => {
 
 describe("raids", () => {
   it("лестница побед в рейдах: 1, 5, 10, 25", () => {
+    expect(codesOf("clubtask", { clubTaskRewards: 5 })).toEqual(["clubtask:1", "clubtask:5"]);
+    expect(codesOf("clubtask", { clubTaskRewards: 0 })).toEqual([]);
+    expect(earnedAchievements({ ...empty, clubTaskRewards: 1 }).find((a) => a.code === "clubtask:1")).toMatchObject({ category: "CLUB", title: "Командный игрок" });
     expect(codesOf("raid", { raidWins: 5 })).toEqual(["raid:1", "raid:5"]);
     expect(codesOf("raid", { raidWins: 0 })).toEqual([]);
     const earned = earnedAchievements({ ...empty, raidWins: 5 });
