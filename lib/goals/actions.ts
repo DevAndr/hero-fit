@@ -23,6 +23,13 @@ function refresh() {
   revalidatePath("/dashboard");
 }
 
+/** Отказ внутри транзакции — бросается, чтобы откатить уже записанное (взвешивание из формы). */
+class Refused extends Error {
+  constructor(readonly result: Result) {
+    super("refused");
+  }
+}
+
 export async function createGoalAction(input: GoalInput): Promise<Result> {
   const user = await requireUser();
   const tz = user.timeZone;
@@ -46,6 +53,8 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
   }
 
   const result = await db.$transaction(async (tx): Promise<Result> => {
+    // Строка пользователя — под блокировкой: две вкладки не обойдут лимит активных целей
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
     if (g.type === "BODY_WEIGHT" && g.currentWeight !== undefined) {
       const w = weightSchema.safeParse(g.currentWeight);
       if (!w.success) return { ok: false, error: w.error.issues[0].message, field: "currentWeight" };
@@ -55,7 +64,8 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
     if (current === null) return { ok: false, error: "Сначала запиши текущий вес", field: "currentWeight" };
     const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true } });
     const refusal = canCreate(g, { active, current, isBodyweight, hasWeight: true });
-    if (refusal) return { ok: false, error: refusal, field: refusal === "Уже достигнуто" ? "target" : undefined };
+    // Отказ — откатом: взвешивание из формы без цели не сохраняется
+    if (refusal) throw new Refused({ ok: false, error: refusal, field: refusal === "Уже достигнуто" ? "target" : undefined });
     const counter = g.type === "WORKOUTS" || g.type === "HOURS";
     await tx.goal.create({
       data: {
@@ -70,6 +80,9 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
       },
     });
     return { ok: true };
+  }).catch((e: unknown) => {
+    if (e instanceof Refused) return e.result;
+    throw e;
   });
   if (result.ok) {
     await queueGoal("goal_create");

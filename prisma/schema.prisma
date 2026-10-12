@@ -985,6 +985,8 @@ model Goal {
   exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  /// тик сроков: активные по дате срока (processGoals, lib/goals/tick.ts)
+  @@index([status, deadline])
 }
 
 /// Журнал взвешиваний: одна запись на местный день; последняя дублируется в User.bodyWeight.

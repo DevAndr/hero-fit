@@ -65,7 +65,7 @@ function draftOf(g: Partial<GoalInput>): Draft {
 
 function FieldError({ id, text }: { id: string; text?: string }) {
   return text ? (
-    <p id={id} className="text-sm text-destructive">
+    <p id={id} role="alert" className="text-sm text-destructive">
       {text}
     </p>
   ) : null;
@@ -230,6 +230,8 @@ export function NewGoal({
                     <Input id="goal-exercise-search" value={query} placeholder="Например, жим" onChange={(e) => setQuery(e.target.value)} />
                     <RadioGroup
                       aria-label="Упражнение"
+                      aria-invalid={errors.exerciseId ? true : undefined}
+                      aria-describedby={errors.exerciseId ? "goal-exercise-error" : undefined}
                       value={draft.exerciseId ?? ""}
                       onValueChange={(v) => {
                         const ex = form.exercises.find((e) => e.id === v);
@@ -258,7 +260,11 @@ export function NewGoal({
                   {exercise ? (
                     <div className="space-y-1.5">
                       <p className="text-sm font-medium">Что улучшаем</p>
-                      <RadioGroup aria-label="Что улучшаем" value={draft.metric ?? ""} onValueChange={(v) => set({ metric: v as RecordType, target: "" })} className="flex flex-wrap gap-2">
+                      <RadioGroup
+                        aria-label="Что улучшаем"
+                        aria-invalid={errors.metric ? true : undefined}
+                        aria-describedby={errors.metric ? "goal-metric-error" : undefined}
+                        value={draft.metric ?? ""} onValueChange={(v) => set({ metric: v as RecordType, target: "" })} className="flex flex-wrap gap-2">
                         {METRICS.filter((m) => !exercise.isBodyweight || m.metric === "MAX_REPS").map((m) => (
                           <Radio.Root
                             key={m.metric}

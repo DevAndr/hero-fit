@@ -68,6 +68,20 @@ test("goal already reached is refused", async ({ page }) => {
   await expect(dialog.getByText("Уже достигнуто")).toBeVisible();
 });
 
+test("a refused body weight goal does not keep the weigh-in", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await page.goto("/goals");
+  const dialog = await newGoal(page, "Вес тела");
+  await dialog.getByLabel("Текущий вес, кг").fill("80");
+  await dialog.getByLabel("Цель, кг").fill("80");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByText("Уже достигнуто")).toBeVisible();
+  const entries = await withDb(
+    async (db) => (await db.query(`select 1 from "BodyWeightEntry" e join "User" u on u.id = e."userId" where u.login = $1`, [login])).rowCount,
+  );
+  expect(entries).toBe(0);
+});
+
 test("five active goals is the limit", async ({ page }) => {
   const { login } = await registerUser(page);
   for (let i = 1; i <= 5; i++) await createGoal(login, { type: "WORKOUTS", target: 10 * i });

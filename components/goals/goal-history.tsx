@@ -4,15 +4,14 @@ import { buttonVariants } from "@/components/ui/button";
 import { plural } from "@/lib/format";
 import type { GoalView } from "@/lib/goals/queries";
 
-const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
-
 function daysBetween(a: Date, b: Date) {
   return Math.max(1, Math.round((b.getTime() - a.getTime()) / 86_400_000));
 }
 
 /** История целей: выполненные (когда и за сколько дней) и проваленные («пройдено N %», «Поставить снова»). */
-export function GoalHistory({ goals }: { goals: GoalView[] }) {
+export function GoalHistory({ goals, timeZone }: { goals: GoalView[]; /** Пояс пользователя: рендер на сервере. */ timeZone: string }) {
   if (goals.length === 0) return null;
+  const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone });
   return (
     <section aria-label="История" className="space-y-2">
       <h2 className="font-bold">История</h2>

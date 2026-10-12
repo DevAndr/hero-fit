@@ -2,11 +2,21 @@ import { CircleCheck } from "lucide-react";
 import { GoalCard } from "@/components/goals/goal-card";
 import type { GoalView } from "@/lib/goals/queries";
 
-const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
-
 /** Тренер, «Обзор» клиента: цели клиента (активные с прогрессом и последние выполненные), только чтение. */
-export function ClientGoals({ active, achieved, today }: { active: GoalView[]; achieved: GoalView[]; today: string }) {
+export function ClientGoals({
+  active,
+  achieved,
+  today,
+  timeZone,
+}: {
+  active: GoalView[];
+  achieved: GoalView[];
+  today: string;
+  /** Пояс клиента: страница рендерится на сервере, без него даты — в поясе сервера. */
+  timeZone: string;
+}) {
   if (active.length === 0 && achieved.length === 0) return null;
+  const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone });
   return (
     <section aria-label="Цели клиента" className="space-y-3">
       <h2 className="font-bold">Цели</h2>
