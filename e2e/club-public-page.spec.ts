@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import {
   clubOf,
+  clubSlug,
   createClub,
   createClubTask,
   createUserRow,
@@ -131,4 +132,60 @@ test("hidden club: 404 for guests and for its admin", async ({ page, request }) 
   await setClubStatus(club.id, "HIDDEN");
   expect((await request.get(path)).status()).toBe(404);
   expect((await page.goto(path))?.status()).toBe(404);
+});
+
+const LONG_ABOUT = "Зал у метро: три стойки для приседа, помосты, гантели до 50 кг и зона растяжки.";
+
+/** Админ на странице управления публикует «О зале» через интерфейс; возвращает адрес страницы. */
+async function publishViaUi(page: Page, clubId: string, about = LONG_ABOUT) {
+  await page.goto(`/clubs/${clubId}/manage`);
+  const section = page.getByRole("region", { name: "Публичная страница" });
+  await section.getByLabel("О зале").fill(about);
+  await section.getByRole("button", { name: "Сохранить" }).click();
+  await expect(section.getByRole("button", { name: "Опубликовать" })).toBeEnabled();
+  await section.getByRole("button", { name: "Опубликовать" }).click();
+  await expect(section.getByRole("button", { name: "Снять с публикации" })).toBeVisible();
+  const { slug, citySlug } = await clubSlug(clubId);
+  return `/gym/${citySlug}/${slug}`;
+}
+
+test("flag by list: admin publishes and sees a noindex preview, guests get 404", async ({ page, request }) => {
+  const admin = await registerUser(page);
+  await setFlag("clubs", { enabled: true, percent: 0, logins: [admin.login] });
+  const club = await createClub(admin.login, { name: `Предпросмотр ${unique()}`, city: "Казань" });
+
+  await page.goto(`/clubs/${club.id}/manage`);
+  const section = page.getByRole("region", { name: "Публичная страница" });
+  await section.getByLabel("О зале").fill("Коротко о зале");
+  await section.getByRole("button", { name: "Сохранить" }).click();
+  await expect(section.getByText("Напишите о зале хотя бы 50 символов")).toBeVisible();
+  await expect(section.getByRole("button", { name: "Опубликовать" })).toBeDisabled();
+
+  const path = await publishViaUi(page, club.id);
+  await expect(page.getByText("Страница появится в поиске, когда клубы откроются для всех")).toBeVisible();
+  await page.goto(path);
+  await expect(page.getByText("Страница пока не видна в поиске")).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  expect((await request.get(path)).status()).toBe(404);
+});
+
+test("same name in the same city gets the street; renaming keeps the address", async ({ page }) => {
+  const admin = await registerUser(page);
+  await setFlag("clubs", FULL);
+  const name = `Двойник ${unique()}`;
+  const first = await createClub(admin.login, { name, city: "Казань", address: "ул. Пушкина, 5" });
+  const second = await createClub(admin.login, { name, city: "Казань", address: "ул. Пушкина, 5" });
+  const firstPath = await publishViaUi(page, first.id);
+  const secondPath = await publishViaUi(page, second.id);
+  expect(firstPath).toMatch(/^\/gym\/kazan\/dvoynik-\w+$/);
+  expect(secondPath).toBe(`${firstPath}-pushkina`);
+
+  await page.goto(`/clubs/${first.id}/manage`);
+  await page.getByRole("button", { name: "Изменить" }).click();
+  await page.getByLabel("Название").fill(`Переименован ${unique()}`);
+  await page.getByRole("dialog").getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const after = await clubSlug(first.id);
+  expect(`/gym/${after.citySlug}/${after.slug}`).toBe(firstPath);
+  await expect((await page.goto(firstPath))?.status()).toBe(200);
 });

@@ -223,6 +223,10 @@ export async function getClubManage(clubId: string, adminId: string) {
       address: true,
       status: true,
       code: true,
+      about: true,
+      slug: true,
+      citySlug: true,
+      publishedAt: true,
       members: { orderBy: { joinedAt: "asc" }, select: { joinedAt: true, user: { select: { id: true, nickname: true } } } },
       bans: { orderBy: { createdAt: "desc" }, select: { user: { select: { id: true, nickname: true } } } },
     },
@@ -230,6 +234,7 @@ export async function getClubManage(clubId: string, adminId: string) {
   if (!club) return null;
   return {
     club: { id: club.id, name: club.name, city: club.city, address: club.address, status: club.status, code: club.code },
+    page: { about: club.about, slug: club.slug, citySlug: club.citySlug, published: Boolean(club.publishedAt) },
     members: club.members.map((m) => ({ id: m.user.id, nickname: m.user.nickname ?? "—", joinedAt: m.joinedAt.toISOString() })),
     banned: club.bans.map((b) => ({ id: b.user.id, nickname: b.user.nickname ?? "—" })),
   };
