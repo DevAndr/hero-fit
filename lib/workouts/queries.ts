@@ -18,6 +18,8 @@ export type ActiveWorkout = {
   /** Ключ вхождения календаря, из которого начата тренировка. */
   planKey: string | null;
   templateId: string | null;
+  /** Самочувствие из чек-ина помощника. */
+  wellbeing?: "GREAT" | "OK" | "TIRED" | null;
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
@@ -44,6 +46,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     id: workout.id,
     planKey: workout.planKey,
     templateId: workout.templateId,
+    wellbeing: workout.wellbeing,
     name: workout.name,
     status: workout.status as ActiveWorkout["status"],
     startedAt: workout.startedAt?.toISOString() ?? null,

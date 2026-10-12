@@ -38,6 +38,8 @@ export type CurrentUser = {
   isAdmin: boolean;
   /** Последний просмотренный релиз «Что нового» (точка в меню профиля). */
   changelogSeen: string | null;
+  /** Умный помощник не выключен в /settings (показ — ещё и по флагу smart_coach). */
+  assistantEnabled: boolean;
 };
 
 /**
@@ -77,6 +79,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           onboardedAt: true,
           isCoach: true,
           changelogSeen: true,
+          assistantEnabled: true,
         },
       },
     },

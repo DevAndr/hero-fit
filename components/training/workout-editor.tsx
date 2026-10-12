@@ -47,6 +47,10 @@ import { cancelWorkoutAction } from "@/lib/workouts/actions";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { ActiveWorkout, LastPerformance } from "@/lib/workouts/queries";
 import { workoutTotals } from "@/lib/workouts/schema";
+import { useAssistant } from "@/components/assistant/assistant";
+import { prunePain } from "@/components/assistant/pain-store";
+import type { Wellbeing } from "@/lib/assistant/rules";
+import type { Target } from "@/lib/coach/targets";
 
 type Props = {
   workout: ActiveWorkout;
@@ -59,6 +63,9 @@ type Props = {
   plan?: { key: string; title: string } | null;
   /** Босс недели (урон без этой тренировки). */
   boss?: BossView;
+  /** Для помощника: задания тренера и цели своей прогрессии (exerciseId → цель). */
+  targets?: Record<string, Target>;
+  own?: Record<string, Target>;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -132,8 +139,31 @@ function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone:
   return next?.exercise.name ?? null;
 }
 
-function Editor({ workout, exercises, last, hints, coachTargets, plan, boss }: Props) {
+const NO_TARGETS: Record<string, Target> = {};
+
+function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
+  // Помощник видит упражнения тренировки и меняет их через тот же редьюсер (автосохранение и офлайн — как обычно)
+  const assistant = useAssistant();
+  const [wellbeing, setWellbeing] = useState<Wellbeing | null>(workout.wellbeing ?? null);
+  const { setWorkout } = assistant;
+  useEffect(() => {
+    if (!assistant.available) return;
+    setWorkout({
+      workoutId: workout.id,
+      started: state.status === "IN_PROGRESS",
+      wellbeing,
+      exercises: state.exercises,
+      dispatch,
+      last,
+      hints,
+      coach: targets,
+      own,
+      catalog: exercises,
+      setWellbeing,
+    });
+  }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, wellbeing, last, hints, targets, own, exercises]);
+  useEffect(() => () => setWorkout(null), [setWorkout]);
   const draft = useMemo(() => toDraft(state), [state]);
   const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
   const rest = useRestTimer();
@@ -152,6 +182,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss }: P
     // Без сети страница могла прийти из кэша и быть устаревшей — чужие черновики не трогаем.
     if (navigator.onLine) {
       pruneRecords(workout.id);
+      prunePain(workout.id);
       refreshTrainingCache();
     }
     const rec = readRecord(workout.id);
@@ -303,6 +334,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss }: P
                         last={last[item.exercise.id]}
                         hint={hints[item.exercise.id]}
                         coachTarget={coachTargets[item.exercise.id]}
+                        onAsk={assistant.available ? () => assistant.openExercise(item.exercise.id) : undefined}
                         dispatch={dispatch}
                         onComplete={onComplete}
                         handle={handle}
