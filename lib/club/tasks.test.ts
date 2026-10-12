@@ -5,6 +5,7 @@ import {
   eligible,
   hitCounts,
   minTarget,
+  pickCardTask,
   startDayAllowed,
   taskBlock,
   taskFeedTitle,
@@ -141,5 +142,31 @@ describe("сундук", () => {
 describe("taskWindow", () => {
   it("полночь дня старта и через N суток в поясе", () => {
     expect(taskWindow("2026-10-12", 7, "Europe/Moscow")).toEqual({ startsAt: at("2026-10-11T21:00Z"), endsAt: at("2026-10-18T21:00Z") });
+  });
+});
+
+describe("pickCardTask", () => {
+  const t = (id: string, o: Partial<{ started: boolean; completed: boolean; endsAt: string }> = {}) => ({
+    id,
+    started: true,
+    completed: false,
+    endsAt: "2026-10-20T00:00:00.000Z",
+    ...o,
+  });
+  it("нет заданий — ничего", () => {
+    expect(pickCardTask([])).toBeNull();
+  });
+  it("невыполненное раньше выполненного, затем раньше кончается", () => {
+    const done = t("done", { completed: true, endsAt: "2026-10-14T00:00:00.000Z" });
+    const late = t("late", { endsAt: "2026-10-30T00:00:00.000Z" });
+    const soon = t("soon", { endsAt: "2026-10-18T00:00:00.000Z" });
+    expect(pickCardTask([done, late, soon])?.id).toBe("soon");
+    expect(pickCardTask([done])?.id).toBe("done");
+  });
+  it("не начавшееся — только если других нет", () => {
+    const future = t("future", { started: false, endsAt: "2026-10-15T00:00:00.000Z" });
+    const done = t("done", { completed: true });
+    expect(pickCardTask([future, done])?.id).toBe("done");
+    expect(pickCardTask([future])?.id).toBe("future");
   });
 });
