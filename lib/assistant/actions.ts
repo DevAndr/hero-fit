@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { queueGoal } from "@/lib/analytics/queue";
 import { requireUser, type CurrentUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
@@ -61,8 +60,3 @@ export async function setAssistantEnabledAction(on: boolean): Promise<{ ok: bool
   return { ok: true };
 }
 
-/** Цели Метрики помощника: открыл чат, применил совет. */
-export async function trackAssistantAction(goal: "assistant_open" | "assistant_apply"): Promise<void> {
-  await requireUser();
-  await queueGoal(goal);
-}

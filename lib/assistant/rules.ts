@@ -63,8 +63,9 @@ function lastTop(last: Sets) {
   return { weight, reps, sets: last.sets.length };
 }
 
+/** Вес не записан (0) — как свой вес: без «0 кг». */
 const lastText = (t: { weight: number; reps: number; sets: number }, bodyweight: boolean) =>
-  bodyweight ? `в прошлый раз ${t.sets} × ${t.reps}` : `в прошлый раз ${t.sets} × ${t.reps} · ${kg(t.weight)}`;
+  bodyweight || !t.weight ? `в прошлый раз ${t.sets} × ${t.reps}` : `в прошлый раз ${t.sets} × ${t.reps} · ${kg(t.weight)}`;
 
 export function weightAdvice(input: {
   bodyweight: boolean;
@@ -92,7 +93,7 @@ export function weightAdvice(input: {
       sets: target.sets ?? prev?.sets ?? 3,
       why: source === "coach" ? "Так задал твой тренер — помощник с планом тренера не спорит." : "Так стоит в твоём шаблоне с прогрессией.",
     };
-    if (wellbeing === "TIRED" && prev && weight > prev.weight) {
+    if (wellbeing === "TIRED" && prev && prev.weight > 0 && weight > prev.weight) {
       advice.note = `Если сегодня тяжело — можно остаться на ${kg(prev.weight)}.`;
     }
     return advice;
@@ -122,7 +123,7 @@ export function weightAdvice(input: {
     sets: prev.sets,
     why:
       wellbeing === "TIRED"
-        ? `${capital(lastText(prev, bodyweight))}. Сегодня ты устал — повторить прошлый результат уже хорошо.`
+        ? `${capital(lastText(prev, bodyweight))}. Сил сегодня меньше — повторить прошлый результат уже хорошо.`
         : `${capital(lastText(prev, bodyweight))}. Повтори его — когда станет легко, помощник предложит прибавить.`,
   };
 }
@@ -130,15 +131,15 @@ export function weightAdvice(input: {
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function repsOrWeight(input: { bodyweight: boolean; last: Sets | null }): { text: string; why: string } {
+  const prev = input.last && input.last.sets.length ? lastTop(input.last) : null;
   if (input.bodyweight) {
     return {
       text: "Со своим весом прибавляй повторы: +1–2 за тренировку, пока техника не страдает.",
       why: "Отягощения нет — растут повторы. Когда легко выходит 15+, можно усложнить вариант упражнения.",
     };
   }
-  const prev = input.last && input.last.sets.length ? lastTop(input.last) : null;
-  const text = "Сначала повторы, потом вес: работай в диапазоне 6–12. Дошёл до верха во всех подходах — прибавь вес и снова начни снизу.";
-  if (!prev) return { text, why: "Шаг веса — 2,5 кг (до 20 кг — 1 кг)." };
+  const text = "Сначала повторы, потом вес: работай в диапазоне 6–12. Получилось 12 во всех подходах — прибавь вес и снова начни снизу.";
+  if (!prev || !prev.weight) return { text, why: "Шаг веса — 2,5 кг (до 20 кг — 1 кг)." };
   return {
     text,
     why: `${capital(lastText(prev, false))}. Сделаешь 12 во всех подходах — бери ${kg(nextStep(prev.weight))} и начинай с 6–8. Шаг — 2,5 кг (до 20 кг — 1 кг).`,

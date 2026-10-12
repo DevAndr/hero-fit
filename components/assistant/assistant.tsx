@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Loader2, MessageCircleQuestion, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Action, ExerciseState } from "@/components/training/workout-state";
-import { askAssistantAction, saveWellbeingAction, trackAssistantAction } from "@/lib/assistant/actions";
+import { askAssistantAction, saveWellbeingAction } from "@/lib/assistant/actions";
+import { reachGoal } from "@/lib/analytics/reach";
 import { painRelated, replacementCandidates, repsOrWeight, weightAdvice, type PainSpot, type Wellbeing } from "@/lib/assistant/rules";
 import {
   BACK,
@@ -98,7 +99,8 @@ export function AssistantProvider({ available, children }: { available: boolean;
     <AssistantContext.Provider value={value}>
       {children}
       {available ? (
-        <>
+        // ym-hide-content — Вебвизор не пишет текст чата: боль (данные о здоровье) и веса
+        <div className="ym-hide-content">
           {open ? (
             <Chat key={session} start={start} workout={workout} onClose={() => setOpen(false)} />
           ) : (
@@ -111,7 +113,7 @@ export function AssistantProvider({ available, children }: { available: boolean;
               }}
             />
           )}
-        </>
+        </div>
       ) : null}
     </AssistantContext.Provider>
   );
@@ -260,6 +262,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
             wellbeing,
             pain: painNow,
           }),
+          item.sets.some((s) => s.completedAt),
         );
       }
       if (m[2] === "reps") return repsReply(ex, repsOrWeight({ bodyweight: ex.isBodyweight, last }));
@@ -290,14 +293,14 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
-    void trackAssistantAction("assistant_open").catch(() => {});
+    reachGoal("assistant_open");
     const w = workoutRef.current;
     const needCheckin = w?.started && w.wellbeing === null && !checkinDone(w.workoutId);
     if (needCheckin && start === "menu") push({ from: "bot", ...checkinReply() });
     else void show(start, workoutId ? readPain(workoutId) : []);
   }, [push, show, start, workoutId]);
 
-  const applied = () => void trackAssistantAction("assistant_apply").catch(() => {});
+  const applied = () => reachGoal("assistant_apply");
 
   const press = async (b: ReplyButton) => {
     push({ from: "me", text: b.label });
@@ -313,7 +316,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
         setWellbeing(v);
         w.setWellbeing(v);
         void saveWellbeingAction(w.workoutId, v).catch(() => {});
-        push({ from: "bot", text: v === "TIRED" ? "Понял. Сегодня без прибавок — повторить прошлый результат уже хорошо." : "Отлично, учту." });
+        push({ from: "bot", text: v === "TIRED" ? "Принято. Сегодня без прибавок — повторить прошлый результат уже хорошо." : "Отлично, учту." });
         return show("menu", pain);
       }
       return show(v === "PAIN" ? "pain" : "menu", pain);
@@ -327,14 +330,16 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
       }
       const related = w ? w.exercises.filter((e) => painRelated(e.exercise.muscleGroups, [spot])).map((e) => e.exercise) : [];
       const uniq = [...new Map(related.map((e) => [e.id, e])).values()];
-      return push({ from: "bot", ...painReply(spot, uniq, Boolean(w)) });
+      const done = new Set(w ? w.exercises.filter((e) => e.sets.some((x) => x.completedAt)).map((e) => e.exercise.id) : []);
+      return push({ from: "bot", ...painReply(spot, uniq, Boolean(w), done) });
     }
     if (!w) return;
     if (b.action === "remove" && b.payload) {
       const key = keyOf(b.payload);
-      if (key) w.dispatch({ type: "removeExercise", key });
+      // Выполненные подходы остаются — убираются только оставшиеся (ничего не сделано — упражнение целиком)
+      if (key) w.dispatch({ type: "skipPending", key });
       applied();
-      return push({ from: "bot", text: "Убрал из тренировки.", buttons: [BACK] });
+      return push({ from: "bot", text: "Готово — сегодня без этого упражнения.", buttons: [BACK] });
     }
     if (b.action === "apply-sets" && b.payload) {
       const item = w.exercises.find((e) => e.exercise.id === b.payload);
@@ -352,7 +357,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
       if (advice.kind !== "sets") return;
       w.dispatch({ type: "applySets", key: item.key, sets: Array.from({ length: advice.sets }, () => ({ weight: advice.weight, reps: advice.reps })) });
       applied();
-      return push({ from: "bot", text: "Подставил в подходы. Удачной тренировки!", buttons: [BACK] });
+      return push({ from: "bot", text: "Готово — подходы заполнены. Удачной тренировки!", buttons: [BACK] });
     }
     if (b.action === "replace" && b.payload) {
       const [fromId, toId] = b.payload.split(">");

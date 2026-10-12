@@ -79,7 +79,7 @@ test("tired check-in is saved and the coach sees it", async ({ page, browser }) 
   await linkCoach(coach.login, me.login);
 
   await startWorkout(client, ["Жим штанги лёжа"]);
-  await client.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Устал" }).click();
+  await client.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Мало сил" }).click();
   const id = await workoutId(me.login);
   await expect.poll(() => workoutWellbeing(id)).toBe("TIRED");
 
@@ -93,12 +93,13 @@ test("tired check-in is saved and the coach sees it", async ({ page, browser }) 
   await context.close();
 
   await page.goto(`/coach/clients/${await idOf(me.login)}/workouts/${id}`);
-  await expect(page.getByRole("region", { name: "Оценка клиента" }).getByText("Самочувствие: устал")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Оценка клиента" }).getByText("Самочувствие: мало сил")).toBeVisible();
 });
 
 test("knee pain removes leg exercises and stays on the device", async ({ page }) => {
   const me = await registerUser(page);
   await addFlagUser("smart_coach", me.login);
+  await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 40, reps: 10, sets: 2 }]);
   await startWorkout(page, ["Приседания со штангой", "Жим штанги лёжа"]);
   await page.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Что-то болит" }).click();
   await chat(page).getByRole("button", { name: "Колено" }).click();
@@ -110,7 +111,12 @@ test("knee pain removes leg exercises and stays on the device", async ({ page })
   // Боль помнится на устройстве — и на сервер не ушла
   await chat(page).getByRole("button", { name: "Закрыть помощника" }).click();
   await addToWorkout(page, ["Жим ногами"]);
-  await page.reload();
+  await expect(page.getByTestId("save-status")).toHaveText(/Сохранено/);
+  // Открытая старая сводка не стирает боль текущей тренировки
+  const old = await withDb(async (db) => (await db.query<{ id: string }>(`select w.id from "Workout" w join "User" u on u.id = w."userId" where u.login = $1 and w.status = 'COMPLETED' limit 1`, [me.login])).rows[0].id);
+  await page.goto(`/workouts/${old}`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.goto("/training");
   await askAbout(page, "Жим ногами");
   await chat(page).getByRole("button", { name: "Какой вес взять сегодня?" }).click();
   await expect(chat(page).getByText(/Пропусти это упражнение сегодня/)).toBeVisible();
@@ -123,6 +129,8 @@ test("help works offline", async ({ page, context }) => {
   await addFlagUser("smart_coach", me.login);
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Помощник" }).click();
+  // Вебвизор Метрики не пишет текст чата (боль — данные о здоровье)
+  await expect(page.locator('.ym-hide-content [role="dialog"][aria-label="Помощник"]')).toHaveCount(1);
   await context.setOffline(true);
   await chat(page).getByRole("button", { name: "Как это работает?" }).click();
   await chat(page).getByRole("button", { name: "Серия и заморозки" }).click();
@@ -131,4 +139,29 @@ test("help works offline", async ({ page, context }) => {
   await chat(page).getByRole("button", { name: "Застой — что делать?" }).click();
   await expect(chat(page).getByText("Нужна сеть — попробуй, когда появится связь.")).toBeVisible();
   await context.setOffline(false);
+});
+
+test("server refuses the check-in when the assistant is off or the workout is finished", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("smart_coach", me.login);
+  await startWorkout(page, ["Жим штанги лёжа"]);
+  const id = await workoutId(me.login);
+  const card = page.getByRole("region", { name: "Как ты сегодня?" });
+  await expect(card).toBeVisible();
+
+  // Помощник выключили (в другой вкладке) — сервер не пишет
+  await withDb((db) => db.query(`update "User" set "assistantEnabled" = false where login = $1`, [me.login]));
+  await card.getByRole("button", { name: "Мало сил" }).click();
+  await page.waitForTimeout(1000);
+  expect(await workoutWellbeing(id)).toBeNull();
+
+  // Тренировка уже завершена — тоже не пишет
+  await withDb((db) => db.query(`update "User" set "assistantEnabled" = true where login = $1`, [me.login]));
+  await page.evaluate((w) => sessionStorage.removeItem(`hf:checkin:${w}`), id);
+  await page.reload();
+  await expect(card).toBeVisible();
+  await withDb((db) => db.query(`update "Workout" set status = 'COMPLETED', "finishedAt" = now() where id = $1`, [id]));
+  await card.getByRole("button", { name: "Отлично" }).click();
+  await page.waitForTimeout(1000);
+  expect(await workoutWellbeing(id)).toBeNull();
 });

@@ -88,3 +88,24 @@ describe("узлы с данными", () => {
     expect(replaceReply(ex, [], false).text).toBe("Подходящей замены нет — можно просто пропустить.");
   });
 });
+
+describe("выполненные подходы не теряются", () => {
+  const ex = { id: "sq", name: "Присед" };
+  it("при сделанных подходах — «Пропустить оставшиеся подходы»", () => {
+    expect(weightReply(ex, { kind: "pain" }, true).buttons[0]).toEqual({ label: "Пропустить оставшиеся подходы", action: "remove", payload: "sq" });
+    expect(painReply("knee", [ex], true, new Set(["sq"])).buttons[0]).toEqual({ label: "Пропустить оставшиеся: Присед", action: "remove", payload: "sq" });
+  });
+});
+
+describe("тексты без рода", () => {
+  // Глаголы прошедшего времени мужского рода, которые легко написать по привычке
+  const gendered = /(^|[^а-яё])(набрал|спал|устал|понял|убрал|подставил|дошёл|сказал|пропустил|отметил)([^а-яё]|$)/i;
+  it("справка, советы, меню и правила", () => {
+    const texts = [...HELP_TOPICS, ...TIPS].map((t) => t.text);
+    for (const id of ["menu", "rules", "pain", "help", "tips"]) {
+      const r = staticReply(id)!;
+      texts.push(r.text, ...r.buttons.map((b) => b.label));
+    }
+    for (const t of texts) expect(t).not.toMatch(gendered);
+  });
+});

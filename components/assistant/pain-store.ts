@@ -36,6 +36,15 @@ export function writePain(workoutId: string, spots: PainSpot[], store: Storage |
   }
 }
 
+/** Убрать боль одной (завершённой) тренировки. */
+export function clearPain(workoutId: string, store: Storage | null = storage()) {
+  try {
+    store?.removeItem(PAIN_PREFIX + workoutId);
+  } catch {
+    // не критично
+  }
+}
+
 /** Убрать боль других тренировок (вместе с офлайн-черновиками). */
 export function prunePain(keepId: string | null, store: Storage | null = storage()) {
   if (!store) return;

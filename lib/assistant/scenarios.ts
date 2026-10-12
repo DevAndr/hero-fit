@@ -18,7 +18,7 @@ export const BACK: Button = { label: "Назад в меню", go: "menu" };
 
 export const MENU_BUTTONS: Button[] = [
   { label: "Застой — что делать?", go: "stall" },
-  { label: "Пропустил тренировку — как быть?", go: "missed" },
+  { label: "Пропущена тренировка — как быть?", go: "missed" },
   { label: "Что потренировать сегодня?", go: "recovery" },
   { label: "Что-то болит", go: "pain" },
   { label: "Как это работает?", go: "help" },
@@ -29,7 +29,7 @@ export const MENU_BUTTONS: Button[] = [
 const RULES_TEXT = [
   "Вес на сегодня: сначала план тренера, затем прогрессия твоего шаблона, затем подсказка «Пора увеличить вес», иначе — как в прошлый раз.",
   "Прибавлять пора, если во всех рабочих подходах оставался запас 2+ повтора или 3 тренировки подряд результат держится. Шаг — 2,5 кг, до 20 кг — 1 кг.",
-  "Сказал, что устал, — прибавок не будет. Сказал, что болит, — упражнения на это место помощник предложит пропустить.",
+  "В чек-ине «Мало сил» — прибавок не будет. «Что-то болит» — упражнения на это место помощник предложит пропустить.",
   "Застой — 4+ тренировки с упражнением за 6 недель без нового рекорда 4 недели.",
   "Что тренировать — по карте восстановления мышц.",
 ].join("\n\n");
@@ -70,7 +70,7 @@ type Ex = { id: string; name: string };
 export const CHECKIN_OPTIONS = [
   { label: "Отлично", payload: "GREAT" },
   { label: "Нормально", payload: "OK" },
-  { label: "Устал", payload: "TIRED" },
+  { label: "Мало сил", payload: "TIRED" },
   { label: "Что-то болит", payload: "PAIN" },
   { label: "Пропустить", payload: "SKIP" },
 ] as const;
@@ -79,13 +79,6 @@ export function checkinReply(): Reply {
   return {
     text: "Как ты сегодня? Учту это в советах.",
     buttons: CHECKIN_OPTIONS.map((o) => ({ label: o.label, action: "checkin" as const, payload: o.payload })),
-  };
-}
-
-export function workoutMenuReply(exercises: Ex[]): Reply {
-  return {
-    text: exercises.length ? "С каким упражнением помочь?" : "В тренировке пока нет упражнений.",
-    buttons: [...exercises.map((e) => ({ label: e.name, go: `exercise:${e.id}` })), { label: "Что-то болит", go: "pain" }, BACK],
   };
 }
 
@@ -105,9 +98,13 @@ export function exerciseMenuReply(ex: Ex): Reply {
 const PAIN_SKIP = "Не делай через боль. Пропусти это упражнение сегодня.";
 const DOCTOR = "Если боль острая или не проходит несколько дней — обратись к врачу.";
 
-export function weightReply(ex: Ex, advice: WeightAdvice): Reply {
+/** Подпись пропуска: выполненные подходы не теряются — убираются только оставшиеся. */
+const skipLabel = (done: boolean, name?: string) =>
+  done ? (name ? `Пропустить оставшиеся: ${name}` : "Пропустить оставшиеся подходы") : name ? `Убрать: ${name}` : "Убрать из тренировки";
+
+export function weightReply(ex: Ex, advice: WeightAdvice, done = false): Reply {
   if (advice.kind === "pain") {
-    return { text: `${PAIN_SKIP}\n\n${DOCTOR}`, buttons: [{ label: "Убрать из тренировки", action: "remove", payload: ex.id }, BACK] };
+    return { text: `${PAIN_SKIP}\n\n${DOCTOR}`, buttons: [{ label: skipLabel(done), action: "remove", payload: ex.id }, BACK] };
   }
   if (advice.kind === "first") {
     return {
@@ -132,7 +129,7 @@ export function repsReply(ex: Ex, r: { text: string; why: string }): Reply {
 
 export function replaceReply(ex: Ex, candidates: Ex[], hasCompleted: boolean): Reply {
   if (!candidates.length) {
-    return { text: "Подходящей замены нет — можно просто пропустить.", buttons: [{ label: "Убрать из тренировки", action: "remove", payload: ex.id }, BACK] };
+    return { text: "Подходящей замены нет — можно просто пропустить.", buttons: [{ label: skipLabel(hasCompleted), action: "remove", payload: ex.id }, BACK] };
   }
   return {
     text: hasCompleted
@@ -146,7 +143,7 @@ export function replaceReply(ex: Ex, candidates: Ex[], hasCompleted: boolean): R
   };
 }
 
-export function painReply(spot: PainSpot, related: Ex[], inWorkout: boolean): Reply {
+export function painReply(spot: PainSpot, related: Ex[], inWorkout: boolean, done: ReadonlySet<string> = new Set()): Reply {
   if (spot === "other" || !inWorkout) {
     return { text: `Не делай упражнения, которые отдают болью, — их лучше пропустить сегодня.\n\n${DOCTOR}`, buttons: [BACK] };
   }
@@ -154,6 +151,6 @@ export function painReply(spot: PainSpot, related: Ex[], inWorkout: boolean): Re
     text: related.length
       ? `${PAIN_SKIP}\n\nЭто место нагружают: ${related.map((e) => e.name).join(", ")}.\n\n${DOCTOR}`
       : `В этой тренировке упражнений на это место нет. Если что-то отдаёт болью — пропусти.\n\n${DOCTOR}`,
-    buttons: [...related.map((e) => ({ label: `Убрать: ${e.name}`, action: "remove" as const, payload: e.id })), BACK],
+    buttons: [...related.map((e) => ({ label: skipLabel(done.has(e.id), e.name), action: "remove" as const, payload: e.id })), BACK],
   };
 }

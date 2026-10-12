@@ -141,3 +141,14 @@ describe("missedPlanAdvice", () => {
     expect(missedPlanAdvice(m("2026-10-11", true), "2026-10-12", false)!.text).toContain("Твой тренер увидит пропуск — сделать её можно сегодня");
   });
 });
+
+describe("вес не записан (0) у упражнения с отягощением", () => {
+  const noWeight = { sets: [{ weight: 0, reps: 10 }, { weight: 0, reps: 10 }, { weight: 0, reps: 10 }] };
+  it("ни «0 кг», ни «1 кг»", () => {
+    const a = weightAdvice({ ...base, last: noWeight, hint: { kind: "reps", current: 10, suggested: 12 } });
+    expect(a.kind === "sets" && a.why).not.toMatch(/0 кг/);
+    const tired = weightAdvice({ ...base, last: noWeight, coach: { sets: 3, reps: 10, weight: 40 }, wellbeing: "TIRED" });
+    expect(tired.kind === "sets" && tired.note).toBeFalsy();
+    expect(repsOrWeight({ bodyweight: false, last: noWeight }).why).not.toMatch(/бери|(^|[^\d,])0 кг/);
+  });
+});

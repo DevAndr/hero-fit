@@ -184,3 +184,16 @@ describe("assistant actions", () => {
     expect(added.exercises.map((e) => e.exercise.id)).toEqual(["squat", "press", "bench"]);
   });
 });
+
+describe("skipPending", () => {
+  it("drops unfinished sets but keeps completed ones; nothing done — removes the exercise", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }, { exercise: pullup, restSec: 90 }], last: {} });
+    const [a, b] = s.exercises.map((e) => e.key);
+    s = reducer(s, { type: "toggleComplete", key: a, setKey: s.exercises[0].sets[0].key, now: NOW });
+    s = reducer(s, { type: "skipPending", key: a });
+    expect(s.exercises[0].sets).toHaveLength(1);
+    expect(s.exercises[0].sets[0].completedAt).toBe(NOW);
+    s = reducer(s, { type: "skipPending", key: b });
+    expect(s.exercises.map((e) => e.exercise.id)).toEqual(["bench"]);
+  });
+});

@@ -131,7 +131,7 @@ export function WorkoutFeedback({ workoutId, rpe, note }: { workoutId: string; r
   );
 }
 
-const WELLBEING_LABEL = { GREAT: "отлично", OK: "нормально", TIRED: "устал" } as const;
+const WELLBEING_LABEL = { GREAT: "отлично", OK: "нормально", TIRED: "мало сил" } as const;
 
 /** Оценка клиента глазами тренера (только чтение): самочувствие из чек-ина и тяжесть; без них — ничего. */
 export function CoachFeedbackNote({

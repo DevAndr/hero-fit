@@ -85,7 +85,9 @@ export type Action =
   /** Совет помощника: невыполненные рабочие подходы — по совету (выполненные и разминка не трогаются). */
   | { type: "applySets"; key: string; sets: { weight: number; reps: number }[] }
   /** Замена от помощника: без выполненных подходов — на месте, иначе новое упражнение сразу после текущего. */
-  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance };
+  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance }
+  /** Пропуск от помощника (боль): невыполненные подходы убираются, выполненные остаются; ничего не сделано — упражнение целиком. */
+  | { type: "skipPending"; key: string };
 
 const DEFAULT_SETS = 3;
 
@@ -202,6 +204,12 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       const exercises = [...state.exercises];
       exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
       return { ...state, exercises };
+    }
+
+    case "skipPending": {
+      const done = state.exercises.find((e) => e.key === action.key)?.sets.some((s) => s.completedAt);
+      if (!done) return { ...state, exercises: state.exercises.filter((e) => e.key !== action.key) };
+      return mapExercise(state, action.key, (e) => ({ ...e, sets: e.sets.filter((s) => s.completedAt) }));
     }
 
     case "toggleComplete":
