@@ -16,7 +16,10 @@ export type AchievementIconKey =
   | "first_template"
   | "in_streak"
   | "stable_in_streak"
-  | "progress_in_training";
+  | "progress_in_training"
+  | "first_comment"
+  | "publish_profile"
+  | "goal";
 
 /** Иконка по коду ачивки (код — из `definitions.ts`); без своей картинки — `default`. */
 export function achievementIconKey(code: string): AchievementIconKey {
@@ -47,6 +50,13 @@ export function achievementIconKey(code: string): AchievementIconKey {
       return n === STREAK_WEEK_THRESHOLDS[0] ? "in_streak" : "stable_in_streak";
     case "records":
       return "progress_in_training";
+    case "coachcomments":
+      return "first_comment";
+    case "coachpage":
+      return "publish_profile";
+    case "goal":
+    case "coachgoals":
+      return "goal";
     default:
       return "default";
   }

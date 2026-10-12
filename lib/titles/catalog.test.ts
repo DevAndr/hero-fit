@@ -102,3 +102,11 @@ describe("goal titles", () => {
     expect(availableTitles({ achievementCodes: ["goal:25"], bossWins: {} }).map((t) => t.code)).toContain("ach:goal:25");
   });
 });
+
+describe("титулы тренера", () => {
+  it("вершины тренерских лестниц", () => {
+    expect(titleLabel("ach:coachclients:25")).toBe("Наставник");
+    expect(titleLabel("ach:coachworkouts:1000")).toBe("Кузница чемпионов");
+    expect(titleLabel("ach:coachprs:250")).toBe("Создатель рекордов");
+  });
+});

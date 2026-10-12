@@ -17,6 +17,7 @@ export const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   BOSS: "Боссы",
   GUILD: "Гильдия",
   GOAL: "Цели",
+  COACH: "Тренер",
 };
 
 export const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as AchievementCategory[];

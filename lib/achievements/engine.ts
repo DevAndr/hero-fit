@@ -5,6 +5,7 @@ import { NotificationType, RecordType, XpReason, type MuscleGroup } from "@/gene
 import {
   EARLY_HOUR,
   earnedAchievements,
+  EMPTY_COACH_STATS,
   EXPRESS,
   LATE_HOUR,
   LIFTS,
@@ -253,6 +254,8 @@ export async function getAchievementStats(client: Client, userId: string): Promi
     raidWins,
     raidMvps,
     goalsAchieved,
+    coach: EMPTY_COACH_STATS,
+    coachMode: false,
     workouts: totals.workouts,
     exercises,
     achievements,
