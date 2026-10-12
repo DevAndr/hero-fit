@@ -7,6 +7,7 @@ import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
+import { WhatsNewLink } from "@/components/marketing/whats-new-link";
 import { CountUp, Reveal } from "@/components/marketing/motion";
 import {
   BadgeRow,
@@ -269,6 +270,7 @@ export default async function Home() {
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[48px_48px] opacity-40 mask-[radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
         <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-28 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20 lg:pb-32">
           <div className="space-y-7">
+            <WhatsNewLink />
             <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
               <Dumbbell className="size-4 text-primary" aria-hidden /> {telegramUrl ? "Бесплатно · в браузере, Telegram и офлайн" : "Бесплатно · в браузере и офлайн"}
             </p>
