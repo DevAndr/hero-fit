@@ -17,3 +17,9 @@ export type FlagPatch = z.infer<typeof flagPatchSchema>;
 export function pickFlagUser(byLogin: { id: string } | null, byNickname: { id: string } | null): string | null {
   return byLogin?.id ?? byNickname?.id ?? null;
 }
+
+/** Поле «Процент»: пустое — null (не сохранять: `Number("")` дал бы 0 % и выключил раскатку), иначе число. */
+export function percentInput(text: string): number | null {
+  const t = text.trim();
+  return t === "" ? null : Number(t);
+}

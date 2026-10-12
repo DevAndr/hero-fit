@@ -7,7 +7,7 @@ import { weekRangeLabel } from "@/lib/recap/view";
 import { cn } from "@/lib/utils";
 
 /** Карточка «Итоги недели» на дашборде: до просмотра — акцентная с меткой «новое», после — компактная. */
-export function RecapCard({ recap, strength = true }: { recap: WeeklyRecapRow; /** Флаг strength_analytics. */ strength?: boolean }) {
+export function RecapCard({ recap, strength }: { recap: WeeklyRecapRow; /** Флаг strength_analytics — обязателен: по умолчанию блок показался бы и без флага. */ strength: boolean }) {
   const fresh = recap.seenAt === null;
   const highlights = recapHighlights(recap.data);
   return (

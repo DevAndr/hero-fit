@@ -1,8 +1,11 @@
+import { plural } from "@/lib/format";
+
 /** Прогноз цели по динамике (спека 2026-10-12-strength-analytics): линейный тренд по неделям → дата достижения. */
 
 export type Forecast =
   | { kind: "onTrack" | "eta"; date: string }
-  | { kind: "late"; date: string; need: number; pace: number }
+  /** need — нужно в неделю; меньше недели до срока (daysLeft < 7) — весь остаток до цели. */
+  | { kind: "late"; date: string; need: number; pace: number; daysLeft: number }
   | { kind: "stalled" }
   | { kind: "far" };
 
@@ -45,9 +48,10 @@ export function forecastGoal(input: {
   const date = toDay(toTime(today) + days * DAY_MS);
   if (!deadline) return { kind: "eta", date };
   if (date <= deadline) return { kind: "onTrack", date };
-  // Срок сегодня — не делим на ноль: хотя бы день
-  const weeksLeft = Math.max(1, (toTime(deadline) - toTime(today)) / DAY_MS) / 7;
-  return { kind: "late", date, need: round1(left / weeksLeft), pace: round1(slope) };
+  const daysLeft = Math.max(0, Math.round((toTime(deadline) - toTime(today)) / DAY_MS));
+  // Меньше недели — весь остаток: темп «в неделю» из долей недели раздувался (+5 кг за день → «+35 кг в неделю»)
+  const need = daysLeft < 7 ? left : left / (daysLeft / 7);
+  return { kind: "late", date, need: round1(need), pace: round1(slope), daysLeft };
 }
 
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
@@ -68,6 +72,10 @@ export function forecastText(f: Forecast, opts: { unit: "кг" | "повт."; bo
     case "eta":
       return `≈ ${dateText(f.date, opts.today)}`;
     case "late":
+      if (f.daysLeft < 7) {
+        const when = f.daysLeft === 0 ? "срок сегодня" : `осталось ${f.daysLeft} ${plural(f.daysLeft, "день", "дня", "дней")}`;
+        return `Не успеваешь к сроку: до цели ещё ${signed(f.need)} ${opts.unit}, ${when}`;
+      }
       return `Не успеваешь к сроку: нужно ${signed(f.need)} ${opts.unit} в неделю, сейчас ${signed(f.pace)}`;
     case "stalled":
       return opts.bodyWeight ? "Вес пока не движется к цели" : "Пока без роста — прогноз появится, когда пойдёт прогресс";
