@@ -196,10 +196,16 @@ export async function adminCounts(userId: string) {
   return { admined: count("PENDING") + count("APPROVED") + count("HIDDEN"), pending: count("PENDING") };
 }
 
-/** Похожие на заявку клубы (одобренные и на проверке) того же города. */
-export async function findSimilar(input: { city: string; name: string; address: string }, exceptId?: string): Promise<SimilarCandidate[]> {
+/**
+ * Похожие на заявку клубы того же города. Заявителю — только одобренные (чужие заявки на проверке не раскрываются,
+ * а их страницы ему 404); модератору — и заявки на проверке.
+ */
+export async function findSimilar(
+  input: { city: string; name: string; address: string },
+  { exceptId, withPending = false }: { exceptId?: string; withPending?: boolean } = {},
+): Promise<SimilarCandidate[]> {
   const clubs = await db.club.findMany({
-    where: { cityKey: clubKey(input.city), status: { in: ["APPROVED", "PENDING"] }, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    where: { cityKey: clubKey(input.city), status: { in: withPending ? ["APPROVED", "PENDING"] : ["APPROVED"] }, ...(exceptId ? { id: { not: exceptId } } : {}) },
     select: { id: true, name: true, address: true, cityKey: true, nameKey: true, addressKey: true },
     take: 500,
   });
@@ -285,7 +291,7 @@ export async function getClubsForReview(tab: "pending" | "approved", search: str
       members: c._count.members,
       createdAt: c.createdAt.toISOString(),
       applicant: c.admin,
-      similar: tab === "pending" ? (await findSimilar(c, c.id)).map(({ id, name, address }) => ({ id, name, address })) : [],
+      similar: tab === "pending" ? (await findSimilar(c, { exceptId: c.id, withPending: true })).map(({ id, name, address }) => ({ id, name, address })) : [],
     })),
   );
 }

@@ -72,11 +72,17 @@ test("application: consent checkbox, my clubs, pending limit, rejected reason", 
   await expect(mine.getByText("На проверке")).toBeVisible();
   await expect(mine.getByText("Отклонена: Нет такого зала")).toBeVisible();
 
-  // Похожий клуб — подсказка в форме
+  // Похожие — только одобренные: заявка «Железо» на проверке не подсказывается, одобренный «Железо Про» — да
   await page.goto("/clubs/new");
   await form.getByLabel("Город").fill(city);
   await form.getByLabel("Название").fill("Железо");
+  await expect(form.getByLabel("Адрес")).toBeVisible();
+  await page.waitForTimeout(1000);
+  await expect(form.getByText("Возможно, ваш зал уже есть")).toHaveCount(0);
+  await createClub(me.login, { status: "APPROVED", city, name: "Железо Про" });
+  await form.getByLabel("Название").fill("Железо ");
   await expect(form.getByText("Возможно, ваш зал уже есть")).toBeVisible();
+  await expect(form.getByRole("link", { name: "Железо Про" })).toBeVisible();
 
   // Лимит заявок на проверке
   await createClub(me.login, { status: "PENDING" });

@@ -40,6 +40,14 @@ describe("similarClubs", () => {
   it("совпадение по адресу", () => {
     expect(similarClubs({ city: "Москва", name: "Другой", address: "тверская, 1" }, [wcMsk]).map((c) => c.id)).toEqual(["wc-msk"]);
   });
+  it("короткий ввод не находит всё подряд: «содержит» — от 3 символов, точное совпадение — всегда", () => {
+    const sila = cand("s", "Сила", "Казань", "Баумана 5");
+    expect(similarClubs({ city: "Казань", name: "а", address: "б" }, [sila])).toEqual([]);
+    expect(similarClubs({ city: "Казань", name: "ил", address: "б" }, [sila])).toEqual([]);
+    expect(similarClubs({ city: "Казань", name: "сил", address: "б" }, [sila]).map((c) => c.id)).toEqual(["s"]);
+    expect(similarClubs({ city: "Казань", name: "x", address: "x" }, [cand("x", "X", "Казань", "x")]).map((c) => c.id)).toEqual(["x"]);
+  });
+
   it("не больше 5", () => {
     const many = Array.from({ length: 7 }, (_, i) => cand(`c${i}`, `Сила ${i}`, "Казань", `Адрес ${i}`));
     expect(similarClubs({ city: "Казань", name: "Сила", address: "нет" }, many)).toHaveLength(5);

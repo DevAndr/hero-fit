@@ -47,6 +47,20 @@ describe("toClubEvents", () => {
     expect(e.key).not.toContain("w1");
   });
 
+  it("при hideWeights силовые ачивки с весами не показываются чужим", () => {
+    const meta = {
+      achievements: [
+        { code: "lift:bench:100", title: "Клуб сотки: жим лёжа" },
+        { code: "weightkg:ex1:10", title: "Жим: +10 кг" },
+        { code: "bwratio:bench:125", title: "Жим лёжа: ×1,25 веса тела" },
+        { code: "workouts:5", title: "5 тренировок" },
+      ],
+    };
+    expect(toClubEvents(row({ hideWeights: true, meta }), "v")!.achievements).toEqual(["5 тренировок"]);
+    expect(toClubEvents(row({ hideWeights: false, meta }), "v")!.achievements).toHaveLength(4);
+    expect(toClubEvents(row({ userId: "v", hideWeights: true, meta }), "v")!.achievements).toHaveLength(4);
+  });
+
   it("свои веса не скрываются", () => {
     expect(toClubEvents(row({ userId: "viewer", hideWeights: true, meta: weightRecord }), "viewer")!.records[0].value).toBe(80);
   });

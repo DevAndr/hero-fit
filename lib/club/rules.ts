@@ -36,7 +36,10 @@ export const rejectReasonSchema = text(5, 200, "Причина");
 
 export type SimilarCandidate = { id: string; name: string; address: string; cityKey: string; nameKey: string; addressKey: string };
 
-const overlaps = (a: string, b: string) => a !== "" && b !== "" && (a === b || a.includes(b) || b.includes(a));
+/** «Содержит» — только для ключей от 3 символов: иначе одна буква находит всё подряд. */
+const MIN_PARTIAL = 3;
+const overlaps = (a: string, b: string) =>
+  a !== "" && b !== "" && (a === b || (Math.min(a.length, b.length) >= MIN_PARTIAL && (a.includes(b) || b.includes(a))));
 
 /** Возможные дубли заявки: тот же город, название или адрес совпадает или содержит другое. */
 export function similarClubs(input: { city: string; name: string; address: string }, clubs: SimilarCandidate[]): SimilarCandidate[] {

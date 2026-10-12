@@ -34,6 +34,8 @@ export type ClubEvent = {
 };
 
 const QUIET_ACHIEVEMENTS = /^login:/;
+/** Силовые ачивки с весом в названии («Жим лёжа: 120 кг», «+10 кг», «×1,25 веса тела») — скрываются при hideWeights. */
+const WEIGHT_ACHIEVEMENTS = /^(lift|weightkg|bwratio):/;
 const WEIGHT_RECORDS: RecordType[] = ["ONE_RM", "MAX_WEIGHT"];
 /** Запросов на одну подгрузку: тренировки без событий не должны обрывать ленту, но и не тянуть всю историю. */
 export const CLUB_FEED_QUERIES = 3;
@@ -50,7 +52,9 @@ export function toClubEvents(row: ClubFeedRow, viewerId: string): ClubEvent | nu
     title: titleLabel(row.titleCode),
     me,
     finishedAt,
-    achievements: (meta.achievements ?? []).filter((a) => !QUIET_ACHIEVEMENTS.test(a.code)).map((a) => a.title),
+    achievements: (meta.achievements ?? [])
+      .filter((a) => !QUIET_ACHIEVEMENTS.test(a.code) && !(hide && WEIGHT_ACHIEVEMENTS.test(a.code)))
+      .map((a) => a.title),
     levelUp: meta.levelAfter && meta.levelBefore && meta.levelAfter > meta.levelBefore ? meta.levelAfter : null,
     records: (meta.records ?? []).map((r) => ({
       exerciseName: r.exerciseName,
