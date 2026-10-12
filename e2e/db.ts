@@ -728,3 +728,30 @@ export async function goalRewardXp(login: string) {
     return rows[0].xp;
   });
 }
+
+/** Логин админа в e2e (ADMIN_LOGINS в playwright.config.ts). */
+export const E2E_ADMIN = "e2e_flag_admin";
+
+/** Сделать пользователя админом: логин E2E_ADMIN освобождается у прежнего владельца (прошлые прогоны). */
+export async function makeAdmin(login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set login = 'e2e_old_' || id where login = $1`, [E2E_ADMIN]);
+    await db.query(`update "User" set login = $2 where login = $1`, [login, E2E_ADMIN]);
+  });
+}
+
+/** Состояние фича-флага (минуя админку); logins — список «всегда включён». */
+export async function setFlag(key: string, s: { enabled: boolean; percent?: number; logins?: string[] }) {
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select id from "User" where login = any($1)`, [s.logins ?? []]);
+    await db.query(
+      `insert into "FeatureFlag" (key, enabled, percent, "userIds", "updatedAt") values ($1, $2, $3, $4, now())
+       on conflict (key) do update set enabled = $2, percent = $3, "userIds" = $4, "updatedAt" = now()`,
+      [key, s.enabled, s.percent ?? 0, rows.map((r) => r.id)],
+    );
+  });
+}
+
+export async function resetFlag(key: string) {
+  await withDb((db) => db.query(`delete from "FeatureFlag" where key = $1`, [key]));
+}

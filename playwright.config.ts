@@ -56,7 +56,7 @@ export default defineConfig({
       // DAILY_CHEST_AUTOOPEN=off — диалог ежедневного сундука не перекрывает дашборд (сам сундук — e2e/daily-chest.spec.ts);
       // ONBOARDING_TOUR=off — новые пользователи уже прошли экскурсию (сама экскурсия — e2e/onboarding.spec.ts)
       // APP_URL — локальный: иначе из .env подтянется боевой домен (canonical, индексация)
-      env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", APP_URL: `http://localhost:${PORT}`,
+      env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", FLAGS_CACHE_MS: "0", ADMIN_LOGINS: "e2e_flag_admin", APP_URL: `http://localhost:${PORT}`,
         // Telegram-бот ходит в фейковый Bot API (e2e/telegram-server.ts)
         TELEGRAM_BOT_TOKEN: "e2e-token", TELEGRAM_BOT_USERNAME: "hero_fit_e2e_bot", TELEGRAM_WEBHOOK_SECRET: "e2e-telegram-secret-0123456789abcdef", TELEGRAM_API_URL: TELEGRAM_FAKE_URL, TELEGRAM_POLLING: "off" },
       timeout: 60_000,
