@@ -230,3 +230,62 @@ export async function getClubManage(clubId: string, adminId: string) {
 }
 
 export type ClubManage = NonNullable<Awaited<ReturnType<typeof getClubManage>>>;
+
+/** Заявок на проверке — для пункта меню админа приложения. */
+export function pendingClubCount(): Promise<number> {
+  return db.club.count({ where: { status: "PENDING" } });
+}
+
+export type ReviewClub = {
+  id: string;
+  name: string;
+  city: string;
+  address: string;
+  contact: string;
+  status: ClubStatus;
+  members: number;
+  createdAt: string;
+  applicant: { login: string; nickname: string | null };
+  similar: { id: string; name: string; address: string }[];
+};
+
+/** Модерация: на проверке (старые первыми, с похожими) или одобренные и скрытые (поиск по названию, городу, адресу). */
+export async function getClubsForReview(tab: "pending" | "approved", search: string): Promise<ReviewClub[]> {
+  const q = clubKey(search);
+  const clubs = await db.club.findMany({
+    where:
+      tab === "pending"
+        ? { status: "PENDING" }
+        : {
+            status: { in: ["APPROVED", "HIDDEN"] },
+            ...(q ? { OR: [{ nameKey: { contains: q } }, { cityKey: { contains: q } }, { addressKey: { contains: q } }] } : {}),
+          },
+    orderBy: { createdAt: tab === "pending" ? "asc" : "desc" },
+    take: 100,
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      address: true,
+      contact: true,
+      status: true,
+      createdAt: true,
+      _count: memberCount,
+      admin: { select: { login: true, nickname: true } },
+    },
+  });
+  return Promise.all(
+    clubs.map(async (c) => ({
+      id: c.id,
+      name: c.name,
+      city: c.city,
+      address: c.address,
+      contact: c.contact,
+      status: c.status,
+      members: c._count.members,
+      createdAt: c.createdAt.toISOString(),
+      applicant: c.admin,
+      similar: tab === "pending" ? (await findSimilar(c, c.id)).map(({ id, name, address }) => ({ id, name, address })) : [],
+    })),
+  );
+}

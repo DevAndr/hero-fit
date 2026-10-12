@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
+import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ export function UserMenu({
   isCoach,
   isAdmin = false,
   unseen = false,
+  pendingClubs = 0,
 }: {
   name: string | null;
   login: string;
@@ -32,6 +33,8 @@ export function UserMenu({
   isAdmin?: boolean;
   /** Есть непросмотренный релиз «Что нового» — точка на аватаре и у пункта. */
   unseen?: boolean;
+  /** Заявок на клубы на проверке (админу приложения). */
+  pendingClubs?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
@@ -77,6 +80,13 @@ export function UserMenu({
           <DropdownMenuItem render={<Link href="/admin/flags" />}>
             <ToggleRight />
             Флаги
+          </DropdownMenuItem>
+        ) : null}
+        {isAdmin ? (
+          <DropdownMenuItem render={<Link href="/admin/clubs" />}>
+            <Building2 />
+            Клубы
+            {pendingClubs > 0 ? <span className="ml-auto rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">{pendingClubs}</span> : null}
           </DropdownMenuItem>
         ) : null}
         {/* Без prefetch={true}: открытие страницы помечает релиз просмотренным */}

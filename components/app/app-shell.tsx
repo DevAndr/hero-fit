@@ -62,11 +62,14 @@ export function AppShell({
   chest,
   notifications,
   whatsNewUnseen = false,
+  pendingClubs = 0,
   children,
 }: {
   user: CurrentUser;
   /** Есть непросмотренный видимый релиз «Что нового» (с учётом флагов — считает layout). */
   whatsNewUnseen?: boolean;
+  /** Заявок на клубы на проверке — только админу приложения. */
+  pendingClubs?: number;
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
@@ -97,6 +100,7 @@ export function AppShell({
             <UserMenu name={user.name} login={user.login} email={user.email} isCoach={user.isCoach}
               isAdmin={user.isAdmin}
               unseen={whatsNewUnseen}
+              pendingClubs={pendingClubs}
             />
           </div>
         </header>
