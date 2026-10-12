@@ -49,7 +49,8 @@ jobs:
     # main и ручной запуск — всегда; PR — только с меткой «e2e» (повесить метку = запустить)
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # ~560 сценариев на 2 ядрах приватного раннера не укладываются в 30 мин — задача отменялась по лимиту
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17-alpine
