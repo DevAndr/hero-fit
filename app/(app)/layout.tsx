@@ -11,7 +11,9 @@ import { requireUser } from "@/lib/auth/dal";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
+import { FlagsProvider } from "@/components/flags/flags-provider";
 import { env } from "@/lib/env";
+import { enabledFlags } from "@/lib/flags/server";
 import { getNotificationFeed } from "@/lib/notifications/queries";
 
 /** Личный кабинет — вне поиска (и так за входом, но ссылки могут утечь). */
@@ -22,7 +24,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const timeZone = (await cookies()).get(TIMEZONE_COOKIE)?.value;
   const visit = await recordDailyVisit(user, timeZone);
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
-  const [unseen, feed] = await Promise.all([getUnseenAchievements(user.id), getNotificationFeed(user.id)]);
+  const [unseen, feed, flags] = await Promise.all([getUnseenAchievements(user.id), getNotificationFeed(user.id), enabledFlags(user.id)]);
 
   const shell = (
     <AppShell
@@ -45,9 +47,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   );
 
   return (
-    <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
-      {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
-      {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
-    </PushProvider>
+    <FlagsProvider flags={flags}>
+      <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
+        {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
+        {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
+      </PushProvider>
+    </FlagsProvider>
   );
 }

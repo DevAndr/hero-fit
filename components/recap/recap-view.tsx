@@ -226,7 +226,17 @@ function Raid({ raid }: { raid: NonNullable<RecapData["raid"]> }) {
 }
 
 /** Полные итоги недели: герой, прирост и блоки (пустые не показываются). */
-export function RecapView({ data, bossChest = false }: { data: RecapData; /** Сундук босса этой недели можно забрать. */ bossChest?: boolean }) {
+export function RecapView({
+  data,
+  bossChest = false,
+  strength = true,
+}: {
+  data: RecapData;
+  /** Сундук босса этой недели можно забрать. */
+  bossChest?: boolean;
+  /** Флаг strength_analytics: выключен — блок «Сильнее» скрыт и в уже собранном снимке. */
+  strength?: boolean;
+}) {
   return (
     <div className="grid gap-4">
       <section aria-label="Главное за неделю" className="card-glow rounded-xl border p-5">
@@ -238,7 +248,7 @@ export function RecapView({ data, bossChest = false }: { data: RecapData; /** С
           ))}
         </ul>
       </section>
-      {data.strength ? <StrengthBlock strength={data.strength} /> : null}
+      {strength && data.strength ? <StrengthBlock strength={data.strength} /> : null}
       <Totals totals={data.totals} />
       <div className="grid gap-4 lg:grid-cols-2">
         {data.bestSet ? <BestSet best={data.bestSet} /> : null}

@@ -976,3 +976,18 @@ model BodyWeightEntry {
 
   @@unique([userId, date])
 }
+
+// ───────────────────────────── Фича-флаги ─────────────────────────────
+
+/// Состояние флага из реестра lib/flags/registry.ts; нет строки — выключен. enabled = false — выключен для всех (kill switch).
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  /// доля пользователей 0…100 (стабильно по userId — lib/flags/eval.ts)
+  percent   Int      @default(0)
+  /// всегда включён этим пользователям (при enabled)
+  userIds   String[] @default([])
+  updatedAt DateTime @updatedAt
+  /// логин админа, менявшего последним
+  updatedBy String?
+}

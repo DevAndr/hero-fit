@@ -32,6 +32,7 @@ import { getMuscleBalance, getMuscleRecovery } from "@/lib/progress/recovery-que
 import { getProgressionHints, getStats, getTrends } from "@/lib/stats/queries";
 import { getMonthCompare } from "@/lib/stats/strength-queries";
 import { cn } from "@/lib/utils";
+import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Клиент" };
 
@@ -311,7 +312,7 @@ async function Workouts({ clientId, coachId, tz, base, cursor }: { clientId: str
 }
 
 async function Stats({ clientId, tz, base }: { clientId: string; tz: string; base: string }) {
-  const [stats, trends, month] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz), getMonthCompare(clientId, tz)]);
+  const [stats, trends, month] = await Promise.all([getStats(clientId, tz), getTrends(clientId, tz), isEnabled("strength_analytics", clientId).then((on) => (on ? getMonthCompare(clientId, tz) : null))]);
   return (
     <StatsView
       data={{ stats, trends, month }}

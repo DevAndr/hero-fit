@@ -8,6 +8,10 @@ const schema = z.object({
   JWT_ACCESS_TTL: z.string().default("15m"),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
   APP_URL: z.url().default("http://localhost:3000"),
+  /** Логины админов через запятую (lib/auth/admin.ts) — страница /admin/flags. */
+  ADMIN_LOGINS: z.string().optional(),
+  /** Кэш фича-флагов в памяти процесса, мс (e2e — 0). */
+  FLAGS_CACHE_MS: z.coerce.number().int().min(0).default(10_000),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_USER: z.string().optional(),

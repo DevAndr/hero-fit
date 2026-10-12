@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
 import { forecastGoal, forecastShort, forecastText } from "@/lib/goals/forecast";
 import type { GoalRow } from "@/lib/goals/rules";
 import { localMidnight } from "@/lib/progress/weekly-streak";
@@ -30,6 +31,7 @@ export async function getGoalForecasts(
   const strength = goals.filter((g) => g.type === "STRENGTH" && g.exerciseId && g.metric);
   const weightGoals = goals.filter((g) => g.type === "BODY_WEIGHT");
   if (!strength.length && !weightGoals.length) return out;
+  if (!(await isEnabled("strength_analytics", userId))) return out; // флаг владельца целей
 
   const today = dayKey(now, tz);
   const firstWeek = new Date(Date.parse(`${weekStart(today)}T12:00:00Z`) - (FORECAST_WEEKS - 1) * 7 * 86_400_000).toISOString().slice(0, 10);

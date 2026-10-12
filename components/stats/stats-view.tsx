@@ -16,7 +16,8 @@ import type { getStats, getTrends } from "@/lib/stats/queries";
 export type StatsViewData = {
   stats: Awaited<ReturnType<typeof getStats>>;
   trends: Awaited<ReturnType<typeof getTrends>>;
-  month: MonthCompare;
+  /** null — флаг strength_analytics выключен у владельца статистики. */
+  month: MonthCompare | null;
 };
 
 const hours = (sec: number) => `${(sec / 3600).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
@@ -69,7 +70,7 @@ export function StatsView({
 
   return (
     <div className="space-y-6">
-      <MonthCompareCard data={data.month} />
+      {data.month ? <MonthCompareCard data={data.month} /> : null}
       <section aria-label="Тренировки" className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Тренировки</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

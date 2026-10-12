@@ -8,6 +8,7 @@ import { recapPushBody } from "./build";
 import { createRecap } from "./queries";
 import { recapWeekFor, shouldPushRecap } from "./schedule";
 import { RECAP_BATCH, RECAP_HOUR, type RecapData } from "./types";
+import { isEnabled } from "@/lib/flags/server";
 
 /**
  * Пользователи, у которых по местному времени понедельник ≥ RECAP_HOUR:00; cur — начало текущей недели (местное),
@@ -60,6 +61,8 @@ async function pushRecaps(now: Date) {
   let sent = 0;
   for (const recap of due) {
     if (!shouldPushRecap({ week: recap.week, pushedAt: null, seenAt: null }, now, safeTimeZone(recap.timeZone))) continue;
+    // Флаг strength_analytics выключен после сборки снимка — push без «Ты стал сильнее»
+    const data = (await isEnabled("strength_analytics", recap.userId)) ? recap.data : { ...recap.data, strength: undefined };
     await db.$transaction(async (tx) => {
       // Условие по pushedAt — параллельный тик не отправит второй раз; просмотренные до отправки — без push.
       const { count } = await tx.weeklyRecap.updateMany({ where: { id: recap.id, pushedAt: null, seenAt: null }, data: { pushedAt: now } });
@@ -67,7 +70,7 @@ async function pushRecaps(now: Date) {
       await notify(
         tx,
         recap.userId,
-        { type: NotificationType.RECAP, title: "Итоги недели 📊", body: recapPushBody(recap.data), url: `/recap/${recap.week}` },
+        { type: NotificationType.RECAP, title: "Итоги недели 📊", body: recapPushBody(data), url: `/recap/${recap.week}` },
         { push: true },
       );
       sent++;
