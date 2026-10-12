@@ -35,4 +35,12 @@ describe("pain store", () => {
     prunePain("w2", s);
     expect([...s.map.keys()].sort()).toEqual(["hf:pain:w2", "hf:workout:w2"]);
   });
+
+  it("выход из аккаунта — боль убирается вся", () => {
+    const s = memory();
+    writePain("w1", ["knee"], s);
+    writePain("w2", ["neck"], s);
+    prunePain(null, s);
+    expect([...s.map.keys()]).toEqual([]);
+  });
 });
