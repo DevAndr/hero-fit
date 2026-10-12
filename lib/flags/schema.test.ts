@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flagPatchSchema, pickFlagUser } from "./schema";
+import { flagPatchSchema, percentInput, pickFlagUser } from "./schema";
 
 const error = (patch: unknown) => {
   const r = flagPatchSchema.safeParse(patch);
@@ -33,5 +33,17 @@ describe("pickFlagUser", () => {
   it("нет логина — по нику; ничего — null", () => {
     expect(pickFlagUser(null, { id: "b" })).toBe("b");
     expect(pickFlagUser(null, null)).toBeNull();
+  });
+});
+
+describe("percentInput", () => {
+  it("пустое поле — не 0 %, а «нет значения»", () => {
+    expect(percentInput("")).toBeNull();
+    expect(percentInput("   ")).toBeNull();
+  });
+  it("число с пробелами — число, мусор — NaN (его отвергнет схема)", () => {
+    expect(percentInput(" 25 ")).toBe(25);
+    expect(percentInput("0")).toBe(0);
+    expect(Number.isNaN(percentInput("abc"))).toBe(true);
   });
 });

@@ -58,9 +58,11 @@ async function monthTotals(userId: string, timeZone: string, from: string, to: s
     SELECT COUNT(*)::int AS workouts,
            (COALESCE(SUM("durationSec"), 0) / 3600.0)::float8 AS hours,
            COALESCE(SUM("totalVolume"), 0)::float8 AS volume,
-           (SELECT COALESCE(SUM(jsonb_array_length(meta->'records')), 0) FROM "XpEvent"
-             WHERE "userId" = ${userId} AND reason = 'PERSONAL_RECORD' AND jsonb_typeof(meta->'records') = 'array'
-               AND "createdAt" >= ${start} AND "createdAt" < ${end})::int AS records
+           -- По времени тренировки, а не записи события: офлайн-финиш синхронизируется позже, на границе месяцев — в чужой месяц
+           (SELECT COALESCE(SUM(jsonb_array_length(x.meta->'records')), 0) FROM "XpEvent" x
+             JOIN "Workout" rw ON rw.id = x."workoutId"
+             WHERE x."userId" = ${userId} AND x.reason = 'PERSONAL_RECORD' AND jsonb_typeof(x.meta->'records') = 'array'
+               AND rw."finishedAt" >= ${start} AND rw."finishedAt" < ${end})::int AS records
     FROM "Workout"
     WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "finishedAt" >= ${start} AND "finishedAt" < ${end}
   `;
