@@ -1,3 +1,4 @@
+import { MyDataCard } from "@/components/account/my-data-card";
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/app-shell";
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
       {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />
+      <MyDataCard />
     </div>
   );
 }

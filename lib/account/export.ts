@@ -75,6 +75,7 @@ const PROFILE_FIELDS = [
   "createdAt",
   "privacyAcceptedAt",
   "xp",
+  "level",
   "currentStreak",
   "longestStreak",
   "hideWeights",
