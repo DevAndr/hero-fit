@@ -75,17 +75,24 @@ describe("statsToCompute", () => {
 });
 
 describe("publicAwards", () => {
-  it("только тренерские, без «На виду», вершины лестниц первыми", () => {
+  it("только тренерские, без «На виду», одна высшая ступень на лестницу", () => {
     expect(publicAwards(["coachclients:1", "coachclients:3", "coachpage:1", "workouts:5", "coachworkouts:1000"])).toEqual([
       "coachworkouts:1000",
       "coachclients:3",
-      "coachclients:1",
     ]);
   });
 
-  it("при равной ступени — порядок лестниц, не больше 6", () => {
-    const codes = ["coachgoals:1", "coachprs:10", "coachclients:1", "coachcomments:1", "coachworkouts:10", "coachprog:5", "coachgoals:5"];
-    expect(publicAwards(codes)).toEqual(["coachgoals:5", "coachclients:1", "coachcomments:1", "coachworkouts:10", "coachprs:10", "coachprog:5"]);
+  it("вершина короткой лестницы выше середины длинной; при равной доле — порядок лестниц", () => {
+    expect(publicAwards(["coachworkouts:250", "coachprog:100", "coachgoals:1", "coachclients:1"])).toEqual([
+      "coachprog:100",
+      "coachworkouts:250",
+      "coachclients:1",
+      "coachgoals:1",
+    ]);
+  });
+
+  it("не больше 6 (по числу лестниц)", () => {
+    const codes = ["coachclients:1", "coachcomments:1", "coachworkouts:10", "coachprs:10", "coachprog:5", "coachgoals:1", "coachgoals:5"];
     expect(publicAwards([...codes, ...codes])).toHaveLength(6);
   });
 

@@ -94,19 +94,24 @@ export const MAX_PUBLIC_AWARDS = 6;
 
 /**
  * Ачивки тренера для публичной страницы: только тренерские лестницы (без «На виду» — страница и так опубликована),
- * сначала старшие ступени своей лестницы, при равенстве — порядок лестниц; до MAX_PUBLIC_AWARDS.
+ * по одной — высшей полученной ступени — на лестницу; сначала ближе к вершине своей лестницы, при равенстве — порядок
+ * лестниц; до MAX_PUBLIC_AWARDS.
  */
 export function publicAwards(codes: string[]): string[] {
   const keys = Object.keys(COACH_LADDERS) as CoachLadderKey[];
-  const ranked = [...new Set(codes)].flatMap((code) => {
+  const best = new Map<number, { code: string; ladder: number; step: number; share: number }>();
+  for (const code of codes) {
     const [prefix, n] = code.split(":");
     const ladder = keys.findIndex((k) => COACH_CODE_PREFIX[k] === prefix);
-    if (ladder < 0) return [];
-    const step = (COACH_LADDERS[keys[ladder]] as number[]).indexOf(Number(n));
-    return step < 0 ? [] : [{ code, ladder, step }];
-  });
-  return ranked
-    .sort((a, b) => b.step - a.step || a.ladder - b.ladder)
+    if (ladder < 0) continue;
+    const fixed: number[] = COACH_LADDERS[keys[ladder]];
+    const step = fixed.indexOf(Number(n));
+    if (step < 0) continue;
+    const prev = best.get(ladder);
+    if (!prev || step > prev.step) best.set(ladder, { code, ladder, step, share: step / (fixed.length - 1) });
+  }
+  return [...best.values()]
+    .sort((a, b) => b.share - a.share || a.ladder - b.ladder)
     .slice(0, MAX_PUBLIC_AWARDS)
     .map((a) => a.code);
 }

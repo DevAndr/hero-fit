@@ -10,14 +10,8 @@ type Client = Prisma.TransactionClient;
  * поэтому ушёл и вернулся — два окна, без двойного счёта.
  */
 export async function coachStats(client: Client, coachId: string, isCoach: boolean): Promise<CoachAchievementStats> {
-  if (!isCoach) {
-    // Не тренер и никогда им не был — без лишнего SQL
-    const [link, comment] = await Promise.all([
-      client.coachLink.findFirst({ where: { coachId }, select: { id: true } }),
-      client.coachComment.findFirst({ where: { coachId }, select: { id: true } }),
-    ]);
-    if (!link && !comment) return EMPTY_COACH_STATS;
-  }
+  // Без режима тренера лестницы COACH всё равно обнуляются — не тратим запросы ни игрокам, ни бывшим тренерам
+  if (!isCoach) return EMPTY_COACH_STATS;
   const [row] = await client.$queryRaw<CoachAchievementStats[]>`
     WITH win AS (
       SELECT "clientId", "createdAt" AS s, COALESCE("endedAt", now()) AS e FROM "CoachLink" WHERE "coachId" = ${coachId}

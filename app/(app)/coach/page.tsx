@@ -11,6 +11,7 @@ import { InviteCard } from "@/components/coach/invite-card";
 import { buttonVariants } from "@/components/ui/button";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { getUnseenAchievements } from "@/lib/achievements/queries";
+import { quietly } from "@/lib/achievements/quietly";
 import { requireCoach } from "@/lib/coach/access";
 import { clientPickLabels } from "@/lib/coach/assign";
 import { sortClients } from "@/lib/coach/clients";
@@ -33,7 +34,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   const query = await searchParams;
   // Результаты клиентов (тренировки, рекорды, цели) — ачивки тренера сразу, без ожидания следующего входа.
   // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
-  const granted = await evaluateAchievementsNow(coach.id);
+  const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0 });
   const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
   const [code, clients, templates, groups] = await Promise.all([
     ensureCoachCode(coach.id),
