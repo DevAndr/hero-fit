@@ -12,6 +12,7 @@ export function ReleaseList({ releases }: { releases: Release[] }) {
           <header className="space-y-1">
             <p className="text-sm text-muted-foreground">
               <time dateTime={r.date}>{date.format(new Date(`${r.date}T12:00:00Z`)).replace(/\s*г\.$/, "")}</time>
+              <span className="ml-2 rounded-md border px-1.5 py-0.5 font-mono text-xs">v{r.version}</span>
             </p>
             <h2 className="font-display text-xl font-bold sm:text-2xl">{r.title}</h2>
             <p className="text-pretty text-muted-foreground">{r.summary}</p>

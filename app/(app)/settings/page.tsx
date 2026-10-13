@@ -4,6 +4,8 @@ import { getDeletionInput } from "@/lib/account/delete";
 import { deletionPreview } from "@/lib/account/rules";
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { buildLabel } from "@/lib/changelog/version";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
 import { CoachModeCard, MyCoachCard } from "@/components/coach/coach-settings";
@@ -58,6 +60,12 @@ export default async function SettingsPage() {
       <RestartTourButton />
       <MyDataCard />
       <DeleteAccount hasPassword={hasPassword} preview={deletionPreview(deletion)} />
+      <p className="pt-2 text-center text-xs text-muted-foreground">
+        Hero Fit {buildLabel(process.env.APP_VERSION, process.env.GIT_SHA)} ·{" "}
+        <Link href="/whats-new" className="underline-offset-4 hover:underline">
+          Что нового
+        </Link>
+      </p>
     </div>
   );
 }
