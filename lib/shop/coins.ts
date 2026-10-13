@@ -1,3 +1,7 @@
+import type { Prisma } from "@/generated/prisma/client";
+import type { CoinReason } from "@/generated/prisma/enums";
+import { levelProgress } from "@/lib/progress/level";
+
 /** Ставки монет (спека 2026-10-13-cosmetics-shop). Чистые функции — без server-only, их читает и клиент. */
 export const COIN_RATES = {
   workout: 10,
@@ -45,5 +49,57 @@ export function levelCoins(level: number): number {
 export function levelUpCoins(levelBefore: number, levelAfter: number): { level: number; amount: number }[] {
   const out: { level: number; amount: number }[] = [];
   for (let level = levelBefore + 1; level <= levelAfter; level++) out.push({ level, amount: levelCoins(level) });
+  return out;
+}
+
+/** Начисление: `key` делает его идемпотентным, `label` — подпись для сводки (в журнал не пишется). */
+export type CoinGrant = { reason: CoinReason; key: string; amount: number; meta?: Prisma.InputJsonValue; label?: string };
+
+/** Строка «+N монет» в сводке тренировки. */
+export type CoinLine = { reason: CoinReason; amount: number; label: string };
+
+/** Монеты за уровни между двумя значениями XP: ключ `level:<N>` — повтор уровня монет не даёт. */
+export function levelUpGrants(xpBefore: number, xpAfter: number): CoinGrant[] {
+  return levelUpCoins(levelProgress(xpBefore).level, levelProgress(xpAfter).level).map(({ level, amount }) => ({
+    reason: "LEVEL_UP" as const,
+    key: `level:${level}`,
+    amount,
+    label: `Уровень ${level}`,
+  }));
+}
+
+export type WorkoutCoinInput = {
+  workoutId: string;
+  /** Местный день завершения (YYYY-MM-DD). */
+  day: string;
+  workingSets: number;
+  /** Сколько тренировок этого дня уже оплачено. */
+  paidToday: number;
+  records: { exerciseId: string; exerciseName: string }[];
+  /** Ключ недели, если она засчитана этой тренировкой (3+ тренировок), иначе null. */
+  streakWeek: string | null;
+  streak: number;
+  levelBefore: number;
+  levelAfter: number;
+};
+
+/** Монеты за завершённую тренировку: сама тренировка, рекорды, неделя серии, уровни. */
+export function workoutCoinGrants(input: WorkoutCoinInput): CoinGrant[] {
+  const out: CoinGrant[] = [];
+  const workout = workoutCoins(input.workingSets, input.paidToday);
+  if (workout > 0) {
+    out.push({ reason: "WORKOUT", key: `workout:${input.workoutId}`, amount: workout, meta: { day: input.day }, label: "Тренировка" });
+  }
+  const seen = new Set<string>();
+  const exercises = input.records.filter((r) => !seen.has(r.exerciseId) && seen.add(r.exerciseId));
+  for (const r of exercises.slice(0, COIN_RATES.recordsPerWorkout)) {
+    out.push({ reason: "RECORD", key: `record:${input.workoutId}:${r.exerciseId}`, amount: COIN_RATES.record, label: `Рекорд: ${r.exerciseName}` });
+  }
+  if (input.streakWeek) {
+    out.push({ reason: "STREAK_WEEK", key: `streakw:${input.streakWeek}`, amount: streakWeekCoins(input.streak), label: "Неделя серии" });
+  }
+  for (const { level, amount } of levelUpCoins(input.levelBefore, input.levelAfter)) {
+    out.push({ reason: "LEVEL_UP", key: `level:${level}`, amount, label: `Уровень ${level}` });
+  }
   return out;
 }

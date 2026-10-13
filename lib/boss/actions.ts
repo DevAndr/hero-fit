@@ -6,10 +6,12 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievements } from "@/lib/achievements/engine";
 import { rewardXp } from "@/lib/boss/damage";
+import { grantChestCoins } from "@/lib/shop/earn";
+import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 
 /** Сундук за победу над боссом недели `week`: XP = HP / 20, забрать можно один раз. */
-export async function openBossChestAction(week: string): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+export async function openBossChestAction(week: string): Promise<{ ok: true; amount: number; coins: number } | { ok: false; error: string }> {
   const user = await requireUser();
   const result = await db.$transaction(async (tx) => {
     const boss = await tx.bossWeek.findUnique({ where: { userId_week: { userId: user.id, week } } });
@@ -27,8 +29,9 @@ export async function openBossChestAction(week: string): Promise<{ ok: true; amo
     });
     const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: amount } }, select: { xp: true } });
     await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    const coins = await grantChestCoins(tx, user.id, { reason: "BOSS_CHEST", key: `chest:boss:${week}`, amount: COIN_RATES.bossChest, label: "Сундук босса" }, xp - amount, xp);
     await evaluateAchievements(tx, user.id);
-    return { ok: true as const, amount };
+    return { ok: true as const, amount, coins };
   });
   if (result.ok) revalidatePath("/", "layout");
   return result;

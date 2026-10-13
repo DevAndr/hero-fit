@@ -34,7 +34,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   const query = await searchParams;
   // Результаты клиентов (тренировки, рекорды, цели) — ачивки тренера сразу, без ожидания следующего входа.
   // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
-  const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0 });
+  const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0, coins: [] });
   const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
   const [code, clients, templates, groups] = await Promise.all([
     ensureCoachCode(coach.id),

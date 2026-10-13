@@ -19,6 +19,8 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
+import { achievementCoins, levelUpGrants, type CoinGrant } from "@/lib/shop/coins";
+import { grantCoinsDetailed } from "@/lib/shop/coins-db";
 import { MAX_REWARD_FREEZES, weekKey } from "@/lib/progress/weekly-streak";
 
 type Client = Prisma.TransactionClient;
@@ -297,13 +299,13 @@ const MAX_ROUNDS = 5;
 export async function evaluateAchievements(
   client: Client,
   userId: string,
-): Promise<{ achievements: NewAchievement[]; xp: number }> {
+): Promise<{ achievements: NewAchievement[]; xp: number; coins: CoinGrant[] }> {
   const [stats, owned] = await Promise.all([
     getAchievementStats(client, userId),
     client.userAchievement.findMany({ where: { userId }, select: { code: true } }),
   ]);
   const have = new Set(owned.map((a) => a.code));
-  const total: { achievements: NewAchievement[]; xp: number } = { achievements: [], xp: 0 };
+  const total: { achievements: NewAchievement[]; xp: number; coins: CoinGrant[] } = { achievements: [], xp: 0, coins: [] };
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const fresh = earnedAchievements(stats).filter((a) => !have.has(a.code));
@@ -315,6 +317,7 @@ export async function evaluateAchievements(
     stats.level = granted.level;
     total.achievements.push(...fresh.map(({ code, title, description, xpReward }) => ({ code, title, description, xpReward })));
     total.xp += granted.xp;
+    total.coins.push(...granted.coins);
   }
   return total;
 }
@@ -324,7 +327,7 @@ export function evaluateAchievementsNow(userId: string) {
   return db.$transaction((tx) => evaluateAchievements(tx, userId), { timeout: 15_000 });
 }
 
-async function grant(client: Client, userId: string, fresh: AchievementDef[]): Promise<{ xp: number; level: number } | null> {
+async function grant(client: Client, userId: string, fresh: AchievementDef[]): Promise<{ xp: number; level: number; coins: CoinGrant[] } | null> {
   const { count } = await client.userAchievement.createMany({
     // Явный список полей: freezeReward — правило выдачи, в БД его нет
     data: fresh.map(({ code, category, title, description, threshold, exerciseId, xpReward }) => ({
@@ -361,6 +364,11 @@ async function grant(client: Client, userId: string, fresh: AchievementDef[]): P
   });
   const user = await client.user.update({ where: { id: userId }, data: { xp: { increment: xp } }, select: { xp: true } });
   const { level } = levelProgress(user.xp);
+  // Монеты: за каждую ачивку и за уровни, которые принёс её XP (ключи делают повтор безопасным)
+  const coins = await grantCoinsDetailed(client, userId, [
+    ...fresh.map((a) => ({ reason: "ACHIEVEMENT" as const, key: `ach:${a.code}`, amount: achievementCoins(a.xpReward), label: `Ачивка: ${a.title}` })),
+    ...levelUpGrants(user.xp - xp, user.xp),
+  ]);
   // Заморозки-награды копятся сверх еженедельного лимита, но не больше MAX_REWARD_FREEZES
   const freezes = fresh.reduce((sum, a) => sum + (a.freezeReward ?? 0), 0);
   const current = freezes
@@ -370,5 +378,5 @@ async function grant(client: Client, userId: string, fresh: AchievementDef[]): P
     where: { id: userId },
     data: { level, ...(freezes ? { streakFreezes: Math.min(MAX_REWARD_FREEZES, current + freezes) } : {}) },
   });
-  return { xp, level };
+  return { xp, level, coins };
 }
