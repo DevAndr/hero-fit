@@ -24,6 +24,8 @@ FROM deps AS build
 ARG APP_URL
 # Номер счётчика Яндекс.Метрики (необязательно): вшивается в клиентский код при сборке
 ARG NEXT_PUBLIC_YM_ID
+# Короткий sha коммита (необязательно): рядом с версией в /settings (next.config.ts)
+ARG GIT_SHA
 COPY . .
 RUN test -n "$APP_URL" || (echo "APP_URL build arg is required" && exit 1)
 # Секреты-заглушки только на время сборки (lib/env.ts валидирует окружение при импорте), в образ не попадают;

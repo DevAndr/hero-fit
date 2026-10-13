@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { setChangelogSeen } from "./db";
 import { registerUser } from "./helpers";
 import { RELEASES } from "../lib/changelog/releases";
+import pkg from "../package.json";
 
 // Скрытие пунктов под флагом — unit-тест visibleRelease: глобальный флаг здесь не трогаем (strength-analytics.spec)
 test("guest opens the changelog from the landing footer", async ({ page }) => {
@@ -42,4 +43,14 @@ test("opening «Что нового» from the profile menu clears the dot witho
   await page.getByRole("menuitem", { name: /Что нового/ }).click();
   await expect(page).toHaveURL(/\/whats-new$/);
   await expect(page.getByTestId("whats-new-dot")).toHaveCount(0);
+});
+
+test("app version is shown in settings and on release cards", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/settings");
+  // Локальная сборка без GIT_SHA — только версия
+  await expect(page.getByText(`Hero Fit v${pkg.version}`)).toBeVisible();
+  await page.getByRole("link", { name: "Что нового", exact: true }).last().click();
+  await expect(page).toHaveURL(/\/whats-new$/);
+  await expect(page.getByRole("article", { name: RELEASES[0].title }).getByText(`v${RELEASES[0].version}`)).toBeVisible();
 });

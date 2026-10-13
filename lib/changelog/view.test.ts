@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { isFlagKey } from "@/lib/flags/registry";
+import pkg from "@/package.json";
 import { RELEASES } from "./releases";
 import type { ChangeItem, Release } from "./types";
+import { buildLabel, compareVersions, SEMVER } from "./version";
 import { hasUnseen, isPublicHref, isRecent, latestReleaseId, userChangelog, visibleRelease } from "./view";
 
 const rel = (id: string, date: string, items: ChangeItem[], improved?: ChangeItem[]): Release => ({
   id,
+  version: "0.1.0",
   date,
   title: `Релиз ${id}`,
   summary: "Коротко",
@@ -84,6 +87,33 @@ describe("RELEASES", () => {
         expect(item.text).not.toMatch(/флаг|админ/i);
       }
     }
+  });
+
+  it("версии растут, у последнего релиза — версия из package.json", () => {
+    for (const [i, r] of RELEASES.entries()) {
+      expect(r.version).toMatch(SEMVER);
+      if (i > 0) expect(compareVersions(r.version, RELEASES[i - 1].version)).toBeLessThan(0);
+    }
+    // Упало — при сборке релиза не подняли версию: npm version minor --no-git-tag-version (hotfix — patch)
+    expect(RELEASES[0].version).toBe(pkg.version);
+  });
+});
+
+describe("compareVersions", () => {
+  it("сравнивает числа, а не строки", () => {
+    expect(compareVersions("0.10.0", "0.9.0")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.0", "0.99.9")).toBeGreaterThan(0);
+    expect(compareVersions("0.4.1", "0.4.0")).toBeGreaterThan(0);
+    expect(compareVersions("0.4.0", "0.4.0")).toBe(0);
+    expect(compareVersions("0.3.0", "0.4.0")).toBeLessThan(0);
+  });
+});
+
+describe("buildLabel", () => {
+  it("sha из CI — через точку, локальная сборка — только версия", () => {
+    expect(buildLabel("0.4.0", "a1b2c3d")).toBe("v0.4.0 · a1b2c3d");
+    expect(buildLabel("0.4.0", "dev")).toBe("v0.4.0");
+    expect(buildLabel("0.4.0", undefined)).toBe("v0.4.0");
   });
 });
 
