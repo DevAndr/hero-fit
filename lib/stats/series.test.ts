@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityGrid, rhythm, strengthSeries, weeklySeries, weekStart, type DayRow } from "./series";
+import { activityGrid, rhythm, strengthSeries, weeklySeries, type DayRow } from "./series";
 
 const day = (d: string, volume: number, extra: Partial<DayRow> = {}): DayRow => ({
   day: d,
@@ -9,14 +9,6 @@ const day = (d: string, volume: number, extra: Partial<DayRow> = {}): DayRow => 
   sets: 10,
   prs: 0,
   ...extra,
-});
-
-describe("weekStart", () => {
-  it("returns Monday of the week", () => {
-    expect(weekStart("2026-10-07")).toBe("2026-10-05"); // среда
-    expect(weekStart("2026-10-05")).toBe("2026-10-05"); // понедельник
-    expect(weekStart("2026-10-11")).toBe("2026-10-05"); // воскресенье
-  });
 });
 
 describe("weeklySeries", () => {

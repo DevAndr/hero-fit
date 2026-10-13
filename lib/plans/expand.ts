@@ -3,6 +3,8 @@
  * из серии (перенос / отмена одной даты). Даты — «YYYY-MM-DD», время — «HH:MM» местного времени пользователя.
  */
 
+import { addDays, weekdayOf } from "@/lib/dates";
+
 export type PlanSeriesRow = {
   id: string;
   templateId: string | null;
@@ -45,12 +47,8 @@ export type Occurrence = {
   coachId: string | null;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** Полдень UTC — арифметика дат без влияния переходов на летнее время. */
-const noon = (date: string) => Date.parse(`${date}T12:00:00Z`);
 
-export const addDays = (date: string, n: number) => new Date(noon(date) + n * DAY_MS).toISOString().slice(0, 10);
-export const weekdayOf = (date: string) => (new Date(noon(date)).getUTCDay() + 6) % 7;
+export { addDays, weekdayOf };
 
 export const seriesKey = (seriesId: string, date: string) => `s:${seriesId}:${date}`;
 export const entryKey = (entryId: string) => `e:${entryId}`;

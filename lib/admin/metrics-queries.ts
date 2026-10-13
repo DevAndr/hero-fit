@@ -2,7 +2,8 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { addDays, cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
+import { addDays, weekStart } from "@/lib/dates";
 
 /*
  * Метрики админки — агрегаты по всей базе, границы периодов (дни, недели с понедельника) — в поясе админа.
@@ -29,11 +30,6 @@ const activitySql = (from: string) => Prisma.sql`
   FROM "Workout" w JOIN "User" u ON u.id = w."userId"
   WHERE w.status = 'COMPLETED' AND w."finishedAt" >= ${utcFloor(from)} AND ${playerDay} >= ${from}::date
 `;
-
-function mondayOf(day: string) {
-  const weekday = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
-  return addDays(day, -weekday);
-}
 
 export type Overview = {
   users: number;
@@ -134,7 +130,7 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
 
 /** Удержание: последние 8 недель регистрации (включая текущую) × недели 0…6 после неё. */
 export async function getCohorts(tz: string): Promise<CohortRow[]> {
-  const currentWeek = mondayOf(dayKey(new Date(), tz));
+  const currentWeek = weekStart(dayKey(new Date(), tz));
   const from = addDays(currentWeek, -7 * (COHORTS - 1));
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const [sizes, active] = await Promise.all([

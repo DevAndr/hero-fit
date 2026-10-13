@@ -146,7 +146,7 @@ export async function copyPlanAction(
           await tx.planSeries.createMany({ data: plan.series.map((s) => ({ ...s, userId: clientId, coachId: coach.id })) });
         if (plan.entries.length)
           await tx.planEntry.createMany({
-            data: plan.entries.map(({ cancelled: _, ...e }) => ({ ...e, userId: clientId, coachId: coach.id })),
+            data: plan.entries.map(({ cancelled, ...e }) => ({ ...e, userId: clientId, coachId: coach.id })),
           });
         for (const { templateId, exerciseId, sets, reps, weight, step } of plan.targets) {
           await tx.coachTarget.upsert({
