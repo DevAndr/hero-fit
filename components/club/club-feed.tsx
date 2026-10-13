@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
 import { useState, useTransition } from "react";
 import { ArrowBigUpDash, Flame, ListChecks, Loader2, Medal, Swords, Target, Trophy, Users } from "lucide-react";
 import { ago, recordText } from "@/components/social/activity-feed";
@@ -37,8 +39,11 @@ export function ClubFeed({ clubId, initial }: { clubId: string; initial: { event
       <ul aria-label="Лента клуба" className="space-y-2">
         {events.map((e) => (
           <li key={e.key} className={cn("rounded-xl border bg-card p-4", e.me && "border-primary/30")}>
-            <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-semibold break-words">{e.me ? "Вы" : e.nickname}</span>
+            <p className="flex flex-wrap items-center gap-x-2">
+              <PlayerAvatar nickname={e.nickname} cosmetics={e.cosmetics} size="sm" />
+              <span className="font-semibold break-words">
+                {e.me ? "Вы" : <PlayerName nickname={e.nickname} color={e.cosmetics?.nickColor} />}
+              </span>
               <span className="text-xs text-muted-foreground">
                 <time dateTime={e.finishedAt} suppressHydrationWarning>
                   {ago(e.finishedAt)}

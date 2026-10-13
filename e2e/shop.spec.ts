@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { coinBalance, coinTx, withDb } from "./db";
+import { addFlagUser, coinBalance, coinTx, equipItem, makeFriends, withDb } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 
 const SETS = (weight: string) => [
@@ -93,3 +93,65 @@ async function finishFromEditor(page: Page) {
   await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
   await expect(page).toHaveURL(/\/workouts\//);
 }
+
+test.describe("показ косметики", () => {
+  test("friend sees my avatar and nick color in league, friends and feed", async ({ page, browser }) => {
+    test.slow();
+    const a = await registerUser(page, "Алекс");
+    const other = await browser.newContext();
+    const pageB = await other.newPage();
+    try {
+      const b = await registerUser(pageB, "Борис");
+      const alpha = `Alpha_${a.login.slice(-8)}`;
+      await makeFriends(a.login, alpha, b.login, `Bravo_${b.login.slice(-8)}`);
+      await addFlagUser("shop", a.login);
+      await equipItem(a.login, "avatar", "avatar:archer");
+      await equipItem(a.login, "frame", "frame:gold");
+      await equipItem(a.login, "nickColor", "nick:lava");
+      await quickWorkout(page, "Жим штанги лёжа", SETS("60"));
+
+      for (const path of ["/leaderboard", "/friends"]) {
+        await pageB.goto(path);
+        await expect(pageB.getByRole("img", { name: "Лучник" }).first()).toBeVisible();
+        await expect(pageB.locator('[data-nick-color="nick:lava"]').first()).toHaveText(alpha);
+      }
+      // В ленте друзей — карточка с тем же ником и аватаром
+      await expect(pageB.getByRole("article", { name: new RegExp(`^${alpha}:`) }).getByRole("img", { name: "Лучник" })).toBeVisible();
+    } finally {
+      await other.close();
+    }
+  });
+
+  test("owner without shop flag shows no cosmetics", async ({ page, browser }) => {
+    test.slow();
+    const a = await registerUser(page, "Алекс");
+    const other = await browser.newContext();
+    const pageB = await other.newPage();
+    try {
+      const b = await registerUser(pageB, "Борис");
+      const alpha = `Alpha_${a.login.slice(-8)}`;
+      await makeFriends(a.login, alpha, b.login, `Bravo_${b.login.slice(-8)}`);
+      // Флаг у владельца не включён: предметы надеты, но не показываются
+      await equipItem(a.login, "avatar", "avatar:archer");
+      await equipItem(a.login, "nickColor", "nick:lava");
+      await pageB.goto("/leaderboard");
+      await expect(pageB.getByText(alpha)).toBeVisible();
+      await expect(pageB.getByRole("img", { name: "Лучник" })).toHaveCount(0);
+      await expect(pageB.locator("[data-nick-color]")).toHaveCount(0);
+    } finally {
+      await other.close();
+    }
+  });
+
+  test("theme changes the cabinet accent", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await equipItem(login, "theme", "theme:ocean");
+    await page.goto("/dashboard");
+    const { primary, dark } = await page.evaluate(() => ({
+      primary: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim(),
+      dark: document.documentElement.classList.contains("dark"),
+    }));
+    expect(primary).toBe(dark ? "#38bdf8" : "#0369a1");
+  });
+});

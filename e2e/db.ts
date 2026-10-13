@@ -992,3 +992,16 @@ export async function userItems(login: string) {
     return rows.map((r) => r.code);
   });
 }
+
+/** Выдать предмет магазина и надеть его (минуя UI): вставка UserItem и запись в поле User.*Code. */
+export async function equipItem(login: string, kind: "avatar" | "frame" | "nickColor" | "theme", code: string) {
+  const column = { avatar: "avatarCode", frame: "frameCode", nickColor: "nickColorCode", theme: "themeCode" }[kind];
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(
+      `insert into "UserItem" (id, "userId", code, source) values ($1, $2, $3, 'coins') on conflict ("userId", code) do nothing`,
+      [randomUUID(), uid, code],
+    );
+    await db.query(`update "User" set "${column}" = $2 where id = $1`, [uid, code]);
+  });
+}

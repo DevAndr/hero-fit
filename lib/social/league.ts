@@ -25,6 +25,8 @@ export function normalizeFriendCode(input: string) {
   return code.length === FRIEND_CODE_LENGTH && [...code].every((c) => CODE_ALPHABET.includes(c)) ? code : null;
 }
 
+import type { Cosmetics } from "@/lib/shop/cosmetics";
+
 export type LeagueMember = {
   id: string;
   nickname: string;
@@ -36,6 +38,8 @@ export type LeagueMember = {
   workouts: number;
   /** Босс этой недели повержен (неделя — по поясу смотрящего). */
   bossDefeated?: boolean;
+  /** Косметика из магазина (флаг владельца уже учтён); у снимков итогов недели нет. */
+  cosmetics?: Cosmetics;
 };
 
 export type RankedMember = LeagueMember & { place: number; me: boolean };
