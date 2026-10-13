@@ -223,6 +223,27 @@ test.describe("страница магазина", () => {
     await expect(page.getByTestId("shop-item-avatar:knight")).not.toContainText("Куплено");
   });
 
+  test("standard theme returns the brand accent", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await page.goto("/shop?tab=theme");
+    const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--primary").trim());
+    const brand = await accent();
+    const standard = page.getByTestId("shop-item-theme:default");
+    await expect(standard).toContainText("Надето");
+
+    await equipItem(login, "theme", "theme:ocean");
+    await page.reload();
+    expect(await accent()).not.toBe(brand);
+    await expect(standard).toContainText("Бесплатно");
+    await standard.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Надеть" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Надето" })).toBeDisabled();
+    await expect.poll(accent).toBe(brand);
+    await page.keyboard.press("Escape");
+    await expect(standard).toContainText("Надето");
+  });
+
   test("shop is 404 without the flag", async ({ page }) => {
     await registerUser(page);
     const res = await page.goto("/shop");
