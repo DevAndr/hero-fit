@@ -1,0 +1,103 @@
+# Аналог .github/workflows/ci.yml. Автоматически — только быстрые проверки (на MR и на main, без дублей
+# от пуша ветки с MR); правки одних документов CI не запускают. e2e — только вручную (кнопка ▶ у задачи):
+# полный e2e гоняется локально перед MR, результат — в описании MR.
+workflow:
+  rules:
+    # Run pipeline из интерфейса — всегда (аналог workflow_dispatch)
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &code
+        # GitLab не умеет исключать пути (paths-ignore) — перечислены каталоги и файлы кода вместо docs/ и *.md
+        - app/**/*
+        - assets/**/*
+        - components/**/*
+        - deploy/**/*
+        - e2e/**/*
+        - lib/**/*
+        - prisma/**/*
+        - public/**/*
+        - scripts/**/*
+        - "*.{ts,mts,mjs,json}"
+        - Dockerfile
+        - docker-compose.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *code
+  # Новый коммит в ветку отменяет её незавершённый пайплайн (аналог concurrency.cancel-in-progress)
+  auto_cancel:
+    on_new_commit: interruptible
+
+# Только для CI: секреты-заглушки, БД — сервис-контейнер. e2e сами создают и засевают базу herofit_test.
+variables:
+  DATABASE_URL: postgresql://herofit:herofit@postgres:5432/herofit
+  JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789
+  JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef012345678
+  APP_URL: http://localhost:3123
+  CRON_SECRET: ci-cron-secret-0123456789abcdef
+  NEXT_TELEMETRY_DISABLED: "1"
+  npm_config_cache: $CI_PROJECT_DIR/.npm
+
+default:
+  image: node:24-bookworm
+  interruptible: true
+
+.npm-cache: &npm-cache
+  key:
+    files: [package-lock.json]
+    prefix: npm
+  paths: [.npm/]
+
+checks:
+  stage: test
+  timeout: 15m
+  cache:
+    - *npm-cache
+  script:
+    - npm ci --prefer-offline # postinstall: prisma generate
+    - npm run typecheck
+    - npm run lint
+    - npm test
+
+e2e:
+  stage: test
+  # Только вручную; allow_failure — не держит пайплайн в статусе «заблокирован», пока e2e не запущен
+  rules:
+    - when: manual
+      allow_failure: true
+  # ~560 сценариев на 2 воркерах не укладываются в 30 мин
+  timeout: 60m
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: herofit
+    POSTGRES_PASSWORD: herofit
+    POSTGRES_DB: herofit
+    PLAYWRIGHT_BROWSERS_PATH: $CI_PROJECT_DIR/.cache/ms-playwright
+  cache:
+    - *npm-cache
+    # Кэш сборки Next: повторная сборка — только изменённое
+    - key: next-$CI_COMMIT_REF_SLUG
+      fallback_keys: [next-$CI_DEFAULT_BRANCH]
+      paths: [.next/cache/]
+    # Браузер Playwright — из кэша по версии в lock-файле; системные библиотеки ставятся всегда (их в кэше нет)
+    - key:
+        files: [package-lock.json]
+        prefix: playwright
+      paths: [.cache/ms-playwright/]
+  script:
+    - npm ci --prefer-offline
+    # VAPID-ключи для push-тестов
+    - |
+      keys=$(npx web-push generate-vapid-keys --json)
+      export VAPID_PUBLIC_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).publicKey')
+      export VAPID_PRIVATE_KEY=$(echo "$keys" | node -pe 'JSON.parse(require("fs").readFileSync(0)).privateKey')
+    - npm run build
+    - npx playwright install --with-deps chromium
+    # Только desktop; mobile — в локальном прогоне перед MR (npm run test:e2e -- --workers=8)
+    - npm run test:e2e -- --project=desktop
+  artifacts:
+    name: playwright-test-results
+    when: on_failure
+    paths: [test-results/]
+    expire_in: 7 days
