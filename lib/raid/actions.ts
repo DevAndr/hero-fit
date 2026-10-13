@@ -5,11 +5,13 @@ import { XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievements } from "@/lib/achievements/engine";
+import { grantChestCoins } from "@/lib/shop/earn";
+import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 import { chestOpenable } from "@/lib/raid/rules";
 
 /** Сундук рейда: только своя награда, только состоя в гильдии рейда и не позже 4 недель после победы; один раз. */
-export async function openRaidChestAction(raidId: string): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+export async function openRaidChestAction(raidId: string): Promise<{ ok: true; amount: number; coins: number } | { ok: false; error: string }> {
   const user = await requireUser();
   const result = await db.$transaction(async (tx) => {
     const reward = await tx.raidReward.findUnique({
@@ -29,8 +31,15 @@ export async function openRaidChestAction(raidId: string): Promise<{ ok: true; a
     });
     const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: reward.xp } }, select: { xp: true } });
     await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    const coins = await grantChestCoins(
+      tx,
+      user.id,
+      { reason: "RAID_CHEST", key: `chest:raid:${raidId}`, amount: reward.mvp ? COIN_RATES.raidChestMvp : COIN_RATES.raidChest, label: "Сундук рейда" },
+      xp - reward.xp,
+      xp,
+    );
     await evaluateAchievements(tx, user.id);
-    return { ok: true as const, amount: reward.xp };
+    return { ok: true as const, amount: reward.xp, coins };
   });
   if (result.ok) revalidatePath("/", "layout");
   return result;

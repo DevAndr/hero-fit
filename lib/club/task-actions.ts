@@ -21,6 +21,8 @@ import {
   TASK_TYPES,
 } from "@/lib/club/tasks";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { grantChestCoins } from "@/lib/shop/earn";
+import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 import { weekBounds } from "@/lib/social/queries";
 
@@ -114,7 +116,7 @@ export async function cancelClubTaskAction(taskId: string): Promise<Result> {
  * Сундук задания: своя награда, не открыта, не истекла, не больше 2 открытых за неделю (пояс игрока).
  * Без revalidatePath — кнопка обновит страницу, когда закрыт диалог (как сундук цели).
  */
-export async function openClubTaskChestAction(taskId: string): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+export async function openClubTaskChestAction(taskId: string): Promise<{ ok: true; amount: number; coins: number } | { ok: false; error: string }> {
   const user = await requireUser();
   if (!(await clubsAllowed(user.id))) return { ok: false, error: CLUBS_OFF };
   const tz = safeTimeZone(user.timeZone);
@@ -141,7 +143,8 @@ export async function openClubTaskChestAction(taskId: string): Promise<{ ok: tru
     await tx.xpEvent.create({ data: { userId: user.id, amount: CLUB_TASK_XP, reason: XpReason.CLUB_TASK_REWARD, meta: { taskId } } });
     const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: CLUB_TASK_XP } }, select: { xp: true } });
     await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    const coins = await grantChestCoins(tx, user.id, { reason: "CLUB_TASK_CHEST", key: `chest:clubtask:${taskId}`, amount: COIN_RATES.clubTaskChest, label: "Сундук задания клуба" }, xp - CLUB_TASK_XP, xp);
     await evaluateAchievements(tx, user.id);
-    return { ok: true as const, amount: CLUB_TASK_XP };
+    return { ok: true as const, amount: CLUB_TASK_XP, coins };
   });
 }

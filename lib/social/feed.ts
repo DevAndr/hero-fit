@@ -2,6 +2,7 @@ import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
 import { raidBossName } from "@/lib/raid/rules";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { titleLabel } from "@/lib/titles/catalog";
 import type { FinishGoals } from "@/lib/goals/rules";
 import type { FinishClubTask } from "@/lib/club/tasks-apply";
@@ -12,6 +13,9 @@ export type FeedRow = {
   userId: string;
   nickname: string | null;
   titleCode: string | null;
+  avatarCode?: string | null;
+  frameCode?: string | null;
+  nickColorCode?: string | null;
   hideWeights: boolean;
   name: string;
   finishedAt: Date;
@@ -46,6 +50,7 @@ export type FeedEntry = {
   nickname: string;
   /** Титул автора (уже название). */
   title: string | null;
+  cosmetics?: Cosmetics;
   me: boolean;
   name: string;
   finishedAt: string;
@@ -83,7 +88,7 @@ export function streakMilestone(meta: FeedRow["meta"]) {
   return STREAK_WEEK_THRESHOLDS.includes(streak) || (streak > last && (streak - last) % STREAK_WEEK_STEP === 0) ? streak : null;
 }
 
-export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
+export function toFeedEntry(row: FeedRow, viewerId: string, cosmetics?: Cosmetics): FeedEntry {
   const me = row.userId === viewerId;
   const hide = row.hideWeights && !me;
   const exercises = row.exercises ?? [];
@@ -92,6 +97,7 @@ export function toFeedEntry(row: FeedRow, viewerId: string): FeedEntry {
     id: row.id,
     nickname: row.nickname ?? "—",
     title: titleLabel(row.titleCode),
+    cosmetics,
     me,
     name: row.name,
     finishedAt: row.finishedAt.toISOString(),

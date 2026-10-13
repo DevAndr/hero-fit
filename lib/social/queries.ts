@@ -6,6 +6,8 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { streakStatus, streakValue, type StreakUserFields } from "@/lib/progress/weekly-streak";
 import { decodeCursor, encodeCursor, toFeedEntry, type FeedRow } from "@/lib/social/feed";
 import { generateFriendCode, percentile, rankLeague, type LeagueMember } from "@/lib/social/league";
+import { COSMETIC_SELECT } from "@/lib/shop/cosmetics";
+import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { titleLabel } from "@/lib/titles/catalog";
 
 /** XP лиги — только за тренировки и побитые рекорды (ачивки и ежедневный вход не дают форы). */
@@ -51,7 +53,8 @@ export const weekBounds = (timeZone: string, offset: number) => Prisma.sql`
          (date_trunc('week', now() AT TIME ZONE ${timeZone}) - make_interval(weeks => ${offset}) + interval '7 days') AT TIME ZONE ${timeZone} AS end_at
 `;
 
-type LeagueRow = Omit<LeagueMember, "streak" | "title"> & StreakUserFields & { timeZone: string; titleCode: string | null };
+type LeagueRow = Omit<LeagueMember, "streak" | "title" | "cosmetics"> &
+  StreakUserFields & { timeZone: string; titleCode: string | null; avatarCode: string | null; frameCode: string | null; nickColorCode: string | null };
 
 /** Лига: я и мои друзья — XP за тренировки и число тренировок за неделю. */
 export async function getLeague(userId: string, timeZone: string, offset: 0 | 1) {
@@ -60,6 +63,7 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
     db.$queryRaw<LeagueRow[]>`
       WITH b AS (${weekBounds(timeZone, offset)})
       SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u.level,
+             u."avatarCode", u."frameCode", u."nickColorCode",
              u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."freezeGrantedAt", u."timeZone",
              COALESCE((
                SELECT SUM(x.amount) FROM "XpEvent" x
@@ -84,11 +88,12 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
     `,
   ]);
   const now = new Date();
+  const cosmetics = await cosmeticsLoader();
   const members: LeagueMember[] = rows.map(
-    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt, timeZone: tz, titleCode, ...m }) => {
+    ({ currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt, timeZone: tz, titleCode, avatarCode, frameCode, nickColorCode, ...m }) => {
       // Серия «на сейчас» в поясе участника: потерянная не показывается.
       const user = { currentStreak, lastStreakWeek, streakFreezes, weekWorkouts, weekWorkoutsKey, freezeGrantedAt };
-      return { ...m, title: titleLabel(titleCode), streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
+      return { ...m, title: titleLabel(titleCode), cosmetics: cosmetics({ id: m.id, avatarCode, frameCode, nickColorCode }), streak: streakValue(streakStatus(user, now, safeTimeZone(tz))) };
     },
   );
   return { weekStart: week.start, members: rankLeague(members, userId), friends: ids.length - 1 };
@@ -143,13 +148,14 @@ export async function getFriends(userId: string) {
       id: true,
       status: true,
       requesterId: true,
-      requester: { select: { nickname: true, level: true, titleCode: true } },
-      addressee: { select: { nickname: true, level: true, titleCode: true } },
+      requester: { select: { id: true, nickname: true, level: true, titleCode: true, ...COSMETIC_SELECT } },
+      addressee: { select: { id: true, nickname: true, level: true, titleCode: true, ...COSMETIC_SELECT } },
     },
   });
+  const cosmetics = await cosmeticsLoader();
   const view = (r: (typeof rows)[number]) => {
     const other = r.requesterId === userId ? r.addressee : r.requester;
-    return { id: r.id, nickname: other.nickname ?? "—", level: other.level, title: titleLabel(other.titleCode) };
+    return { id: r.id, nickname: other.nickname ?? "—", level: other.level, title: titleLabel(other.titleCode), cosmetics: cosmetics(other) };
   };
   return {
     friends: rows.filter((r) => r.status === FriendshipStatus.ACCEPTED).map(view),
@@ -232,7 +238,7 @@ export async function getGuildFeed(userId: string, cursor: string | null, limit 
 async function feedPage(userId: string, ids: string[], cursor: string | null, limit: number) {
   const after = decodeCursor(cursor);
   const rows = await db.$queryRaw<FeedRow[]>`
-    SELECT w.id, w."userId", u.nickname, u."titleCode", u."hideWeights", w.name, w."finishedAt", w."durationSec",
+    SELECT w.id, w."userId", u.nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode", u."hideWeights", w.name, w."finishedAt", w."durationSec",
            w."totalVolume", w."totalSets", w."totalReps", x.meta,
            (
              SELECT g.name FROM "RaidWeek" r JOIN "Guild" g ON g.id = r."guildId"
@@ -265,7 +271,8 @@ async function feedPage(userId: string, ids: string[], cursor: string | null, li
     ORDER BY w."finishedAt" DESC, w.id DESC
     LIMIT ${limit + 1}
   `;
-  const entries = rows.slice(0, limit).map((r) => toFeedEntry(r, userId));
+  const cosmetics = await cosmeticsLoader();
+  const entries = rows.slice(0, limit).map((r) => toFeedEntry(r, userId, cosmetics({ ...r, id: r.userId })));
   return { entries, next: rows.length > limit ? encodeCursor(entries.at(-1)!) : null, friends: ids.length - 1 };
 }
 

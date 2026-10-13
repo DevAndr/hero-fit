@@ -16,6 +16,10 @@ export const FLAGS = {
     description: "Клубы залов: поиск, вступление, рейтинг и лента клуба",
     expires: "2027-03-31",
   },
+  shop: {
+    description: "Магазин косметики: монеты, аватары, цвет ника, темы",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

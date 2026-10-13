@@ -14,7 +14,9 @@ test("guest opens the changelog from the landing footer", async ({ page }) => {
 test("landing «Новое» plaque leads to the release anchor", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /^Новое:/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/changelog#${RELEASES[0].id}$`));
+  // Гостю виден первый релиз, у которого есть пункт без флага
+  const guestLatest = RELEASES.find((r) => [...(r.new ?? []), ...(r.improved ?? []), ...(r.fixed ?? [])].some((i) => !i.flag))!;
+  await expect(page).toHaveURL(new RegExp(`/changelog#${guestLatest.id}$`));
 });
 
 test("new user has no dot; a user with unseen release sees it until /whats-new", async ({ page }) => {

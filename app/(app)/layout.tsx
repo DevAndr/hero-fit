@@ -16,6 +16,12 @@ import { AssistantProvider } from "@/components/assistant/assistant";
 import { assistantAvailable } from "@/lib/assistant/access";
 import { RELEASES } from "@/lib/changelog/releases";
 import { userChangelog } from "@/lib/changelog/view";
+import { db } from "@/lib/db";
+import { quietly } from "@/lib/achievements/quietly";
+import { ensureRetroCoins } from "@/lib/shop/retro-db";
+import { itemByCode } from "@/lib/shop/catalog";
+import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
+import { themeStyle } from "@/lib/shop/theme-style";
 import { env } from "@/lib/env";
 import { enabledFlags } from "@/lib/flags/server";
 import { pendingClubCount } from "@/lib/club/queries";
@@ -29,17 +35,30 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const timeZone = (await cookies()).get(TIMEZONE_COOKIE)?.value;
   const visit = await recordDailyVisit(user, timeZone);
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
-  const [unseen, feed, flags, pendingClubs] = await Promise.all([
+  const [unseen, feed, flags, pendingClubs, look] = await Promise.all([
     getUnseenAchievements(user.id),
     getNotificationFeed(user.id),
     enabledFlags(user.id),
     user.isAdmin ? pendingClubCount() : 0,
+    db.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { id: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true, coins: true },
+    }),
   ]);
+  // Стартовые монеты — до чтения баланса в меню (после первого раза это один запрос)
+  if (flags.includes("shop") && (await quietly(() => ensureRetroCoins(user.id), 0)) > 0) {
+    look.coins = (await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { coins: true } })).coins;
+  }
+  // Косметика и тема — только при включённом магазине у самого пользователя
+  const cosmetics = (await cosmeticsLoader())(look);
+  const theme = flags.includes("shop") ? itemByCode(look.themeCode) : null;
 
   const shell = (
     <AppShell
       user={user}
       pendingClubs={pendingClubs}
+      cosmetics={cosmetics}
+      coins={flags.includes("shop") ? look.coins : undefined}
       whatsNewUnseen={userChangelog(RELEASES, user.changelogSeen, (f) => flags.includes(f)).unseen}
       chest={
         <DailyChest
@@ -60,6 +79,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <FlagsProvider flags={flags}>
+      {theme?.kind === "theme" ? <style>{themeStyle(theme)}</style> : null}
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
         {/* Умный помощник: флаг smart_coach и выключатель в /settings */}
         <AssistantProvider available={assistantAvailable(flags.includes("smart_coach"), user.assistantEnabled)}>

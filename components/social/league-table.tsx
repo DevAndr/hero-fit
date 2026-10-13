@@ -1,3 +1,5 @@
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
 import Link from "next/link";
 import { Flame, Swords } from "lucide-react";
 import { PlaceBadge } from "@/components/social/place-badge";
@@ -63,15 +65,10 @@ export function LeagueTable({
           >
             <div className="flex items-center gap-3">
               <PlaceBadge place={m.place} xp={m.xp} size={36} />
-              <span
-                aria-hidden
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary uppercase"
-              >
-                {m.nickname.slice(0, 1) || "?"}
-              </span>
+              <PlayerAvatar nickname={m.nickname} cosmetics={m.cosmetics} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">
-                  {m.nickname || "—"}
+                  <PlayerName nickname={m.nickname || "—"} color={m.cosmetics?.nickColor} />
                   {m.me ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">это вы</span> : null}
                 </span>
                 {m.title ? (

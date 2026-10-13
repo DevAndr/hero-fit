@@ -8,6 +8,7 @@ import { CITY_SUGGESTIONS, CLUB_RATING_TOP, CLUB_SEARCH_LIMIT, clubKey, likePatt
 import { decodeCursor, encodeCursor } from "@/lib/social/feed";
 import { normalizeFriendCode, rankLeague, type RankedMember } from "@/lib/social/league";
 import { FEED_PAGE, LEAGUE_REASONS, weekBounds } from "@/lib/social/queries";
+import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { titleLabel } from "@/lib/titles/catalog";
 
 export type ClubCard = { id: string; name: string; city: string; address: string; members: number };
@@ -118,9 +119,9 @@ export type ClubRating = { members: RankedMember[]; idle: number; total: number 
  * вступления тоже считается. Нули — числом `idle`. Топ-50 и моя строка; не участнику — `top` строк.
  */
 export async function getClubRating(clubId: string, viewerId: string, timeZone: string, period: "week" | "month", top = CLUB_RATING_TOP): Promise<ClubRating> {
-  const rows = await db.$queryRaw<{ id: string; nickname: string; titleCode: string | null; level: number; xp: number; workouts: number }[]>`
+  const rows = await db.$queryRaw<{ id: string; nickname: string; titleCode: string | null; avatarCode: string | null; frameCode: string | null; nickColorCode: string | null; level: number; xp: number; workouts: number }[]>`
     WITH b AS (${period === "week" ? weekBounds(timeZone, 0) : monthBounds(timeZone)})
-    SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u.level,
+    SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode", u.level,
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
              WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
@@ -135,8 +136,14 @@ export async function getClubRating(clubId: string, viewerId: string, timeZone: 
     WHERE m."clubId" = ${clubId}
   `;
   const active = rows.filter((r) => r.xp > 0);
+  const cosmetics = await cosmeticsLoader();
   const ranked = rankLeague(
-    active.map(({ titleCode, ...r }) => ({ ...r, title: titleLabel(titleCode), streak: 0 })),
+    active.map(({ titleCode, avatarCode, frameCode, nickColorCode, ...r }) => ({
+      ...r,
+      title: titleLabel(titleCode),
+      cosmetics: cosmetics({ id: r.id, avatarCode, frameCode, nickColorCode }),
+      streak: 0,
+    })),
     viewerId,
   );
   const shown = ranked.slice(0, top);
@@ -153,7 +160,7 @@ export async function getClubFeed(clubId: string, viewerId: string, cursor: stri
   const page = async (c: string | null) => {
     const after = decodeCursor(c);
     const rows = await db.$queryRaw<ClubFeedRow[]>`
-      SELECT w.id, w."userId", u.nickname, u."titleCode", u."hideWeights", w."finishedAt", x.meta
+      SELECT w.id, w."userId", u.nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode", u."hideWeights", w."finishedAt", x.meta
       FROM "ClubMember" m
       JOIN "Workout" w ON w."userId" = m."userId"
       JOIN "User" u ON u.id = m."userId"
@@ -165,7 +172,8 @@ export async function getClubFeed(clubId: string, viewerId: string, cursor: stri
       ORDER BY w."finishedAt" DESC, w.id DESC
       LIMIT ${FEED_PAGE + 1}
     `;
-    const shown = rows.slice(0, FEED_PAGE);
+    const cosmetics = await cosmeticsLoader();
+    const shown = rows.slice(0, FEED_PAGE).map((r) => ({ ...r, cosmetics: cosmetics({ ...r, id: r.userId }) }));
     const last = shown.at(-1);
     return { rows: shown, next: rows.length > FEED_PAGE && last ? encodeCursor({ finishedAt: last.finishedAt.toISOString(), id: last.id }) : null };
   };

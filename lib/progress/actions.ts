@@ -7,6 +7,8 @@ import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievements } from "@/lib/achievements/engine";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { chestReward } from "@/lib/progress/daily-chest";
+import { grantChestCoins } from "@/lib/shop/earn";
+import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 import { addWeeks, restoreOffer, weekKey, weeksBetween } from "@/lib/progress/weekly-streak";
 
@@ -63,7 +65,7 @@ export async function restoreStreakAction(): Promise<{ ok: true; streak: number 
   return result;
 }
 
-export type OpenChestResult = { ok: true; amount: number; rare: boolean; streak: number } | { ok: false; error: string };
+export type OpenChestResult = { ok: true; amount: number; rare: boolean; streak: number; coins: number } | { ok: false; error: string };
 
 /** Ежедневный сундук: раз в календарный день (пояс пользователя) — случайный XP, растущий с серией входов. */
 export async function openDailyChestAction(): Promise<OpenChestResult> {
@@ -95,9 +97,16 @@ export async function openDailyChestAction(): Promise<OpenChestResult> {
       select: { xp: true },
     });
     await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    const coins = await grantChestCoins(
+      tx,
+      user.id,
+      { reason: "DAILY_CHEST", key: `chest:daily:${today}`, amount: reward.rare ? COIN_RATES.dailyChestRare : COIN_RATES.dailyChest, label: "Ежедневный сундук" },
+      xp - reward.amount,
+      xp,
+    );
     // Новый уровень может принести ачивку
     await evaluateAchievements(tx, user.id);
-    return { ok: true as const, amount: reward.amount, rare: reward.rare, streak: loginStreak };
+    return { ok: true as const, amount: reward.amount, rare: reward.rare, streak: loginStreak, coins };
   });
 
   if (result.ok) revalidatePath("/", "layout");
