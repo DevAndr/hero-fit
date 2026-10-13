@@ -8,7 +8,7 @@ import { EarnDialog } from "@/components/shop/earn-dialog";
 import { ItemDialog, ItemPreview } from "@/components/shop/item-dialog";
 import { RetroBanner } from "@/components/shop/retro-banner";
 import { reachGoal } from "@/lib/analytics/reach";
-import { itemByCode, shopItems, type ItemKind, type ShopItem } from "@/lib/shop/catalog";
+import { DEFAULT_THEME, itemByCode, shopItems, type ItemKind, type ShopItem } from "@/lib/shop/catalog";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { coinWord } from "@/lib/shop/labels";
 import type { ShopData } from "@/lib/shop/queries";
@@ -24,9 +24,11 @@ export function ShopView({ tab, data, display, timeZone }: { tab: ItemKind; data
   }, []);
 
   const owned = new Set(data.owned);
-  const items = shopItems(tab);
-  const open = itemByCode(openCode);
+  // У тем первая карточка — «Стандартная»: вернуть фирменную тему (надета, когда своей темы нет)
+  const items = tab === "theme" ? [DEFAULT_THEME, ...shopItems(tab)] : shopItems(tab);
+  const open = openCode === DEFAULT_THEME.code ? DEFAULT_THEME : itemByCode(openCode);
   const isOwned = (i: ShopItem) => i.acquire === "free" || owned.has(i.code);
+  const isWorn = (i: ShopItem) => (i.code === DEFAULT_THEME.code ? !itemByCode(data.equipped.theme) : data.equipped[i.kind] === i.code);
   const equipped: Cosmetics = { avatar: data.equipped.avatar, frame: data.equipped.frame, nickColor: data.equipped.nickColor };
 
   return (
@@ -60,7 +62,7 @@ export function ShopView({ tab, data, display, timeZone }: { tab: ItemKind; data
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         {items.map((item) => {
           const have = isOwned(item);
-          const worn = data.equipped[item.kind] === item.code;
+          const worn = isWorn(item);
           const short = item.price - data.coins;
           return (
             <li key={item.code}>
@@ -86,7 +88,7 @@ export function ShopView({ tab, data, display, timeZone }: { tab: ItemKind; data
       <ItemDialog
         item={open}
         owned={open ? isOwned(open) : false}
-        isEquipped={open ? data.equipped[open.kind] === open.code : false}
+        isEquipped={open ? isWorn(open) : false}
         coins={data.coins}
         display={display}
         equipped={equipped}

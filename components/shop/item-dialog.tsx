@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
 import { buyItemAction, equipItemAction } from "@/lib/shop/actions";
-import type { ShopItem } from "@/lib/shop/catalog";
+import { DEFAULT_THEME, type ShopItem } from "@/lib/shop/catalog";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { RARITY_LABELS } from "@/lib/shop/view";
 import { haptic } from "@/lib/telegram/webapp";
@@ -62,6 +62,7 @@ export function ItemDialog({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const standard = item?.code === DEFAULT_THEME.code;
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, success?: string) =>
     start(async () => {
@@ -84,7 +85,7 @@ export function ItemDialog({
           <>
             <DialogHeader>
               <DialogTitle>{item.name}</DialogTitle>
-              <DialogDescription>{RARITY_LABELS[item.rarity]}</DialogDescription>
+              <DialogDescription>{standard ? "Фирменные цвета Hero Fit" : RARITY_LABELS[item.rarity]}</DialogDescription>
             </DialogHeader>
             <ItemPreview item={item} display={display} equipped={equipped} />
             {!owned && coins < item.price ? <p className="text-sm text-muted-foreground">Не хватает {item.price - coins}</p> : null}
@@ -94,7 +95,12 @@ export function ItemDialog({
               </p>
             ) : null}
             <DialogFooter>
-              {owned ? (
+              {standard ? (
+                // Стандартная не снимается — надевается снятием своей темы
+                <Button variant="outline" className="w-full" disabled={pending || isEquipped} onClick={() => run(() => equipItemAction("theme", null))}>
+                  {isEquipped ? "Надето" : "Надеть"}
+                </Button>
+              ) : owned ? (
                 isEquipped ? (
                   <Button variant="outline" className="w-full" disabled={pending} onClick={() => run(() => equipItemAction(item.kind, null))}>
                     Снять

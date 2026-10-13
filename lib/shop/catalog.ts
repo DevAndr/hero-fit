@@ -142,6 +142,32 @@ export const SHOP_ITEMS: ShopItem[] = [
   ),
 ];
 
+/**
+ * «Стандартная» — карточка возврата к фирменной теме (`themeCode = null`), не предмет каталога: не продаётся и не
+ * надевается кодом. Цвета — те же, что `--primary`/`--primary-foreground`/`--ring`/`--chart-1` в app/globals.css
+ * (превью рисуется по ним, а не по переменным страницы — их перекрывает надетая тема).
+ */
+export const DEFAULT_THEME: ShopItem & { kind: "theme" } = {
+  code: "theme:default",
+  kind: "theme",
+  name: "Стандартная",
+  rarity: "common",
+  price: 0,
+  acquire: "free",
+  light: {
+    primary: "oklch(0.508 0.118 165.612)",
+    primaryForeground: "oklch(0.985 0 0)",
+    ring: "oklch(0.696 0.17 162.48)",
+    chart1: "oklch(0.596 0.145 163.225)",
+  },
+  dark: {
+    primary: "oklch(0.765 0.177 163.223)",
+    primaryForeground: "oklch(0.21 0.034 264.665)",
+    ring: "oklch(0.696 0.17 162.48)",
+    chart1: "oklch(0.765 0.177 163.223)",
+  },
+};
+
 const BY_CODE = new Map(SHOP_ITEMS.map((i) => [i.code, i]));
 
 /** Предмет по коду; неизвестный (удалённый из каталога) или пустой — null. */
