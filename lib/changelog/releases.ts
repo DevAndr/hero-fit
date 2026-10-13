@@ -6,6 +6,14 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2026-11-versioning",
+    version: "0.5.0",
+    date: "2026-10-13",
+    title: "Номер версии",
+    summary: "Теперь видно, какая версия Hero Fit у тебя открыта, — пригодится, если пишешь нам о проблеме.",
+    new: [{ text: "Номер версии приложения — внизу настроек и у каждого обновления на этой странице", href: "/settings" }],
+  },
+  {
     id: "2026-11-shop",
     version: "0.4.0",
     date: "2026-10-13",
