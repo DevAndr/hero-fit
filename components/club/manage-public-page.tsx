@@ -64,7 +64,7 @@ export function ManagePublicPage({
         <Button
           variant="outline"
           size="sm"
-          disabled={pending || text === saved}
+          disabled={pending || text.trim() === saved}
           onClick={() =>
             run(() => saveClubAboutAction(clubId, text), "Сохранено", () => {
               // Сервер сохраняет без пробелов по краям — поле тоже, иначе «Сохранить» не погаснет

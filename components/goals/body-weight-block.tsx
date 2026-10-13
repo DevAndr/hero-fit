@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
+import { WeightHistory } from "@/components/goals/weight-history";
 import { logBodyWeightAction } from "@/lib/goals/actions";
 
 const config = { weight: { label: "Вес", color: "var(--series-1)" } } satisfies ChartConfig;
@@ -14,7 +15,7 @@ const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "shor
 const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const kg = (n: number) => `${String(n).replace(".", ",")} кг`;
 
-/** «Вес тела» на странице целей: запись за сегодня и график взвешиваний за 90 дней (пунктир — цель по весу). */
+/** «Вес тела» на странице целей: запись за сегодня, график взвешиваний за 90 дней (пунктир — цель по весу) и их правка. */
 export function BodyWeightBlock({ weights, target }: { weights: { date: string; weight: number }[]; target: number | null }) {
   const [value, setValue] = useState("");
   const [pending, startTransition] = useTransition();
@@ -78,6 +79,8 @@ export function BodyWeightBlock({ weights, target }: { weights: { date: string; 
       ) : (
         <p className="text-sm text-muted-foreground">Записывай вес — здесь появится график за 90 дней.</p>
       )}
+
+      <WeightHistory weights={weights} />
 
       {/* Табличное представление для скринридеров */}
       <div className="sr-only">

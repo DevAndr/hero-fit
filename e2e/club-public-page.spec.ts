@@ -164,6 +164,10 @@ test("flag by list: admin publishes and sees a noindex preview, guests get 404",
   await section.getByRole("button", { name: "Сохранить" }).click();
   await expect(section.getByText("Напишите о зале хотя бы 50 символов")).toBeVisible();
   await expect(section.getByRole("button", { name: "Опубликовать" })).toBeDisabled();
+  // Пробелы по краям сервер всё равно срежет — «Сохранить» не загорается
+  await expect(page.getByText("Сохранено")).toBeVisible();
+  await section.getByLabel("О зале").fill("  Коротко о зале ");
+  await expect(section.getByRole("button", { name: "Сохранить" })).toBeDisabled();
 
   const path = await publishViaUi(page, club.id);
   await expect(page.getByText("Страница появится в поиске, когда клубы откроются для всех")).toBeVisible();

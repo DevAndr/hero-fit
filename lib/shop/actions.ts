@@ -39,7 +39,15 @@ export async function buyItemAction(code: string): Promise<{ ok: true; coins: nu
         where: { id: user.id, coins: { gte: price } },
         data: { coins: { decrement: price } },
       });
-      if (paid.count === 0) throw new Rejected("Не хватает монет");
+      if (paid.count === 0) {
+        // Списание проиграло гонку: чаще всего тот же предмет только что купила вторая вкладка — так и скажем
+        const [now, ownedNow] = await Promise.all([
+          tx.user.findUnique({ where: { id: user.id }, select: { coins: true } }),
+          tx.userItem.findUnique({ where: { userId_code: { userId: user.id, code } }, select: { id: true } }),
+        ]);
+        const recheck = canBuy(item, !!ownedNow, now?.coins ?? 0);
+        throw new Rejected(recheck.ok ? "Не хватает монет" : recheck.error);
+      }
       await tx.userItem.create({ data: { userId: user.id, code, source: "shop" } });
       await tx.coinTx.create({
         data: { userId: user.id, amount: -price, reason: "PURCHASE", key: `buy:${code}`, meta: { code } },
