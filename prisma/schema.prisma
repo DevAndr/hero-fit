@@ -202,6 +202,7 @@ model User {
   notifications       Notification[]
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
+  visits              UserVisit[]
   bossWeeks           BossWeek[]
   planSeries          PlanSeries[]         @relation("PlanSeriesUser")
   planEntries         PlanEntry[]          @relation("PlanEntryUser")
@@ -1055,6 +1056,16 @@ model BodyWeightEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+/// День посещения кабинета (местный день пользователя) — метрики админки (lib/admin/metrics-queries.ts).
+model UserVisit {
+  userId String
+  day    DateTime @db.Date
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
 }
 
 // ───────────────────────────── Фича-флаги ─────────────────────────────
