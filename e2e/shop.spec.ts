@@ -113,11 +113,11 @@ test.describe("показ косметики", () => {
 
       for (const path of ["/leaderboard", "/friends"]) {
         await pageB.goto(path);
-        await expect(pageB.getByRole("img", { name: "Лучник" }).first()).toBeVisible();
+        await expect(pageB.locator('[data-avatar="avatar:archer"]').first()).toBeVisible();
         await expect(pageB.locator('[data-nick-color="nick:lava"]').first()).toHaveText(alpha);
       }
       // В ленте друзей — карточка с тем же ником и аватаром
-      await expect(pageB.getByRole("article", { name: new RegExp(`^${alpha}:`) }).getByRole("img", { name: "Лучник" })).toBeVisible();
+      await expect(pageB.getByRole("article", { name: new RegExp(`^${alpha}:`) }).locator('[data-avatar="avatar:archer"]')).toBeVisible();
     } finally {
       await other.close();
     }
@@ -137,7 +137,7 @@ test.describe("показ косметики", () => {
       await equipItem(a.login, "nickColor", "nick:lava");
       await pageB.goto("/leaderboard");
       await expect(pageB.getByText(alpha)).toBeVisible();
-      await expect(pageB.getByRole("img", { name: "Лучник" })).toHaveCount(0);
+      await expect(pageB.locator("[data-avatar]")).toHaveCount(0);
       await expect(pageB.locator("[data-nick-color]")).toHaveCount(0);
     } finally {
       await other.close();
@@ -215,6 +215,14 @@ test.describe("страница магазина", () => {
     expect(await coinBalance(login)).toBe(50);
   });
 
+  test("free item is labelled free, not bought", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await page.goto("/shop?tab=avatar");
+    await expect(page.getByTestId("shop-item-avatar:knight")).toContainText("Бесплатно");
+    await expect(page.getByTestId("shop-item-avatar:knight")).not.toContainText("Куплено");
+  });
+
   test("shop is 404 without the flag", async ({ page }) => {
     await registerUser(page);
     const res = await page.goto("/shop");
@@ -237,12 +245,36 @@ test.describe("стартовый баланс", () => {
     const banner = page.getByRole("status").filter({ hasText: "За прошлые тренировки начислено" });
     await expect(banner).toContainText(`${retro[0].amount} монет`);
 
+    // Без закрытия плашка запоминается не сама по себе: после перезагрузки она на месте
+    await page.reload();
+    await expect(banner).toContainText(`${retro[0].amount} монет`);
+
     await banner.getByRole("button", { name: "Закрыть" }).click();
     await expect(banner).toHaveCount(0);
     await page.reload();
     await expect(page.getByTestId("coin-balance")).toBeVisible();
     await expect(page.getByText("За прошлые тренировки начислено")).toHaveCount(0);
     expect((await coinTx(login)).filter((t) => t.reason === "RETRO")).toHaveLength(1);
+  });
+
+  test("workout already paid by an event is not paid again by retro", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await seedWorkouts(login, "Жим штанги лёжа", [WORKOUT, WORKOUT, WORKOUT], 5);
+    // Тренировка начата до выката, завершена офлайн задним числом: событие уже заплатило за неё
+    await withDb((db) =>
+      db.query(
+        `insert into "CoinTx" (id, "userId", amount, reason, key, meta)
+         select gen_random_uuid()::text, u.id, 10, 'WORKOUT'::"CoinReason", 'workout:' || (select id from "Workout" where "userId" = u.id order by "finishedAt" limit 1), '{}'::jsonb
+         from "User" u where u.login = $1`,
+        [login],
+      ),
+    );
+    await page.goto("/shop");
+    const retro = (await coinTx(login)).filter((t) => t.reason === "RETRO");
+    expect(retro).toHaveLength(1);
+    // Тренировок для retro остаётся две
+    expect(retro[0].amount).toBe(20);
   });
 
   test("two tabs opening the shop first time give one retro record", async ({ page }) => {

@@ -16,6 +16,17 @@ export const COIN_RATES = {
   raidChestMvp: 60,
   goalChest: 25,
   clubTaskChest: 15,
+  /** Ачивка: XP / делитель, в пределах от минимума до максимума. */
+  achievementDivisor: 5,
+  achievementMin: 3,
+  achievementMax: 50,
+  /** Неделя серии: база + шаг × длина серии, не больше потолка. */
+  streakWeekBase: 10,
+  streakWeekStep: 2,
+  streakWeekMax: 30,
+  /** Новый уровень N: база + шаг × N. */
+  levelBase: 20,
+  levelStep: 2,
   retroCap: 3000,
 } as const;
 
@@ -32,17 +43,17 @@ export function recordCoins(recordExercises: number): number {
 
 /** Ачивка: XP / 5, от 3 до 50. */
 export function achievementCoins(xpReward: number): number {
-  return Math.min(50, Math.max(3, Math.round(xpReward / 5)));
+  return Math.min(COIN_RATES.achievementMax, Math.max(COIN_RATES.achievementMin, Math.round(xpReward / COIN_RATES.achievementDivisor)));
 }
 
 /** Засчитанная неделя серии: 10 + 2 × длина серии, не больше 30. */
 export function streakWeekCoins(streak: number): number {
-  return Math.min(30, 10 + 2 * streak);
+  return Math.min(COIN_RATES.streakWeekMax, COIN_RATES.streakWeekBase + COIN_RATES.streakWeekStep * streak);
 }
 
 /** Новый уровень: 20 + 2 × N. */
 export function levelCoins(level: number): number {
-  return 20 + 2 * level;
+  return COIN_RATES.levelBase + COIN_RATES.levelStep * level;
 }
 
 /** Монеты за каждый достигнутый уровень между `levelBefore` (не включая) и `levelAfter`. */

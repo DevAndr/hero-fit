@@ -19,8 +19,8 @@ export function CoinLines({ coins }: { coins: { total: number; items: CoinLine[]
         +{coins.total} {coinWord(coins.total)}
       </p>
       <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-        {coins.items.map((c) => (
-          <li key={`${c.reason}:${c.label}`}>
+        {coins.items.map((c, i) => (
+          <li key={`${i}:${c.reason}:${c.label}`}>
             {c.label} · +{c.amount}
           </li>
         ))}

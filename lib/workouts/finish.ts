@@ -226,7 +226,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
         workingSets,
         paidToday: await paidWorkoutsToday(tx, userId, day),
         records,
-        streakWeek: weekCount >= STREAK_WEEK_TARGET ? week : null,
+        streakWeek: streak.extended ? week : null,
         streak: streak.currentStreak,
         levelBefore,
         levelAfter: levelProgress(xpAfter).level,

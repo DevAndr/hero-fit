@@ -2,10 +2,10 @@ import type { ShopData } from "@/lib/shop/queries";
 import { coinLabel, coinWord } from "@/lib/shop/labels";
 import { cn } from "@/lib/utils";
 
-const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Последние 50 записей журнала монет. */
-export function CoinHistory({ history }: { history: ShopData["history"] }) {
+export function CoinHistory({ history, timeZone }: { history: ShopData["history"]; timeZone: string }) {
+  const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone });
   return (
     <section className="mt-8">
       <h2 className="text-lg font-bold">История монет</h2>

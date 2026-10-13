@@ -6,7 +6,7 @@ import { ensureRetroCoins } from "@/lib/shop/retro-db";
 
 export type ShopData = {
   coins: number;
-  /** Начисленное при первом заходе (null — не в этот раз). */
+  /** Стартовый баланс из журнала (null — нет записи или 0). */
   retro: number | null;
   owned: string[];
   equipped: Record<ItemKind, string | null>;
@@ -15,8 +15,8 @@ export type ShopData = {
 
 /** Данные страницы магазина: баланс, купленное, надетое и 50 последних записей журнала. */
 export async function getShopData(userId: string): Promise<ShopData> {
-  const retro = await ensureRetroCoins(userId);
-  const [user, items, history] = await Promise.all([
+  await ensureRetroCoins(userId);
+  const [user, items, history, retro] = await Promise.all([
     db.user.findUniqueOrThrow({
       where: { id: userId },
       select: { coins: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true },
@@ -28,10 +28,11 @@ export async function getShopData(userId: string): Promise<ShopData> {
       take: 50,
       select: { amount: true, reason: true, key: true, meta: true, createdAt: true },
     }),
+    db.coinTx.findUnique({ where: { userId_key: { userId, key: "retro" } }, select: { amount: true } }),
   ]);
   return {
     coins: user.coins,
-    retro: retro > 0 ? retro : null,
+    retro: retro && retro.amount > 0 ? retro.amount : null,
     owned: items.map((i) => i.code),
     equipped: { avatar: user.avatarCode, frame: user.frameCode, nickColor: user.nickColorCode, theme: user.themeCode },
     history,

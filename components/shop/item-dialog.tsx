@@ -36,7 +36,7 @@ export function ItemPreview({ item, display, equipped }: { item: ShopItem; displ
   };
   return (
     <div className="flex items-center gap-3 rounded-lg border p-3">
-      <PlayerAvatar nickname={display} cosmetics={preview} size="lg" />
+      <PlayerAvatar nickname={display} cosmetics={preview} size="lg" labelled />
       <PlayerName nickname={display} color={preview.nickColor} className="text-lg font-semibold" />
     </div>
   );

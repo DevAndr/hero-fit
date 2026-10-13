@@ -23,6 +23,7 @@ export async function ensureRetroCoins(userId: string): Promise<number> {
       SELECT to_char((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS workouts
       FROM "Workout" w
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" < ${user.coinsSince}
+        AND NOT EXISTS (SELECT 1 FROM "CoinTx" c WHERE c."userId" = w."userId" AND c.key = 'workout:' || w.id)
         AND (SELECT COUNT(*) FROM "WorkoutSet" s JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
              WHERE we."workoutId" = w.id AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s.reps > 0) >= 3
       GROUP BY 1`;
@@ -34,6 +35,7 @@ export async function ensureRetroCoins(userId: string): Promise<number> {
         CASE WHEN jsonb_typeof(e.meta->'records') = 'array' THEN e.meta->'records' ELSE '[]'::jsonb END) r
       WHERE e."userId" = ${userId} AND e.reason = 'PERSONAL_RECORD'::"XpReason" AND e."createdAt" < ${user.coinsSince}
         AND e."workoutId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM "CoinTx" c WHERE c."userId" = e."userId" AND c.key = 'workout:' || e."workoutId")
       GROUP BY e."workoutId"`;
 
     const achievements = await tx.$queryRaw<{ xp: number }[]>`

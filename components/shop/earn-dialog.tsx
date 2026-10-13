@@ -14,9 +14,9 @@ const ROWS: { label: string; value: string }[] = [
   { label: "Сундук рейда", value: `${COIN_RATES.raidChest}, MVP — ${COIN_RATES.raidChestMvp}` },
   { label: "Сундук цели", value: `${COIN_RATES.goalChest}` },
   { label: "Сундук задания клуба", value: `${COIN_RATES.clubTaskChest}` },
-  { label: "Ачивка", value: "3–50, по награде в XP" },
-  { label: "Неделя серии", value: "10 + 2 за каждую неделю серии, до 30" },
-  { label: "Новый уровень N", value: "20 + 2 × N" },
+  { label: "Ачивка", value: `${COIN_RATES.achievementMin}–${COIN_RATES.achievementMax}, по награде в XP` },
+  { label: "Неделя серии", value: `${COIN_RATES.streakWeekBase} + ${COIN_RATES.streakWeekStep} за каждую неделю серии, до ${COIN_RATES.streakWeekMax}` },
+  { label: "Новый уровень N", value: `${COIN_RATES.levelBase} + ${COIN_RATES.levelStep} × N` },
 ];
 
 /** «Как заработать» — таблица ставок. */

@@ -22,7 +22,8 @@ class Rejected extends Error {}
 export async function buyItemAction(code: string): Promise<{ ok: true; coins: number } | { ok: false; error: string }> {
   const user = await requireUser();
   if (!(await shopAllowed(user.id))) return { ok: false, error: SHOP_OFF };
-  const item = itemByCode(code);
+  const item = typeof code === "string" ? itemByCode(code) : null;
+  if (!item) return { ok: false, error: "Нет в продаже" };
 
   try {
     const coins = await db.$transaction(async (tx) => {
@@ -32,7 +33,7 @@ export async function buyItemAction(code: string): Promise<{ ok: true; coins: nu
       ]);
       const check = canBuy(item, !!owned, row?.coins ?? 0);
       if (!check.ok) throw new Rejected(check.error);
-      const price = item!.price;
+      const price = item.price;
       // условное списание: при параллельной покупке на одну сумму второй updateMany вернёт 0
       const paid = await tx.user.updateMany({
         where: { id: user.id, coins: { gte: price } },
@@ -60,9 +61,10 @@ export async function buyItemAction(code: string): Promise<{ ok: true; coins: nu
 export async function equipItemAction(kind: ItemKind, code: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await requireUser();
   if (!(await shopAllowed(user.id))) return { ok: false, error: SHOP_OFF };
+  if (typeof kind !== "string" || !Object.hasOwn(FIELD, kind)) return { ok: false, error: "Неизвестный вид" };
   const field = FIELD[kind];
-  if (!field) return { ok: false, error: "Неизвестный вид" };
 
+  if (code !== null && typeof code !== "string") return { ok: false, error: "Это нельзя надеть" };
   if (code !== null) {
     const item = itemByCode(code);
     const owned = item ? !!(await db.userItem.findUnique({ where: { userId_code: { userId: user.id, code } }, select: { id: true } })) : false;

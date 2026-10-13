@@ -17,6 +17,7 @@ import { assistantAvailable } from "@/lib/assistant/access";
 import { RELEASES } from "@/lib/changelog/releases";
 import { userChangelog } from "@/lib/changelog/view";
 import { db } from "@/lib/db";
+import { ensureRetroCoins } from "@/lib/shop/retro-db";
 import { itemByCode } from "@/lib/shop/catalog";
 import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { themeStyle } from "@/lib/shop/theme-style";
@@ -43,6 +44,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       select: { id: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true, coins: true },
     }),
   ]);
+  // Стартовые монеты — до чтения баланса в меню (после первого раза это один запрос)
+  if (flags.includes("shop") && (await ensureRetroCoins(user.id)) > 0) {
+    look.coins = (await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { coins: true } })).coins;
+  }
   // Косметика и тема — только при включённом магазине у самого пользователя
   const cosmetics = (await cosmeticsLoader())(look);
   const theme = flags.includes("shop") ? itemByCode(look.themeCode) : null;

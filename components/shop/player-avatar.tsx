@@ -13,11 +13,14 @@ export function PlayerAvatar({
   cosmetics,
   size = "sm",
   className,
+  labelled = false,
 }: {
   nickname: string;
   cosmetics?: Cosmetics;
   size?: keyof typeof SIZES;
   className?: string;
+  /** Аватар без ника рядом: alt — название предмета; иначе картинка декоративна (ник выводится рядом). */
+  labelled?: boolean;
 }) {
   const avatar = itemByCode(cosmetics?.avatar);
   const image = avatar?.kind === "avatar" ? avatarImage(avatar.code) : null;
@@ -26,8 +29,8 @@ export function PlayerAvatar({
   const base = cn("relative flex shrink-0 items-center justify-center overflow-hidden rounded-full", SIZES[size], ring, className);
   if (avatar && image) {
     return (
-      <span className={cn(base, "bg-muted")} data-frame={frame?.code}>
-        <Image src={image} alt={avatar.name} width={PX[size]} height={PX[size]} className="size-full object-cover" />
+      <span className={cn(base, "bg-muted")} data-frame={frame?.code} data-avatar={avatar.code}>
+        <Image src={image} alt={labelled ? avatar.name : ""} width={PX[size]} height={PX[size]} className="size-full object-cover" />
       </span>
     );
   }

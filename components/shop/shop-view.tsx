@@ -16,7 +16,7 @@ import { KIND_TABS, RARITY_LABELS } from "@/lib/shop/view";
 import { cn } from "@/lib/utils";
 
 /** Магазин: баланс, вкладки по видам, карточки предметов, история. */
-export function ShopView({ tab, data, display }: { tab: ItemKind; data: ShopData; display: string }) {
+export function ShopView({ tab, data, display, timeZone }: { tab: ItemKind; data: ShopData; display: string; timeZone: string }) {
   const [openCode, setOpenCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function ShopView({ tab, data, display }: { tab: ItemKind; data: ShopData
                 <span className="font-semibold">{item.name}</span>
                 <span className="text-xs text-muted-foreground">{RARITY_LABELS[item.rarity]}</span>
                 <span className="mt-auto text-sm font-medium">
-                  {worn ? "Надето" : have ? "Куплено" : short > 0 ? `Не хватает ${short}` : `${item.price} ${coinWord(item.price)}`}
+                  {worn ? "Надето" : item.acquire === "free" ? "Бесплатно" : have ? "Куплено" : short > 0 ? `Не хватает ${short}` : `${item.price} ${coinWord(item.price)}`}
                 </span>
               </button>
             </li>
@@ -93,7 +93,7 @@ export function ShopView({ tab, data, display }: { tab: ItemKind; data: ShopData
         onClose={() => setOpenCode(null)}
       />
 
-      <CoinHistory history={data.history} />
+      <CoinHistory history={data.history} timeZone={timeZone} />
     </>
   );
 }
