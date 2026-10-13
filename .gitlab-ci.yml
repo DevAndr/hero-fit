@@ -104,10 +104,10 @@ e2e:
     paths: [test-results/]
     expire_in: 7 days
 
-# Аналог .github/workflows/deploy.yml: прод обновляется после зелёного checks на main (push или Run pipeline).
-# Образы — GHCR, сервер — docker compose в DEPLOY_PATH. Переменные проекта (Settings → CI/CD → Variables):
+# Прод обновляется после зелёного checks на main (push или Run pipeline). Сборка — на своём раннере, реестра
+# снаружи нет: на сервере registry слушает только 127.0.0.1:5000 (deploy/docker-compose.yml), задача пробрасывает его
+# SSH-туннелем и пушит образы — уходят только изменённые слои. Переменные проекта (Settings → CI/CD → Variables):
 #   PROD_APP_URL  https://домен — вшивается в сборку; пока не задана, деплой пропускается
-#   GHCR_USER, GHCR_TOKEN  GitHub classic-токен со scope write:packages (сервер скачивает образы им же)
 #   SSH_HOST, SSH_USER, SSH_KEY (тип File, приватный ключ), SSH_PORT (необязательно)
 #   YM_ID (номер счётчика Яндекс.Метрики, необязательно), DEPLOY_PATH (по умолчанию /opt/hero-fit)
 deploy:
@@ -131,39 +131,51 @@ deploy:
     DOCKER_TLS_CERTDIR: /certs
     DOCKER_TLS_VERIFY: "1"
     DOCKER_CERT_PATH: /certs/client
+    # Реестр на сервере — через туннель он же localhost:5000 (localhost Docker пускает без TLS)
+    IMAGE: localhost:5000/hero-fit
     # Значения по умолчанию; переменные проекта с теми же именами их перекрывают
-    GHCR_IMAGE: ghcr.io/devandr/hero-fit
     DEPLOY_PATH: /opt/hero-fit
     SSH_PORT: "22"
     YM_ID: ""
   script:
     - apk add --no-cache openssh-client
-    - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-    # Кэш слоёв — в GHCR (тег buildcache) вместо кэша GitHub Actions
-    - docker buildx create --use --driver docker-container
-    - >
-      docker buildx build . --target runner --push
-      --build-arg APP_URL="$PROD_APP_URL" --build-arg NEXT_PUBLIC_YM_ID="$YM_ID"
-      -t "$GHCR_IMAGE:$CI_COMMIT_SHA" -t "$GHCR_IMAGE:latest"
-      --cache-from type=registry,ref="$GHCR_IMAGE:buildcache"
-      --cache-to type=registry,ref="$GHCR_IMAGE:buildcache",mode=max
-    - >
-      docker buildx build . --target migrate --push
-      --build-arg APP_URL="$PROD_APP_URL"
-      -t "$GHCR_IMAGE-migrate:$CI_COMMIT_SHA" -t "$GHCR_IMAGE-migrate:latest"
-      --cache-from type=registry,ref="$GHCR_IMAGE:buildcache"
     - chmod 600 "$SSH_KEY"
     - SSH_OPTS="-i $SSH_KEY -o Port=$SSH_PORT -o StrictHostKeyChecking=accept-new"
+    - >
+      docker build . --target runner
+      --build-arg APP_URL="$PROD_APP_URL" --build-arg NEXT_PUBLIC_YM_ID="$YM_ID" -t "$IMAGE:latest"
+    - docker build . --target migrate --build-arg APP_URL="$PROD_APP_URL" -t "$IMAGE-migrate:latest"
     - scp $SSH_OPTS deploy/docker-compose.yml deploy/Caddyfile "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
-    # Токен — через stdin, не в командной строке сервера
-    - echo "$GHCR_TOKEN" | ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+    # Первый деплой — реестра на сервере ещё нет
+    - ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "cd '$DEPLOY_PATH' && docker compose up -d registry"
+    # Туннель — контейнер в сети dind: пушит демон dind, и localhost:5000 должен быть его localhost
+    - >
+      docker create --name tunnel --network host alpine:3 sh -c
+      "apk add --no-cache openssh-client >/dev/null && chmod 600 /key &&
+      exec ssh -i /key -o Port=$SSH_PORT -o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes
+      -o ServerAliveInterval=30 -N -L 5000:127.0.0.1:5000 $SSH_USER@$SSH_HOST"
+    - docker cp "$SSH_KEY" tunnel:/key
+    - docker start tunnel
     - |
-      ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "SHA='$CI_COMMIT_SHA' IMAGE='$GHCR_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' sh -s" <<'EOF'
+      i=0
+      until docker exec tunnel wget -q -O /dev/null http://127.0.0.1:5000/v2/ 2>/dev/null; do
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then docker logs tunnel; echo "registry tunnel is not up after 60s" >&2; exit 1; fi
+        sleep 2
+      done
+    - docker push "$IMAGE:latest"
+    - docker push "$IMAGE-migrate:latest"
+    - docker rm -f tunnel
+    - |
+      ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "SHA='$CI_COMMIT_SHA' IMAGE='$IMAGE' DEPLOY_PATH='$DEPLOY_PATH' sh -s" <<'EOF'
       set -eu
       cd "$DEPLOY_PATH"
-      trap 'docker logout ghcr.io >/dev/null' EXIT
+      # В реестре только latest; локально у сервера — тег sha (откат — IMAGE_TAG=<sha>, deploy/README.md)
+      for img in "$IMAGE" "$IMAGE-migrate"; do
+        docker pull "$img:latest"
+        docker tag "$img:latest" "$img:$SHA"
+      done
       export IMAGE_REPO="$IMAGE" IMAGE_TAG="$SHA"
-      docker compose pull migrate app
       docker compose up -d --remove-orphans
       # Caddyfile смонтирован файлом — up -d его не перечитывает
       docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
@@ -180,6 +192,8 @@ deploy:
         sleep 5
       done
       docker compose ps
-      # Каждый деплой — новые образы с тегом sha; неиспользуемые старше 3 суток удаляем (недавние — для отката)
+      # Прошлые latest в реестре — без тега: слои, не нужные текущим, удаляются
+      docker compose exec -T registry registry garbage-collect --delete-untagged /etc/docker/registry/config.yml >/dev/null
+      # Каждый деплой — образы с тегом sha; неиспользуемые старше 3 суток удаляем (недавние — для отката)
       docker image prune -a -f --filter "until=72h"
       EOF
