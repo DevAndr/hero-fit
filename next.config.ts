@@ -1,11 +1,16 @@
 import type { NextConfig } from "next";
+import pkg from "./package.json";
 
 const nextConfig: NextConfig = {
   // Docker (Dockerfile, BUILD_STANDALONE=1): .next/standalone — сервер с минимумом node_modules. Локально и в CI — `next start`.
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   serverExternalPackages: ["web-push"],
-  // Дата сборки — lastmod статических страниц в sitemap.xml
-  env: { BUILD_TIME: new Date().toISOString() },
+  // Дата сборки — lastmod статических страниц в sitemap.xml; версия (package.json) и sha коммита (build arg GIT_SHA) — в /settings
+  env: {
+    BUILD_TIME: new Date().toISOString(),
+    APP_VERSION: pkg.version,
+    GIT_SHA: process.env.GIT_SHA || "dev",
+  },
   // Картинка для сторис рисуется на лету и читает шрифты и спрайты боссов с диска — в standalone их нужно положить явно
   outputFileTracingIncludes: {
     "/workouts/\\[id\\]/story": ["./assets/fonts/**/*", "./assets/icons/game/bosses/**/*"],
