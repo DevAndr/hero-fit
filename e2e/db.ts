@@ -1019,3 +1019,13 @@ export async function visitDays(user: { login?: string; id?: string }): Promise<
     return rows.map((r) => r.day);
   });
 }
+
+/** Перенести пользователя в прошлое для когорт: дата регистрации, пояс, журнал заходов заменяется данными днями. */
+export async function backdateUser(login: string, s: { createdAt: Date; timeZone: string; visitDays: string[] }) {
+  await withDb(async (db) => {
+    const id = await userId(db, login);
+    await db.query(`update "User" set "createdAt" = $2, "timeZone" = $3 where id = $1`, [id, s.createdAt, s.timeZone]);
+    await db.query(`delete from "UserVisit" where "userId" = $1`, [id]);
+    for (const day of s.visitDays) await db.query(`insert into "UserVisit" ("userId", day) values ($1, $2::date)`, [id, day]);
+  });
+}

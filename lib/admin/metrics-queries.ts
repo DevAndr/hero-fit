@@ -5,25 +5,29 @@ import { db } from "@/lib/db";
 import { addDays, cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
 
 /*
- * Метрики админки — агрегаты по всей базе, дни и недели (с понедельника) — в поясе админа.
- * Активный = день в журнале заходов (UserVisit) или завершённая тренировка в этот местный день.
+ * Метрики админки — агрегаты по всей базе, границы периодов (дни, недели с понедельника) — в поясе админа.
+ * Активный = день в журнале заходов (UserVisit) или завершённая тренировка; день активности — местный день
+ * игрока (как в журнале), иначе «зашёл и тренировался» у игрока в далёком поясе попадает в разные дни.
  */
 
 const COHORTS = 8;
 
 /** Местный день метки времени (столбцы timestamp хранят UTC). */
-const localDay = (col: Prisma.Sql, tz: string) => Prisma.sql`((${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date`;
+const localDay = (col: Prisma.Sql, tz: string | Prisma.Sql) => Prisma.sql`((${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date`;
+
+/** Местный день тренировки w в поясе её владельца u. */
+const playerDay = localDay(Prisma.sql`w."finishedAt"`, Prisma.sql`u."timeZone"`);
 
 /** Отсечка по UTC с запасом в сутки — дальше фильтр по местному дню. */
 const utcFloor = (day: string) => new Date(new Date(`${day}T00:00:00Z`).getTime() - 24 * 60 * 60 * 1000);
 
-/** Дни активности (заходы ∪ тренировки) начиная с from; UNION убирает дубли «зашёл и тренировался». */
-const activitySql = (tz: string, from: string) => Prisma.sql`
+/** Дни активности игроков (заходы ∪ тренировки) начиная с from; UNION убирает дубли «зашёл и тренировался». */
+const activitySql = (from: string) => Prisma.sql`
   SELECT "userId", day FROM "UserVisit" WHERE day >= ${from}::date
   UNION
-  SELECT "userId", ${localDay(Prisma.sql`"finishedAt"`, tz)} AS day
-  FROM "Workout"
-  WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(from)} AND ${localDay(Prisma.sql`"finishedAt"`, tz)} >= ${from}::date
+  SELECT w."userId", ${playerDay} AS day
+  FROM "Workout" w JOIN "User" u ON u.id = w."userId"
+  WHERE w.status = 'COMPLETED' AND w."finishedAt" >= ${utcFloor(from)} AND ${playerDay} >= ${from}::date
 `;
 
 function mondayOf(day: string) {
@@ -63,7 +67,7 @@ export async function getOverview(tz: string): Promise<Overview> {
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
   const [row] = await db.$queryRaw<(Omit<Overview, "hours30" | "hours30Prev" | "avgMinutes30"> & { sec30: number; sec30Prev: number })[]>`
-    WITH a AS (${activitySql(tz, d60)}),
+    WITH a AS (${activitySql(d60)}),
     w AS (
       SELECT "durationSec" AS sec, ${finished} AS day FROM "Workout"
       WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(d60)}
@@ -112,8 +116,9 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
     SELECT 'visited', to_char(day, 'YYYY-MM-DD'), COUNT(DISTINCT "userId")::int
     FROM "UserVisit" WHERE day >= ${from}::date GROUP BY 2
     UNION ALL
-    SELECT 'trained', to_char(${finished}, 'YYYY-MM-DD'), COUNT(DISTINCT "userId")::int
-    FROM "Workout" WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(from)} AND ${finished} >= ${from}::date GROUP BY 2
+    SELECT 'trained', to_char(${playerDay}, 'YYYY-MM-DD'), COUNT(DISTINCT w."userId")::int
+    FROM "Workout" w JOIN "User" u ON u.id = w."userId"
+    WHERE w.status = 'COMPLETED' AND w."finishedAt" >= ${utcFloor(from)} AND ${playerDay} >= ${from}::date GROUP BY 2
     UNION ALL
     SELECT 'workouts', to_char(${finished}, 'YYYY-MM-DD'), COUNT(*)::int
     FROM "Workout" WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(from)} AND ${finished} >= ${from}::date GROUP BY 2
@@ -141,7 +146,7 @@ export async function getCohorts(tz: string): Promise<CohortRow[]> {
       WITH u AS (
         SELECT id, date_trunc('week', ${signup})::date AS week
         FROM "User" WHERE "createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date
-      ), a AS (${activitySql(tz, from)}),
+      ), a AS (${activitySql(from)}),
       c AS (
         SELECT u.id, to_char(u.week, 'YYYY-MM-DD') AS week, ((date_trunc('week', a.day)::date - u.week) / 7)::int AS "offset"
         FROM u JOIN a ON a."userId" = u.id AND a.day >= u.week
