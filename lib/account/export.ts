@@ -3,6 +3,8 @@
  * не попадают, даже если пришли в выборке; о других людях — только ники.
  */
 
+import { itemByCode } from "@/lib/shop/catalog";
+
 type Dated = Date | null;
 
 export type ExportWorkout = {
@@ -41,6 +43,11 @@ export type ExportRaw = {
   club: unknown;
   coachComments: unknown[];
   notifications: unknown[];
+  shop: {
+    coins: number;
+    items: { code: string; acquiredAt: Date }[];
+    coinHistory: ({ amount: number; reason: string; createdAt: Date } & Record<string, unknown>)[];
+  };
 };
 
 export const EXPORT_SECTIONS = [
@@ -64,6 +71,7 @@ export const EXPORT_SECTIONS = [
   "clients",
   "coachComments",
   "notifications",
+  "shop",
 ] as const;
 
 const PROFILE_FIELDS = [
@@ -125,6 +133,11 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     clients: people(raw.clients, ["nickname", "since", "until"]),
     coachComments: raw.coachComments,
     notifications: raw.notifications,
+    shop: {
+      coins: raw.shop.coins,
+      items: raw.shop.items.map((i) => ({ code: i.code, name: itemByCode(i.code)?.name ?? i.code, acquiredAt: i.acquiredAt })),
+      coinHistory: raw.shop.coinHistory.map((c) => ({ amount: c.amount, reason: c.reason, createdAt: c.createdAt })),
+    },
   };
 }
 

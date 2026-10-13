@@ -5,6 +5,10 @@ import {
   addFlagUser,
   clubAdminLogin,
   clubOf,
+  coinTx,
+  equipItem,
+  setCoins,
+  userItems,
   createClub,
   createTelegramUser,
   guildOf,
@@ -35,6 +39,8 @@ test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({
   expect(data.version).toBe(1);
   expect(data.profile.login).toBe(me.login);
   expect(data.workouts[0].exercises[0].name).toBe("Жим штанги лёжа");
+  expect(typeof data.shop.coins).toBe("number");
+  expect(Array.isArray(data.shop.items)).toBe(true);
 
   const [csv] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Тренировки (CSV)" }).click()]);
   const rows = await readFile((await csv.path())!, "utf8");
@@ -92,6 +98,25 @@ test("delete: the account is gone, sign-in fails", async ({ page }) => {
   await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Войти" }).click();
   await expect(page.getByText("Неверный логин или пароль")).toBeVisible();
+});
+
+test("shop: export lists purchases and coin history; delete passes with items and ledger", async ({ page }) => {
+  const me = await registerUser(page);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "62,5", reps: "8" }]);
+  await setCoins(me.login, 777);
+  await equipItem(me.login, "frame", "frame:bronze");
+  expect((await userItems(me.login)).length).toBeGreaterThan(0);
+  const before = (await coinTx(me.login)).length;
+  await page.goto("/settings");
+  const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.shop.coins).toBe(777);
+  expect(data.shop.items.map((i: { code: string }) => i.code)).toContain("frame:bronze");
+  expect(data.shop.coinHistory.length).toBe(before);
+  expect(JSON.stringify(data.shop.coinHistory)).not.toContain("workout:");
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await userExists(me.login)).toBe(false);
 });
 
 test("guild leader deletes: the guild goes to the member; alone — the guild is gone", async ({ browser }) => {
