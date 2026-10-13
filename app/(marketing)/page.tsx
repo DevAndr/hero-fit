@@ -148,7 +148,6 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Тренировки с тренером: план, задания и комментарии", false],
 ];
 
-/** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
 const CLUB_POINTS = [
   "Найдите свой зал или добавьте его — заявку проверит модератор",
   "Соревнуйтесь в рейтинге недели с теми, кто тренируется рядом",
@@ -161,6 +160,7 @@ const GUILD_POINTS = [
   "Сундук с опытом — каждому участнику, кто бил до победы; MVP, нанёсший больше всех урона, получает больше",
 ];
 
+/** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
 const FREE_PLAN = [
   "Тренировки без ограничений, шаблоны и готовые программы",
   "Своя база упражнений, таймер отдыха, калькуляторы",
@@ -228,7 +228,8 @@ function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: st
   );
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const deleted = (await searchParams).deleted === "1";
   await connection();
   // Mini App в Telegram — только при настроенном боте
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
@@ -288,6 +289,11 @@ export default async function Home() {
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[48px_48px] opacity-40 mask-[radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
         <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-28 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20 lg:pb-32">
           <div className="space-y-7">
+            {deleted ? (
+              <p role="status" className="rounded-lg border bg-card/80 px-4 py-3 text-sm">
+                Аккаунт удалён. Спасибо, что тренировались с Hero Fit
+              </p>
+            ) : null}
             <WhatsNewLink />
             <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
               <Dumbbell className="size-4 text-primary" aria-hidden /> {telegramUrl ? "Бесплатно · в браузере, Telegram и офлайн" : "Бесплатно · в браузере и офлайн"}

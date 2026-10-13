@@ -1,14 +1,21 @@
 # Деплой Hero Fit
 
 Сервер: Docker Compose — Postgres, миграции + сид, приложение (Next.js standalone), Caddy (HTTPS Let's Encrypt), ежедневный `pg_dump`.
-Обновление: после зелёного CI на `main` workflow `Deploy` собирает образы в GHCR (`ghcr.io/<владелец>/hero-fit` и `…-migrate`),
-копирует `docker-compose.yml` и `Caddyfile` на сервер и перезапускает стек. Ручной запуск — Actions → Deploy → Run workflow.
+Обновление: после зелёного `checks` на `main` задача `deploy` (`.gitlab-ci.yml`) на своём раннере GitLab собирает образы
+`hero-fit` и `hero-fit-migrate`, копирует `docker-compose.yml` и `Caddyfile` на сервер и пушит образы в реестр на сервере
+(`registry`, слушает только `127.0.0.1:5000`) через SSH-туннель — уходят только изменённые слои; затем сервер скачивает их
+и перезапускает стек. Внешний реестр и токены не нужны, но раннер (ПК с GitLab) должен быть включён.
+Ручной запуск — Build → Pipelines → Run pipeline (ветка `main`).
+
+Раннеру нужен Docker executor с `privileged = true` (сборка — `docker:28-dind`).
 
 ## Один раз: сервер
 
 Ubuntu/Debian, команды от root (или через sudo).
 
 1. **DNS.** A-запись домена (и `www`) → IP сервера. Порты 80 и 443 открыты (`ufw allow 80,443/tcp` если включён ufw).
+   Домена пока нет — `<IP через дефисы>.sslip.io` (например, `203-0-113-7.sslip.io`): он сам указывает на этот IP, и
+   Caddy получит на него сертификат. Поисковики такой адрес не индексируют — для запуска нужен свой домен.
 2. **Docker:**
    ```sh
    curl -fsSL https://get.docker.com | sh
@@ -19,38 +26,41 @@ Ubuntu/Debian, команды от root (или через sudo).
    usermod -aG docker deploy
    mkdir -p /opt/hero-fit/backups && chown -R deploy:deploy /opt/hero-fit
    ```
-4. **SSH-ключ для GitHub Actions** (на своей машине):
+4. **SSH-ключ для деплоя** (на своей машине):
    ```sh
-   ssh-keygen -t ed25519 -f hero-fit-deploy -N "" -C "github-actions"
+   ssh-keygen -t ed25519 -f hero-fit-deploy -N "" -C "gitlab-deploy"
    ```
    Публичную часть (`hero-fit-deploy.pub`) — на сервер в `/home/deploy/.ssh/authorized_keys`
-   (папка `700`, файл `600`, владелец `deploy`). Приватную — в секрет `SSH_KEY` (см. ниже).
+   (папка `700`, файл `600`, владелец `deploy`). Приватную — в переменную `SSH_KEY` (см. ниже).
+   В `/etc/ssh/sshd_config` не должно быть `AllowTcpForwarding no` (туннель к реестру); проверка — `sshd -T | grep -i allowtcp`.
 5. **`/opt/hero-fit/.env`** — по образцу [`.env.example`](.env.example): домен, пароль базы, JWT-секреты, VAPID, почта.
    `chmod 600 /opt/hero-fit/.env`.
 
-## Один раз: GitHub
+## Один раз: GitLab
 
-Settings → Secrets and variables → Actions:
+Settings → CI/CD → Variables (Visibility — Masked, где можно; Protect — да: `main` защищена):
 
 | Тип | Имя | Значение |
 |---|---|---|
-| Secret | `SSH_HOST` | IP или домен сервера |
-| Secret | `SSH_USER` | `deploy` |
-| Secret | `SSH_KEY` | приватный ключ `hero-fit-deploy` целиком |
-| Secret | `SSH_PORT` | только если SSH не на 22 |
-| Variable | `APP_URL` | `https://домен` — вшивается в сборку (robots, sitemap, canonical) |
+| Variable | `PROD_APP_URL` | `https://домен` — вшивается в сборку (robots, sitemap, canonical); тот же, что `APP_URL` в `.env` сервера |
+| Variable | `SSH_HOST` | IP сервера |
+| Variable | `SSH_USER` | `deploy` |
+| **File** | `SSH_KEY` | приватный ключ `hero-fit-deploy` целиком (с переводом строки в конце) |
+| Variable | `SSH_PORT` | только если SSH не на 22 |
+| Variable | `YM_ID` | номер счётчика Яндекс.Метрики (необязательно) |
 | Variable | `DEPLOY_PATH` | только если не `/opt/hero-fit` |
 
-Пока переменной `APP_URL` нет, workflow `Deploy` пропускается.
+Пока переменной `PROD_APP_URL` нет, задача `deploy` в пайплайн не попадает.
 
-После первого деплоя: Actions → Deploy → Run workflow (или любой push в `main`). Проверка — `https://домен/api/health` → `{"ok":true}`.
+Первый деплой: Build → Pipelines → Run pipeline на `main` (или слияние MR в `main`). Первый пуш долгий — образ `migrate` ~1,7 ГБ,
+дальше — только изменённые слои. Проверка — `https://домен/api/health` → `{"ok":true}`.
 
 ## Telegram-бот (необязательно)
 
 1. В [@BotFather](https://t.me/BotFather): `/newbot` → токен и имя бота (без `@`).
 2. В `/opt/hero-fit/.env`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` (`openssl rand -hex 32`),
-   затем Actions → Deploy → Run workflow (перечитает `.env`). Голый `docker compose up -d app` на сервере не сработает:
-   без `IMAGE_TAG` compose идёт за `:latest`, которого нет, и без логина в GHCR. Вручную — с тегом текущего образа:
+   затем Run pipeline на `main` (перечитает `.env`). Голый `docker compose up -d app` на сервере возьмёт `:latest` из
+   реестра — последний собранный образ, обычно он же. Точно текущий — с тегом запущенного образа:
    `IMAGE_TAG=$(docker inspect -f '{{.Config.Image}}' "$(docker compose ps -q app)" | sed 's/.*://') docker compose up -d app`.
    Проверка: `curl -X POST https://<домен>/api/telegram/webhook` → `401` (бот включён; `404` — `.env` не подхвачен или старый образ).
 3. Один раз зарегистрировать webhook (в образе нет `tsx`, поэтому `curl`; или `npm run telegram:webhook` локально с теми же env):
@@ -95,8 +105,8 @@ docker compose exec -T db pg_restore -U herofit -d herofit --clean --if-exists <
 docker compose start app
 ```
 
-Без `IMAGE_TAG` compose берёт `latest` — последний собранный образ. Если пакеты в GHCR приватные, для ручного `pull`
-нужен `docker login ghcr.io` (токен с `read:packages`); деплой из Actions логинится сам.
+Без `IMAGE_TAG` compose берёт `latest` — последний собранный образ. Откатиться можно на версии последних 3 суток
+(старые образы удаляются после деплоя); в реестре хранится только `latest`.
 
 ## Админ и фича-флаги
 
@@ -115,6 +125,6 @@ docker compose start app
   (Timeweb запрещает подмену). Затем `docker compose up -d app` и проверка через «Забыли пароль».
   Облачные серверы по умолчанию закрывают исходящие SMTP-порты (25/465/587/2525) — открыть через поддержку провайдера
   сервера; проверка: `timeout 6 bash -c '</dev/tcp/smtp.timeweb.ru/465' && echo open`.
-- Яндекс.Метрика: создать счётчик на metrika.yandex.ru, номер — в переменную репозитория `YM_ID` (вшивается при
+- Яндекс.Метрика: создать счётчик на metrika.yandex.ru, номер — в переменную GitLab `YM_ID` (вшивается при
   сборке; следующий деплой включит счётчик и уведомление о cookies). Цели (тип «JavaScript-событие») — `signup`,
   `workout_start`, `workout_finish`, `first_workout`. Вебвизор не записывает текст кабинета (`ym-hide-content`).

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { addFlagUser, clubTaskOf, clubTaskRewards, createClub, createClubTask, joinClub, notificationBodies, setNickname, withDb } from "./db";
+import { addFlagUser, clubTaskOf, clubTaskRewards, createClub, createClubTask, joinClub, notificationBodies, setClubStatus, setNickname, withDb } from "./db";
 
 const openRewards = (taskId: string, login: string) =>
   withDb((db) =>
@@ -41,6 +41,9 @@ test("EACH: own workout completes the task — summary block and reward", async 
   const block = me.page.getByRole("region", { name: "Задания клуба" });
   await expect(block.getByText("Задание выполнено!")).toBeVisible();
   expect(await clubTaskRewards(task)).toEqual([me.login]);
+  // Событие в ленте клуба
+  await me.page.goto(`/clubs/${club.id}?tab=feed`);
+  await expect(me.page.getByText("Выполнено задание «Каждому: 1 тренировка за 7 дней»")).toBeVisible();
 });
 
 test("CLUB: second player finishes it — rewards to contributors only, once", async ({ browser }) => {
@@ -62,6 +65,9 @@ test("CLUB: second player finishes it — rewards to contributors only, once", a
 
   await quickWorkout(b.page, BENCH, [{ weight: "40", reps: "10" }]);
   await expect(b.page.getByRole("region", { name: "Задания клуба" }).getByText("Клуб выполнил задание!")).toBeVisible();
+  // Другому участнику — событие «последний вклад» в ленте клуба
+  await a.page.goto(`/clubs/${club.id}?tab=feed`);
+  await expect(a.page.getByText(/^Клуб выполнил «Клубом: 30 повторов .*» — последний вклад$/)).toBeVisible();
   expect((await clubTaskOf(task)).completedAt).not.toBeNull();
   expect((await clubTaskRewards(task)).sort()).toEqual([a.login, b.login].sort());
   await expect.poll(async () => (await titles(a.login)).filter((t) => t.startsWith("Клуб выполнил задание")).length).toBe(1);
@@ -234,4 +240,23 @@ test("without the clubs flag a workout does not count (kill switch)", async ({ b
   await quickWorkout(page, BENCH, [{ weight: "40", reps: "10" }]);
   await expect(page.getByRole("region", { name: "Задания клуба" })).toHaveCount(0);
   expect((await clubTaskOf(task)).hits).toBe(0);
+});
+
+test("hidden club: tasks freeze, the admin can still cancel them", async ({ browser }) => {
+  const admin = await clubPlayer(browser);
+  const club = await createClub(admin.login);
+  await joinClub(admin.login, club.id, new Date(Date.now() - 3600_000));
+  const task = await createClubTask(club.id, { type: "WORKOUTS", mode: "EACH", target: 1 });
+  await setClubStatus(club.id, "HIDDEN");
+
+  await quickWorkout(admin.page, BENCH, [{ weight: "40", reps: "10" }]);
+  await expect(admin.page.getByRole("region", { name: "Задания клуба" })).toHaveCount(0);
+  expect((await clubTaskOf(task)).hits).toBe(0);
+
+  await admin.page.goto(`/clubs/${club.id}/manage`);
+  const section = admin.page.getByRole("region", { name: "Задания клуба" });
+  await expect(section.getByRole("button", { name: "Новое задание" })).toHaveCount(0);
+  await section.getByRole("listitem").filter({ hasText: "Каждому: 1 тренировка за 7 дней" }).getByRole("button", { name: "Отменить" }).click();
+  await admin.page.getByRole("alertdialog").getByRole("button", { name: "Отменить задание" }).click();
+  await expect.poll(async () => (await clubTaskOf(task)).cancelledAt).not.toBeNull();
 });

@@ -92,6 +92,8 @@ test("open page: about, task, stats from 3 members, JSON-LD, city page, sitemap;
   // Kill switch: флаг выключен целиком — страницы нет ни у гостя, ни в sitemap
   await setFlag("clubs", { enabled: false, percent: 100 });
   expect((await request.get(path)).status()).toBe(404);
+  // …и у админа клуба нет предпросмотра: клубы выключены для всех
+  expect((await page.goto(path))?.status()).toBe(404);
   expect(await (await request.get("/sitemap.xml")).text()).not.toContain(path);
   await setFlag("clubs", FULL);
 });
@@ -167,6 +169,8 @@ test("flag by list: admin publishes and sees a noindex preview, guests get 404",
   await expect(page.getByText("Страница появится в поиске, когда клубы откроются для всех")).toBeVisible();
   await page.goto(path);
   await expect(page.getByText("Страница пока не видна в поиске")).toBeVisible();
+  // В предпросмотре вступить нельзя (join — только у открытой страницы)
+  await expect(page.getByRole("link", { name: "Вступить" })).toHaveCount(0);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   expect((await request.get(path)).status()).toBe(404);
 });

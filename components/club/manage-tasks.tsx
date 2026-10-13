@@ -20,8 +20,9 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { ClubTaskMode, ClubTaskType } from "@/generated/prisma/enums";
 import { cancelClubTaskAction, createClubTaskAction, taskMinimumAction } from "@/lib/club/task-actions";
+import { START_AHEAD_DAYS } from "@/lib/club/tasks";
+import { addDays } from "@/lib/plans/expand";
 
-const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
 
 const TYPES: { value: ClubTaskType; label: string; unit: string }[] = [
   { value: "WORKOUTS", label: "Тренировки", unit: "тренировок" },
@@ -52,13 +53,9 @@ function Choice<T extends string>({ name, items, value, onChange }: { name: stri
   );
 }
 
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 /** «Новое задание»: тип → режим и упражнение → цель и срок; подсказка минимума — с сервера. */
-function NewTaskDialog({ clubId, exercises }: { clubId: string; exercises: { id: string; name: string }[] }) {
+function NewTaskDialog({ clubId, exercises, today }: { clubId: string; exercises: { id: string; name: string }[]; today: string }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ClubTaskType | null>(null);
   const [mode, setMode] = useState<ClubTaskMode | null>(null);
@@ -87,7 +84,7 @@ function NewTaskDialog({ clubId, exercises }: { clubId: string; exercises: { id:
     setMode(null);
     setExerciseId("");
     setDays("14");
-    setStartDay(today());
+    setStartDay(today);
     setTarget("");
     setMin(null);
     setError(null);
@@ -161,7 +158,7 @@ function NewTaskDialog({ clubId, exercises }: { clubId: string; exercises: { id:
               <legend className="mb-2 text-sm font-semibold">3. Цель и срок</legend>
               <div className="space-y-1.5">
                 <Label htmlFor="task-start">Старт</Label>
-                <Input id="task-start" type="date" value={startDay} onChange={(e) => setStartDay(e.target.value)} />
+                <Input id="task-start" type="date" min={today} max={addDays(today, START_AHEAD_DAYS)} value={startDay} onChange={(e) => setStartDay(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="task-days">Длительность, дней</Label>
@@ -194,17 +191,37 @@ function NewTaskDialog({ clubId, exercises }: { clubId: string; exercises: { id:
   );
 }
 
-/** Раздел «Задания» в управлении клубом: активные с «Отменить» и «Новое задание». */
-export function ManageTasks({ clubId, tasks, exercises }: { clubId: string; tasks: Task[]; exercises: { id: string; name: string }[] }) {
+/** Раздел «Задания» в управлении клубом: активные с «Отменить» и «Новое задание» (у скрытого клуба — только отмена). */
+export function ManageTasks({
+  clubId,
+  tasks,
+  exercises,
+  canCreate = true,
+  today,
+  timeZone,
+}: {
+  clubId: string;
+  tasks: Task[];
+  exercises: { id: string; name: string }[];
+  canCreate?: boolean;
+  /** «Сегодня» и даты — в поясе админа, как их проверяет сервер (не в поясе браузера). */
+  today: string;
+  timeZone: string;
+}) {
+  const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone });
   const [cancel, setCancel] = useState<Task | null>(null);
   const [pending, start] = useTransition();
   return (
     <section aria-label="Задания клуба" className="space-y-3 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-bold">Задания</h2>
-        <NewTaskDialog clubId={clubId} exercises={exercises} />
+        {canCreate ? <NewTaskDialog clubId={clubId} exercises={exercises} today={today} /> : null}
       </div>
-      <p className="text-sm text-muted-foreground">До 3 активных заданий. Цель и срок после создания не меняются — задание можно только отменить.</p>
+      <p className="text-sm text-muted-foreground">
+        {canCreate
+          ? "До 3 активных заданий. Цель и срок после создания не меняются — задание можно только отменить."
+          : "Клуб скрыт: задания заморожены — вклад не считается, их можно только отменить."}
+      </p>
       {tasks.length ? (
         <ul className="divide-y">
           {tasks.map((t) => (

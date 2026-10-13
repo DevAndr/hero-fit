@@ -200,3 +200,28 @@ test("server refuses the check-in when the assistant is off or the workout is fi
   await page.waitForTimeout(1000);
   expect(await workoutWellbeing(id)).toBeNull();
 });
+
+test("keyboard: focus moves into the chat, Escape closes it and returns focus to the launcher", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("smart_coach", me.login);
+  await page.goto("/dashboard");
+  const launcher = page.getByRole("button", { name: "Помощник" });
+  await launcher.click();
+  await expect(chat(page)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(chat(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Помощник" })).toBeFocused();
+});
+
+test("check-in answered offline is sent when the network is back", async ({ page, context }) => {
+  const me = await registerUser(page);
+  await addFlagUser("smart_coach", me.login);
+  await startWorkout(page, ["Жим штанги лёжа"]);
+  const id = await workoutId(me.login);
+  await context.setOffline(true);
+  await page.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Мало сил" }).click();
+  await page.waitForTimeout(500);
+  expect(await workoutWellbeing(id)).toBeNull();
+  await context.setOffline(false);
+  await expect.poll(() => workoutWellbeing(id)).toBe("TIRED");
+});

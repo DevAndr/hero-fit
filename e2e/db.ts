@@ -826,7 +826,6 @@ export async function clubAdminLogin(id: string): Promise<string> {
   return withDb(async (db) => (await db.query<{ login: string }>(`select u.login from "Club" c join "User" u on u.id = c."adminId" where c.id = $1`, [id])).rows[0].login);
 }
 
-/** Вступить в клуб минуя интерфейс. */
 /** Публикация страницы клуба минуя интерфейс; адрес по умолчанию — `testograd/e2e-<случайно>`. */
 export async function publishClub(clubId: string, o: { about?: string; slug?: string; citySlug?: string } = {}): Promise<{ path: string }> {
   const slug = o.slug ?? `e2e-${Math.random().toString(36).slice(2, 8)}`;
@@ -848,6 +847,7 @@ export async function clubSlug(clubId: string): Promise<{ slug: string | null; c
   });
 }
 
+/** Вступить в клуб минуя интерфейс. */
 export async function joinClub(login: string, clubId: string, joinedAt?: Date) {
   await withDb((db) =>
     db.query(
@@ -932,5 +932,30 @@ export async function clubTaskRewards(id: string): Promise<string[]> {
       [id],
     );
     return rows.map((r) => r.login);
+  });
+}
+
+/** Есть ли пользователь с таким логином (удаление аккаунта). */
+export async function userExists(login: string): Promise<boolean> {
+  return withDb(async (db) => ((await db.query(`select 1 from "User" where login = $1`, [login])).rowCount ?? 0) > 0);
+}
+
+/** Ники строк лиги во всех снимках итогов недели пользователя. */
+export async function recapLeagueNicks(login: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ nickname: string }>(
+      `select r->>'nickname' as nickname from "WeeklyRecap" w join "User" u on u.id = w."userId",
+         jsonb_array_elements(coalesce(w.data->'league'->'rows', '[]'::jsonb)) r where u.login = $1`,
+      [login],
+    );
+    return rows.map((r) => r.nickname);
+  });
+}
+
+/** Заголовки уведомлений пользователя. */
+export async function notificationTitles(login: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string }>(`select n.title from "Notification" n join "User" u on u.id = n."userId" where u.login = $1`, [login]);
+    return rows.map((r) => r.title);
   });
 }

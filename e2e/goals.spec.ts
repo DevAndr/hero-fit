@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { createGoal, enableCoach, goalOf, goalRewardXp, goalsOf, idOf, linkCoach, logWeight, makeFriends, mondayWeeksAgo, setPrivacy, withDb, userId } from "./db";
+import { nickOf } from "./guild-helpers";
 import { quickWorkout, registerUser, runTick } from "./helpers";
 import { E2E_TZ } from "./tz";
 
@@ -66,6 +67,20 @@ test("goal already reached is refused", async ({ page }) => {
   await dialog.getByLabel("Цель, кг").fill("60");
   await dialog.getByRole("button", { name: "Создать" }).click();
   await expect(dialog.getByText("Уже достигнуто")).toBeVisible();
+});
+
+test("a refused body weight goal does not keep the weigh-in", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await page.goto("/goals");
+  const dialog = await newGoal(page, "Вес тела");
+  await dialog.getByLabel("Текущий вес, кг").fill("80");
+  await dialog.getByLabel("Цель, кг").fill("80");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByText("Уже достигнуто")).toBeVisible();
+  const entries = await withDb(
+    async (db) => (await db.query(`select 1 from "BodyWeightEntry" e join "User" u on u.id = e."userId" where u.login = $1`, [login])).rowCount,
+  );
+  expect(entries).toBe(0);
 });
 
 test("five active goals is the limit", async ({ page }) => {
@@ -164,7 +179,7 @@ test("friends feed shows a reached goal, without kilograms when weights are hidd
   const { login } = await registerUser(page, "Маша");
   const friend = await second(browser, "Боря");
   try {
-    await makeFriends(login, `masha${Date.now() % 100000}`, friend.login, `borya${Date.now() % 100000}`);
+    await makeFriends(login, nickOf(login, "M"), friend.login, nickOf(friend.login, "B"));
     await createGoal(login, { type: "STRENGTH", exerciseName: "Жим штанги лёжа", target: 60 });
     await quickWorkout(page, "Жим штанги лёжа", [{ weight: "60", reps: "5" }]);
 
@@ -183,7 +198,7 @@ test("coach sees the client's goals", async ({ page, browser }) => {
   const { login } = await registerUser(page, "Клиент");
   const coach = await second(browser, "Тренер");
   try {
-    await enableCoach(coach.login, `coach${Date.now() % 100000}`);
+    await enableCoach(coach.login, nickOf(coach.login, "C"));
     await linkCoach(coach.login, login);
     await logWeight(login, daysFromToday(-1), 90);
     await createGoal(login, { type: "BODY_WEIGHT", target: 80, startValue: 90 });

@@ -65,7 +65,13 @@ export function ManagePublicPage({
           variant="outline"
           size="sm"
           disabled={pending || text === saved}
-          onClick={() => run(() => saveClubAboutAction(clubId, text), "Сохранено", () => setSaved(text.trim()))}
+          onClick={() =>
+            run(() => saveClubAboutAction(clubId, text), "Сохранено", () => {
+              // Сервер сохраняет без пробелов по краям — поле тоже, иначе «Сохранить» не погаснет
+              setText(text.trim());
+              setSaved(text.trim());
+            })
+          }
         >
           Сохранить
         </Button>

@@ -179,7 +179,7 @@ async function Overview({
         <Tile label="Серия, недель" value={String(streak)} />
         <Tile label="Уровень" value={String(levelProgress(xp).level)} />
       </div>
-      <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} />
+      <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} timeZone={tz} />
       <BodyMap recovery={recovery} balance={balance} />
       {hinted.length ? (
         <section aria-label="Пора увеличить вес" className="space-y-2 rounded-xl border bg-card p-4">

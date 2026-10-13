@@ -18,8 +18,8 @@ export async function saveFlagAction(key: string, patch: unknown): Promise<Resul
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте поля" };
   const p = parsed.data;
 
-  const current = await db.featureFlag.findUnique({ where: { key }, select: { userIds: true } });
-  let userIds = current?.userIds ?? [];
+  // Кого добавить — до транзакции (поиск по логину и нику не держит блокировку)
+  let addId: string | null = null;
   if (p.addUser) {
     const q = p.addUser;
     // Сначала точный логин, потом ник: у одного может быть логин «bob», у другого — ник «Bob»
@@ -27,22 +27,32 @@ export async function saveFlagAction(key: string, patch: unknown): Promise<Resul
       db.user.findFirst({ where: { login: { equals: q, mode: "insensitive" } }, select: { id: true } }),
       db.user.findFirst({ where: { nicknameKey: nicknameKey(q) }, select: { id: true } }),
     ]);
-    const id = pickFlagUser(byLogin, byNickname);
-    if (!id) return { ok: false, error: "Пользователь не найден" };
-    if (!userIds.includes(id)) {
-      if (userIds.length >= MAX_FLAG_USERS) return { ok: false, error: `Не больше ${MAX_FLAG_USERS} пользователей` };
-      userIds = [...userIds, id];
-    }
+    addId = pickFlagUser(byLogin, byNickname);
+    if (!addId) return { ok: false, error: "Пользователь не найден" };
   }
-  if (p.removeUserId) userIds = userIds.filter((id) => id !== p.removeUserId);
 
-  const data = {
-    ...(p.enabled !== undefined ? { enabled: p.enabled } : {}),
-    ...(p.percent !== undefined ? { percent: p.percent } : {}),
-    userIds,
-    updatedBy: admin.login,
-  };
-  await db.featureFlag.upsert({ where: { key }, create: { key, ...data }, update: data });
+  // Список меняется под блокировкой строки: два одновременных сохранения не затрут добавленных друг другом
+  const error = await db.$transaction(async (tx) => {
+    await tx.featureFlag.upsert({ where: { key }, create: { key }, update: {} });
+    const [current] = await tx.$queryRaw<{ userIds: string[] }[]>`SELECT "userIds" FROM "FeatureFlag" WHERE key = ${key} FOR UPDATE`;
+    let userIds = current.userIds;
+    if (addId && !userIds.includes(addId)) {
+      if (userIds.length >= MAX_FLAG_USERS) return `Не больше ${MAX_FLAG_USERS} пользователей`;
+      userIds = [...userIds, addId];
+    }
+    if (p.removeUserId) userIds = userIds.filter((id) => id !== p.removeUserId);
+    await tx.featureFlag.update({
+      where: { key },
+      data: {
+        ...(p.enabled !== undefined ? { enabled: p.enabled } : {}),
+        ...(p.percent !== undefined ? { percent: p.percent } : {}),
+        userIds,
+        updatedBy: admin.login,
+      },
+    });
+    return null;
+  });
+  if (error) return { ok: false, error };
   invalidateFlags();
   console.info(`[flags] ${admin.login}: ${key} ${JSON.stringify(p)}`);
   revalidatePath("/", "layout");

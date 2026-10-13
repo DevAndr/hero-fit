@@ -26,7 +26,12 @@ describe("forecastGoal", () => {
 
   it("со сроком — успеваешь / не успеваешь", () => {
     expect(forecastGoal({ ...base, deadline: "2026-11-09" })).toEqual({ kind: "onTrack", date: "2026-11-02" });
-    expect(forecastGoal({ ...base, deadline: "2026-10-19" })).toEqual({ kind: "late", date: "2026-11-02", need: 6, pace: 2 });
+    expect(forecastGoal({ ...base, deadline: "2026-10-19" })).toEqual({ kind: "late", date: "2026-11-02", need: 6, pace: 2, daysLeft: 7 });
+  });
+
+  it("меньше недели до срока — остаток целиком, а не раздутый темп в неделю", () => {
+    // До цели 6 кг (64 → 70), до срока 2 дня: не «+21 кг в неделю», а «ещё +6 кг»
+    expect(forecastGoal({ ...base, deadline: "2026-10-14" })).toEqual({ kind: "late", date: "2026-11-02", need: 6, pace: 2, daysLeft: 2 });
   });
 
   it("срок сегодня — без деления на ноль", () => {
@@ -55,13 +60,17 @@ describe("тексты прогноза", () => {
     expect(forecastText({ kind: "onTrack", date: "2026-11-14" }, kg)).toBe("Успеваешь: ≈ 14 ноября");
     expect(forecastText({ kind: "eta", date: "2026-11-14" }, kg)).toBe("≈ 14 ноября");
     expect(forecastText({ kind: "eta", date: "2027-02-01" }, kg)).toBe("≈ 1 февраля 2027");
-    expect(forecastText({ kind: "late", date: "2026-12-01", need: 1.2, pace: 0.5 }, kg)).toBe(
+    expect(forecastText({ kind: "late", date: "2026-12-01", need: 5, pace: 0.5, daysLeft: 3 }, kg)).toBe(
+      "Не успеваешь к сроку: до цели ещё +5 кг, осталось 3 дня",
+    );
+    expect(forecastText({ kind: "late", date: "2026-12-01", need: 5, pace: 0.5, daysLeft: 0 }, kg)).toBe("Не успеваешь к сроку: до цели ещё +5 кг, срок сегодня");
+    expect(forecastText({ kind: "late", date: "2026-12-01", need: 1.2, pace: 0.5, daysLeft: 20 }, kg)).toBe(
       "Не успеваешь к сроку: нужно +1,2 кг в неделю, сейчас +0,5",
     );
-    expect(forecastText({ kind: "late", date: "2026-12-01", need: -1, pace: -0.5 }, { unit: "кг", bodyWeight: true, today: TODAY })).toBe(
+    expect(forecastText({ kind: "late", date: "2026-12-01", need: -1, pace: -0.5, daysLeft: 20 }, { unit: "кг", bodyWeight: true, today: TODAY })).toBe(
       "Не успеваешь к сроку: нужно −1 кг в неделю, сейчас −0,5",
     );
-    expect(forecastText({ kind: "late", date: "2026-12-01", need: 2, pace: 1 }, { unit: "повт.", bodyWeight: false, today: TODAY })).toBe(
+    expect(forecastText({ kind: "late", date: "2026-12-01", need: 2, pace: 1, daysLeft: 20 }, { unit: "повт.", bodyWeight: false, today: TODAY })).toBe(
       "Не успеваешь к сроку: нужно +2 повт. в неделю, сейчас +1",
     );
     expect(forecastText({ kind: "stalled" }, kg)).toBe("Пока без роста — прогноз появится, когда пойдёт прогресс");
@@ -71,6 +80,6 @@ describe("тексты прогноза", () => {
 
   it("короткий", () => {
     expect(forecastShort({ kind: "onTrack", date: "2026-11-14" }, TODAY)).toBe("≈ 14 ноября");
-    expect(forecastShort({ kind: "late", date: "2026-12-01", need: 1, pace: 0.5 }, TODAY)).toBe("не успеваешь к сроку");
+    expect(forecastShort({ kind: "late", date: "2026-12-01", need: 1, pace: 0.5, daysLeft: 20 }, TODAY)).toBe("не успеваешь к сроку");
   });
 });

@@ -229,13 +229,13 @@ function Raid({ raid }: { raid: NonNullable<RecapData["raid"]> }) {
 export function RecapView({
   data,
   bossChest = false,
-  strength = true,
+  strength,
 }: {
   data: RecapData;
   /** Сундук босса этой недели можно забрать. */
   bossChest?: boolean;
-  /** Флаг strength_analytics: выключен — блок «Сильнее» скрыт и в уже собранном снимке. */
-  strength?: boolean;
+  /** Флаг strength_analytics (обязателен): выключен — блок «Сильнее» скрыт и в уже собранном снимке. */
+  strength: boolean;
 }) {
   return (
     <div className="grid gap-4">

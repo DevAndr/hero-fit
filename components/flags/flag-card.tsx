@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { deleteStaleFlagAction, saveFlagAction } from "@/lib/flags/actions";
-import type { FlagPatch } from "@/lib/flags/schema";
+import { percentInput, type FlagPatch } from "@/lib/flags/schema";
 import type { FlagAdminRow } from "@/lib/flags/server";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +62,9 @@ export function FlagCard({ flag }: { flag: FlagAdminRow }) {
             className="flex items-center gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
-              save({ percent: Number(percent) });
+              const value = percentInput(percent);
+              if (value === null) return void toast.error("Введите процент");
+              save({ percent: value });
             }}
           >
             <Input aria-label="Процент" inputMode="numeric" className="w-20" value={percent} onChange={(e) => setPercent(e.target.value)} />

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
+import { prunePain } from "@/components/assistant/pain-store";
 import { logoutAction } from "@/lib/auth/actions";
 
 export function UserMenu({
@@ -139,6 +140,8 @@ export function UserMenu({
             startTransition(async () => {
               // Устройство перестаёт получать push этого аккаунта после выхода.
               await push?.forgetDevice();
+              // Данные о здоровье из чата помощника (152-ФЗ) не остаются на устройстве после выхода
+              prunePain(null);
               await logoutAction();
             })
           }

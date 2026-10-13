@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { NotificationType, XpReason } from "@/generated/prisma/enums";
-import type { ClubTaskMode, ClubTaskType } from "@/generated/prisma/enums";
+import type { ClubStatus, ClubTaskMode, ClubTaskType } from "@/generated/prisma/enums";
 import { evaluateAchievements } from "@/lib/achievements/engine";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
@@ -31,10 +31,10 @@ const NOT_ADMIN = "Это может только админ клуба";
 /** Админ клуба с флагом `clubs`. */
 type Admin = { ok: false; error: string } | { ok: true; user: Awaited<ReturnType<typeof requireUser>>; club: { id: string; name: string } };
 
-async function clubAdmin(clubId: string): Promise<Admin> {
+async function clubAdmin(clubId: string, statuses: ClubStatus[] = ["APPROVED"]): Promise<Admin> {
   const user = await requireUser();
   if (!(await clubsAllowed(user.id))) return { ok: false, error: CLUBS_OFF };
-  const club = await db.club.findFirst({ where: { id: String(clubId), adminId: user.id, status: "APPROVED" }, select: { id: true, name: true } });
+  const club = await db.club.findFirst({ where: { id: String(clubId), adminId: user.id, status: { in: statuses } }, select: { id: true, name: true } });
   if (!club) return { ok: false, error: NOT_ADMIN };
   return { ok: true, user, club };
 }
@@ -101,7 +101,8 @@ export async function createClubTaskAction(clubId: string, input: unknown): Prom
 export async function cancelClubTaskAction(taskId: string): Promise<Result> {
   const task = await db.clubTask.findUnique({ where: { id: String(taskId) }, select: { clubId: true } });
   if (!task) return { ok: false, error: "Задание не найдено" };
-  const admin = await clubAdmin(task.clubId);
+  // Скрытый клуб — тоже: его задания заморожены, админ может их снять
+  const admin = await clubAdmin(task.clubId, ["APPROVED", "HIDDEN"]);
   if (!admin.ok) return { ok: false, error: admin.error };
   const { count } = await db.clubTask.updateMany({ where: { id: String(taskId), cancelledAt: null }, data: { cancelledAt: new Date() } });
   if (count === 0) return { ok: false, error: "Задание уже отменено" };

@@ -303,7 +303,8 @@ export async function getClubsForReview(tab: "pending" | "approved", search: str
       createdAt: c.createdAt.toISOString(),
       applicant: c.admin,
       about: c.about,
-      pagePath: c.publishedAt && c.slug && c.citySlug ? clubPath(c.citySlug, c.slug) : null,
+      // Ссылка и «Снять с публикации» — только у одобренного: страница скрытого и так 404
+      pagePath: c.status === "APPROVED" && c.publishedAt && c.slug && c.citySlug ? clubPath(c.citySlug, c.slug) : null,
       similar: tab === "pending" ? (await findSimilar(c, { exceptId: c.id, withPending: true })).map(({ id, name, address }) => ({ id, name, address })) : [],
     })),
   );

@@ -44,6 +44,16 @@ const WEIGHT_RECORDS: RecordType[] = ["ONE_RM", "MAX_WEIGHT"];
 /** Запросов на одну подгрузку: тренировки без событий не должны обрывать ленту, но и не тянуть всю историю. */
 export const CLUB_FEED_QUERIES = 3;
 
+/** Короткий хэш id тренировки для ключа: ключи уникальны, а сам id чужой тренировки в браузер не уходит. */
+function shortHash(id: string): string {
+  let h = 0x811c9dc5;
+  for (const ch of id) {
+    h ^= ch.codePointAt(0)!;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
 export function toClubEvents(row: ClubFeedRow, viewerId: string): ClubEvent | null {
   const me = row.userId === viewerId;
   const hide = row.hideWeights && !me;
@@ -51,7 +61,7 @@ export function toClubEvents(row: ClubFeedRow, viewerId: string): ClubEvent | nu
   const nickname = row.nickname ?? "—";
   const finishedAt = row.finishedAt.toISOString();
   const event: ClubEvent = {
-    key: `${nickname}|${finishedAt}`,
+    key: `${nickname}|${finishedAt}|${shortHash(row.id)}`,
     nickname,
     title: titleLabel(row.titleCode),
     me,

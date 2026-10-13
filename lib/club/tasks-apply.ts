@@ -34,7 +34,8 @@ export async function applyClubTasks(
   const member = await tx.clubMember.findUnique({ where: { userId: a.userId }, select: { clubId: true, joinedAt: true } });
   if (!member) return undefined;
   const tasks = await tx.clubTask.findMany({
-    where: { clubId: member.clubId, cancelledAt: null, startsAt: { lte: a.finishedAt }, endsAt: { gt: a.finishedAt } },
+    // Скрытый модератором клуб заморожен: вклад не пишется (админ может только отменить задания)
+    where: { clubId: member.clubId, club: { status: "APPROVED" }, cancelledAt: null, startsAt: { lte: a.finishedAt }, endsAt: { gt: a.finishedAt } },
     orderBy: { createdAt: "asc" },
     include: { exercise: { select: { name: true } }, club: { select: { name: true } } },
   });
