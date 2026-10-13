@@ -20,7 +20,7 @@ export async function ensureRetroCoins(userId: string): Promise<number> {
     const tz = safeTimeZone(user.timeZone ?? undefined);
 
     const days = await tx.$queryRaw<{ day: string; workouts: number }[]>`
-      SELECT to_char(w."finishedAt" AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS workouts
+      SELECT to_char((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS workouts
       FROM "Workout" w
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" < ${user.coinsSince}
         AND (SELECT COUNT(*) FROM "WorkoutSet" s JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
