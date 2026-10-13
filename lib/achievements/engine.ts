@@ -214,7 +214,8 @@ async function liftStats(client: Client, userId: string): Promise<AchievementSta
   return lifts;
 }
 
-export async function getAchievementStats(client: Client, userId: string): Promise<AchievementStats> {
+/** `coach: false` — без статистики тренера (лестницы COACH растут от тренировок клиентов, не от своих). */
+export async function getAchievementStats(client: Client, userId: string, opts: { coach?: boolean } = {}): Promise<AchievementStats> {
   const { timeZone, ...user } = await client.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
@@ -249,7 +250,7 @@ export async function getAchievementStats(client: Client, userId: string): Promi
       client.raidWeek.count({ where: { mvpUserId: userId } }),
       client.goal.count({ where: { userId, status: "ACHIEVED" } }),
       client.clubTaskReward.count({ where: { userId } }),
-      coachStats(client, userId, isCoach),
+      coachStats(client, userId, isCoach && opts.coach !== false),
     ]);
   return {
     ...rest,
@@ -299,9 +300,10 @@ const MAX_ROUNDS = 5;
 export async function evaluateAchievements(
   client: Client,
   userId: string,
+  opts: { coach?: boolean } = {},
 ): Promise<{ achievements: NewAchievement[]; xp: number; coins: CoinGrant[] }> {
   const [stats, owned] = await Promise.all([
-    getAchievementStats(client, userId),
+    getAchievementStats(client, userId, opts),
     client.userAchievement.findMany({ where: { userId }, select: { code: true } }),
   ]);
   const have = new Set(owned.map((a) => a.code));
