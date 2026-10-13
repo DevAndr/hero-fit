@@ -37,6 +37,8 @@ variables:
   NEXT_TELEMETRY_DISABLED: "1"
   npm_config_cache: $CI_PROJECT_DIR/.npm
 
+stages: [test, deploy]
+
 default:
   image: node:24-bookworm
   interruptible: true
@@ -101,3 +103,83 @@ e2e:
     when: on_failure
     paths: [test-results/]
     expire_in: 7 days
+
+# Аналог .github/workflows/deploy.yml: прод обновляется после зелёного checks на main (push или Run pipeline).
+# Образы — GHCR, сервер — docker compose в DEPLOY_PATH. Переменные проекта (Settings → CI/CD → Variables):
+#   PROD_APP_URL  https://домен — вшивается в сборку; пока не задана, деплой пропускается
+#   GHCR_USER, GHCR_TOKEN  GitHub classic-токен со scope write:packages (сервер скачивает образы им же)
+#   SSH_HOST, SSH_USER, SSH_KEY (тип File, приватный ключ), SSH_PORT (необязательно)
+#   YM_ID (номер счётчика Яндекс.Метрики, необязательно), DEPLOY_PATH (по умолчанию /opt/hero-fit)
+deploy:
+  stage: deploy
+  needs: [checks]
+  rules:
+    - if: $PROD_APP_URL && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")
+  # Выкатки по очереди, начатая не отменяется (аналог concurrency: deploy, cancel-in-progress: false)
+  resource_group: production
+  interruptible: false
+  environment:
+    name: production
+    url: $PROD_APP_URL
+  timeout: 45m
+  image: docker:28
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: /certs/client
+    # Значения по умолчанию; переменные проекта с теми же именами их перекрывают
+    GHCR_IMAGE: ghcr.io/devandr/hero-fit
+    DEPLOY_PATH: /opt/hero-fit
+    SSH_PORT: "22"
+    YM_ID: ""
+  script:
+    - apk add --no-cache openssh-client
+    - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+    # Кэш слоёв — в GHCR (тег buildcache) вместо кэша GitHub Actions
+    - docker buildx create --use --driver docker-container
+    - >
+      docker buildx build . --target runner --push
+      --build-arg APP_URL="$PROD_APP_URL" --build-arg NEXT_PUBLIC_YM_ID="$YM_ID"
+      -t "$GHCR_IMAGE:$CI_COMMIT_SHA" -t "$GHCR_IMAGE:latest"
+      --cache-from type=registry,ref="$GHCR_IMAGE:buildcache"
+      --cache-to type=registry,ref="$GHCR_IMAGE:buildcache",mode=max
+    - >
+      docker buildx build . --target migrate --push
+      --build-arg APP_URL="$PROD_APP_URL"
+      -t "$GHCR_IMAGE-migrate:$CI_COMMIT_SHA" -t "$GHCR_IMAGE-migrate:latest"
+      --cache-from type=registry,ref="$GHCR_IMAGE:buildcache"
+    - chmod 600 "$SSH_KEY"
+    - SSH_OPTS="-i $SSH_KEY -o Port=$SSH_PORT -o StrictHostKeyChecking=accept-new"
+    - scp $SSH_OPTS deploy/docker-compose.yml deploy/Caddyfile "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+    # Токен — через stdin, не в командной строке сервера
+    - echo "$GHCR_TOKEN" | ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+    - |
+      ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "SHA='$CI_COMMIT_SHA' IMAGE='$GHCR_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' sh -s" <<'EOF'
+      set -eu
+      cd "$DEPLOY_PATH"
+      trap 'docker logout ghcr.io >/dev/null' EXIT
+      export IMAGE_REPO="$IMAGE" IMAGE_TAG="$SHA"
+      docker compose pull migrate app
+      docker compose up -d --remove-orphans
+      # Caddyfile смонтирован файлом — up -d его не перечитывает
+      docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+      health() { docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app)"; }
+      i=0
+      until [ "$(health)" = healthy ]; do
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then
+          docker compose ps
+          docker compose logs --tail 50 app
+          echo "app is not healthy after 150s" >&2
+          exit 1
+        fi
+        sleep 5
+      done
+      docker compose ps
+      # Каждый деплой — новые образы с тегом sha; неиспользуемые старше 3 суток удаляем (недавние — для отката)
+      docker image prune -a -f --filter "until=72h"
+      EOF
