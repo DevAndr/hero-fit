@@ -40,6 +40,12 @@ export type CurrentUser = {
   changelogSeen: string | null;
   /** Умный помощник не выключен в /settings (показ — ещё и по флагу smart_coach). */
   assistantEnabled: boolean;
+  /** Надетая косметика и баланс монет — шапке кабинета (магазин). */
+  avatarCode: string | null;
+  frameCode: string | null;
+  nickColorCode: string | null;
+  themeCode: string | null;
+  coins: number;
 };
 
 /**
@@ -80,6 +86,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           isCoach: true,
           changelogSeen: true,
           assistantEnabled: true,
+          avatarCode: true,
+          frameCode: true,
+          nickColorCode: true,
+          themeCode: true,
+          coins: true,
         },
       },
     },

@@ -304,7 +304,8 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     const goals = await applyGoals(tx, userId, now, goalSnapshot);
 
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
-    const unlocked = await evaluateAchievements(tx, userId);
+    // Своя тренировка не двигает лестницы тренера — их SQL в транзакции завершения не нужен
+    const unlocked = await evaluateAchievements(tx, userId, { coach: false });
 
     const coinItems = toLines([...coinGrants, ...unlocked.coins]);
     const coinTotal = coinItems.reduce((n, c) => n + c.amount, 0);
