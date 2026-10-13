@@ -6,6 +6,7 @@ import { StreakFlame } from "@/components/lottie/streak-flame";
 import { XpBar } from "@/components/progress/xp-bar";
 import { BottomNav, SidebarNav } from "@/components/app/nav-links";
 import { UserMenu } from "@/components/app/user-menu";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
 import type { CurrentUser } from "@/lib/auth/dal";
 import { levelProgress } from "@/lib/progress/level";
 import { safeTimeZone } from "@/lib/daily-login";
@@ -63,6 +64,8 @@ export function AppShell({
   notifications,
   whatsNewUnseen = false,
   pendingClubs = 0,
+  cosmetics,
+  coins,
   children,
 }: {
   user: CurrentUser;
@@ -70,6 +73,10 @@ export function AppShell({
   whatsNewUnseen?: boolean;
   /** Заявок на клубы на проверке — только админу приложения. */
   pendingClubs?: number;
+  /** Надетая косметика пользователя (для меню профиля). */
+  cosmetics?: Cosmetics;
+  /** Баланс монет для меню профиля (при включённом магазине). */
+  coins?: number;
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
@@ -101,6 +108,8 @@ export function AppShell({
               isAdmin={user.isAdmin}
               unseen={whatsNewUnseen}
               pendingClubs={pendingClubs}
+              cosmetics={cosmetics}
+              coins={coins}
             />
           </div>
         </header>

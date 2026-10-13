@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
 import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Shield, Swords, Target, Timer, Trophy, Weight } from "lucide-react";
@@ -97,16 +99,11 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
       className={cn("scroll-mt-20 rounded-xl border bg-card p-4", entry.me && "border-primary/30")}
     >
       <header className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary uppercase"
-        >
-          {entry.nickname.slice(0, 1)}
-        </span>
+        <PlayerAvatar nickname={entry.nickname} cosmetics={entry.cosmetics} size="md" />
         <div className="min-w-0 flex-1">
           {/* В компактной карточке (дашборд) ник и название — разными строками, иначе название обрезается */}
           <p className={cn(!compact && "truncate")}>
-            <span className={cn("font-semibold", compact && "block truncate")}>{entry.me ? "Вы" : entry.nickname}</span>
+            <span className={cn("font-semibold", compact && "block truncate")}>{entry.me ? "Вы" : <PlayerName nickname={entry.nickname} color={entry.cosmetics?.nickColor} />}</span>
             {compact ? null : <span className="text-muted-foreground"> · тренировка </span>}
             {entry.me ? (
               <Link

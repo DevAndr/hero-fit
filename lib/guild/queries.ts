@@ -2,9 +2,11 @@ import "server-only";
 import { db } from "@/lib/db";
 import { LEAGUE_REASONS, weekBounds } from "@/lib/social/queries";
 import { normalizeFriendCode } from "@/lib/social/league";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
+import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { titleLabel } from "@/lib/titles/catalog";
 
-export type GuildMemberView = { id: string; nickname: string; title: string | null; workouts: number; xp: number; isLeader: boolean };
+export type GuildMemberView = { id: string; nickname: string; title: string | null; cosmetics: Cosmetics; workouts: number; xp: number; isLeader: boolean };
 
 /** Моя гильдия: состав с недельными цифрами (как в лиге; неделя — по поясу смотрящего), сначала больше опыта. */
 export async function getMyGuild(userId: string, timeZone: string) {
@@ -14,9 +16,9 @@ export async function getMyGuild(userId: string, timeZone: string) {
   });
   if (!me) return null;
   const { guild } = me;
-  const rows = await db.$queryRaw<{ id: string; nickname: string; titleCode: string | null; xp: number; workouts: number }[]>`
+  const rows = await db.$queryRaw<{ id: string; nickname: string; titleCode: string | null; avatarCode: string | null; frameCode: string | null; nickColorCode: string | null; xp: number; workouts: number }[]>`
     WITH b AS (${weekBounds(timeZone, 0)})
-    SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode",
+    SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode",
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
              WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
@@ -30,8 +32,9 @@ export async function getMyGuild(userId: string, timeZone: string) {
     FROM "GuildMember" m JOIN "User" u ON u.id = m."userId", b
     WHERE m."guildId" = ${guild.id}
   `;
+  const cosmetics = await cosmeticsLoader();
   const members = rows
-    .map((r) => ({ id: r.id, nickname: r.nickname, title: titleLabel(r.titleCode), workouts: r.workouts, xp: r.xp, isLeader: r.id === guild.leaderId }))
+    .map((r) => ({ id: r.id, nickname: r.nickname, title: titleLabel(r.titleCode), cosmetics: cosmetics(r), workouts: r.workouts, xp: r.xp, isLeader: r.id === guild.leaderId }))
     .sort((a, b) => b.xp - a.xp || a.nickname.localeCompare(b.nickname, "ru"));
   return { ...guild, members };
 }

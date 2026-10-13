@@ -100,6 +100,16 @@ enum XpReason {
 model User {
   /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
   changelogSeen     String?
+  /// монеты магазина (lib/shop): баланс и момент, с которого они считаются; журнал — CoinTx
+  coins             Int       @default(0)
+  coinsSince        DateTime  @default(now())
+  /// надетая косметика (код из каталога lib/shop); null — по умолчанию
+  avatarCode        String?
+  frameCode         String?
+  nickColorCode     String?
+  themeCode         String?
+  coinTxs           CoinTx[]
+  items             UserItem[]
   /// умный помощник (флаг smart_coach): выключается в /settings
   assistantEnabled  Boolean   @default(true)
   id                String    @id @default(cuid())
@@ -532,6 +542,51 @@ model XpEvent {
   workout Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+}
+
+enum CoinReason {
+  WORKOUT
+  RECORD
+  DAILY_CHEST
+  BOSS_CHEST
+  RAID_CHEST
+  GOAL_CHEST
+  CLUB_TASK_CHEST
+  ACHIEVEMENT
+  STREAK_WEEK
+  LEVEL_UP
+  RETRO // стартовый баланс при выходе магазина
+  PURCHASE // покупка (отрицательная сумма)
+}
+
+/// Журнал монет — источник правды для User.coins; `key` делает начисление идемпотентным.
+model CoinTx {
+  id        String     @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    CoinReason
+  key       String
+  meta      Json?
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, reason, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Купленная косметика (код из каталога lib/shop).
+model UserItem {
+  id         String   @id @default(cuid())
+  userId     String
+  code       String
+  source     String
+  acquiredAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
 }
 
 // ───────────────────────────── Уведомления ─────────────────────────────

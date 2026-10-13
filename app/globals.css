@@ -228,3 +228,29 @@
 @media (prefers-reduced-motion: reduce) {
   .xp-shine::after, .xp-spark { animation: none; }
 }
+
+/* Цвет ника из магазина косметики: значения — переменные на элементе (PlayerName), тема — по классу .dark */
+@layer components {
+  .nick-color {
+    color: var(--nick-light);
+  }
+  .dark .nick-color {
+    color: var(--nick-dark);
+  }
+  .nick-gradient {
+    background-image: linear-gradient(90deg, var(--nick-g1-light), var(--nick-g2-light));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .dark .nick-gradient {
+    background-image: linear-gradient(90deg, var(--nick-g1-dark), var(--nick-g2-dark));
+  }
+  /* Без background-clip: text остаётся сплошной цвет */
+  @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+    .nick-gradient {
+      background-image: none;
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+}

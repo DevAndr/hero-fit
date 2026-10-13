@@ -29,6 +29,8 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     clientLinks,
     coachComments,
     notifications,
+    userItems,
+    coinTx,
   ] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.workout.findMany({
@@ -86,6 +88,8 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.coachLink.findMany({ where: { coachId: userId }, select: { createdAt: true, endedAt: true, client: person } }),
     db.coachComment.findMany({ where: { clientId: userId }, orderBy: { createdAt: "asc" }, select: { text: true, createdAt: true, coach: person } }),
     db.notification.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { type: true, title: true, body: true, createdAt: true } }),
+    db.userItem.findMany({ where: { userId }, orderBy: { acquiredAt: "asc" }, select: { code: true, acquiredAt: true } }),
+    db.coinTx.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { amount: true, reason: true, createdAt: true } }),
   ]);
 
   return {
@@ -113,6 +117,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     clients: clientLinks.map((l) => ({ nickname: l.client.nickname, since: l.createdAt, until: l.endedAt })),
     coachComments: coachComments.map((c) => ({ text: c.text, createdAt: c.createdAt, coach: c.coach?.nickname ?? null })),
     notifications,
+    shop: { coins: user.coins, items: userItems, coinHistory: coinTx },
   };
 }
 

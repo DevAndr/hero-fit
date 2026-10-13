@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
+import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,6 +14,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
+import { coinWord } from "@/lib/shop/labels";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
 import { prunePain } from "@/components/assistant/pain-store";
@@ -27,6 +31,8 @@ export function UserMenu({
   isAdmin = false,
   unseen = false,
   pendingClubs = 0,
+  cosmetics,
+  coins,
 }: {
   name: string | null;
   login: string;
@@ -37,10 +43,15 @@ export function UserMenu({
   unseen?: boolean;
   /** Заявок на клубы на проверке (админу приложения). */
   pendingClubs?: number;
+  /** Надетая косметика (флаг магазина уже учтён). */
+  cosmetics?: Cosmetics;
+  /** Баланс монет (только при включённом магазине). */
+  coins?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
   const clubs = useFlag("clubs");
+  const shop = useFlag("shop");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
   const [opened, setOpened] = useState(false);
@@ -51,11 +62,15 @@ export function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label={dot ? "Меню профиля, есть новое" : "Меню профиля"}>
         <span className="relative block">
-          <Avatar>
-            <AvatarFallback className="bg-primary/15 font-semibold text-primary">
-              {display.slice(0, 1).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          {cosmetics?.avatar || cosmetics?.frame ? (
+            <PlayerAvatar nickname={display} cosmetics={cosmetics} size="sm" />
+          ) : (
+            <Avatar>
+              <AvatarFallback className="bg-primary/15 font-semibold text-primary">
+                {display.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          )}
           {dot ? (
             <span
               data-testid="whats-new-dot"
@@ -68,7 +83,9 @@ export function UserMenu({
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <div className="truncate font-medium text-foreground">{display}</div>
+            <div className="truncate font-medium text-foreground">
+              <PlayerName nickname={display} color={cosmetics?.nickColor} />
+            </div>
             {email ? <div className="truncate text-xs font-normal">{email}</div> : null}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -102,6 +119,17 @@ export function UserMenu({
             </span>
           ) : null}
         </DropdownMenuItem>
+        {shop ? (
+          <DropdownMenuItem render={<Link href="/shop" />}>
+            <Store />
+            Магазин
+            {coins !== undefined ? (
+              <span className="ml-auto text-xs font-semibold text-muted-foreground tabular-nums">
+                {coins} {coinWord(coins)}
+              </span>
+            ) : null}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem render={<Link href="/goals" />}>
           <Target />
           Цели

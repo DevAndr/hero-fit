@@ -11,6 +11,8 @@ import { dayKey } from "@/lib/daily-login";
 import { currentValueFor } from "@/lib/goals/queries";
 import { markAchieved, writeWeight } from "@/lib/goals/mutations";
 import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalOpenAt, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
+import { grantChestCoins } from "@/lib/shop/earn";
+import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 import { initialReminderAt } from "@/lib/goals/tick-rules";
 
@@ -138,7 +140,7 @@ export async function logBodyWeightAction(weight: number): Promise<{ ok: true; a
 }
 
 /** Сундук за выполненную цель: 100 XP, забрать можно один раз; в лигу не идёт. */
-export async function openGoalChestAction(goalId: string): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+export async function openGoalChestAction(goalId: string): Promise<{ ok: true; amount: number; coins: number } | { ok: false; error: string }> {
   const user = await requireUser();
   const result = await db.$transaction(async (tx) => {
     const goal = await tx.goal.findFirst({ where: { id: goalId, userId: user.id }, select: { status: true } });
@@ -152,8 +154,9 @@ export async function openGoalChestAction(goalId: string): Promise<{ ok: true; a
     await tx.xpEvent.create({ data: { userId: user.id, amount: GOAL_CHEST_XP, reason: XpReason.GOAL_REWARD, meta: { goalId } } });
     const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: GOAL_CHEST_XP } }, select: { xp: true } });
     await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+    const coins = await grantChestCoins(tx, user.id, { reason: "GOAL_CHEST", key: `chest:goal:${goalId}`, amount: COIN_RATES.goalChest, label: "Сундук цели" }, xp - GOAL_CHEST_XP, xp);
     await evaluateAchievements(tx, user.id);
-    return { ok: true as const, amount: GOAL_CHEST_XP };
+    return { ok: true as const, amount: GOAL_CHEST_XP, coins };
   });
   // Без revalidatePath: цель с открытым сундуком уходит в историю, и диалог с наградой исчез бы вместе с карточкой —
   // страницу обновляет GoalChestButton, когда диалог закрыт

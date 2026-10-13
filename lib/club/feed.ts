@@ -1,6 +1,7 @@
 import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
 import { streakMilestone, type FeedRow } from "@/lib/social/feed";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { titleLabel } from "@/lib/titles/catalog";
 
 /**
@@ -14,6 +15,11 @@ export type ClubFeedRow = {
   userId: string;
   nickname: string | null;
   titleCode: string | null;
+  avatarCode?: string | null;
+  frameCode?: string | null;
+  nickColorCode?: string | null;
+  /** Видимая косметика автора (флаг владельца учтён при чтении). */
+  cosmetics?: Cosmetics;
   hideWeights: boolean;
   finishedAt: Date;
   meta: FeedRow["meta"];
@@ -23,6 +29,7 @@ export type ClubEvent = {
   key: string;
   nickname: string;
   title: string | null;
+  cosmetics?: Cosmetics;
   me: boolean;
   finishedAt: string;
   achievements: string[];
@@ -64,6 +71,7 @@ export function toClubEvents(row: ClubFeedRow, viewerId: string): ClubEvent | nu
     key: `${nickname}|${finishedAt}|${shortHash(row.id)}`,
     nickname,
     title: titleLabel(row.titleCode),
+    cosmetics: row.cosmetics,
     me,
     finishedAt,
     achievements: (meta.achievements ?? [])

@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
 import { RaidDamage } from "@/components/raid/raid-damage";
 import { ClubTasksSummary } from "@/components/club/club-tasks-summary";
+import { CoinLines } from "@/components/shop/coin-lines";
 import { GoalsReached } from "@/components/goals/goals-reached";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
@@ -159,6 +160,8 @@ export function WorkoutSummaryView({
           </p>
         </div>
       </div>
+
+      {!readOnly && meta?.coins ? <CoinLines coins={meta.coins} /> : null}
 
       {meta?.boss ? (
         <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />

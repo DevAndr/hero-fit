@@ -1,5 +1,8 @@
 "use client";
 
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
+import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { useState, useTransition } from "react";
 import { Check, Copy, Loader2, Share2, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -18,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { removeFriendshipAction, respondFriendRequestAction, sendFriendRequestAction } from "@/lib/social/actions";
 
-type Person = { id: string; nickname: string; level: number; title: string | null };
+type Person = { id: string; nickname: string; level: number; title: string | null; cosmetics?: Cosmetics };
 
 /** Код в группах по 4 — легче продиктовать. */
 const pretty = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
@@ -108,14 +111,11 @@ export function AddFriendForm() {
 function PersonRow({ person, children }: { person: Person; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-3 py-2" data-testid="friend-row">
-      <span
-        aria-hidden
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary uppercase"
-      >
-        {person.nickname.slice(0, 1)}
-      </span>
+      <PlayerAvatar nickname={person.nickname} cosmetics={person.cosmetics} size="sm" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{person.nickname}</span>
+        <span className="block truncate font-medium">
+          <PlayerName nickname={person.nickname} color={person.cosmetics?.nickColor} />
+        </span>
         {person.title ? <span className="block truncate text-xs text-muted-foreground">{person.title}</span> : null}
       </span>
       <span className="text-xs text-muted-foreground tabular-nums">LVL {person.level}</span>

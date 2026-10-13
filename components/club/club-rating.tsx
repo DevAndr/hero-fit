@@ -1,3 +1,5 @@
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
 import { PlaceBadge } from "@/components/social/place-badge";
 import type { ClubRating } from "@/lib/club/queries";
 import { cn } from "@/lib/utils";
@@ -34,7 +36,12 @@ export function ClubRatingTable({ rating, periodLabel }: { rating: ClubRating; p
                   <PlaceBadge place={m.place} xp={m.xp} />
                 </td>
                 <td className="px-3 py-2">
-                  <span className="font-medium break-words">{m.nickname}</span>
+                  <span className="flex items-center gap-2">
+                    <PlayerAvatar nickname={m.nickname} cosmetics={m.cosmetics} size="sm" />
+                    <span className="font-medium break-words">
+                      <PlayerName nickname={m.nickname} color={m.cosmetics?.nickColor} />
+                    </span>
+                  </span>
                   {m.me ? <span className="text-muted-foreground"> (ты)</span> : null}
                   {m.title ? <span className="block text-xs text-muted-foreground">{m.title}</span> : null}
                 </td>

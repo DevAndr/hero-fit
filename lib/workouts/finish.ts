@@ -17,7 +17,10 @@ import { applyOwnProgression } from "@/lib/progress/own-progression";
 import { notify } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
 import { bestOfSets, findNewRecords, type RecordValues } from "@/lib/progress/records";
-import { safeTimeZone } from "@/lib/daily-login";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { workoutCoinGrants, type CoinLine } from "@/lib/shop/coins";
+import { grantCoinsDetailed } from "@/lib/shop/coins-db";
+import { paidWorkoutsToday, toLines } from "@/lib/shop/earn";
 import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, workoutXp } from "@/lib/progress/xp";
@@ -74,6 +77,8 @@ export type FinishMeta = {
   goals?: FinishGoals;
   /** Задания клуба: вклад этой тренировки и выполнение (нет — поля нет). */
   clubTasks?: FinishClubTask[];
+  /** Монеты этой тренировки: тренировка, рекорды, неделя серии, уровни, ачивки (нет — поля нет). */
+  coins?: { total: number; items: CoinLine[] };
 };
 
 export type FinishResult = { ok: true } | { ok: false; error: string };
@@ -207,6 +212,27 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       },
     });
 
+    // Монеты: строка пользователя заблокирована UPDATE выше — лимит «2 тренировки в день» не обойти гонкой двух финишей.
+    // День — местный день finishedAt (офлайн-финиш задним числом считается по своему дню).
+    const workingSets = workout.exercises.reduce((n, we) => n + we.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0).length, 0);
+    const day = dayKey(now, tz);
+    const levelBefore = levelProgress(user.xp).level;
+    const coinGrants = await grantCoinsDetailed(
+      tx,
+      userId,
+      workoutCoinGrants({
+        workoutId,
+        day,
+        workingSets,
+        paidToday: await paidWorkoutsToday(tx, userId, day),
+        records,
+        streakWeek: streak.extended ? week : null,
+        streak: streak.currentStreak,
+        levelBefore,
+        levelAfter: levelProgress(xpAfter).level,
+      }),
+    );
+
     // Босс недели этой тренировки (неделя — по её finishedAt): урон прошлых тренировок недели + этой
     const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
     const before = await weekDamage(tx, userId, week, tz, workoutId);
@@ -280,9 +306,12 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
     const unlocked = await evaluateAchievements(tx, userId);
 
+    const coinItems = toLines([...coinGrants, ...unlocked.coins]);
+    const coinTotal = coinItems.reduce((n, c) => n + c.amount, 0);
+
     const meta: FinishMeta = {
       xpBefore: user.xp,
-      levelBefore: levelProgress(user.xp).level,
+      levelBefore,
       levelAfter: levelProgress(xpAfter + unlocked.xp).level,
       workoutXp: baseXp,
       recordsXp,
@@ -298,6 +327,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       ...(raid ? { raid } : {}),
       ...(goals ? { goals } : {}),
       ...(clubTasks ? { clubTasks } : {}),
+      ...(coinTotal > 0 ? { coins: { total: coinTotal, items: coinItems } } : {}),
       ...(progression.items.length ? { progression: progression.items } : {}),
       ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };

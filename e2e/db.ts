@@ -29,7 +29,7 @@ export async function seedWorkouts(
   exerciseName: string,
   workouts: { weight: number; reps: number; sets: number }[],
   daysAgo = workouts.length + 1,
-  opts: { templateId?: string } = {},
+  opts: { templateId?: string; finishedAt?: Date[] } = {},
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
@@ -38,7 +38,7 @@ export async function seedWorkouts(
     ]);
     const exerciseId = rows[0].id;
     for (const [i, w] of workouts.entries()) {
-      const finished = new Date(Date.now() - (daysAgo - i) * 24 * 3600 * 1000);
+      const finished = opts.finishedAt?.[i] ?? new Date(Date.now() - (daysAgo - i) * 24 * 3600 * 1000);
       const started = new Date(finished.getTime() - 3600 * 1000);
       const workoutId = randomUUID();
       const weId = randomUUID();
@@ -957,5 +957,56 @@ export async function notificationTitles(login: string): Promise<string[]> {
   return withDb(async (db) => {
     const { rows } = await db.query<{ title: string }>(`select n.title from "Notification" n join "User" u on u.id = n."userId" where u.login = $1`, [login]);
     return rows.map((r) => r.title);
+  });
+}
+
+/** Баланс монет (lib/shop). */
+export async function coinBalance(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ coins: number }>(`select coins from "User" where login = $1`, [login]);
+    return rows[0].coins;
+  });
+}
+
+export async function setCoins(login: string, coins: number) {
+  await withDb((db) => db.query(`update "User" set coins = $2 where login = $1`, [login, coins]));
+}
+
+/** Момент, с которого считаются монеты (история до него идёт в стартовый баланс). */
+export async function setCoinsSince(login: string, since: Date) {
+  await withDb((db) => db.query(`update "User" set "coinsSince" = $2 where login = $1`, [login, since]));
+}
+
+/** Журнал монет пользователя, старые сверху. */
+export async function coinTx(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ reason: string; amount: number; key: string }>(
+      `select reason::text, amount, key from "CoinTx" where "userId" = $1 order by "createdAt", id`,
+      [uid],
+    );
+    return rows;
+  });
+}
+
+/** Коды купленной косметики. */
+export async function userItems(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ code: string }>(`select code from "UserItem" where "userId" = $1 order by code`, [uid]);
+    return rows.map((r) => r.code);
+  });
+}
+
+/** Выдать предмет магазина и надеть его (минуя UI): вставка UserItem и запись в поле User.*Code. */
+export async function equipItem(login: string, kind: "avatar" | "frame" | "nickColor" | "theme", code: string) {
+  const column = { avatar: "avatarCode", frame: "frameCode", nickColor: "nickColorCode", theme: "themeCode" }[kind];
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(
+      `insert into "UserItem" (id, "userId", code, source) values ($1, $2, $3, 'coins') on conflict ("userId", code) do nothing`,
+      [randomUUID(), uid, code],
+    );
+    await db.query(`update "User" set "${column}" = $2 where id = $1`, [uid, code]);
   });
 }

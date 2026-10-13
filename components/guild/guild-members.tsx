@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerAvatar } from "@/components/shop/player-avatar";
+import { PlayerName } from "@/components/shop/player-name";
 import { useState, useTransition } from "react";
 import { Copy, Crown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -52,7 +54,10 @@ export function GuildMembers({ members, meId, iLead }: { members: GuildMemberVie
             <span className="min-w-0">
               <span className="flex items-center gap-1.5 font-semibold">
                 <span className="w-5 text-right text-muted-foreground tabular-nums">{i + 1}</span>
-                <span className="truncate">{m.nickname}</span>
+                <PlayerAvatar nickname={m.nickname} cosmetics={m.cosmetics} size="sm" />
+                <span className="truncate">
+                  <PlayerName nickname={m.nickname} color={m.cosmetics?.nickColor} />
+                </span>
                 {m.isLeader ? (
                   <span className="flex items-center gap-0.5 rounded-full bg-xp/10 px-1.5 text-xs text-xp">
                     <Crown className="size-3" aria-hidden />

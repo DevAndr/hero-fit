@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SHOP_ITEMS } from "@/lib/shop/catalog";
 import { buildExport, EXPORT_SECTIONS, type ExportRaw } from "./export";
 
 const raw = (): ExportRaw => ({
@@ -53,6 +54,14 @@ const raw = (): ExportRaw => ({
   club: null,
   coachComments: [],
   notifications: [],
+  shop: {
+    coins: 120,
+    items: [
+      { code: "avatar:__none__", acquiredAt: new Date("2026-10-01T00:00:00Z") },
+      { code: "zzz:unknown", acquiredAt: new Date("2026-10-02T00:00:00Z") },
+    ],
+    coinHistory: [{ amount: 10, reason: "WORKOUT", createdAt: new Date("2026-10-03T00:00:00Z"), key: "secret-key" }],
+  },
 });
 
 describe("buildExport", () => {
@@ -75,5 +84,16 @@ describe("buildExport", () => {
     expect(Object.keys(out)).toEqual(["version", "exportedAt", ...EXPORT_SECTIONS]);
     expect(out.version).toBe(1);
     expect(out.workouts[0].exercises[0].sets[0]).toEqual({ weight: 60, reps: 8, rir: 2, warmup: false, done: true });
+  });
+  it("раздел shop: баланс, названия из каталога, неизвестный код — код, без ключей событий", () => {
+    const known = SHOP_ITEMS[0];
+    const r = raw();
+    r.shop.items[0].code = known.code;
+    const o = buildExport(r, new Date("2026-10-13T00:00:00Z"));
+    expect(o.shop.coins).toBe(120);
+    expect(o.shop.items[0]).toEqual({ code: known.code, name: known.name, acquiredAt: new Date("2026-10-01T00:00:00Z") });
+    expect(o.shop.items[1].name).toBe("zzz:unknown");
+    expect(Object.keys(o.shop.coinHistory[0]).sort()).toEqual(["amount", "createdAt", "reason"]);
+    expect(JSON.stringify(o)).not.toContain("secret-key");
   });
 });
