@@ -959,3 +959,36 @@ export async function notificationTitles(login: string): Promise<string[]> {
     return rows.map((r) => r.title);
   });
 }
+
+/** Баланс монет (lib/shop). */
+export async function coinBalance(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ coins: number }>(`select coins from "User" where login = $1`, [login]);
+    return rows[0].coins;
+  });
+}
+
+export async function setCoins(login: string, coins: number) {
+  await withDb((db) => db.query(`update "User" set coins = $2 where login = $1`, [login, coins]));
+}
+
+/** Журнал монет пользователя, старые сверху. */
+export async function coinTx(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ reason: string; amount: number; key: string }>(
+      `select reason::text, amount, key from "CoinTx" where "userId" = $1 order by "createdAt", id`,
+      [uid],
+    );
+    return rows;
+  });
+}
+
+/** Коды купленной косметики. */
+export async function userItems(login: string) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ code: string }>(`select code from "UserItem" where "userId" = $1 order by code`, [uid]);
+    return rows.map((r) => r.code);
+  });
+}
