@@ -38,7 +38,12 @@ export async function writeWeight(tx: Client, userId: string, tz: string, weight
     create: { userId, date, weight },
     update: { weight },
   });
-  const latest = await tx.bodyWeightEntry.findFirstOrThrow({ where: { userId }, orderBy: { date: "desc" }, select: { weight: true } });
-  await tx.user.update({ where: { id: userId }, data: { bodyWeight: latest.weight } });
-  return latest.weight;
+  return (await syncLatestWeight(tx, userId))!;
+}
+
+/** User.bodyWeight — копия последней записи журнала (после записи, правки или удаления). */
+export async function syncLatestWeight(tx: Client, userId: string): Promise<number | null> {
+  const latest = await tx.bodyWeightEntry.findFirst({ where: { userId }, orderBy: { date: "desc" }, select: { weight: true } });
+  if (latest) await tx.user.update({ where: { id: userId }, data: { bodyWeight: latest.weight } });
+  return latest?.weight ?? null;
 }
