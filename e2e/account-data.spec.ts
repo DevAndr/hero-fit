@@ -16,7 +16,9 @@ import {
   makeFriends,
   notificationTitles,
   recapLeagueNicks,
+  idOf,
   userExists,
+  visitDays,
   withDb,
 } from "./db";
 import { createGuild, guildName, inviteUrl, nickOf, player } from "./guild-helpers";
@@ -82,6 +84,9 @@ test("delete: wrong password is refused and throttled like sign-in", async ({ pa
 
 test("delete: the account is gone, sign-in fails", async ({ page }) => {
   const me = await registerUser(page);
+  const id = await idOf(me.login);
+  // Журнал заходов удаляется вместе с аккаунтом
+  expect(await visitDays({ id })).not.toHaveLength(0);
   // Неудача пишет логин в счётчик входа — после удаления его там быть не должно
   const dialog = await deleteAccount(page, "wrong-password");
   await expect(dialog.getByText("Неверный пароль")).toBeVisible();
@@ -90,6 +95,7 @@ test("delete: the account is gone, sign-in fails", async ({ page }) => {
   await expect(page).toHaveURL(/\/\?deleted=1$/);
   await expect(page.getByText("Аккаунт удалён. Спасибо, что тренировались с Hero Fit")).toBeVisible();
   expect(await userExists(me.login)).toBe(false);
+  expect(await visitDays({ id })).toEqual([]);
   expect(
     await withDb(async (db) => (await db.query(`select 1 from "LoginThrottle" where key in ($1, $2)`, [`id:${me.login}`, `id:${me.email}`])).rowCount),
   ).toBe(0);

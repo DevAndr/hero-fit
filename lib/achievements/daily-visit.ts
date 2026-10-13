@@ -31,7 +31,11 @@ export async function recordDailyVisit(
       where: { id: user.id, lastLoginDay: user.lastLoginDay },
       data: { lastLoginDay: new Date(`${today}T00:00:00Z`), loginStreak: streak },
     });
-    if (count === 1) await evaluateAchievements(tx, user.id);
+    if (count === 1) {
+      // Журнал заходов — для метрик активности в админке
+      await tx.userVisit.createMany({ data: [{ userId: user.id, day: new Date(`${today}T00:00:00Z`) }], skipDuplicates: true });
+      await evaluateAchievements(tx, user.id);
+    }
   });
   return { today, loginStreak: streak };
 }
