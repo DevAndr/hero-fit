@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { selectOnFocus } from "@/components/ui/select-on-focus";
 import { Textarea } from "@/components/ui/textarea";
 import { ExercisePicker } from "@/components/training/exercise-picker";
 import { parseNumber } from "@/components/training/workout-state";
@@ -60,6 +61,7 @@ function NumberCell({
     <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
       {label}
       <Input
+        {...selectOnFocus}
         inputMode={decimal ? "decimal" : "numeric"}
         value={value}
         placeholder="—"

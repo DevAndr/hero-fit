@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { selectOnFocus } from "@/components/ui/select-on-focus";
 import { HintBadge } from "@/components/stats/hint-badge";
 import { LottiePlayer, preloadLottie, prefersReducedMotion } from "@/components/lottie/lottie-player";
 import { PlateTools } from "@/components/training/plate-tools";
@@ -173,6 +174,7 @@ export function ExerciseBlock({
                   {set.isWarmup ? "Р" : workingNumber}
                 </button>
                 <Input
+                  {...selectOnFocus}
                   inputMode="decimal"
                   value={set.weight}
                   placeholder="0"
@@ -181,6 +183,7 @@ export function ExerciseBlock({
                   className="h-9 text-center tabular-nums"
                 />
                 <Input
+                  {...selectOnFocus}
                   inputMode="numeric"
                   value={set.reps}
                   placeholder="0"

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { selectOnFocus } from "@/components/ui/select-on-focus";
 import { saveTargetsAction } from "@/lib/coach/target-actions";
 import { parseTargetInput } from "@/lib/coach/targets";
 import type { ClientTemplateTargets } from "@/lib/coach/target-queries";
@@ -190,6 +191,7 @@ function Field({
     <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
       <span aria-hidden>{label}</span>
       <Input
+        {...selectOnFocus}
         aria-label={`${label}: ${exercise}`}
         inputMode={decimal ? "decimal" : "numeric"}
         value={value}
