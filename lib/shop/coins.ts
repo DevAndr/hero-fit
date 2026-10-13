@@ -93,7 +93,7 @@ export function workoutCoinGrants(input: WorkoutCoinInput): CoinGrant[] {
   const seen = new Set<string>();
   const exercises = input.records.filter((r) => !seen.has(r.exerciseId) && seen.add(r.exerciseId));
   for (const r of exercises.slice(0, COIN_RATES.recordsPerWorkout)) {
-    out.push({ reason: "RECORD", key: `record:${input.workoutId}:${r.exerciseId}`, amount: COIN_RATES.record, label: `Рекорд: ${r.exerciseName}` });
+    out.push({ reason: "RECORD", key: `record:${input.workoutId}:${r.exerciseId}`, amount: COIN_RATES.record, meta: { exercise: r.exerciseName }, label: `Рекорд: ${r.exerciseName}` });
   }
   if (input.streakWeek) {
     out.push({ reason: "STREAK_WEEK", key: `streakw:${input.streakWeek}`, amount: streakWeekCoins(input.streak), label: "Неделя серии" });

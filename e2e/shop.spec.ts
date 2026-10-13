@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, coinBalance, coinTx, equipItem, makeFriends, withDb } from "./db";
+import { addFlagUser, coinBalance, coinTx, equipItem, makeFriends, seedWorkouts, setCoins, setCoinsSince, setTimeZone, userItems, withDb } from "./db";
+import { E2E_TZ, localAt } from "./tz";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 
 const SETS = (weight: string) => [
@@ -153,5 +154,156 @@ test.describe("показ косметики", () => {
       dark: document.documentElement.classList.contains("dark"),
     }));
     expect(primary).toBe(dark ? "#38bdf8" : "#0369a1");
+  });
+});
+
+const WORKOUT = { weight: 60, reps: 10, sets: 3 };
+
+test.describe("страница магазина", () => {
+  test("shop shows balance, earn table and history", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await quickWorkout(page, "Жим штанги лёжа", SETS("60"));
+    await page.goto("/shop");
+    const balance = await coinBalance(login);
+    expect(balance).toBeGreaterThanOrEqual(10);
+    await expect(page.getByTestId("coin-balance")).toContainText(String(balance));
+    await expect(page.getByTestId("coin-history").getByText("Тренировка", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Как заработать" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("cell", { name: /Ежедневный сундук/ })).toBeVisible();
+    await expect(dialog.getByRole("cell", { name: /Новый уровень/ })).toBeVisible();
+  });
+
+  test("summary shows coins after a workout", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await quickWorkout(page, "Жим штанги лёжа", SETS("60"));
+    const coins = page.getByTestId("summary-coins");
+    await expect(coins).toContainText("Тренировка · +10");
+    await expect(coins).toContainText(/\+\d+ монет/);
+  });
+
+  test("summary has no coin line without the flag", async ({ page }) => {
+    await registerUser(page);
+    await quickWorkout(page, "Жим штанги лёжа", SETS("60"));
+    await expect(page.getByTestId("xp-earned")).toBeVisible();
+    await expect(page.getByTestId("summary-coins")).toHaveCount(0);
+  });
+
+  test("not enough coins shows the shortfall", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await setCoins(login, 0);
+    await page.goto("/shop?tab=avatar");
+    await expect(page.getByTestId("shop-item-avatar:archer")).toContainText("Не хватает 150");
+    await page.getByTestId("shop-item-avatar:archer").click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: /Купить за 150/ })).toBeDisabled();
+  });
+
+  test("buy and equip an item", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await setCoins(login, 200);
+    await page.goto("/shop?tab=avatar");
+    await page.getByTestId("shop-item-avatar:archer").click();
+    await page.getByRole("dialog").getByRole("button", { name: "Купить за 150" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Надеть" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Снять" })).toBeVisible();
+    expect(await userItems(login)).toEqual(["avatar:archer"]);
+    expect(await coinBalance(login)).toBe(50);
+  });
+
+  test("shop is 404 without the flag", async ({ page }) => {
+    await registerUser(page);
+    const res = await page.goto("/shop");
+    expect(res?.status()).toBe(404);
+  });
+});
+
+test.describe("стартовый баланс", () => {
+  test("retro balance is granted once and the banner shows once", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await seedWorkouts(login, "Жим штанги лёжа", [WORKOUT, WORKOUT, WORKOUT], 5);
+    const before = await coinBalance(login);
+
+    await page.goto("/shop");
+    const retro = (await coinTx(login)).filter((t) => t.reason === "RETRO");
+    expect(retro).toHaveLength(1);
+    expect(retro[0].amount).toBeGreaterThanOrEqual(30);
+    expect(await coinBalance(login)).toBe(before + retro[0].amount);
+    const banner = page.getByRole("status").filter({ hasText: "За прошлые тренировки начислено" });
+    await expect(banner).toContainText(`${retro[0].amount} монет`);
+
+    await banner.getByRole("button", { name: "Закрыть" }).click();
+    await expect(banner).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("coin-balance")).toBeVisible();
+    await expect(page.getByText("За прошлые тренировки начислено")).toHaveCount(0);
+    expect((await coinTx(login)).filter((t) => t.reason === "RETRO")).toHaveLength(1);
+  });
+
+  test("two tabs opening the shop first time give one retro record", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await seedWorkouts(login, "Жим штанги лёжа", [WORKOUT, WORKOUT], 4);
+    const before = await coinBalance(login);
+    const second = await page.context().newPage();
+    try {
+      await Promise.all([page.goto("/shop"), second.goto("/shop")]);
+      const retro = (await coinTx(login)).filter((t) => t.reason === "RETRO");
+      expect(retro).toHaveLength(1);
+      expect(await coinBalance(login)).toBe(before + retro[0].amount);
+    } finally {
+      await second.close();
+    }
+  });
+
+  test("workouts around local midnight count by local day", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await setTimeZone(login);
+    await setCoinsSince(login, new Date());
+    const day = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString("sv-SE", { timeZone: E2E_TZ });
+    // Один местный день, но (в поясе не UTC) разные дни по UTC: оплачиваются только 2
+    await seedWorkouts(login, "Жим штанги лёжа", [WORKOUT, WORKOUT, WORKOUT], 3, {
+      finishedAt: [localAt(day, "00:30"), localAt(day, "12:00"), localAt(day, "23:30")],
+    });
+    await page.goto("/shop");
+    const retro = (await coinTx(login)).filter((t) => t.reason === "RETRO");
+    expect(retro).toHaveLength(1);
+    // 2 оплаченные тренировки по 10; XP не набирался — уровень 1, монет за уровни нет
+    expect(retro[0].amount).toBe(20);
+  });
+});
+
+test.describe("параллельные покупки", () => {
+  test("two simultaneous purchases with one balance buy one item", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await setCoins(login, 150);
+    const second = await page.context().newPage();
+    try {
+      await Promise.all([page.goto("/shop?tab=avatar"), second.goto("/shop?tab=avatar")]);
+      for (const p of [page, second]) {
+        await p.getByTestId("shop-item-avatar:archer").click();
+        await expect(p.getByRole("dialog").getByRole("button", { name: "Купить за 150" })).toBeEnabled();
+      }
+      await Promise.all(
+        [page, second].map((p) => p.getByRole("dialog").getByRole("button", { name: "Купить за 150" }).click()),
+      );
+      // Один выиграл — «Надеть»; второй получил отказ («Не хватает…», либо «Уже куплено», если успел увидеть покупку)
+      const refused = async () => {
+        const counts = await Promise.all([page, second].map((p) => p.getByRole("alert").filter({ hasText: /Не хватает|Уже куплено/ }).count()));
+        return counts[0] + counts[1];
+      };
+      await expect.poll(refused).toBe(1);
+      expect(await userItems(login)).toEqual(["avatar:archer"]);
+      expect(await coinBalance(login)).toBe(0);
+    } finally {
+      await second.close();
+    }
   });
 });

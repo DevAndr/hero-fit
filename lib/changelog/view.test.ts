@@ -97,6 +97,10 @@ describe("userChangelog", () => {
     expect(u.releases.map((r) => r.id)).toEqual(["a"]);
   });
 
+  it("просмотренным записан скрытый релиз (новичку — самый свежий): точки нет", () => {
+    expect(userChangelog([hidden, shown], "b", () => false)).toMatchObject({ unseen: false, latest: "a" });
+  });
+
   it("флаг включили — релиз появился и точка загорелась", () => {
     expect(userChangelog([hidden, shown], "a", () => true)).toMatchObject({ unseen: true, latest: "b" });
   });

@@ -366,7 +366,7 @@ async function grant(client: Client, userId: string, fresh: AchievementDef[]): P
   const { level } = levelProgress(user.xp);
   // Монеты: за каждую ачивку и за уровни, которые принёс её XP (ключи делают повтор безопасным)
   const coins = await grantCoinsDetailed(client, userId, [
-    ...fresh.map((a) => ({ reason: "ACHIEVEMENT" as const, key: `ach:${a.code}`, amount: achievementCoins(a.xpReward), label: `Ачивка: ${a.title}` })),
+    ...fresh.map((a) => ({ reason: "ACHIEVEMENT" as const, key: `ach:${a.code}`, amount: achievementCoins(a.xpReward), meta: { title: a.title }, label: `Ачивка: ${a.title}` })),
     ...levelUpGrants(user.xp - xp, user.xp),
   ]);
   // Заморозки-награды копятся сверх еженедельного лимита, но не больше MAX_REWARD_FREEZES

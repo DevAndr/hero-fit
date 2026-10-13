@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Target, ToggleRight, Users } from "lucide-react";
+import { Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
+import { coinWord } from "@/lib/shop/labels";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
@@ -31,6 +32,7 @@ export function UserMenu({
   unseen = false,
   pendingClubs = 0,
   cosmetics,
+  coins,
 }: {
   name: string | null;
   login: string;
@@ -43,10 +45,13 @@ export function UserMenu({
   pendingClubs?: number;
   /** Надетая косметика (флаг магазина уже учтён). */
   cosmetics?: Cosmetics;
+  /** Баланс монет (только при включённом магазине). */
+  coins?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const push = usePush();
   const clubs = useFlag("clubs");
+  const shop = useFlag("shop");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
   const [opened, setOpened] = useState(false);
@@ -114,6 +119,17 @@ export function UserMenu({
             </span>
           ) : null}
         </DropdownMenuItem>
+        {shop ? (
+          <DropdownMenuItem render={<Link href="/shop" />}>
+            <Store />
+            Магазин
+            {coins !== undefined ? (
+              <span className="ml-auto text-xs font-semibold text-muted-foreground tabular-nums">
+                {coins} {coinWord(coins)}
+              </span>
+            ) : null}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem render={<Link href="/goals" />}>
           <Target />
           Цели

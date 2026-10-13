@@ -47,7 +47,7 @@ export async function buyItemAction(code: string): Promise<{ ok: true; coins: nu
       return after?.coins ?? 0;
     });
     await queueGoal("shop_buy");
-    revalidatePath("/shop");
+    revalidatePath("/", "layout"); // баланс в меню профиля
     return { ok: true, coins };
   } catch (e) {
     if (e instanceof Rejected) return { ok: false, error: e.message };

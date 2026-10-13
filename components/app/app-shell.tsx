@@ -65,6 +65,7 @@ export function AppShell({
   whatsNewUnseen = false,
   pendingClubs = 0,
   cosmetics,
+  coins,
   children,
 }: {
   user: CurrentUser;
@@ -74,6 +75,8 @@ export function AppShell({
   pendingClubs?: number;
   /** Надетая косметика пользователя (для меню профиля). */
   cosmetics?: Cosmetics;
+  /** Баланс монет для меню профиля (при включённом магазине). */
+  coins?: number;
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
@@ -106,6 +109,7 @@ export function AppShell({
               unseen={whatsNewUnseen}
               pendingClubs={pendingClubs}
               cosmetics={cosmetics}
+              coins={coins}
             />
           </div>
         </header>

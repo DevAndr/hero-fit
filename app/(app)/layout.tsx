@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     user.isAdmin ? pendingClubCount() : 0,
     db.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { id: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true },
+      select: { id: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true, coins: true },
     }),
   ]);
   // Косметика и тема — только при включённом магазине у самого пользователя
@@ -52,6 +52,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       user={user}
       pendingClubs={pendingClubs}
       cosmetics={cosmetics}
+      coins={flags.includes("shop") ? look.coins : undefined}
       whatsNewUnseen={userChangelog(RELEASES, user.changelogSeen, (f) => flags.includes(f)).unseen}
       chest={
         <DailyChest

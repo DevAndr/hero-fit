@@ -53,5 +53,10 @@ export function userChangelog(
   enabled: (flag: FlagKey) => boolean,
 ): { releases: Release[]; latest: string | null; unseen: boolean } {
   const visible = releases.map((r) => visibleRelease(r, { enabled, publicOnly: false })).filter((r): r is Release => r !== null);
-  return { releases: visible, latest: latestReleaseId(visible), unseen: hasUnseen(visible, seenId) };
+  const latest = latestReleaseId(visible);
+  // Просмотренным мог быть записан релиз новее видимых (новичку — самый свежий, даже скрытый флагом): это не «новое»
+  const seenAt = seenId === null ? -1 : releases.findIndex((r) => r.id === seenId);
+  const latestAt = latest === null ? -1 : releases.findIndex((r) => r.id === latest);
+  const unseen = latest !== null && (seenAt === -1 || seenAt > latestAt);
+  return { releases: visible, latest, unseen };
 }

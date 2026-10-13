@@ -29,7 +29,7 @@ export async function seedWorkouts(
   exerciseName: string,
   workouts: { weight: number; reps: number; sets: number }[],
   daysAgo = workouts.length + 1,
-  opts: { templateId?: string } = {},
+  opts: { templateId?: string; finishedAt?: Date[] } = {},
 ) {
   await withDb(async (db) => {
     const uid = await userId(db, login);
@@ -38,7 +38,7 @@ export async function seedWorkouts(
     ]);
     const exerciseId = rows[0].id;
     for (const [i, w] of workouts.entries()) {
-      const finished = new Date(Date.now() - (daysAgo - i) * 24 * 3600 * 1000);
+      const finished = opts.finishedAt?.[i] ?? new Date(Date.now() - (daysAgo - i) * 24 * 3600 * 1000);
       const started = new Date(finished.getTime() - 3600 * 1000);
       const workoutId = randomUUID();
       const weId = randomUUID();
@@ -970,6 +970,11 @@ export async function coinBalance(login: string) {
 
 export async function setCoins(login: string, coins: number) {
   await withDb((db) => db.query(`update "User" set coins = $2 where login = $1`, [login, coins]));
+}
+
+/** Момент, с которого считаются монеты (история до него идёт в стартовый баланс). */
+export async function setCoinsSince(login: string, since: Date) {
+  await withDb((db) => db.query(`update "User" set "coinsSince" = $2 where login = $1`, [login, since]));
 }
 
 /** Журнал монет пользователя, старые сверху. */

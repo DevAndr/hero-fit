@@ -6,11 +6,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { prefersReducedMotion } from "@/components/lottie/lottie-player";
+import { useFlag } from "@/components/flags/flags-provider";
+import { coinWord } from "@/lib/shop/labels";
 import { cn } from "@/lib/utils";
 import chestClosed from "@/assets/icons/game/chest_closed.png";
 import chestOpened from "@/assets/icons/game/chest_opened.png";
 
-export type ChestOpenResult = { ok: true; amount: number; rare?: boolean } | { ok: false; error: string };
+export type ChestOpenResult = { ok: true; amount: number; rare?: boolean; coins?: number } | { ok: false; error: string };
 type Opened = Extract<ChestOpenResult, { ok: true }>;
 
 /**
@@ -35,6 +37,7 @@ export function ChestDialog({
   onOpen: () => Promise<ChestOpenResult>;
   onOpened?: () => void;
 }) {
+  const shop = useFlag("shop");
   const [opened, setOpened] = useState<Opened | null>(null);
   const [pending, startTransition] = useTransition();
   const chestRef = useRef<HTMLButtonElement>(null);
@@ -155,6 +158,12 @@ export function ChestDialog({
             </p>
           ) : null}
         </div>
+
+        {opened && shop && opened.coins ? (
+          <p className="text-center text-lg font-bold text-xp tabular-nums" data-testid="chest-coins">
+            +{opened.coins} {coinWord(opened.coins)}
+          </p>
+        ) : null}
 
         <DialogFooter>
           {opened ? (
