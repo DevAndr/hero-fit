@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays } from "./db";
+import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
 
@@ -46,7 +46,7 @@ test.describe("admin metrics page", () => {
     await expect(page.getByText(/за 90 дней$/).first()).toBeVisible();
   });
 
-  // Только этот сценарий сдвигает регистрацию в прошлое — строка когорты 5 недель назад детерминирована.
+  // Только этот сценарий сдвигает регистрацию в прошлое; следы прошлых прогонов в когорте 5 недель назад убирает clearCohort.
   test("visit and workout on the same local day count once, in the player's own day", async ({ page, browser }) => {
     const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
@@ -61,6 +61,8 @@ test.describe("admin metrics page", () => {
     const playerCtx = await browser.newContext();
     const player = await registerUser(await playerCtx.newPage());
     await playerCtx.close();
+    // Неделя когорты с запасом в сутки по краям — граница недели у админа в его поясе
+    await clearCohort(new Date(`${addDays(cohort, -1)}T00:00:00Z`), new Date(`${addDays(cohort, 8)}T00:00:00Z`));
     await seedWorkouts(player.login, "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [finishedAt] });
     await backdateUser(player.login, {
       createdAt: new Date(`${addDays(cohort, 2)}T12:00:00Z`),
