@@ -1,9 +1,11 @@
 import { chestAutoOpen } from "@/lib/onboarding/tour";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { AppShell } from "@/components/app/app-shell";
 import { TimezoneSync } from "@/components/app/timezone-sync";
+import { NavigationProgress } from "@/components/app/navigation-progress";
 import { DailyChest } from "@/components/progress/daily-chest";
 import { recordDailyVisit, TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { getUnseenAchievements } from "@/lib/achievements/queries";
@@ -72,6 +74,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {children}
       <AchievementToaster achievements={unseen} />
       <TimezoneSync cookieName={TIMEZONE_COOKIE} current={timeZone} />
+      {/* Полоска сверху на время перехода: страницы рендерятся на сервере, клик откликается сразу */}
+      <Suspense>
+        <NavigationProgress />
+      </Suspense>
     </AppShell>
   );
 
