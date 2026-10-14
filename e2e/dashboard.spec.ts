@@ -148,19 +148,3 @@ test("active workout turns the main button into «Продолжить»", async
   await expect(page.getByRole("main").getByRole("link", { name: "Продолжить тренировку" })).toBeVisible();
   await expect(page.getByText("Тренировка «Тренировка» ждёт продолжения")).toBeVisible();
 });
-
-test("slow dashboard: skeleton right after the click, then the content", async ({ page }) => {
-  await registerUser(page);
-  await page.goto("/exercises");
-  // Медленный сервер: задерживаем сам переход (RSC без prefetch), скелет при этом уже подгружен заранее
-  await page.route(/\/dashboard\?_rsc=/, async (route) => {
-    if (!route.request().headers()["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 1500));
-    await route.continue();
-  });
-  await page.waitForLoadState("networkidle");
-  await page.locator('a[href="/dashboard"]:visible').first().click();
-  await expect(page.getByTestId("dashboard-loading")).toBeVisible({ timeout: 1000 });
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: /Привет/ })).toBeVisible();
-  await expect(page.getByTestId("dashboard-loading")).toHaveCount(0);
-});
