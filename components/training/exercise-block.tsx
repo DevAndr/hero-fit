@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,10 +20,43 @@ import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
-import type { Action, ExerciseState, SetState } from "@/components/training/workout-state";
+import { isExerciseDone, parseNumber, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
 
 const formatSets = (sets: { weight: number; reps: number }[]) =>
   sets.map((s) => (s.weight ? `${s.weight}×${s.reps}` : `${s.reps}`)).join(", ");
+
+/** Свёрнутое выполненное упражнение: одна строка без полей ввода, тап — развернуть. */
+function CollapsedExercise({ item, handle, onToggle }: { item: ExerciseState; handle?: ReactNode; onToggle: () => void }) {
+  const working = item.sets
+    .filter((s) => !s.isWarmup)
+    .map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) }));
+  return (
+    <section className="rounded-xl border bg-card" aria-label={item.exercise.name} data-exercise-key={item.key} data-collapsed>
+      <div className="flex items-center gap-2 p-3">
+        {handle}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={false}
+          aria-label={`${item.exercise.name}: выполнено, развернуть`}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{item.exercise.name}</span>
+            <span className="block truncate text-xs text-muted-foreground tabular-nums">
+              {item.sets.length}/{item.sets.length}
+              {working.length ? ` · ${formatSets(working)}` : null}
+            </span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export function ExerciseBlock({
   item,
@@ -36,6 +69,8 @@ export function ExerciseBlock({
   dispatch,
   onComplete,
   handle,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   item: ExerciseState;
   index: number;
@@ -51,6 +86,10 @@ export function ExerciseBlock({
   onComplete: (item: ExerciseState, set: SetState) => void;
   /** Ручка перетаскивания (на ПК). */
   handle?: ReactNode;
+  /** Свёрнуто (выполненное упражнение — см. `isCollapsed`). */
+  collapsed?: boolean;
+  /** Свернуть/развернуть вручную; кнопка «Свернуть» — только у выполненного упражнения. */
+  onToggleCollapsed?: () => void;
 }) {
   const { exercise } = item;
   const doneCount = item.sets.filter((s) => s.completedAt).length;
@@ -64,8 +103,10 @@ export function ExerciseBlock({
     });
   useEffect(() => preloadLottie("success"), []);
 
+  if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} />;
+
   return (
-    <section className="rounded-xl border bg-card" aria-label={exercise.name}>
+    <section className="rounded-xl border bg-card" aria-label={exercise.name} data-exercise-key={item.key}>
       <header className="flex items-start gap-2 p-4 pb-2">
         {handle}
         <div className="min-w-0 flex-1">
@@ -105,6 +146,11 @@ export function ExerciseBlock({
           </button>
         </div>
 
+        {onToggleCollapsed && isExerciseDone(item) ? (
+          <Button variant="ghost" size="icon-sm" aria-expanded aria-label="Свернуть упражнение" onClick={onToggleCollapsed}>
+            <ChevronUp />
+          </Button>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Действия с упражнением" />}>
             <EllipsisVertical />
