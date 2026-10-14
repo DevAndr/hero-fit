@@ -15,10 +15,11 @@ const DAY_MS = 24 * 3_600_000;
 
 /**
  * Урон по неделям [fromWeek … toWeek] (понедельники в поясе tz): выполненные рабочие подходы завершённых
- * тренировок недели их `finishedAt` + криты — различные упражнения с побитым рекордом (`XpEvent.meta.records`).
+ * тренировок недели их `finishedAt` + криты — различные упражнения с побитым рекордом (`XpEvent.meta.records`);
+ * `workouts` — тренировки недели с выполненными рабочими подходами.
  */
 export async function damageByWeek(client: Client, userId: string, tz: string, fromWeek: string, toWeek: string, excludeWorkoutId?: string) {
-  const rows = await client.$queryRaw<{ week: string; sets: number; crits: number }[]>`
+  const rows = await client.$queryRaw<{ week: string; sets: number; crits: number; workouts: number }[]>`
     WITH ws AS (
       SELECT w.id,
              to_char(date_trunc('week', (w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS week
@@ -28,27 +29,31 @@ export async function damageByWeek(client: Client, userId: string, tz: string, f
         AND (w."finishedAt" AT TIME ZONE 'UTC') >= (${fromWeek}::date)::timestamp AT TIME ZONE ${tz}
         AND (w."finishedAt" AT TIME ZONE 'UTC') < ((${toWeek}::date) + 7)::timestamp AT TIME ZONE ${tz}
     )
-    SELECT ws.week,
-           COALESCE(SUM((
-             SELECT SUM(${SET_DAMAGE} + CASE WHEN s.rir <= 1 THEN ${FAILURE_BONUS} ELSE 0 END)
-             FROM "WorkoutExercise" we JOIN "WorkoutSet" s ON s."workoutExerciseId" = we.id
-             WHERE we."workoutId" = ws.id AND NOT s."isWarmup" AND s."completedAt" IS NOT NULL
-           )), 0)::int AS sets,
-           COALESCE(SUM((
-             SELECT COUNT(DISTINCT r->>'exerciseId')
-             FROM "XpEvent" x, jsonb_array_elements(COALESCE(x.meta->'records', '[]'::jsonb)) r
-             WHERE x."workoutId" = ws.id AND x.reason = 'WORKOUT_COMPLETED'
-           )), 0)::int AS crits
-    FROM ws
-    GROUP BY ws.week
+    , wd AS (
+      SELECT ws.week,
+             COALESCE((
+               SELECT SUM(${SET_DAMAGE} + CASE WHEN s.rir <= 1 THEN ${FAILURE_BONUS} ELSE 0 END)
+               FROM "WorkoutExercise" we JOIN "WorkoutSet" s ON s."workoutExerciseId" = we.id
+               WHERE we."workoutId" = ws.id AND NOT s."isWarmup" AND s."completedAt" IS NOT NULL
+             ), 0) AS sets,
+             (
+               SELECT COUNT(DISTINCT r->>'exerciseId')
+               FROM "XpEvent" x, jsonb_array_elements(COALESCE(x.meta->'records', '[]'::jsonb)) r
+               WHERE x."workoutId" = ws.id AND x.reason = 'WORKOUT_COMPLETED'
+             ) AS crits
+      FROM ws
+    )
+    SELECT week, SUM(sets)::int AS sets, SUM(crits)::int AS crits, COUNT(*) FILTER (WHERE sets > 0)::int AS workouts
+    FROM wd
+    GROUP BY week
   `;
-  return new Map(rows.map((r) => [r.week, { damage: r.sets + r.crits * CRIT_DAMAGE, crits: r.crits }]));
+  return new Map(rows.map((r) => [r.week, { damage: r.sets + r.crits * CRIT_DAMAGE, crits: r.crits, workouts: r.workouts }]));
 }
 
 /** Урон недели `week`; `excludeWorkoutId` — без этой тренировки (её урон досчитывают отдельно). */
 export async function weekDamage(client: Client, userId: string, week: string, tz: string, excludeWorkoutId?: string) {
   const byWeek = await damageByWeek(client, userId, tz, week, week, excludeWorkoutId);
-  return byWeek.get(week) ?? { damage: 0, crits: 0 };
+  return byWeek.get(week) ?? { damage: 0, crits: 0, workouts: 0 };
 }
 
 /** Босс недели: создаётся при первом обращении, HP — по урону прошлых недель и больше не меняется. */
@@ -56,7 +61,7 @@ export async function getOrCreateBossWeek(client: Client, userId: string, week: 
   const existing = await client.bossWeek.findUnique({ where: { userId_week: { userId, week } } });
   if (existing) return existing;
   const byWeek = await damageByWeek(client, userId, tz, addWeeks(week, -HP_HISTORY_WEEKS), addWeeks(week, -1));
-  const history = Array.from({ length: HP_HISTORY_WEEKS }, (_, i) => byWeek.get(addWeeks(week, -(i + 1)))?.damage ?? 0);
+  const history = Array.from({ length: HP_HISTORY_WEEKS }, (_, i) => byWeek.get(addWeeks(week, -(i + 1))) ?? { damage: 0, workouts: 0 });
   // upsert — два параллельных запроса не создадут двух боссов
   return client.bossWeek.upsert({
     where: { userId_week: { userId, week } },

@@ -156,8 +156,8 @@ const currentBoss = (login: string) =>
 
 test("first boss win unlocks a title in the summary", async ({ page }) => {
   const { login } = await registerUser(page);
-  // 14 подходов этой недели + 1 в тренировке = 1500 HP
-  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  // 29 подходов этой недели + 1 в тренировке = 3000 HP
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 29 }], 0);
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   const unlocked = page.getByTestId("boss-title-unlocked");
   await expect(unlocked).toContainText(/Открыт титул «Гроза .+»/);
@@ -171,7 +171,7 @@ test("second win over the same boss unlocks nothing", async ({ page }) => {
   const { login } = await registerUser(page);
   await expect(page.getByTestId("boss-card")).toBeVisible();
   await bossWin(login, await currentBoss(login), 5);
-  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 29 }], 0);
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   await expect(page.getByTestId("boss-damage")).toContainText("Повержен!");
   await expect(page.getByTestId("boss-title-unlocked")).toHaveCount(0);
@@ -180,7 +180,7 @@ test("second win over the same boss unlocks nothing", async ({ page }) => {
 test("a coach viewing the client's boss win sees the unlocked title without «Выбрать»", async ({ page, browser }) => {
   test.slow();
   const client = await registerUser(page);
-  await seedWorkouts(client.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await seedWorkouts(client.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 29 }], 0);
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   await expect(page.getByTestId("boss-title-unlocked")).toBeVisible();
   const workoutId = page.url().split("/").at(-1)!;

@@ -11,6 +11,7 @@ import { bossImage } from "@/components/boss/boss-sprite";
 import { CountUp, useSeen } from "@/components/marketing/motion";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { BOSSES, bossName, type BossCode } from "@/lib/boss/bosses";
+import { MIN_HP } from "@/lib/boss/damage";
 import { BODY_BACK, BODY_FRONT, type BodyPart } from "@/lib/progress/body-map-data";
 import { RECOVERY_STATE_LABELS, type RecoveryState } from "@/lib/progress/recovery";
 import { BOSS_STAR_WINS, bossStars, bossTitles } from "@/lib/titles/catalog";
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 const EASE = [0.2, 0.7, 0.2, 1] as const;
 const SPRING = { type: "spring", stiffness: 140, damping: 18 } as const;
 
-const BOSS_HP = 1500;
+const BOSS_HP = MIN_HP;
 const FIGHT_START = 0.3;
 const FIGHT_S = 2.6;
 const HITS = [
