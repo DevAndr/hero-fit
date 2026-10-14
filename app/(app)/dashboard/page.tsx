@@ -78,7 +78,8 @@ function StreakCard({
   const alive = value > 0;
   const urgent = isStreakUrgent(status);
   const message = offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, timeZone)}` : streakMessage(status);
-  const count = status.state === "done" ? STREAK_WEEK_TARGET : status.state === "pending" || status.state === "frozen" ? status.count : 0;
+  // Тренировки недели видны и до первой серии, и после сгоревшей — они ведут к новой
+  const count = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
 
   return (
     <section

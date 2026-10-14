@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { seedWorkouts, userId, withDb } from "./db";
-import { registerUser } from "./helpers";
+import { quickWorkout, registerUser } from "./helpers";
 
 /**
  * Недельная серия в поясе UTC: последняя засчитанная неделя — lastWeeksAgo недель назад, на этой неделе — weekCount тренировок.
@@ -147,4 +147,13 @@ test("active workout turns the main button into «Продолжить»", async
   await page.goto("/dashboard");
   await expect(page.getByRole("main").getByRole("link", { name: "Продолжить тренировку" })).toBeVisible();
   await expect(page.getByText("Тренировка «Тренировка» ждёт продолжения")).toBeVisible();
+});
+
+test("new user after the first workout: the week shows 1/3 before any streak", async ({ page }) => {
+  await registerUser(page);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "40", reps: "10" }]);
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("streak-value")).toHaveText("0");
+  await expect(page.getByTestId("streak-week")).toHaveText("1/3 за неделю");
+  await expect(page.getByTestId("streak-message")).toHaveText("Эта неделя: 1/3 — ещё 2 тренировки, и серия зажжётся");
 });
