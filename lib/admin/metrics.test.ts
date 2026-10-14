@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, cohortGrid, deltaPercent, fillDays, parseRange } from "./metrics";
+import { cohortGrid, deltaPercent, fillDays, parseRange } from "./metrics";
 
 describe("deltaPercent", () => {
   it("рост и падение", () => {
@@ -32,13 +32,6 @@ describe("fillDays", () => {
   });
   it("через границу месяца", () => {
     expect(fillDays([], "2026-09-30", "2026-10-01").map((p) => p.day)).toEqual(["2026-09-30", "2026-10-01"]);
-  });
-});
-
-describe("addDays", () => {
-  it("через месяц и назад", () => {
-    expect(addDays("2026-10-30", 3)).toBe("2026-11-02");
-    expect(addDays("2026-10-01", -1)).toBe("2026-09-30");
   });
 });
 

@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { WorkoutStatus, type MuscleGroup, type RecordType } from "@/generated/prisma/enums";
 import { dayKey } from "@/lib/daily-login";
+import { weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { progressionHint, type ProgressionHint } from "@/lib/progress/progression";
@@ -12,7 +13,6 @@ import {
   rhythm,
   strengthSeries,
   weeklySeries,
-  weekStart,
   type DayRow,
   type StrengthRow,
 } from "@/lib/stats/series";

@@ -6,7 +6,7 @@ import { isEnabled } from "@/lib/flags/server";
 import { forecastGoal, forecastShort, forecastText } from "@/lib/goals/forecast";
 import type { GoalRow } from "@/lib/goals/rules";
 import { localMidnight } from "@/lib/progress/weekly-streak";
-import { weekStart } from "@/lib/stats/series";
+import { weekStart } from "@/lib/dates";
 import { exerciseWeekBests } from "@/lib/stats/strength-queries";
 
 type Client = Prisma.TransactionClient | typeof db;

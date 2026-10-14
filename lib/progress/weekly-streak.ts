@@ -3,17 +3,14 @@
  * в поясе пользователя, её ключ — дата понедельника «YYYY-MM-DD».
  */
 import { dayKey } from "../daily-login";
+import { addDays, weekdayOf } from "../dates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
 /** Ключ «YYYY-MM-DD» как полдень UTC — арифметика дат без влияния DST. */
 const noon = (key: string) => Date.parse(`${key}T12:00:00Z`);
-const toKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-const addDays = (key: string, n: number) => toKey(noon(key) + n * DAY_MS);
 
-/** 0 = понедельник … 6 = воскресенье, для календарного дня «YYYY-MM-DD». */
-const weekdayOf = (key: string) => (new Date(noon(key)).getUTCDay() + 6) % 7;
 
 /** Понедельник недели, в которую попадает момент date в поясе tz. */
 export function weekKey(date: Date, tz: string): string {

@@ -1,21 +1,10 @@
 /** Чистые преобразования рядов для графиков статистики (дни — «YYYY-MM-DD» в поясе пользователя). */
 
+import { addDays, weekStart } from "@/lib/dates";
+
 export type DayRow = { day: string; volume: number; workouts: number; sec: number; sets: number; prs: number };
 
-const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
-const toKey = (d: Date) => d.toISOString().slice(0, 10);
 
-function addDays(day: string, n: number) {
-  const d = toDate(day);
-  d.setUTCDate(d.getUTCDate() + n);
-  return toKey(d);
-}
-
-/** Понедельник недели, в которую попадает день. */
-export function weekStart(day: string) {
-  const dow = (toDate(day).getUTCDay() + 6) % 7; // 0 = понедельник
-  return addDays(day, -dow);
-}
 
 export type WeekPoint = {
   week: string;
