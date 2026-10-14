@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useReducer, useState, useTransition } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
 import { CircleAlert, CloudCheck, CloudOff, EllipsisVertical, Flag, Loader2, Play, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -40,7 +40,15 @@ import { formatClock } from "@/lib/format";
 import { pickInitial, pruneRecords, readRecord, refreshTrainingCache } from "@/components/training/offline-store";
 import { useWorkoutSync, type SyncStatus } from "@/components/training/use-workout-sync";
 import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
-import { initState, reducer, toDraft, type ExerciseState, type SetState } from "@/components/training/workout-state";
+import {
+  initState,
+  isCollapsed,
+  lastWorkedKey,
+  reducer,
+  toDraft,
+  type ExerciseState,
+  type SetState,
+} from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { unstable_rethrow } from "next/navigation";
 import { cancelWorkoutAction } from "@/lib/workouts/actions";
@@ -143,6 +151,19 @@ const NO_TARGETS: Record<string, Target> = {};
 
 function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
+  // Выполненные упражнения сворачиваются (isCollapsed); ручной выбор — поверх правила (ключ упражнения → свёрнуто)
+  const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const lastKey = lastWorkedKey(state.exercises);
+  // Свернувшийся блок выше сдвинул бы страницу под пальцем — держим упражнение, где отметили подход, на месте
+  const anchor = useRef<{ key: string; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const at = anchor.current;
+    if (!at) return;
+    anchor.current = null;
+    const el = document.querySelector(`[data-exercise-key="${at.key}"]`);
+    const delta = el ? el.getBoundingClientRect().top - at.top : 0;
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  });
   // Помощник видит упражнения тренировки и меняет их через тот же редьюсер (автосохранение и офлайн — как обычно)
   const assistant = useAssistant();
   const [wellbeing, setWellbeing] = useState<Wellbeing | null>(workout.wellbeing ?? null);
@@ -223,6 +244,10 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
 
   const onComplete = (item: ExerciseState, set: SetState) => {
     if (state.status === "PLANNED") start();
+    const top = document.querySelector(`[data-exercise-key="${item.key}"]`)?.getBoundingClientRect().top;
+    if (top !== undefined) anchor.current = { key: item.key, top };
+    // Развёрнутое вручную выполненное упражнение снова сворачивается, когда работа ушла дальше
+    setManualCollapse((prev) => new Map([...prev].filter(([, collapsed]) => collapsed)));
     const label = nextLabel(state.exercises, item, set);
     if (label) rest.start(item.restSec, label);
   };
@@ -322,27 +347,32 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
             </div>
 
             <ExerciseDropList empty={state.exercises.length === 0}>
-              {state.exercises.map((item, index) => (
-                <Fragment key={item.key}>
-                  {dropIndex === index ? <DropIndicator /> : null}
-                  <SortableItem id={item.key} label={item.exercise.name}>
-                    {(handle) => (
-                      <ExerciseBlock
-                        item={item}
-                        index={index}
-                        total={state.exercises.length}
-                        last={last[item.exercise.id]}
-                        hint={hints[item.exercise.id]}
-                        coachTarget={coachTargets[item.exercise.id]}
-                        onAsk={assistant.available ? () => assistant.openExercise(item.exercise.id) : undefined}
-                        dispatch={dispatch}
-                        onComplete={onComplete}
-                        handle={handle}
-                      />
-                    )}
-                  </SortableItem>
-                </Fragment>
-              ))}
+              {state.exercises.map((item, index) => {
+                const collapsed = isCollapsed(item, lastKey, manualCollapse.get(item.key));
+                return (
+                  <Fragment key={item.key}>
+                    {dropIndex === index ? <DropIndicator /> : null}
+                    <SortableItem id={item.key} label={item.exercise.name}>
+                      {(handle) => (
+                        <ExerciseBlock
+                          item={item}
+                          index={index}
+                          total={state.exercises.length}
+                          last={last[item.exercise.id]}
+                          hint={hints[item.exercise.id]}
+                          coachTarget={coachTargets[item.exercise.id]}
+                          onAsk={assistant.available ? () => assistant.openExercise(item.exercise.id) : undefined}
+                          dispatch={dispatch}
+                          onComplete={onComplete}
+                          handle={handle}
+                          collapsed={collapsed}
+                          onToggleCollapsed={() => setManualCollapse((prev) => new Map(prev).set(item.key, !collapsed))}
+                        />
+                      )}
+                    </SortableItem>
+                  </Fragment>
+                );
+              })}
               {dropIndex !== null && dropIndex === state.exercises.length && state.exercises.length > 0 ? (
                 <DropIndicator />
               ) : null}

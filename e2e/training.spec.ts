@@ -160,3 +160,42 @@ test("cannot finish without completed sets; save finished workout as template", 
   await page.getByRole("button", { name: "Начать «Мои шраги»" }).click();
   await expect(exerciseBlock(page, "Шраги со штангой").getByLabel("Вес, подход 1")).toHaveValue("80");
 });
+
+test("done exercise collapses once work moves on; expand, collapse back, survives reload", async ({ page }) => {
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа", "Подтягивания"]);
+  const bench = exerciseBlock(page, "Жим штанги лёжа");
+  for (const i of [1, 2, 3]) {
+    await fillSet(page, "Жим штанги лёжа", i, "60", "10");
+    await completeSet(page, "Жим штанги лёжа", i);
+  }
+  // Последний подход отмечен — упражнение ещё открыто: можно выбрать запас повторов
+  await expect(bench.getByLabel("Вес, подход 3")).toBeVisible();
+  await bench.getByRole("group", { name: "Запас повторов, подход 3" }).getByRole("button", { name: /ещё 2 повтора/ }).click();
+
+  // Подход в другом упражнении — выполненное сворачивается в строку без полей ввода
+  await fillSet(page, "Подтягивания", 1, "", "8");
+  await completeSet(page, "Подтягивания", 1);
+  const expand = page.getByRole("button", { name: "Жим штанги лёжа: выполнено, развернуть" });
+  await expect(expand).toBeVisible();
+  await expect(expand).toContainText("3/3 · 60×10, 60×10, 60×10");
+  await expect(bench.getByLabel("Вес, подход 1")).toHaveCount(0);
+  await expect(exerciseBlock(page, "Подтягивания").getByLabel("Повторы, подход 2")).toBeVisible();
+
+  // Развернуть, поправить, свернуть обратно
+  await expand.click();
+  await bench.getByLabel("Повторы, подход 3").fill("9");
+  await bench.getByRole("button", { name: "Свернуть упражнение" }).click();
+  await expect(expand).toContainText("60×10, 60×10, 60×9");
+
+  // Развёрнутое вручную сворачивается снова при следующем подходе в другом упражнении
+  await expand.click();
+  await completeSet(page, "Подтягивания", 2);
+  await expect(expand).toBeVisible();
+
+  // После перезагрузки выполненное (и не последнее в работе) — свёрнуто, черновик сохранил правку
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
+  await page.reload();
+  await expect(expand).toContainText("60×10, 60×10, 60×9");
+  await expect(exerciseBlock(page, "Подтягивания").getByLabel("Повторы, подход 3")).toBeVisible();
+});

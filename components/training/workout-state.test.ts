@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initState, reducer, toDraft, type WorkoutState } from "./workout-state";
+import { initState, isCollapsed, isExerciseDone, lastWorkedKey, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
 const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: ["BACK" as const], isBodyweight: true };
@@ -195,5 +195,37 @@ describe("skipPending", () => {
     expect(s.exercises[0].sets[0].completedAt).toBe(NOW);
     s = reducer(s, { type: "skipPending", key: b });
     expect(s.exercises.map((e) => e.exercise.id)).toEqual(["bench"]);
+  });
+});
+
+describe("collapsing done exercises", () => {
+  const ex = (key: string, done: (string | null)[]): ExerciseState => ({
+    key,
+    exercise: { id: key, name: key, muscleGroups: [], isBodyweight: false } as unknown as ExerciseState["exercise"],
+    restSec: 90,
+    sets: done.map((completedAt, i) => ({ key: `${key}${i}`, weight: "60", reps: "10", isWarmup: false, rir: null, completedAt })),
+  });
+  const t = (m: number) => new Date(Date.UTC(2026, 9, 14, 10, m)).toISOString();
+
+  it("done = every set completed, an exercise without sets is not done", () => {
+    expect(isExerciseDone(ex("a", [t(1), t(2)]))).toBe(true);
+    expect(isExerciseDone(ex("a", [t(1), null]))).toBe(false);
+    expect(isExerciseDone(ex("a", []))).toBe(false);
+  });
+
+  it("last worked exercise — the one with the latest completed set", () => {
+    expect(lastWorkedKey([ex("a", [t(1), t(5)]), ex("b", [t(3), null])])).toBe("a");
+    expect(lastWorkedKey([ex("a", [t(1), t(2)]), ex("b", [t(3), null])])).toBe("b");
+    expect(lastWorkedKey([ex("a", [null])])).toBeNull();
+  });
+
+  it("done exercise stays open until a set is completed elsewhere; manual choice wins", () => {
+    const a = ex("a", [t(1), t(2)]);
+    const b = ex("b", [t(3), null]);
+    expect(isCollapsed(a, "a")).toBe(false);
+    expect(isCollapsed(a, "b")).toBe(true);
+    expect(isCollapsed(b, "a")).toBe(false);
+    expect(isCollapsed(a, "b", false)).toBe(false);
+    expect(isCollapsed(b, "a", true)).toBe(true);
   });
 });
