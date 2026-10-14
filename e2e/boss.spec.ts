@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { makeFriends, mondayWeeksAgo, seedRecapWeek, seedWorkouts, userId, withDb } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
+import { localAt } from "./tz";
 
 const count = (sql: string, login: string) =>
   withDb(async (db) => {
@@ -12,22 +13,35 @@ const count = (sql: string, login: string) =>
 test("boss card: full HP and a call to the first hit", async ({ page }) => {
   await registerUser(page);
   const card = page.getByTestId("boss-card");
-  await expect(card).toContainText("1500 / 1500 HP");
+  await expect(card).toContainText("3000 / 3000 HP");
   await expect(card).toContainText("ждёт. Первый подход — первый удар");
-  await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1500");
+  await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "3000");
 });
 
 test("last week's workout does not hit this week's boss", async ({ page }) => {
   const { login } = await registerUser(page);
   await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 5 }], 8);
   await page.reload();
-  await expect(page.getByTestId("boss-card")).toContainText("1500 / 1500 HP");
+  await expect(page.getByTestId("boss-card")).toContainText("3000 / 3000 HP");
+});
+
+test("one workout a week in history: the boss holds three workouts", async ({ page }) => {
+  const { login } = await registerUser(page);
+  // По тренировке на 20 подходов в каждую из двух прошлых недель: неделя 2000, но босс — 2000 × 3 × 1,1
+  const set = { weight: 60, reps: 8, sets: 20 };
+  await seedWorkouts(login, "Жим штанги лёжа", [set, set], 0, {
+    finishedAt: [localAt(mondayWeeksAgo(1), "19:00", 2), localAt(mondayWeeksAgo(2), "19:00", 2)],
+  });
+  // Босса этой недели создал дашборд после регистрации — пересоздаём по истории
+  await withDb(async (db) => db.query(`DELETE FROM "BossWeek" WHERE "userId" = $1`, [await userId(db, login)]));
+  await page.reload();
+  await expect(page.getByTestId("boss-card")).toContainText("6600 / 6600 HP");
 });
 
 test("defeating the boss: finish → victory, chest pays once", async ({ page, context }) => {
   const { login } = await registerUser(page);
-  // 14 подходов этой недели + 1 в тренировке = 1500
-  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  // 29 подходов этой недели + 1 в тренировке = 3000
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 29 }], 0);
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   // Сводка: урон этой тренировки и победа
   const summary = page.getByTestId("boss-damage");
@@ -43,7 +57,7 @@ test("defeating the boss: finish → victory, chest pays once", async ({ page, c
 
   await card.getByRole("button", { name: "Открыть сундук босса" }).click();
   await page.getByRole("button", { name: "Открыть сундук", exact: true }).click();
-  await expect(page.getByTestId("chest-reward")).toHaveText("+75 XP");
+  await expect(page.getByTestId("chest-reward")).toHaveText("+150 XP");
   await page.getByRole("button", { name: "Забрать" }).click();
   await expect(card.getByRole("button", { name: "Открыть сундук босса" })).toHaveCount(0);
 
@@ -86,7 +100,7 @@ test.describe("week bounds", () => {
     });
     await page.reload();
     // Засчитан только понедельник: 3 подхода
-    await expect(page.getByTestId("boss-card")).toContainText("1200 / 1500 HP · осталось ~12 подходов");
+    await expect(page.getByTestId("boss-card")).toContainText("2700 / 3000 HP · осталось ~27 подходов");
   });
 });
 
@@ -101,20 +115,20 @@ test("set confirm hits the boss, unconfirm heals it, warmup does nothing", async
     await bench.getByLabel(`Повторы, подход ${i}`).fill("8");
   }
   const bar = page.getByTestId("boss-bar");
-  await expect(bar).toContainText("1500 / 1500 HP");
+  await expect(bar).toContainText("3000 / 3000 HP");
 
   await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
-  await expect(bar).toContainText("1400 / 1500 HP");
+  await expect(bar).toContainText("2900 / 3000 HP");
   await bench.getByRole("group", { name: "Запас повторов, подход 1" }).getByRole("button", { name: "Запас: до отказа" }).click();
-  await expect(bar).toContainText("1350 / 1500 HP");
+  await expect(bar).toContainText("2850 / 3000 HP");
   await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
-  await expect(bar).toContainText("1500 / 1500 HP");
+  await expect(bar).toContainText("3000 / 3000 HP");
 
   // Разминка встаёт перед рабочими подходами — подход 1 теперь разминочный
   await bench.getByRole("button", { name: "Разминка", exact: true }).click();
   await expect(bench.getByLabel("Подход 1: разминка")).toBeVisible();
   await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
-  await expect(bar).toContainText("1500 / 1500 HP");
+  await expect(bar).toContainText("3000 / 3000 HP");
 });
 
 test("friend sees the boss victory in the feed and league", async ({ page, browser }) => {
@@ -124,7 +138,7 @@ test("friend sees the boss victory in the feed and league", async ({ page, brows
   const friendPage = await friendContext.newPage();
   const friend = await registerUser(friendPage);
   await makeFriends(me.login, me.login, friend.login, friend.login);
-  await seedWorkouts(friend.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 14 }], 0);
+  await seedWorkouts(friend.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 29 }], 0);
   await quickWorkout(friendPage, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
   await friendContext.close();
 
@@ -152,7 +166,7 @@ test("weekly recap shows the boss block", async ({ page }) => {
 
 test("boss already defeated this week: the summary says so", async ({ page }) => {
   const { login } = await registerUser(page);
-  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 16 }], 0);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 31 }], 0);
   await withDb(async (db) => {
     const id = await userId(db, login);
     await db.query(`UPDATE "BossWeek" SET "defeatedAt" = now() WHERE "userId" = $1`, [id]);
