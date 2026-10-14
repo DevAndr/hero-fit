@@ -1029,3 +1029,11 @@ export async function backdateUser(login: string, s: { createdAt: Date; timeZone
     for (const day of s.visitDays) await db.query(`insert into "UserVisit" ("userId", day) values ($1, $2::date)`, [id, day]);
   });
 }
+
+/**
+ * База e2e живёт между прогонами: игроков, перенесённых в эту когорту прошлыми прогонами (`backdateUser`),
+ * возвращаем в «сейчас», чтобы строка когорты считалась по одному игроку текущего прогона.
+ */
+export async function clearCohort(from: Date, to: Date) {
+  await withDb((db) => db.query(`update "User" set "createdAt" = now() where "createdAt" >= $1 and "createdAt" < $2`, [from, to]));
+}
