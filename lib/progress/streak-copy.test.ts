@@ -11,7 +11,9 @@ describe("streak copy", () => {
   });
 
   it("dashboard message by state", () => {
-    expect(streakMessage({ state: "none" })).toBe("Сделайте 3 тренировки за неделю, чтобы зажечь серию");
+    expect(streakMessage({ state: "none", count: 0 })).toBe("Сделайте 3 тренировки за неделю, чтобы зажечь серию");
+    expect(streakMessage({ state: "none", count: 1 })).toBe("Эта неделя: 1/3 — ещё 2 тренировки, и серия зажжётся");
+    expect(streakMessage({ state: "none", count: 2 })).toBe("Эта неделя: 2/3 — ещё 1 тренировка, и серия зажжётся");
     expect(streakMessage({ state: "done", streak: 3 })).toBe("Неделя засчитана 🔥");
     expect(streakMessage({ state: "pending", ...progress })).toBe("Эта неделя: 1/3 · осталось 5 дней");
     expect(streakMessage({ state: "pending", ...progress, daysLeft: 3, count: 1, needed: 2 })).toBe("Эта неделя: 1/3 · осталось 3 дня");
@@ -20,7 +22,8 @@ describe("streak copy", () => {
     expect(streakMessage({ state: "frozen", ...progress, daysLeft: 1, needed: 1, freezesNeeded: 1 })).toBe(
       "Не потеряй streak! Ещё 1 тренировка до конца недели",
     );
-    expect(streakMessage({ state: "lost", streak: 3 })).toBe("Серия прервалась — начните новую");
+    expect(streakMessage({ state: "lost", streak: 3, count: 0 })).toBe("Серия прервалась — начните новую");
+    expect(streakMessage({ state: "lost", streak: 3, count: 1 })).toBe("Новая серия: 1/3 на этой неделе — ещё 2 тренировки");
   });
 
   it("urgent only while the week is still winnable", () => {
@@ -30,7 +33,9 @@ describe("streak copy", () => {
   it("header hint", () => {
     expect(streakHint({ state: "done", streak: 3 })).toBe("Неделя засчитана");
     expect(streakHint({ state: "pending", ...progress })).toBe("Эта неделя: 1/3, осталось 5 дней");
-    expect(streakHint({ state: "none" })).toBe("Streak — недели подряд с 3+ тренировками");
+    expect(streakHint({ state: "none", count: 0 })).toBe("Streak — недели подряд с 3+ тренировками");
+    expect(streakHint({ state: "none", count: 1 })).toBe("Эта неделя: 1/3 — ещё 2 тренировки до серии");
+    expect(streakHint({ state: "lost", streak: 3, count: 2 })).toBe("Эта неделя: 2/3 — ещё 1 тренировка до серии");
   });
 });
 

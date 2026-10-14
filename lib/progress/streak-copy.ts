@@ -17,7 +17,9 @@ export function streakMessage(status: StreakStatus): string {
   }
   switch (status.state) {
     case "none":
-      return `Сделайте ${STREAK_WEEK_TARGET} тренировки за неделю, чтобы зажечь серию`;
+      return status.count > 0
+        ? `Эта неделя: ${status.count}/${STREAK_WEEK_TARGET} — ещё ${workoutsText(toGo(status.count))}, и серия зажжётся`
+        : `Сделайте ${STREAK_WEEK_TARGET} тренировки за неделю, чтобы зажечь серию`;
     case "done":
       return "Неделя засчитана 🔥";
     case "pending":
@@ -25,9 +27,14 @@ export function streakMessage(status: StreakStatus): string {
     case "frozen":
       return "Неделя пропущена — серию спасёт заморозка";
     case "lost":
-      return "Серия прервалась — начните новую";
+      return status.count > 0
+        ? `Новая серия: ${status.count}/${STREAK_WEEK_TARGET} на этой неделе — ещё ${workoutsText(toGo(status.count))}`
+        : "Серия прервалась — начните новую";
   }
 }
+
+/** Сколько тренировок недели осталось до новой серии (при 3+ неделя уже засчитана — сюда не попадаем). */
+const toGo = (count: number) => Math.max(1, STREAK_WEEK_TARGET - count);
 
 /** Подсказка к огоньку в шапке. */
 export function streakHint(status: StreakStatus): string {
@@ -35,6 +42,7 @@ export function streakHint(status: StreakStatus): string {
   if (status.state === "pending" || status.state === "frozen") {
     return `Эта неделя: ${status.count}/${STREAK_WEEK_TARGET}, осталось ${daysText(status.daysLeft)}`;
   }
+  if (status.count > 0) return `Эта неделя: ${status.count}/${STREAK_WEEK_TARGET} — ещё ${workoutsText(toGo(status.count))} до серии`;
   return `Streak — недели подряд с ${STREAK_WEEK_TARGET}+ тренировками`;
 }
 

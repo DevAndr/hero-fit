@@ -169,8 +169,14 @@ describe("streakStatus", () => {
   const wed = new Date("2026-10-07T12:00:00Z"); // ср, неделя 2026-10-05
 
   it("none without a streak", () => {
-    expect(streakStatus(user({ currentStreak: 0 }), wed, MSK)).toEqual({ state: "none" });
-    expect(streakStatus(user({ lastStreakWeek: null }), wed, MSK)).toEqual({ state: "none" });
+    expect(streakStatus(user({ currentStreak: 0 }), wed, MSK)).toEqual({ state: "none", count: 0 });
+    expect(streakStatus(user({ lastStreakWeek: null }), wed, MSK)).toEqual({ state: "none", count: 0 });
+  });
+
+  it("no streak yet, but this week's workouts count (new player after the first workout)", () => {
+    const fresh = user({ currentStreak: 0, lastStreakWeek: null, weekWorkouts: 1, weekWorkoutsKey: "2026-10-05" });
+    expect(streakStatus(fresh, wed, MSK)).toEqual({ state: "none", count: 1 });
+    expect(streakStatus({ ...fresh, weekWorkoutsKey: "2026-09-28" }, wed, MSK)).toEqual({ state: "none", count: 0 });
   });
 
   it("done when this week is credited", () => {
@@ -201,7 +207,9 @@ describe("streakStatus", () => {
       streak: 4,
       freezesNeeded: 1,
     });
-    expect(streakStatus(user({ lastStreakWeek: "2026-09-21", streakFreezes: 0 }), wed, MSK)).toEqual({ state: "lost", streak: 4 });
+    expect(streakStatus(user({ lastStreakWeek: "2026-09-21", streakFreezes: 0 }), wed, MSK)).toEqual({ state: "lost", streak: 4, count: 0 });
+    const restarted = user({ lastStreakWeek: "2026-09-21", streakFreezes: 0, weekWorkouts: 2, weekWorkoutsKey: "2026-10-05" });
+    expect(streakStatus(restarted, wed, MSK)).toEqual({ state: "lost", streak: 4, count: 2 });
   });
 
   it("a freeze due on the next workout already counts (status does not flip after it is granted)", () => {
@@ -213,8 +221,8 @@ describe("streakStatus", () => {
   });
 
   it("streakValue — zero for none and lost", () => {
-    expect(streakValue({ state: "none" })).toBe(0);
-    expect(streakValue({ state: "lost", streak: 4 })).toBe(0);
+    expect(streakValue({ state: "none", count: 1 })).toBe(0);
+    expect(streakValue({ state: "lost", streak: 4, count: 0 })).toBe(0);
     expect(streakValue({ state: "done", streak: 4 })).toBe(4);
   });
 });
