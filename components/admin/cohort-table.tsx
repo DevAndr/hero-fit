@@ -2,7 +2,7 @@ import type { CohortRow } from "@/lib/admin/metrics";
 
 const weekLabel = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 
-/** Удержание: % когорты, активных в неделю N после регистрации; фон — насыщенность primary по проценту. */
+/** Удержание: % когорты, активных в неделю N после регистрации; фон — насыщенность primary по проценту (до 50 %). */
 export function CohortTable({ rows }: { rows: CohortRow[] }) {
   const weeks = rows[0]?.cells.length ?? 0;
   return (
@@ -38,8 +38,9 @@ export function CohortTable({ rows }: { rows: CohortRow[] }) {
                   ) : (
                     <td
                       key={i}
-                      className={`rounded-md px-2 py-1 text-center tabular-nums ${c >= 50 ? "text-primary-foreground" : ""}`}
-                      style={{ background: `color-mix(in oklch, var(--primary) ${c}%, var(--muted))` }}
+                      className="rounded-md px-2 py-1 text-center tabular-nums"
+                      // Насыщенность фона — не больше половины primary: обычный текст читается в обеих темах (от 5:1)
+                      style={{ background: `color-mix(in oklch, var(--primary) ${Math.round(c / 2)}%, var(--muted))` }}
                     >
                       {c} %
                     </td>

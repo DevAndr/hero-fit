@@ -3,8 +3,12 @@ import { expect, type APIRequestContext, type Locator, type Page } from "@playwr
 export const PASSWORD = "Secret123";
 
 let counter = 0;
+/**
+ * Логин заканчивается случайными символами: тесты берут ник из его хвоста (`login.slice(-8)`), а база e2e живёт между
+ * прогонами — без случайной части хвост (pid + счётчик) повторялся и ник упирался в уникальность.
+ */
 export function uniqueLogin() {
-  return `e2e_${Date.now().toString(36)}_${process.pid}_${counter++}`;
+  return `e2e_${Date.now().toString(36)}_${process.pid}_${counter++}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /** Регистрирует нового пользователя и оставляет его залогиненным на /dashboard. */

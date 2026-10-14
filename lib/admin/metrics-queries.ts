@@ -2,7 +2,8 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { addDays, cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
+import { addDays, weekStart } from "@/lib/dates";
 
 /*
  * Метрики админки — агрегаты по всей базе, границы периодов (дни, недели с понедельника) — в поясе админа.
@@ -29,11 +30,6 @@ const activitySql = (from: string) => Prisma.sql`
   FROM "Workout" w JOIN "User" u ON u.id = w."userId"
   WHERE w.status = 'COMPLETED' AND w."finishedAt" >= ${utcFloor(from)} AND ${playerDay} >= ${from}::date
 `;
-
-function mondayOf(day: string) {
-  const weekday = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
-  return addDays(day, -weekday);
-}
 
 export type Overview = {
   users: number;
@@ -66,19 +62,20 @@ export async function getOverview(tz: string): Promise<Overview> {
   const d60 = addDays(today, -59);
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
-  const [row] = await db.$queryRaw<(Omit<Overview, "hours30" | "hours30Prev" | "avgMinutes30"> & { sec30: number; sec30Prev: number })[]>`
+  const [row] = await db.$queryRaw<(Omit<Overview, "hours30" | "hours30Prev" | "avgMinutes30"> & { sec30: number; sec30Prev: number; timed30: number })[]>`
     WITH a AS (${activitySql(d60)}),
+    u AS (SELECT ${signup} AS day FROM "User" WHERE "createdAt" >= ${utcFloor(d60)}),
     w AS (
       SELECT "durationSec" AS sec, ${finished} AS day FROM "Workout"
       WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(d60)}
     )
     SELECT
       (SELECT COUNT(*) FROM "User")::int AS users,
-      (SELECT COUNT(*) FROM "User" WHERE ${signup} = ${today}::date)::int AS "newToday",
-      (SELECT COUNT(*) FROM "User" WHERE ${signup} >= ${d7}::date)::int AS new7,
-      (SELECT COUNT(*) FROM "User" WHERE ${signup} >= ${d14}::date AND ${signup} < ${d7}::date)::int AS "new7Prev",
-      (SELECT COUNT(*) FROM "User" WHERE ${signup} >= ${d30}::date)::int AS new30,
-      (SELECT COUNT(*) FROM "User" WHERE ${signup} >= ${d60}::date AND ${signup} < ${d30}::date)::int AS "new30Prev",
+      (SELECT COUNT(*) FROM u WHERE day = ${today}::date)::int AS "newToday",
+      (SELECT COUNT(*) FROM u WHERE day >= ${d7}::date)::int AS new7,
+      (SELECT COUNT(*) FROM u WHERE day >= ${d14}::date AND day < ${d7}::date)::int AS "new7Prev",
+      (SELECT COUNT(*) FROM u WHERE day >= ${d30}::date)::int AS new30,
+      (SELECT COUNT(*) FROM u WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "new30Prev",
       (SELECT COUNT(DISTINCT "userId") FROM a WHERE day = ${today}::date)::int AS dau,
       (SELECT COUNT(DISTINCT "userId") FROM a WHERE day >= ${d7}::date)::int AS wau,
       (SELECT COUNT(DISTINCT "userId") FROM a WHERE day >= ${d14}::date AND day < ${d7}::date)::int AS "wauPrev",
@@ -90,14 +87,16 @@ export async function getOverview(tz: string): Promise<Overview> {
       (SELECT COUNT(*) FROM w WHERE day >= ${d30}::date)::int AS workouts30,
       (SELECT COUNT(*) FROM w WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "workouts30Prev",
       (SELECT COALESCE(SUM(sec), 0) FROM w WHERE day >= ${d30}::date)::int AS sec30,
+      (SELECT COUNT(sec) FROM w WHERE day >= ${d30}::date)::int AS timed30,
       (SELECT COALESCE(SUM(sec), 0) FROM w WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "sec30Prev"
   `;
-  const { sec30, sec30Prev, ...counts } = row;
+  const { sec30, sec30Prev, timed30, ...counts } = row;
   return {
     ...counts,
     hours30: Math.round(sec30 / 360) / 10,
     hours30Prev: Math.round(sec30Prev / 360) / 10,
-    avgMinutes30: counts.workouts30 ? Math.round(sec30 / 60 / counts.workouts30) : null,
+    // Средняя — по тренировкам с длительностью (у старых или прерванных её может не быть)
+    avgMinutes30: timed30 ? Math.round(sec30 / 60 / timed30) : null,
   };
 }
 
@@ -134,7 +133,7 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
 
 /** Удержание: последние 8 недель регистрации (включая текущую) × недели 0…6 после неё. */
 export async function getCohorts(tz: string): Promise<CohortRow[]> {
-  const currentWeek = mondayOf(dayKey(new Date(), tz));
+  const currentWeek = weekStart(dayKey(new Date(), tz));
   const from = addDays(currentWeek, -7 * (COHORTS - 1));
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const [sizes, active] = await Promise.all([
@@ -186,7 +185,7 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
     SELECT
       (SELECT COUNT(*) FROM "User" WHERE "isCoach")::int AS coaches,
       (SELECT COUNT(DISTINCT l."coachId") FROM "CoachLink" l JOIN "User" c ON c.id = l."coachId" AND c."isCoach" WHERE l."endedAt" IS NULL)::int AS "coachesWithClients",
-      (SELECT COUNT(*) FROM "CoachLink" WHERE "endedAt" IS NULL)::int AS "activeClients",
+      (SELECT COUNT(*) FROM "CoachLink" l JOIN "User" c ON c.id = l."coachId" AND c."isCoach" WHERE l."endedAt" IS NULL)::int AS "activeClients",
       (SELECT COUNT(*) FROM "User" WHERE "telegramChatId" IS NOT NULL)::int AS "telegramNotify",
       (SELECT COUNT(*) FROM "User" WHERE "telegramId" IS NOT NULL)::int AS "telegramMiniApp",
       (SELECT COUNT(DISTINCT "userId") FROM "PushSubscription")::int AS push,

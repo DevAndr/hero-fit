@@ -1,5 +1,7 @@
 /** Метрики админки: чистые преобразования рядов и когорт (даты — строки YYYY-MM-DD, арифметика в UTC). */
 
+import { addDays } from "@/lib/dates";
+
 export type DayPoint = { day: string; value: number };
 
 export type CohortRow = {
@@ -22,11 +24,6 @@ export function deltaPercent(now: number, prev: number): number | null {
   return Math.round(((now - prev) / prev) * 100);
 }
 
-export function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 /** Все дни от from до to включительно; дней без данных — 0. */
 export function fillDays(rows: DayPoint[], from: string, to: string): DayPoint[] {

@@ -9,7 +9,7 @@ import { evaluateAchievements, evaluateAchievementsNow } from "@/lib/achievement
 import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
 import { currentValueFor } from "@/lib/goals/queries";
-import { markAchieved, writeWeight } from "@/lib/goals/mutations";
+import { markAchieved, syncLatestWeight, writeWeight } from "@/lib/goals/mutations";
 import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalOpenAt, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
 import { grantChestCoins } from "@/lib/shop/earn";
 import { COIN_RATES } from "@/lib/shop/coins";
@@ -137,6 +137,45 @@ export async function logBodyWeightAction(weight: number): Promise<{ ok: true; a
   refresh();
   revalidatePath("/settings");
   return { ok: true, achieved };
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Правка прошлого взвешивания. Цели этим не закрываются — только взвешивание за сегодня (прогресс считается из журнала). */
+export async function editBodyWeightAction(date: string, weight: number): Promise<Result> {
+  const user = await requireUser();
+  if (typeof date !== "string" || !DAY.test(date)) return { ok: false, error: "Запись не найдена" };
+  const parsed = weightSchema.safeParse(Math.round(weight * 10) / 10);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message, field: "weight" };
+  const found = await db.$transaction(async (tx) => {
+    const { count } = await tx.bodyWeightEntry.updateMany({ where: { userId: user.id, date }, data: { weight: parsed.data } });
+    if (count) await syncLatestWeight(tx, user.id);
+    return count > 0;
+  });
+  if (!found) return { ok: false, error: "Запись не найдена" };
+  refresh();
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/** Удаление взвешивания; единственную запись не удаляем — от журнала зависят вес в настройках и цель по весу. */
+export async function deleteBodyWeightAction(date: string): Promise<Result> {
+  const user = await requireUser();
+  if (typeof date !== "string" || !DAY.test(date)) return { ok: false, error: "Запись не найдена" };
+  const result = await db.$transaction(async (tx): Promise<Result> => {
+    // Строка пользователя — под блокировкой: две вкладки не удалят обе последние записи
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+    if ((await tx.bodyWeightEntry.count({ where: { userId: user.id } })) <= 1) return { ok: false, error: "Единственную запись нельзя удалить — её можно исправить" };
+    const { count } = await tx.bodyWeightEntry.deleteMany({ where: { userId: user.id, date } });
+    if (!count) return { ok: false, error: "Запись не найдена" };
+    await syncLatestWeight(tx, user.id);
+    return { ok: true };
+  });
+  if (result.ok) {
+    refresh();
+    revalidatePath("/settings");
+  }
+  return result;
 }
 
 /** Сундук за выполненную цель: 100 XP, забрать можно один раз; в лигу не идёт. */

@@ -1,3 +1,4 @@
+import { addDays } from "@/lib/dates";
 import { plural } from "@/lib/format";
 
 /** Тренд силы (спека 2026-10-12-strength-analytics): лучший результат по неделям, окно «сейчас» против «раньше». */
@@ -26,12 +27,6 @@ const TREND_WEEKS = 4;
 const STRONGER_PCT = 0.01;
 const TOP = 3;
 
-const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
-const addDays = (day: string, n: number) => {
-  const d = toDate(day);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 /** Окна по 4 недели: «сейчас» кончается неделей week (понедельник), «раньше» — 4 недели перед ним. */
 export function trendWindows(week: string): { recent: string[]; before: string[] } {

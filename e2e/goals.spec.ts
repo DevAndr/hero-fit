@@ -266,3 +266,33 @@ test("after the deadline: a weigh-in doesn't complete the goal and the deadline 
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(dialog.getByText("Срок уже вышел")).toBeVisible();
 });
+
+test("past weigh-ins: edit and delete; the latest one becomes the current weight", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await logWeight(login, daysFromToday(-3), 80);
+  await logWeight(login, daysFromToday(-1), 82);
+  const label = (day: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
+  const bodyWeight = () => withDb(async (db) => (await db.query(`select "bodyWeight" from "User" where login = $1`, [login])).rows[0].bodyWeight);
+
+  await page.goto("/goals");
+  const block = page.getByRole("region", { name: "Вес тела" });
+  await expect(block.getByText("Последний: 82 кг")).toBeVisible();
+  await block.getByRole("button", { name: "Все взвешивания (2)" }).click();
+  const entries = block.getByRole("list", { name: "Взвешивания" });
+
+  const latest = entries.getByRole("listitem").filter({ hasText: label(daysFromToday(-1)) });
+  await latest.getByRole("button", { name: "Изменить" }).click();
+  await latest.getByLabel("Вес, кг").fill("81,5");
+  await latest.getByRole("button", { name: "Сохранить" }).click();
+  await expect(block.getByText("Последний: 81,5 кг")).toBeVisible();
+  await expect.poll(bodyWeight).toBe(81.5);
+
+  await latest.getByRole("button", { name: "Удалить" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Удалить" }).click();
+  await expect(block.getByText("Последний: 80 кг")).toBeVisible();
+  await expect.poll(bodyWeight).toBe(80);
+
+  // Единственную запись можно исправить, но не удалить
+  const only = entries.getByRole("listitem").filter({ hasText: label(daysFromToday(-3)) });
+  await expect(only.getByRole("button", { name: "Удалить" })).toBeDisabled();
+});

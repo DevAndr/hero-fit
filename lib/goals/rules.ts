@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GoalStatus, GoalType, RecordType } from "@/generated/prisma/enums";
+import { addDays } from "@/lib/dates";
 import { plural } from "@/lib/format";
 import { localMidnight } from "@/lib/progress/weekly-streak";
 
@@ -65,11 +66,6 @@ export const goalSchema = z
 
 export type GoalInput = z.infer<typeof goalSchema>;
 
-function addDays(day: string, n: number) {
-  const d = new Date(`${day}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 function addMonths(day: string, n: number) {
   const d = new Date(`${day}T12:00:00Z`);

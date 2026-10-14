@@ -1,9 +1,11 @@
 import { chestAutoOpen } from "@/lib/onboarding/tour";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { AppShell } from "@/components/app/app-shell";
 import { TimezoneSync } from "@/components/app/timezone-sync";
+import { NavigationProgress } from "@/components/app/navigation-progress";
 import { DailyChest } from "@/components/progress/daily-chest";
 import { recordDailyVisit, TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { getUnseenAchievements } from "@/lib/achievements/queries";
@@ -35,16 +37,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const timeZone = (await cookies()).get(TIMEZONE_COOKIE)?.value;
   const visit = await recordDailyVisit(user, timeZone);
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
-  const [unseen, feed, flags, pendingClubs, look] = await Promise.all([
+  const [unseen, feed, flags, pendingClubs] = await Promise.all([
     getUnseenAchievements(user.id),
     getNotificationFeed(user.id),
     enabledFlags(user.id),
     user.isAdmin ? pendingClubCount() : 0,
-    db.user.findUniqueOrThrow({
-      where: { id: user.id },
-      select: { id: true, avatarCode: true, frameCode: true, nickColorCode: true, themeCode: true, coins: true },
-    }),
   ]);
+  // Косметика и баланс — из того же запроса, что и сессия (requireUser)
+  const look = { id: user.id, avatarCode: user.avatarCode, frameCode: user.frameCode, nickColorCode: user.nickColorCode, themeCode: user.themeCode, coins: user.coins };
   // Стартовые монеты — до чтения баланса в меню (после первого раза это один запрос)
   if (flags.includes("shop") && (await quietly(() => ensureRetroCoins(user.id), 0)) > 0) {
     look.coins = (await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { coins: true } })).coins;
@@ -74,6 +74,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {children}
       <AchievementToaster achievements={unseen} />
       <TimezoneSync cookieName={TIMEZONE_COOKIE} current={timeZone} />
+      {/* Полоска сверху на время перехода: страницы рендерятся на сервере, клик откликается сразу */}
+      <Suspense>
+        <NavigationProgress />
+      </Suspense>
     </AppShell>
   );
 

@@ -254,3 +254,23 @@
     }
   }
 }
+
+/* ───────── Полоска перехода между страницами (components/app/navigation-progress.tsx) ─────────
+   Невидима первые 150 мс (быстрые переходы не мигают), затем растёт и замедляется к 90% — один проход, без повторов. */
+.nav-progress {
+  transform-origin: left;
+  animation: nav-progress 8s cubic-bezier(0.1, 0.8, 0.2, 1) 150ms both;
+  box-shadow: 0 0 8px var(--primary);
+}
+@keyframes nav-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Без движения: просто проявляется через ту же задержку */
+  .nav-progress { animation: nav-progress-fade 1ms linear 150ms both; transform: scaleX(0.9); }
+}
+@keyframes nav-progress-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

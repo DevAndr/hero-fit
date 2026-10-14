@@ -221,3 +221,21 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       }));
   }
 }
+
+/** Все подходы упражнения отмечены выполненными (и подходы вообще есть). */
+export const isExerciseDone = (e: ExerciseState) => e.sets.length > 0 && e.sets.every((s) => s.completedAt);
+
+/** Упражнение, где подход отметили последним, — его не сворачиваем: там как раз выбирают запас повторов. */
+export function lastWorkedKey(exercises: ExerciseState[]): string | null {
+  let best: { key: string; at: string } | null = null;
+  for (const e of exercises)
+    for (const s of e.sets) if (s.completedAt && (!best || s.completedAt >= best.at)) best = { key: e.key, at: s.completedAt };
+  return best?.key ?? null;
+}
+
+/**
+ * Свёрнуто ли упражнение в редакторе: ручной выбор (`manual`), иначе — выполнено целиком и работа ушла в другое упражнение.
+ * Свёрнутое — одна строка без полей ввода, чтобы длинная тренировка не мешала заполнять текущее.
+ */
+export const isCollapsed = (e: ExerciseState, lastKey: string | null, manual?: boolean) =>
+  manual ?? (isExerciseDone(e) && e.key !== lastKey);
