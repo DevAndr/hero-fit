@@ -161,25 +161,26 @@ export type StreakUserFields = {
 
 type WeekProgress = { streak: number; count: number; needed: number; daysLeft: number };
 
+/** У «нет серии» и «сгорела» тоже есть тренировки этой недели (count) — они ведут к новой серии. */
 export type StreakStatus =
-  | { state: "none" }
+  | { state: "none"; count: number }
   | { state: "done"; streak: number }
   | ({ state: "pending" } & WeekProgress)
   | ({ state: "frozen"; freezesNeeded: number } & WeekProgress)
-  | { state: "lost"; streak: number };
+  | { state: "lost"; streak: number; count: number };
 
 /** Состояние серии «на сейчас» — для шапки, дашборда, лиги и напоминаний. */
 export function streakStatus(user: StreakUserFields, now: Date, tz: string): StreakStatus {
-  if (!user.lastStreakWeek || user.currentStreak === 0) return { state: "none" };
-  const streak = user.currentStreak;
   const current = weekKey(now, tz);
+  const count = user.weekWorkoutsKey === current ? user.weekWorkouts : 0;
+  if (!user.lastStreakWeek || user.currentStreak === 0) return { state: "none", count };
+  const streak = user.currentStreak;
   const missed = weeksBetween(user.lastStreakWeek, current) - 1;
   if (missed < 0) return { state: "done", streak };
-  const count = user.weekWorkoutsKey === current ? user.weekWorkouts : 0;
   const progress = { streak, count, needed: Math.max(0, STREAK_WEEK_TARGET - count), daysLeft: daysLeftInWeek(now, tz) };
   if (missed === 0) return { state: "pending", ...progress };
   if (missed <= availableFreezes(user, now)) return { state: "frozen", freezesNeeded: missed, ...progress };
-  return { state: "lost", streak };
+  return { state: "lost", streak, count };
 }
 
 /** Число для шапки и лиги: сгоревшая серия — 0. */
