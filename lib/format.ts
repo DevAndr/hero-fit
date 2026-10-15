@@ -7,6 +7,16 @@ export function formatClock(totalSec: number) {
   return `${h ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
 }
 
+/** Длительность словами без секунд: 8 → «< 1 мин», 479 → «7 мин», 3900 → «1 ч 5 мин». */
+export function formatDuration(totalSec: number) {
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 1) return "< 1 мин";
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (!h) return `${m} мин`;
+  return m ? `${h} ч ${m} мин` : `${h} ч`;
+}
+
 /** Запас повторов для подписи: 4 хранится как «4+». */
 export const rirLabel = (rir: number) => (rir >= 4 ? "4+" : String(rir));
 

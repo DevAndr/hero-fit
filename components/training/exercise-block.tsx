@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -272,7 +273,23 @@ export function ExerciseBlock({
                 <button
                   type="button"
                   aria-label={`Удалить подход ${i + 1}`}
-                  onClick={() => dispatch({ type: "removeSet", key: item.key, setKey: set.key })}
+                  onClick={() => {
+                    dispatch({ type: "removeSet", key: item.key, setKey: set.key });
+                    toast("Подход удалён", {
+                      action: {
+                        label: "Вернуть",
+                        onClick: () =>
+                          dispatch({
+                            type: "restoreSet",
+                            key: item.key,
+                            after: item.sets[i - 1]?.key ?? null,
+                            before: item.sets[i + 1]?.key ?? null,
+                            index: i,
+                            set,
+                          }),
+                      },
+                    });
+                  }}
                   className="flex h-8 items-center justify-center text-muted-foreground hover:text-destructive"
                 >
                   <X className="size-4" />

@@ -154,8 +154,11 @@ export function AssistantProvider({ available, children }: { available: boolean;
 }
 
 /** Над таймером отдыха, если он виден (`--rest-timer-clear` ставит таймер). */
-const FLOAT =
-  "fixed right-4 z-40 bottom-[max(calc(9.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom)),var(--rest-timer-clear,0px))] lg:right-6 lg:bottom-[max(1.5rem,var(--rest-timer-clear,0px))]";
+const FLOAT_BOTTOM =
+  "bottom-[max(calc(9.5rem+env(safe-area-inset-bottom)+var(--tg-safe-bottom)),var(--rest-timer-clear,0px))] lg:bottom-[max(1.5rem,var(--rest-timer-clear,0px))]";
+const FLOAT = `fixed right-4 z-40 lg:right-6 ${FLOAT_BOTTOM}`;
+/** В тренировке — «ушко» у правого края: круглая кнопка закрывала поля подходов. */
+const EAR = `fixed right-0 z-40 ${FLOAT_BOTTOM}`;
 
 function Launcher({ workout, onOpen, focus }: { workout: WorkoutBridge | null; onOpen: (node: NodeId) => void; focus: boolean }) {
   const [hideCheckin, setHideCheckin] = useState(true);
@@ -172,9 +175,13 @@ function Launcher({ workout, onOpen, focus }: { workout: WorkoutBridge | null; o
   }, [workoutId]);
 
   const drag = useDraggable();
+  const ear = workout !== null;
 
   return (
-    <div className={cn(drag.style ? "fixed z-40" : FLOAT, "flex gap-2", drag.className)} style={drag.style}>
+    <div
+      className={cn(ear ? EAR : drag.style ? "fixed z-40" : FLOAT, "flex gap-2", ear ? "flex-col items-end *:not-last:mr-4" : drag.className)}
+      style={ear ? undefined : drag.style}
+    >
       {workout && needCheckin && !hideCheckin ? (
         <CheckIn
           workout={workout}
@@ -184,20 +191,32 @@ function Launcher({ workout, onOpen, focus }: { workout: WorkoutBridge | null; o
           }}
         />
       ) : null}
-      <Button
-        ref={button}
-        size="icon-lg"
-        className="size-12 touch-none rounded-full shadow-lg"
-        aria-label="Помощник"
-        title="Помощник — можно перетащить"
-        {...drag.handlers}
-        onClick={() => {
-          if (drag.consumeDrag()) return;
-          onOpen("menu");
-        }}
-      >
-        <MessageCircleQuestion className="size-6" />
-      </Button>
+      {ear ? (
+        <Button
+          ref={button}
+          className="h-12 w-7 rounded-l-full rounded-r-none px-0 pl-1 shadow-lg"
+          aria-label="Помощник"
+          title="Помощник"
+          onClick={() => onOpen("menu")}
+        >
+          <MessageCircleQuestion className="size-4" />
+        </Button>
+      ) : (
+        <Button
+          ref={button}
+          size="icon-lg"
+          className="size-12 touch-none rounded-full shadow-lg"
+          aria-label="Помощник"
+          title="Помощник — можно перетащить"
+          {...drag.handlers}
+          onClick={() => {
+            if (drag.consumeDrag()) return;
+            onOpen("menu");
+          }}
+        >
+          <MessageCircleQuestion className="size-6" />
+        </Button>
+      )}
     </div>
   );
 }

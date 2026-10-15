@@ -90,6 +90,78 @@ describe("workout reducer", () => {
     expect(s.exercises[1].restSec).toBe(600);
   });
 
+  it("completing a working set copies its values into the next pending set only if that one is empty", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    const set = (i: number) => s.exercises[0].sets[i];
+    const values = () => s.exercises[0].sets.map((x) => [x.weight, x.reps]);
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(0).key, patch: { weight: "20", reps: "11" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(0).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["", ""]]);
+
+    // Заполненный следующий подход не перезаписывается
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(2).key, patch: { weight: "25", reps: "8" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(1).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["25", "8"]]);
+
+    // Снятие отметки ничего не копирует
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(2).key, patch: { weight: "", reps: "" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(1).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["", ""]]);
+  });
+
+  it("completing a warm-up set copies nothing; bodyweight copies reps", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "setWarmup", key: k, sets: [{ weight: 20, reps: 10 }] });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[0].key, now: NOW });
+    expect(s.exercises[0].sets[1]).toMatchObject({ weight: "", reps: "" });
+
+    let p = reducer(empty(), { type: "addExercises", exercises: [{ exercise: pullup, restSec: 90 }], last: {} });
+    const pk = p.exercises[0].key;
+    p = reducer(p, { type: "updateSet", key: pk, setKey: p.exercises[0].sets[0].key, patch: { reps: "12" } });
+    p = reducer(p, { type: "toggleComplete", key: pk, setKey: p.exercises[0].sets[0].key, now: NOW });
+    expect(p.exercises[0].sets[1]).toMatchObject({ weight: "", reps: "12" });
+  });
+
+  it("restoreSet puts a removed set back at its place", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "updateSet", key: k, setKey: s.exercises[0].sets[1].key, patch: { weight: "60", reps: "8", rir: 2 } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[1].key, now: NOW });
+    const [first, removed, third] = s.exercises[0].sets;
+    const restore = { type: "restoreSet", key: k, after: first.key, before: third.key, index: 1, set: removed } as const;
+    s = reducer(s, { type: "removeSet", key: k, setKey: removed.key });
+    expect(s.exercises[0].sets).toHaveLength(2);
+    s = reducer(s, restore);
+    expect(s.exercises[0].sets).toEqual([first, removed, third]);
+    // Повтор и удалённое упражнение — без изменений
+    expect(reducer(s, restore)).toBe(s);
+    expect(reducer(s, { ...restore, key: "nope", set: { ...removed, key: "x" } })).toBe(s);
+  });
+
+  it("restoreSet keeps the order when several removed sets come back in any order", () => {
+    const start = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = start.exercises[0].key;
+    const [a, b, c] = start.exercises[0].sets;
+    const order = (s: WorkoutState) => s.exercises[0].sets.map((x) => x.key);
+    // Соседи — на момент удаления: удалили a, затем b (он уже первый); то же — c, затем b (он уже последний)
+    const backA = { type: "restoreSet", key: k, after: null, before: b.key, index: 0, set: a } as const;
+    const backBFirst = { type: "restoreSet", key: k, after: null, before: c.key, index: 0, set: b } as const;
+    const backC = { type: "restoreSet", key: k, after: b.key, before: null, index: 2, set: c } as const;
+    const backBLast = { type: "restoreSet", key: k, after: a.key, before: null, index: 1, set: b } as const;
+    const front = [a, b].reduce((s, x) => reducer(s, { type: "removeSet", key: k, setKey: x.key }), start);
+    const back = [c, b].reduce((s, x) => reducer(s, { type: "removeSet", key: k, setKey: x.key }), start);
+    for (const s of [
+      reducer(reducer(front, backA), backBFirst),
+      reducer(reducer(front, backBFirst), backA),
+      reducer(reducer(back, backC), backBLast),
+      reducer(reducer(back, backBLast), backC),
+    ]) {
+      expect(order(s)).toEqual([a.key, b.key, c.key]);
+    }
+  });
+
   const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
   const ids = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
   const three = () =>

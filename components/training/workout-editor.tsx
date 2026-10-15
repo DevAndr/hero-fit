@@ -38,6 +38,7 @@ import {
 } from "@/components/training/rest-timer";
 import { formatClock } from "@/lib/format";
 import { pickInitial, pruneRecords, readRecord, refreshTrainingCache } from "@/components/training/offline-store";
+import { useWakeLock } from "@/components/training/use-wake-lock";
 import { useWorkoutSync, type SyncStatus } from "@/components/training/use-workout-sync";
 import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
 import {
@@ -190,6 +191,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   const rest = useRestTimer();
   // Telegram переспросит перед закрытием, пока тренировка открыта
   useClosingConfirmation(true);
+  useWakeLock(state.status === "IN_PROGRESS");
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);

@@ -199,3 +199,30 @@ test("done exercise collapses once work moves on; expand, collapse back, survive
   await expect(expand).toContainText("60×10, 60×10, 60×9");
   await expect(exerciseBlock(page, "Подтягивания").getByLabel("Повторы, подход 3")).toBeVisible();
 });
+
+test("completed set carries its values to the next empty one; removed set can be restored", async ({ page }) => {
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const bench = exerciseBlock(page, "Жим штанги лёжа");
+  await fillSet(page, "Жим штанги лёжа", 1, "20", "11");
+  await completeSet(page, "Жим штанги лёжа", 1);
+  await expect(bench.getByLabel("Вес, подход 2")).toHaveValue("20");
+  await expect(bench.getByLabel("Повторы, подход 2")).toHaveValue("11");
+  await expect(bench.getByLabel("Вес, подход 3")).toHaveValue("");
+
+  // Удалили выполненный подход — «Вернуть» ставит его на место со значениями и отметкой
+  await bench.getByLabel("Удалить подход 1").click();
+  await expect(bench.getByTestId("set-row")).toHaveCount(2);
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  await expect(bench.getByTestId("set-row")).toHaveCount(3);
+  await expect(bench.getByLabel("Вес, подход 1")).toHaveValue("20");
+  await expect(bench.locator("[data-done]")).toHaveCount(1);
+
+  // Сводка: опыт выше цифр, время — словами
+  await finish(page);
+  await expect(page).toHaveURL(/\/workouts\/\w+$/);
+  const xp = (await page.getByTestId("xp-earned").boundingBox())!;
+  const time = page.getByText("Время", { exact: true });
+  await expect(time.locator("..")).toContainText("< 1 мин");
+  expect((await time.boundingBox())!.y).toBeGreaterThan(xp.y);
+});
