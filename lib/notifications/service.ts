@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { pruneErrors } from "@/lib/errors/record";
 import { sendPushToUser } from "@/lib/notifications/push";
 import { sendTelegramToUser } from "@/lib/telegram/send";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
@@ -201,6 +202,8 @@ export async function processPlanReminders(now = new Date()) {
   return sent;
 }
 
+let lastErrorsPrune = 0;
+
 /** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
 export async function runNotificationTick(now = new Date()) {
   // Сначала срочное (таймер отдыха и уже готовые push), итоги недели — после: их генерация не задерживает доставку
@@ -236,6 +239,15 @@ export async function runNotificationTick(now = new Date()) {
     if (goals) pushes += await processDuePushes();
   } catch (e) {
     console.error("[goals] шаг сроков целей упал", e);
+  }
+  try {
+    // Журнал ошибок: раз в сутки — чистка старше 30 дней
+    if (now.getTime() - lastErrorsPrune >= 86_400_000) {
+      lastErrorsPrune = now.getTime();
+      await pruneErrors(now);
+    }
+  } catch (e) {
+    console.error("[errors] чистка журнала упала", e);
   }
   return { reminders, pushes };
 }

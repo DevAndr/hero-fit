@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import {
   addFlagUser,
+  errorEventUsers,
   clubAdminLogin,
   clubOf,
   coinTx,
@@ -285,4 +286,16 @@ test("coach's own exercise in a client's history: the client keeps the workout a
     ).rows,
   );
   expect(kept).toEqual([{ name, owner: client.login, archived: true, records: 1 }]);
+});
+
+test("delete: error events stay without the user", async ({ page, baseURL }) => {
+  const me = await registerUser(page);
+  const message = `e2e deleted user boom ${Array.from({ length: 10 }, () => "ghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 20)]).join("")}`;
+  const res = await page.request.post("/api/errors", { headers: { Origin: baseURL! }, data: { message } });
+  expect(res.status()).toBe(204);
+  const id = await idOf(me.login);
+  expect(await errorEventUsers(message)).toEqual([id]);
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/\/\?deleted=1$/);
+  expect(await errorEventUsers(message)).toEqual([null]);
 });
