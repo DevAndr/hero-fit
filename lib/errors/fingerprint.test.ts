@@ -28,3 +28,13 @@ describe("fingerprint", () => {
     expect(topFrame(null)).toBe("");
   });
 });
+
+describe("fingerprint across builds", () => {
+  it("server chunk frames (subdirs, backslashes, minified names) do not split a group", () => {
+    const linux = { source: "SERVER" as const, message: "boom", stack: "Error: boom\n    at async T (/app/.next/server/chunks/ssr/_1h_2jwq._.js:257:15355)" };
+    const next = { ...linux, stack: "Error: boom\n    at async Qx (/app/.next/server/chunks/ssr/_9zz_abcd._.js:12:7)" };
+    const windows = { ...linux, stack: "Error: boom\n    at async T (K:\\app\\.next\\server\\chunks\\_1h_2jwq._.js:257:15355)" };
+    expect(fingerprint(linux)).toBe(fingerprint(next));
+    expect(fingerprint(linux)).toBe(fingerprint(windows));
+  });
+});

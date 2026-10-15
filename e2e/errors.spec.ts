@@ -99,7 +99,7 @@ test("noise is dropped", async ({ page }) => {
   expect(await errorGroupByMessage(`TypeError: ${noise}`)).toHaveLength(0);
 });
 
-test("server error: recorded once with a Telegram alert to the admin; a flood keeps 50 events", async ({ page, request }) => {
+test("server error: one Telegram alert to the admin without the error text; a flood stays one group with ≤ 50 events", async ({ page, request }) => {
   const me = await registerUser(page);
   await makeAdmin(me.login);
   const chat = String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
@@ -109,16 +109,23 @@ test("server error: recorded once with a Telegram alert to the admin; a flood ke
   const message = `e2e server boom ${t}`;
   expect((await request.get(`/api/e2e/boom?tag=${t}`)).status()).toBe(500);
   await expect.poll(async () => (await group(message))?.source).toBe("SERVER");
+  const id = (await group(message)).id;
+  // В Telegram — без текста ошибки (152-ФЗ): вид, источник и ссылка на группу
   await expect
     .poll(async () => {
       const calls = (await (await fetch(`${TELEGRAM_FAKE_URL}/calls?chat_id=${chat}`)).json()) as { method: string; params: { text?: string } }[];
-      return calls.filter((c) => c.method === "sendMessage" && c.params.text?.includes(message)).map((c) => c.params.text?.split("\n")[0]);
+      return calls.filter((c) => c.method === "sendMessage" && c.params.text?.includes(`/admin/errors/${id}`)).map((c) => c.params.text?.split("\n")[0]);
     })
     .toEqual(["🔴 Новая ошибка"]);
 
-  for (let i = 0; i < 59; i++) await request.get(`/api/e2e/boom?tag=${t}`);
-  await expect.poll(async () => (await group(message))?.count).toBe(60);
-  expect((await group(message)).events).toBe(50);
+  // Лавина: запись не ждёт ответа и сверх двух одновременных отбрасывается — счётчик приблизительный,
+  // но группа одна и событий не больше 50
+  for (let i = 0; i < 99; i++) await request.get(`/api/e2e/boom?tag=${t}`);
+  await expect.poll(async () => (await group(message))?.count, { timeout: 10_000 }).toBeGreaterThan(1);
+  await page.waitForTimeout(1000); // хвост записей
+  const g = await group(message);
+  expect(g.events).toBe(Math.min(g.count, 50));
+  expect(await errorGroupByMessage(message)).toHaveLength(1);
 });
 
 test("error boundary: a crashed page shows a friendly screen, recorded once as a server error", async ({ page }) => {
@@ -141,4 +148,10 @@ test("intake guards: foreign origin, oversized body", async ({ request, baseURL 
   expect(big.status()).toBe(413);
   const ok = await request.post("/api/errors", { headers: { Origin: baseURL! }, data: { message: `e2e intake ${tag()}` } });
   expect(ok.status()).toBe(204);
+  // Без входа — не больше 5 отчётов в минуту с адреса
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    statuses.push((await request.post("/api/errors", { headers: { Origin: baseURL! }, data: { message: `e2e anon ${tag()}` } })).status());
+  }
+  expect(statuses).toContain(429);
 });

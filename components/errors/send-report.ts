@@ -12,6 +12,8 @@ export function errorMessage(error: unknown) {
 
 /** Отчёт об ошибке браузера в /api/errors: sendBeacon (уйдёт и при закрытии вкладки), без него — fetch keepalive. */
 export function sendErrorReport(error: unknown) {
+  // С digest — ошибка сервера (упавший server action, рендер), её уже записал onRequestError
+  if (typeof error === "object" && error !== null && "digest" in error && error.digest) return;
   const message = errorMessage(error).slice(0, 1000);
   const stack = error instanceof Error && error.stack ? error.stack.slice(0, 6000) : undefined;
   if (!message || isNoise({ message, stack: stack ?? null })) return;

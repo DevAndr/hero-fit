@@ -8,9 +8,12 @@ export async function register() {
   startTelegramPolling();
 }
 
-/** Ошибки сервера (страницы, server actions, route handlers, proxy) — в журнал `/admin/errors`. */
+/**
+ * Ошибки сервера (страницы, server actions, route handlers, proxy) — в журнал `/admin/errors`. Не ждём записи:
+ * Next держит ответ 500 до конца `onRequestError`, а при тормозящей базе это удлинило бы сбой.
+ */
 export const onRequestError: Instrumentation.onRequestError = async (err, request) => {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { reportServerError } = await import("./lib/errors/report");
-  await reportServerError(err, request);
+  void reportServerError(err, request).catch((e) => console.error("[errors] report failed", e));
 };

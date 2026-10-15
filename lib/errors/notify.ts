@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { isAdminLogin } from "@/lib/auth/admin-login";
+import { alertText } from "@/lib/errors/alert";
 import { callBot } from "@/lib/telegram/api";
 
 const HOUR = 3_600_000;
@@ -17,11 +18,9 @@ export function markAlert(now = Date.now()) {
   sent.push(now);
 }
 
-const SOURCE_LABEL = { SERVER: "сервер", CLIENT: "браузер" } as const;
-
 /** Telegram админам (ADMIN_LOGINS) с привязанным ботом — служебное, переключатель уведомлений не учитывается. */
 export async function notifyAdmins(
-  group: { id: string; source: "SERVER" | "CLIENT"; message: string; path: string | null; version: string | null },
+  group: { id: string; source: "SERVER" | "CLIENT"; version: string | null },
   kind: "new" | "back",
 ) {
   const logins = (env.ADMIN_LOGINS ?? "").split(",").map((l) => l.trim()).filter(Boolean);
@@ -30,15 +29,7 @@ export async function notifyAdmins(
     where: { telegramChatId: { not: null }, OR: logins.map((login) => ({ login: { equals: login, mode: "insensitive" as const } })) },
     select: { login: true, telegramChatId: true },
   });
-  const text = [
-    kind === "new" ? "🔴 Новая ошибка" : "🔁 Ошибка вернулась",
-    `${SOURCE_LABEL[group.source]}: ${group.message.slice(0, 300)}`,
-    group.path ? `Страница: ${group.path}` : null,
-    group.version ? `Версия: ${group.version}` : null,
-    `${env.APP_URL}/admin/errors/${group.id}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const text = alertText(group, kind, env.APP_URL);
   for (const admin of admins) {
     if (!admin.telegramChatId || !isAdminLogin(admin.login, env.ADMIN_LOGINS)) continue;
     const result = await callBot("sendMessage", { chat_id: admin.telegramChatId.toString(), text, link_preview_options: { is_disabled: true } });

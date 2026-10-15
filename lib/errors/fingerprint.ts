@@ -17,6 +17,8 @@ export function topFrame(stack: string | null) {
     .map((l) => l.trim())
     .filter((l) => l.startsWith("at ") || l.includes("@"));
   const own = frames.find((l) => !l.includes("node_modules") && !l.includes("node:internal")) ?? frames[0] ?? "";
+  // Серверные чанки сборки: имена функций минифицированы, хеши в именах файлов меняются с каждым деплоем
+  if (/\.next[\\/]server[\\/]chunks[\\/]/.test(own)) return "server-chunk";
   return own.replace(/(:\d+)+(?=\)?$)/, "").replace(/chunks\/[^/)\s]+\.js/g, "chunks/<chunk>");
 }
 

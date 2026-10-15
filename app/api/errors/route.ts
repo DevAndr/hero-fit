@@ -5,8 +5,9 @@ import { createLimiter } from "@/lib/errors/limit";
 import { reportError } from "@/lib/errors/report";
 import { clientReportSchema, MAX_BODY_BYTES, stripQuery } from "@/lib/errors/schema";
 
-/** 30 отчётов в минуту на пользователя (без входа — на IP); в памяти процесса. */
+/** 30 отчётов в минуту на пользователя, без входа — 5 на IP; в памяти процесса. */
 const limiter = createLimiter({ max: 30, windowMs: 60_000 });
+const anonLimiter = createLimiter({ max: 5, windowMs: 60_000 });
 
 /** Тот же источник: хост Origin (или Referer) совпадает с хостом запроса (за Caddy — исходный Host). */
 const sameHost = (url: string | null, host: string | null) => {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
   const access = await verifyAccessToken((await cookies()).get(ACCESS_COOKIE)?.value);
   const ip = h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "unknown";
-  if (!limiter.hit(access?.userId ?? `ip:${ip}`)) return new Response(null, { status: 429 });
+  if (!(access ? limiter.hit(access.userId) : anonLimiter.hit(`ip:${ip}`))) return new Response(null, { status: 429 });
 
   let json: unknown;
   try {
