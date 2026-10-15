@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_REST_SEC } from "@/lib/exercises/schema";
+import { isDoneSet, isTimed, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 export const MAX_EXERCISES = 30;
 export const MAX_SETS = 50;
@@ -32,22 +33,37 @@ export type ExerciseDraft = z.input<typeof exerciseDraftSchema>;
 export type WorkoutDraft = z.input<typeof workoutDraftSchema>;
 export type WorkoutDraftParsed = z.output<typeof workoutDraftSchema>;
 
-/** Итоги по выполненным рабочим подходам (разминка и неотмеченные не считаются). */
-export function workoutTotals(exercises: { sets: { weight: number; reps: number; isWarmup?: boolean; completedAt: unknown }[] }[]) {
+/**
+ * Итоги по выполненным рабочим подходам (разминка и неотмеченные не считаются).
+ * Повторы и объём — только силовые; `workSec`/`distanceM` — подходы на время и кардио.
+ */
+export function workoutTotals(
+  exercises: {
+    kind?: ExerciseKindName;
+    sets: { weight: number; reps: number; durationSec?: number | null; distanceM?: number | null; isWarmup?: boolean; completedAt: unknown }[];
+  }[],
+) {
   let sets = 0;
   let reps = 0;
   let volume = 0;
+  let workSec = 0;
+  let distanceM = 0;
   let exerciseCount = 0;
   for (const exercise of exercises) {
-    const done = exercise.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0);
+    const done = exercise.sets.filter((s) => !s.isWarmup && isDoneSet(exercise.kind, s));
     if (done.length) exerciseCount++;
     for (const s of done) {
       sets++;
-      reps += s.reps;
-      volume += s.weight * s.reps;
+      if (isTimed(exercise.kind)) {
+        workSec += s.durationSec ?? 0;
+        distanceM += s.distanceM ?? 0;
+      } else {
+        reps += s.reps;
+        volume += s.weight * s.reps;
+      }
     }
   }
-  return { sets, reps, volume: Math.round(volume * 10) / 10, exercises: exerciseCount };
+  return { sets, reps, volume: Math.round(volume * 10) / 10, exercises: exerciseCount, workSec, distanceM };
 }
 
 /**
