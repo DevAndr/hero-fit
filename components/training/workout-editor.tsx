@@ -26,6 +26,9 @@ import { Label } from "@/components/ui/label";
 import { ExerciseBlock } from "@/components/training/exercise-block";
 import { useClosingConfirmation } from "@/components/telegram/telegram-mini-app";
 import { BossBar } from "@/components/boss/boss-bar";
+import { useFlag } from "@/components/flags/flags-provider";
+import { GoblinBanner } from "@/components/goblin/goblin-banner";
+import { rollGoblinAction } from "@/lib/goblin/actions";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -217,6 +220,22 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   // Telegram переспросит перед закрытием, пока тренировка открыта
   useClosingConfirmation(true);
   useWakeLock(state.status === "IN_PROGRESS");
+
+  // Золотой гоблин (флаг): после каждого нового выполненного рабочего подхода, когда черновик уже на сервере, —
+  // один бросок (решает сервер). Выскочил — плашка с таймером
+  const goblinOn = useFlag("golden_goblin");
+  const [goblin, setGoblin] = useState(workout.goblin ?? null);
+  const workingDone = state.exercises.reduce((n, e) => n + e.sets.filter((s) => s.completedAt && !s.isWarmup).length, 0);
+  const rolledAt = useRef(workingDone);
+  useEffect(() => {
+    if (!goblinOn || goblin || state.status !== "IN_PROGRESS" || sync.status !== "saved" || workingDone <= rolledAt.current) return;
+    rolledAt.current = workingDone;
+    void rollGoblinAction(workout.id)
+      .then((spawned) => {
+        if (spawned) setGoblin(spawned);
+      })
+      .catch(() => {});
+  }, [goblinOn, goblin, state.status, sync.status, workingDone, workout.id]);
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   // Тренировку забыли завершить — в диалоге предлагаем время последнего подхода
@@ -379,6 +398,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 <NotificationToggle />
               </div>
             </div>
+
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {
