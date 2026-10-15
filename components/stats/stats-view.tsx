@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { CardioStats } from "@/lib/stats/queries";
+import { formatKm } from "@/lib/workouts/kinds";
 import { ChartColumn } from "lucide-react";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { MonthCompareCard } from "@/components/stats/month-compare";
@@ -18,6 +20,8 @@ export type StatsViewData = {
   trends: Awaited<ReturnType<typeof getTrends>>;
   /** null — флаг strength_analytics выключен у владельца статистики. */
   month: MonthCompare | null;
+  /** Кардио за 7/30 дней; null — флаг workout_formats выключен или кардио не было. */
+  cardio?: CardioStats | null;
 };
 
 const hours = (sec: number) => `${(sec / 3600).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
@@ -84,6 +88,18 @@ export function StatsView({
           />
         </div>
       </section>
+
+      {data.cardio ? (
+        <section aria-label="Кардио" className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Кардио</h2>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Tile label="Минут за 7 дней" value={String(Math.round(data.cardio.weekSec / 60))} />
+            <Tile label="Км за 7 дней" value={formatKm(data.cardio.weekM)} />
+            <Tile label="Минут за 30 дней" value={String(Math.round(data.cardio.monthSec / 60))} />
+            <Tile label="Км за 30 дней" value={formatKm(data.cardio.monthM)} />
+          </div>
+        </section>
+      ) : null}
 
       <section aria-label="Время в зале" className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Время в зале</h2>

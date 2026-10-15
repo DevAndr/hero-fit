@@ -5,6 +5,7 @@ import { Area, AreaChart, ReferenceLine, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import type { ExerciseSession } from "@/lib/stats/queries";
 import { formatSet } from "@/lib/format";
+import { formatClock, formatKm, isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -14,14 +15,40 @@ const pct = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1, signDispl
 
 type Point = ExerciseSession & { value: number };
 
+/** Что показывает график: рабочий вес, повторы (свой вес), лучшее время (на время) или дистанция (кардио). */
+type Metric = { label: string; title: string; value: (s: ExerciseSession) => number; show: (v: number) => string; sets: (s: ExerciseSession) => string };
+
+function metricOf(kind: ExerciseKindName, sessions: ExerciseSession[]): Metric {
+  if (isTimed(kind)) {
+    const cardio = kind === "CARDIO";
+    return {
+      label: cardio ? "Дистанция" : "Лучшее время",
+      title: cardio ? "Самый длинный подход" : "Лучшее время подхода",
+      value: (s) => Math.max(...s.sets.map((x) => (cardio ? (x.distanceM ?? 0) : (x.durationSec ?? 0)))),
+      show: cardio ? formatKm : formatClock,
+      sets: (s) => s.sets.map((x) => timedSetText(kind, x)).join(", "),
+    };
+  }
+  const bodyweight = sessions.every((s) => s.topWeight === 0);
+  return {
+    label: bodyweight ? "Макс. повторы" : "Рабочий вес",
+    title: bodyweight ? "Макс. повторы в подходе" : "Рабочий вес",
+    value: (s) => (bodyweight ? Math.max(...s.sets.map((x) => x.reps)) : s.topWeight),
+    show: (v) => (bodyweight ? `${fmt(v)} повт.` : `${fmt(v)} кг`),
+    sets: (s) => s.sets.map(formatSet).join(", "),
+  };
+}
+
 function ProgressTooltip({
   active,
   payload,
-  bodyweight,
+  metric,
+  strength,
 }: {
   active?: boolean;
   payload?: { payload: Point }[];
-  bodyweight: boolean;
+  metric: Metric;
+  strength: boolean;
 }) {
   const p = payload?.[0]?.payload;
   if (!active || !p) return null;
@@ -30,12 +57,10 @@ function ProgressTooltip({
       <p className="font-medium">{fullDate.format(new Date(p.date))}</p>
       <p className="mt-1 flex items-center gap-2">
         <span className="size-2 rounded-full bg-chart-1" aria-hidden />
-        <span className="font-semibold tabular-nums">{bodyweight ? `${p.value} повт.` : `${fmt(p.value)} кг`}</span>
-        {!bodyweight && p.best1RM ? <span className="text-muted-foreground">· 1RM ≈ {fmt(p.best1RM)} кг</span> : null}
+        <span className="font-semibold tabular-nums">{metric.show(p.value)}</span>
+        {strength && p.best1RM ? <span className="text-muted-foreground">· 1RM ≈ {fmt(p.best1RM)} кг</span> : null}
       </p>
-      <p className="mt-1 text-muted-foreground tabular-nums">
-        {p.sets.map(formatSet).join(", ")}
-      </p>
+      <p className="mt-1 text-muted-foreground tabular-nums">{metric.sets(p)}</p>
     </div>
   );
 }
@@ -49,24 +74,24 @@ export function ExerciseProgressChart({
   sessions,
   goal = null,
   forecast = null,
+  kind = "REPS",
 }: {
   sessions: ExerciseSession[];
+  /** Вид упражнения: для времени и кардио — свой показатель. */
+  kind?: ExerciseKindName;
   goal?: number | null;
   /** Прогноз цели по динамике (текст) — ось графика по тренировкам, поэтому строкой, а не линией. */
   forecast?: string | null;
 }) {
   // useId содержит символы, недопустимые в url(#…) — оставляем только безопасные.
   const gradientId = `progress-${useId().replace(/[^\w-]/g, "")}`;
-  const bodyweight = sessions.every((s) => s.topWeight === 0);
-  const data: Point[] = sessions.map((s) => ({
-    ...s,
-    value: bodyweight ? Math.max(...s.sets.map((x) => x.reps)) : s.topWeight,
-  }));
+  const metric = metricOf(kind, sessions);
+  const strength = !isTimed(kind) && !sessions.every((s) => s.topWeight === 0);
+  const data: Point[] = sessions.map((s) => ({ ...s, value: metric.value(s) }));
   const config = {
-    value: { label: bodyweight ? "Макс. повторы" : "Рабочий вес", color: "var(--chart-1)" },
+    value: { label: metric.label, color: "var(--chart-1)" },
   } satisfies ChartConfig;
 
-  const unit = bodyweight ? "повт." : "кг";
   const first = data[0];
   const last = data.at(-1);
   const change = first && last && first.value > 0 ? ((last.value - first.value) / first.value) * 100 : null;
@@ -79,11 +104,11 @@ export function ExerciseProgressChart({
 
   return (
     <section aria-label="График прогресса" className="rounded-xl border bg-card p-4">
-      <h2 className="text-sm text-muted-foreground">{bodyweight ? "Макс. повторы в подходе" : "Рабочий вес"}</h2>
+      <h2 className="text-sm text-muted-foreground">{metric.title}</h2>
       {last ? (
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
           <span className="text-2xl font-bold" data-testid="progress-value">
-            {fmt(last.value)} {unit}
+            {metric.show(last.value)}
           </span>
           {change !== null && data.length > 1 ? (
             <span
@@ -102,7 +127,7 @@ export function ExerciseProgressChart({
       ) : null}
       {goal !== null ? (
         <p className="text-xs text-muted-foreground">
-          Цель — {fmt(goal)} {unit}
+          Цель — {metric.show(goal)}
           {forecast ? ` · ${forecast}` : ""}
         </p>
       ) : null}
@@ -124,7 +149,7 @@ export function ExerciseProgressChart({
               <YAxis hide domain={[min - pad, max + pad]} />
               <ChartTooltip
                 cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
-                content={<ProgressTooltip bodyweight={bodyweight} />}
+                content={<ProgressTooltip metric={metric} strength={strength} />}
               />
               {goal !== null ? <ReferenceLine y={goal} stroke="var(--muted-foreground)" strokeDasharray="4 4" /> : null}
               <Area
@@ -156,7 +181,7 @@ export function ExerciseProgressChart({
               <tr key={p.workoutId}>
                 <th scope="row">{fullDate.format(new Date(p.date))}</th>
                 <td>
-                  {fmt(p.value)} {unit}
+                  {metric.show(p.value)}
                 </td>
               </tr>
             ))}
