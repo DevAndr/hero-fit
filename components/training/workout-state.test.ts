@@ -124,24 +124,42 @@ describe("workout reducer", () => {
     expect(p.exercises[0].sets[1]).toMatchObject({ weight: "", reps: "12" });
   });
 
-  it("restoreSet puts a removed set back at its position", () => {
+  it("restoreSet puts a removed set back at its place", () => {
     let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
     const k = s.exercises[0].key;
     s = reducer(s, { type: "updateSet", key: k, setKey: s.exercises[0].sets[1].key, patch: { weight: "60", reps: "8", rir: 2 } });
     s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[1].key, now: NOW });
-    const removed = s.exercises[0].sets[1];
+    const [first, removed, third] = s.exercises[0].sets;
+    const restore = { type: "restoreSet", key: k, after: first.key, before: third.key, index: 1, set: removed } as const;
     s = reducer(s, { type: "removeSet", key: k, setKey: removed.key });
     expect(s.exercises[0].sets).toHaveLength(2);
-    s = reducer(s, { type: "restoreSet", key: k, index: 1, set: removed });
-    expect(s.exercises[0].sets[1]).toEqual(removed);
-    expect(s.exercises[0].sets).toHaveLength(3);
+    s = reducer(s, restore);
+    expect(s.exercises[0].sets).toEqual([first, removed, third]);
     // Повтор и удалённое упражнение — без изменений
-    expect(reducer(s, { type: "restoreSet", key: k, index: 1, set: removed })).toBe(s);
-    expect(reducer(s, { type: "restoreSet", key: "nope", index: 0, set: { ...removed, key: "x" } })).toBe(s);
-    // Индекс за границей — в конец
-    s = reducer(s, { type: "removeSet", key: k, setKey: removed.key });
-    s = reducer(s, { type: "restoreSet", key: k, index: 99, set: removed });
-    expect(s.exercises[0].sets.at(-1)).toEqual(removed);
+    expect(reducer(s, restore)).toBe(s);
+    expect(reducer(s, { ...restore, key: "nope", set: { ...removed, key: "x" } })).toBe(s);
+  });
+
+  it("restoreSet keeps the order when several removed sets come back in any order", () => {
+    const start = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = start.exercises[0].key;
+    const [a, b, c] = start.exercises[0].sets;
+    const order = (s: WorkoutState) => s.exercises[0].sets.map((x) => x.key);
+    // Соседи — на момент удаления: удалили a, затем b (он уже первый); то же — c, затем b (он уже последний)
+    const backA = { type: "restoreSet", key: k, after: null, before: b.key, index: 0, set: a } as const;
+    const backBFirst = { type: "restoreSet", key: k, after: null, before: c.key, index: 0, set: b } as const;
+    const backC = { type: "restoreSet", key: k, after: b.key, before: null, index: 2, set: c } as const;
+    const backBLast = { type: "restoreSet", key: k, after: a.key, before: null, index: 1, set: b } as const;
+    const front = [a, b].reduce((s, x) => reducer(s, { type: "removeSet", key: k, setKey: x.key }), start);
+    const back = [c, b].reduce((s, x) => reducer(s, { type: "removeSet", key: k, setKey: x.key }), start);
+    for (const s of [
+      reducer(reducer(front, backA), backBFirst),
+      reducer(reducer(front, backBFirst), backA),
+      reducer(reducer(back, backC), backBLast),
+      reducer(reducer(back, backBLast), backC),
+    ]) {
+      expect(order(s)).toEqual([a.key, b.key, c.key]);
+    }
   });
 
   const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };

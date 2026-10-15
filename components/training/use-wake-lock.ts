@@ -10,16 +10,21 @@ export function useWakeLock(active: boolean) {
   useEffect(() => {
     if (!active || !("wakeLock" in navigator)) return;
     let sentinel: WakeLockSentinel | null = null;
+    let requesting = false;
     let disposed = false;
 
     const request = async () => {
-      if (document.visibilityState !== "visible" || (sentinel && !sentinel.released)) return;
+      // Один запрос за раз: иначе возврат на вкладку во время первого запроса взял бы вторую блокировку
+      if (requesting || document.visibilityState !== "visible" || (sentinel && !sentinel.released)) return;
+      requesting = true;
       try {
         const lock = await navigator.wakeLock.request("screen");
         if (disposed) void lock.release();
         else sentinel = lock;
       } catch {
         // Нет разрешения, экономия заряда и т. п. — просто работаем без блокировки
+      } finally {
+        requesting = false;
       }
     };
 

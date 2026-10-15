@@ -78,8 +78,12 @@ export type Action =
   | { type: "setRest"; key: string; restSec: number }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
-  /** «Вернуть» после удаления: подход встаёт на прежнее место (если его там ещё нет). */
-  | { type: "restoreSet"; key: string; index: number; set: SetState }
+  /**
+   * «Вернуть» после удаления: подход встаёт после бывшего левого соседа `after`, если тот на месте, иначе перед
+   * правым `before`, иначе на прежнюю позицию `index` — так порядок сохраняется при возврате нескольких подходов
+   * в любом порядке. Повторный возврат ничего не меняет.
+   */
+  | { type: "restoreSet"; key: string; after: string | null; before: string | null; index: number; set: SetState }
   | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup" | "rir">> }
   | { type: "toggleComplete"; key: string; setKey: string; now: string }
   /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
@@ -173,7 +177,9 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       const target = state.exercises.find((e) => e.key === action.key);
       if (!target || target.sets.some((s) => s.key === action.set.key)) return state;
       return mapExercise(state, action.key, (e) => {
-        const at = Math.min(Math.max(action.index, 0), e.sets.length);
+        const prev = e.sets.findIndex((s) => s.key === action.after);
+        const next = e.sets.findIndex((s) => s.key === action.before);
+        const at = prev >= 0 ? prev + 1 : next >= 0 ? next : Math.min(Math.max(action.index, 0), e.sets.length);
         return { ...e, sets: [...e.sets.slice(0, at), action.set, ...e.sets.slice(at)] };
       });
     }

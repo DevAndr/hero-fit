@@ -276,7 +276,18 @@ export function ExerciseBlock({
                   onClick={() => {
                     dispatch({ type: "removeSet", key: item.key, setKey: set.key });
                     toast("Подход удалён", {
-                      action: { label: "Вернуть", onClick: () => dispatch({ type: "restoreSet", key: item.key, index: i, set }) },
+                      action: {
+                        label: "Вернуть",
+                        onClick: () =>
+                          dispatch({
+                            type: "restoreSet",
+                            key: item.key,
+                            after: item.sets[i - 1]?.key ?? null,
+                            before: item.sets[i + 1]?.key ?? null,
+                            index: i,
+                            set,
+                          }),
+                      },
                     });
                   }}
                   className="flex h-8 items-center justify-center text-muted-foreground hover:text-destructive"
