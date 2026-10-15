@@ -141,7 +141,7 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
         select: {
           userId: true,
           name: true,
-          exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true } },
+          exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true, supersetGroup: true } },
         },
       },
     },

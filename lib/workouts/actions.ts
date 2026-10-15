@@ -26,7 +26,8 @@ import { normalizeGroups } from "@/lib/workouts/supersets";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-type PlannedExercise = { exerciseId: string; restSec: number; sets: { weight: number; reps: number }[] };
+/** `group` — суперсет из шаблона или прошлой тренировки; план календаря — без групп. */
+type PlannedExercise = { exerciseId: string; restSec: number; group?: number | null; sets: { weight: number; reps: number }[] };
 
 // ───────────────────────────── Старт ─────────────────────────────
 
@@ -56,6 +57,7 @@ async function fromTemplate(userId: string, id: string): Promise<{ name: string;
     planned: template.exercises.map((te) => ({
       exerciseId: te.exerciseId,
       restSec: te.restSec ?? te.exercise.defaultRestSec,
+      group: te.supersetGroup,
       sets: plannedSets(te, last[te.exerciseId]?.sets ?? [], targets.get(te.exerciseId)),
     })),
   };
@@ -132,6 +134,7 @@ export async function createWorkoutAction(formData: FormData) {
         return {
           exerciseId: we.exerciseId,
           restSec: we.restSec,
+          group: we.supersetGroup,
           sets: target ? plannedSets({ targetSets: sets.length, targetReps: null, targetWeight: null }, sets, target) : sets,
         };
       });
@@ -146,10 +149,12 @@ export async function createWorkoutAction(formData: FormData) {
       planKey,
       status: WorkoutStatus.PLANNED,
       exercises: {
-        create: planned.map((e, order) => ({
+        // Архивные упражнения выпали из шаблона/повтора — группы суперсетов пересчитываются
+        create: normalizeGroups(planned.map((e) => ({ ...e, group: e.group ?? null }))).map((e, order) => ({
           exerciseId: e.exerciseId,
           order,
           restSec: e.restSec,
+          supersetGroup: e.group,
           sets: { create: e.sets.map((s, i) => ({ order: i, weight: s.weight, reps: s.reps })) },
         })),
       },

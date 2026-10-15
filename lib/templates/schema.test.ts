@@ -6,7 +6,7 @@ const item = { exerciseId: "e1", targetSets: 3, targetReps: 8, targetWeight: 60,
 describe("templateSchema", () => {
   it("accepts a valid template, trims name, empty description → null", () => {
     const r = templateSchema.parse({ name: "  Грудь  ", description: "", exercises: [item] });
-    expect(r).toEqual({ name: "Грудь", description: null, exercises: [{ ...item, step: null }] });
+    expect(r).toEqual({ name: "Грудь", description: null, exercises: [{ ...item, step: null, group: null }] });
   });
 
   it("allows empty reps/weight targets", () => {
@@ -30,5 +30,13 @@ describe("templateSchema", () => {
     for (const bad of [{ targetSets: 0 }, { targetSets: 21 }, { targetReps: -1 }, { targetWeight: 2000 }, { restSec: 601 }]) {
       expect(templateSchema.safeParse({ name: "X", description: "", exercises: [{ ...item, ...bad }] }).success).toBe(false);
     }
+  });
+});
+
+describe("templateSchema — superset group", () => {
+  it("group is optional and garbage-tolerant", () => {
+    const base = { exerciseId: "e", targetSets: 3, targetReps: null, targetWeight: null, restSec: 60 };
+    const r = templateSchema.parse({ name: "T", description: "", exercises: [base, { ...base, group: 2 }, { ...base, group: "x" }] });
+    expect(r.exercises.map((e) => e.group)).toEqual([null, 2, null]);
   });
 });
