@@ -16,6 +16,7 @@ export const COIN_RATES = {
   raidChestMvp: 60,
   goalChest: 25,
   clubTaskChest: 15,
+  goblinChest: 40,
   /** Ачивка: XP / делитель, в пределах от минимума до максимума. */
   achievementDivisor: 5,
   achievementMin: 3,
