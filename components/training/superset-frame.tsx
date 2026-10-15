@@ -58,26 +58,30 @@ export function SupersetLabel({
   );
 }
 
-/** Скрепка между соседними упражнениями: связать в суперсет или разъединить. */
+/** Скрепка между соседними упражнениями `names` (пара — в подписи: скринридер различает кнопки). */
 export function SupersetLink({
+  names,
   linked,
   canLink,
   onLink,
   onUnlink,
 }: {
+  names: [string, string];
   linked: boolean;
   canLink: boolean;
   onLink: () => void;
   onUnlink: () => void;
 }) {
   if (!linked && !canLink) return null;
+  const [a, b] = names;
+  const label = linked ? `Разъединить «${a}» и «${b}»` : `Связать «${a}» и «${b}» в суперсет`;
   return (
     <div className="-my-2 flex justify-center">
       <button
         type="button"
         onClick={linked ? onUnlink : onLink}
-        aria-label={linked ? "Разъединить" : "Связать в суперсет"}
-        title={linked ? "Разъединить" : "Связать в суперсет"}
+        aria-label={label}
+        title={label}
         className={cn(
           "flex size-7 items-center justify-center rounded-full border bg-background text-muted-foreground transition-colors hover:text-foreground",
           linked && "border-primary text-primary",

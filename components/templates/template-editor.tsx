@@ -237,6 +237,7 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
           </SupersetPart>
           {formatsOn && items[index + 1] ? (
             <SupersetLink
+              names={[item.exercise.name, items[index + 1].exercise.name]}
               linked={item.group !== null && items[index + 1].group === item.group}
               canLink={canLink(items, index)}
               onLink={() => setItems((cur) => link(cur, index))}

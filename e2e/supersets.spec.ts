@@ -23,7 +23,9 @@ test("superset: no rest inside the round, rest after it; survives reload and a t
   await addFlagUser("workout_formats", me.login);
   await pairWorkout(page);
 
-  await page.getByRole("button", { name: "Связать в суперсет" }).click();
+  // У каждой скрепки — своя подпись с названиями пары (скринридер различает кнопки)
+  await page.getByRole("button", { name: "Связать «Жим штанги лёжа» и «Подтягивания» в суперсет" }).click();
+  await expect(page.getByRole("button", { name: "Разъединить «Жим штанги лёжа» и «Подтягивания»" })).toBeVisible();
   await expect(page.getByTestId("superset")).toHaveText("Суперсет");
   await expect(block(page, "Жим штанги лёжа").getByRole("heading")).toContainText("A1");
   await expect(block(page, "Подтягивания").getByRole("heading")).toContainText("A2");
@@ -62,7 +64,7 @@ test("superset: no rest inside the round, rest after it; survives reload and a t
 test("without the flag: no links, and autosave keeps groups", async ({ page }) => {
   const me = await registerUser(page);
   await pairWorkout(page);
-  await expect(page.getByRole("button", { name: "Связать в суперсет" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /в суперсет/ })).toHaveCount(0);
   await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
   await setExerciseGroups(me.login, [1, 1]);
   await page.reload();

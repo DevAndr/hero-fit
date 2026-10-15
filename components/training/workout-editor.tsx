@@ -29,7 +29,7 @@ import { BossBar } from "@/components/boss/boss-bar";
 import { useFlag } from "@/components/flags/flags-provider";
 import { GoblinBanner } from "@/components/goblin/goblin-banner";
 import { SupersetHeader, SupersetLink, SupersetPart } from "@/components/training/superset-frame";
-import { afterSet, canLink, groupLabels, groupSize } from "@/lib/workouts/supersets";
+import { canLink, groupLabels, groupSize } from "@/lib/workouts/supersets";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -50,6 +50,7 @@ import {
   initState,
   isCollapsed,
   lastWorkedKey,
+  nextStep,
   reducer,
   toDraft,
   type ExerciseState,
@@ -168,15 +169,6 @@ function SaveIndicator({ status, onSync }: { status: SyncStatus; onSync: () => v
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-/** Подпись для таймера отдыха: какой подход следующий. */
-function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone: SetState) {
-  const remainingHere = current.sets.filter((s) => s.key !== justDone.key && !s.completedAt);
-  if (remainingHere.length) return current.exercise.name;
-  const index = exercises.findIndex((e) => e.key === current.key);
-  const next = exercises.slice(index + 1).find((e) => e.sets.some((s) => !s.completedAt));
-  return next?.exercise.name ?? null;
-}
-
 const NO_TARGETS: Record<string, Target> = {};
 
 function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS }: Props) {
@@ -291,35 +283,20 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     if (top !== undefined) anchor.current = { key: item.key, top };
     // Развёрнутое вручную выполненное упражнение снова сворачивается, когда работа ушла дальше
     setManualCollapse((prev) => new Map([...prev].filter(([, collapsed]) => collapsed)));
-    if (!formatsOn) {
-      const label = nextLabel(state.exercises, item, set);
-      if (label) rest.start(item.restSec, label);
-      return;
-    }
-    // Суперсет: внутри круга — переход без таймера, после круга — отдых последнего упражнения группы
-    const index = state.exercises.findIndex((e) => e.key === item.key);
-    const pending = state.exercises.map((e) => ({
-      group: e.group,
-      pending: e.sets.filter((s) => !s.completedAt && s.key !== set.key).length,
-    }));
-    const step = afterSet(pending, index);
-    if (step.kind === "switch") {
-      const target = state.exercises[step.next];
+    const step = nextStep(state.exercises, item, set, formatsOn);
+    if (step?.kind === "switch") {
       rest.skip();
-      toast(`Дальше: ${target.exercise.name}`);
+      toast(`Дальше: ${step.label}`);
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       requestAnimationFrame(() =>
         document
-          .querySelector(`[data-exercise-key="${target.key}"]`)
+          .querySelector(`[data-exercise-key="${step.key}"]`)
           ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }),
       );
       anchor.current = null;
       return;
     }
-    if (step.next === null) return;
-    let lastInGroup = index;
-    while (item.group !== null && state.exercises[lastInGroup + 1]?.group === item.group) lastInGroup++;
-    rest.start(state.exercises[lastInGroup].restSec, state.exercises[step.next].exercise.name);
+    if (step) rest.start(step.restSec, step.label);
   };
 
   /** Завершение: при успехе уводит на сводку; без сети — встаёт в очередь со временем с устройства. */
@@ -452,6 +429,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                     </SortableItem>
                     {formatsOn && next ? (
                       <SupersetLink
+                        names={[item.exercise.name, next.exercise.name]}
                         linked={item.group !== null && next.group === item.group}
                         canLink={canLink(state.exercises, index)}
                         onLink={() => dispatch({ type: "linkNext", key: item.key })}

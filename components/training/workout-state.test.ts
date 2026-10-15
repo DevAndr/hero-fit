@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
+import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, nextStep, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
 const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: ["BACK" as const], isBodyweight: true };
@@ -405,5 +405,58 @@ describe("workout reducer — device state from before supersets", () => {
     const s = initState({ id: "w", name: "P", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, templateId: null, exercises: [] });
     const old = { ...s, exercises: [{ key: "a", exercise: bench, restSec: 90, sets: [] }, { key: "b", exercise: bench, restSec: 90, sets: [] }] } as unknown as WorkoutState;
     expect(reducer(s, { type: "replace", state: old }).exercises.map((e) => e.group)).toEqual([null, null]);
+  });
+});
+
+describe("nextStep — after a set (supersets on)", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const pair = () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [
+        { exercise: bench, restSec: 120 },
+        { exercise: pullup, restSec: 60 },
+      ],
+      last: {},
+    });
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    return s;
+  };
+
+  it("A1 working set → switch to A2; A2 → rest of the last in group towards A1", () => {
+    const s = pair();
+    const [a1, a2] = s.exercises;
+    expect(nextStep(s.exercises, a1, a1.sets[0])).toEqual({ kind: "switch", key: a2.key, label: "Подтягивания" });
+    expect(nextStep(s.exercises, a2, a2.sets[0])).toEqual({ kind: "rest", restSec: 60, label: "Жим лёжа" });
+  });
+
+  it("a warm-up set inside a superset — ordinary rest of that exercise, no switch", () => {
+    let s = pair();
+    s = reducer(s, { type: "setWarmup", key: s.exercises[0].key, sets: [{ weight: 20, reps: 10 }] });
+    const a1 = s.exercises[0];
+    expect(nextStep(s.exercises, a1, a1.sets[0])).toEqual({ kind: "rest", restSec: 120, label: "Жим лёжа" });
+  });
+
+  it("outside a group — as before", () => {
+    const s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: squat, restSec: 90 }], last: {} });
+    const e = s.exercises[0];
+    expect(nextStep(s.exercises, e, e.sets[0])).toEqual({ kind: "rest", restSec: 90, label: "Присед" });
+  });
+});
+
+describe("replaceExercise inside a started round", () => {
+  it("the replacement joins the same group", () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [bench, pullup, bench].map((exercise) => ({ exercise, restSec: 90 })),
+      last: {},
+    });
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "linkNext", key: s.exercises[1].key });
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[1].key, setKey: s.exercises[1].sets[0].key, now: NOW });
+    const dip = { id: "dip", name: "Брусья", muscleGroups: ["TRICEPS" as const], isBodyweight: true };
+    s = reducer(s, { type: "replaceExercise", key: s.exercises[1].key, exercise: dip, restSec: 60, last: {} });
+    expect(s.exercises.map((e) => e.exercise.id)).toEqual(["bench", "pullup", "dip", "bench"]);
+    expect(s.exercises.map((e) => e.group)).toEqual([1, 1, 1, 1]);
   });
 });
