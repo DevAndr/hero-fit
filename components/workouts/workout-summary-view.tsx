@@ -14,7 +14,8 @@ import { OfflineCleanup } from "@/components/training/offline-cleanup";
 import { Haptic } from "@/components/telegram/haptic";
 import type { RecordType } from "@/generated/prisma/enums";
 import { progressionLine, type ProgressionItem } from "@/lib/coach/progression";
-import { formatClock, rirLabel } from "@/lib/format";
+import { formatDuration, rirLabel } from "@/lib/format";
+import { GoblinSummary } from "@/components/goblin/goblin-summary";
 import { levelProgress } from "@/lib/progress/level";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
@@ -61,6 +62,7 @@ export function WorkoutSummaryView({
   renderComment,
   feedback,
   goalChests = [],
+  goblinOpened = true,
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -77,6 +79,8 @@ export function WorkoutSummaryView({
   feedback?: ReactNode;
   /** Цели этой тренировки с ещё не открытым сундуком. */
   goalChests?: string[];
+  /** Сундук Золотого гоблина этой тренировки уже открыт (нет гоблина — не важно). */
+  goblinOpened?: boolean;
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const achievementsXp = meta?.achievementsXp ?? 0;
@@ -94,17 +98,7 @@ export function WorkoutSummaryView({
       {readOnly ? null : <OfflineCleanup workoutId={workout.id} />}
       <PageHeader title={title} description={workout.finishedAt ? dateFormat.format(workout.finishedAt) : undefined} actions={actions} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Stat icon={Clock} label="Время" value={formatClock(workout.durationSec ?? 0)} />
-        <Stat icon={Weight} label="Объём" value={`${Math.round(workout.totalVolume).toLocaleString("ru-RU")} кг`} />
-        <Stat icon={Layers} label="Подходы" value={String(workout.totalSets)} />
-        <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
-        <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
-      </div>
-
-      {feedback ? <div className="mt-4">{feedback}</div> : null}
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className={cn("rounded-xl border p-4", leveledUp ? "border-xp/50 bg-xp/10" : "bg-card")}>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="size-4 text-xp" />
@@ -163,12 +157,27 @@ export function WorkoutSummaryView({
 
       {!readOnly && meta?.coins ? <CoinLines coins={meta.coins} /> : null}
 
-      {meta?.boss ? (
-        <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
+      {meta?.records.length ? (
+        <section className="mt-4 rounded-xl border border-xp/40 bg-xp/5 p-4">
+          {!readOnly && freshFinish ? <Haptic kind="success" /> : null}
+          <h2 className="flex items-center gap-2 font-bold">
+            <Trophy className="size-4 text-xp" />
+            Новые рекорды
+          </h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {meta.records.map((r) => (
+              <li key={`${r.exerciseId}-${r.type}`} className="flex flex-wrap justify-between gap-2">
+                <span>
+                  {r.exerciseName} · <span className="text-muted-foreground">{RECORD_LABELS[r.type]}</span>
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {recordValue(r.type, r.previous)} → <span className="text-xp">{recordValue(r.type, r.value)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
-      {meta?.raid ? <RaidDamage raid={meta.raid} readOnly={readOnly} /> : null}
-      {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
-      {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
 
       {meta?.achievements?.length ? (
         <section className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-4">
@@ -191,27 +200,23 @@ export function WorkoutSummaryView({
         </section>
       ) : null}
 
-      {meta?.records.length ? (
-        <section className="mt-4 rounded-xl border border-xp/40 bg-xp/5 p-4">
-          {!readOnly && freshFinish ? <Haptic kind="success" /> : null}
-          <h2 className="flex items-center gap-2 font-bold">
-            <Trophy className="size-4 text-xp" />
-            Новые рекорды
-          </h2>
-          <ul className="mt-2 space-y-1 text-sm">
-            {meta.records.map((r) => (
-              <li key={`${r.exerciseId}-${r.type}`} className="flex flex-wrap justify-between gap-2">
-                <span>
-                  {r.exerciseName} · <span className="text-muted-foreground">{RECORD_LABELS[r.type]}</span>
-                </span>
-                <span className="font-semibold tabular-nums">
-                  {recordValue(r.type, r.previous)} → <span className="text-xp">{recordValue(r.type, r.value)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {meta?.boss ? (
+        <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
       ) : null}
+      {meta?.goblin ? <GoblinSummary goblin={meta.goblin} opened={goblinOpened} readOnly={readOnly} /> : null}
+      {meta?.raid ? <RaidDamage raid={meta.raid} readOnly={readOnly} /> : null}
+      {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
+      {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Stat icon={Clock} label="Время" value={formatDuration(workout.durationSec ?? 0)} />
+        <Stat icon={Weight} label="Объём" value={`${Math.round(workout.totalVolume).toLocaleString("ru-RU")} кг`} />
+        <Stat icon={Layers} label="Подходы" value={String(workout.totalSets)} />
+        <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
+        <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
+      </div>
+
+      {feedback ? <div className="mt-4">{feedback}</div> : null}
 
       {meta?.progression?.length ? <ProgressionBlock items={meta.progression} title={meta.progressionSource === "own" ? "Прогрессия" : "План тренера"} /> : null}
 

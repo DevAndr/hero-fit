@@ -20,6 +20,10 @@ export const FLAGS = {
     description: "Магазин косметики: монеты, аватары, цвет ника, темы",
     expires: "2027-04-30",
   },
+  golden_goblin: {
+    description: "Золотой гоблин: редкая встреча посреди тренировки",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

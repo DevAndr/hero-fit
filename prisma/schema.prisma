@@ -93,6 +93,7 @@ enum XpReason {
   RAID_REWARD // сундук рейда гильдии (lib/raid)
   GOAL_REWARD // сундук за выполненную цель (lib/goals)
   CLUB_TASK_REWARD // сундук за задание клуба (lib/club/tasks)
+  GOBLIN_REWARD // сундук Золотого гоблина (lib/goblin)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -236,6 +237,10 @@ model User {
   kudos               Kudos[]
   goals               Goal[]
   bodyWeights         BodyWeightEntry[]
+  errorEvents         ErrorEvent[]
+  goblinEncounters    GoblinEncounter[]
+  /// последнее появление Золотого гоблина — пауза 14 дней (не сбрасывается отменой тренировки)
+  goblinLastAt        DateTime?
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -450,6 +455,9 @@ model Workout {
   comments     CoachComment[]
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
+  goblin       GoblinEncounter?
+  /// Золотой гоблин: до скольких выполненных рабочих подходов уже бросали (повторная отметка не даёт броска)
+  goblinRolledSets Int @default(0)
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -553,6 +561,7 @@ enum CoinReason {
   RAID_CHEST
   GOAL_CHEST
   CLUB_TASK_CHEST
+  GOBLIN_CHEST
   ACHIEVEMENT
   STREAK_WEEK
   LEVEL_UP
@@ -1230,4 +1239,63 @@ model ClubTaskReward {
 
   @@unique([taskId, userId])
   @@index([userId, openedAt])
+}
+
+/// Мониторинг ошибок (спека: docs/superpowers/specs/2026-10-15-error-monitoring-design.md).
+enum ErrorSource {
+  SERVER
+  CLIENT
+}
+
+model ErrorGroup {
+  id          String       @id @default(cuid())
+  fingerprint String       @unique
+  source      ErrorSource
+  message     String
+  stack       String?
+  /// последний путь, где случилась
+  path        String?
+  count       Int          @default(0)
+  /// разных пользователей среди сохранённых событий — считается при записи
+  users       Int          @default(0)
+  firstSeen   DateTime     @default(now())
+  lastSeen    DateTime     @default(now())
+  /// версия приложения последнего события
+  version     String?
+  resolvedAt  DateTime?
+  /// когда в последний раз оповестили в Telegram — не чаще раза в час на группу
+  alertedAt   DateTime?
+  events      ErrorEvent[]
+
+  @@index([resolvedAt, lastSeen])
+}
+
+model ErrorEvent {
+  id        String     @id @default(cuid())
+  groupId   String
+  group     ErrorGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  at        DateTime   @default(now())
+  path      String?
+  userAgent String?
+  version   String?
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, at])
+  @@index([at])
+}
+
+/// Золотой гоблин — редкая встреча посреди тренировки (спека: docs/superpowers/specs/2026-10-15-golden-goblin-design.md).
+model GoblinEncounter {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// одна встреча на тренировку; отменили тренировку (удаление) — встреча удаляется
+  workoutId      String    @unique
+  workout        Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  spawnedAt      DateTime
+  caughtAt       DateTime?
+  rewardOpenedAt DateTime?
+
+  @@index([userId, spawnedAt])
 }

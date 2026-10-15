@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { goblinOfWorkout } from "@/lib/goblin/queries";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CoachCommentSection, CoachExerciseNote } from "@/components/coach/coach-comment-note";
@@ -30,6 +31,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const ownTemplate = workout.template?.userId === user.id ? workout.template : null;
   const canUpdateTemplate = ownTemplate ? differsFromTemplate(workout.exercises, ownTemplate.exercises) : false;
   const bossTaken = meta?.boss ? await bossRewardTaken(user.id, meta.boss.week) : true;
+  const goblinOpened = meta?.goblin ? Boolean((await goblinOfWorkout(user.id, workout.id))?.rewardOpenedAt) : true;
   const goalIds = meta?.goals?.achieved.map((g) => g.id) ?? [];
   const goalChests = goalIds.length
     ? (await db.goal.findMany({ where: { id: { in: goalIds }, userId: user.id, chestOpenedAt: null }, select: { id: true } })).map((g) => g.id)
@@ -46,6 +48,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       title={`${workout.name} — готово!`}
       readOnly={false}
       bossTaken={bossTaken}
+      goblinOpened={goblinOpened}
       goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}

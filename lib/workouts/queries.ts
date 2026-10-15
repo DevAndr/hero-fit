@@ -20,6 +20,8 @@ export type ActiveWorkout = {
   templateId: string | null;
   /** Самочувствие из чек-ина помощника. */
   wellbeing?: "GREAT" | "OK" | "TIRED" | null;
+  /** Золотой гоблин этой тренировки (показывается только при флаге golden_goblin). */
+  goblin?: { spawnedAt: string } | null;
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
@@ -34,6 +36,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     where: { userId, status: { in: ACTIVE_STATUSES } },
     orderBy: { createdAt: "desc" },
     include: {
+      goblin: { select: { spawnedAt: true } },
       exercises: {
         orderBy: { order: "asc" },
         include: { exercise: { select: exerciseInfoSelect }, sets: { orderBy: { order: "asc" } } },
@@ -47,6 +50,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     planKey: workout.planKey,
     templateId: workout.templateId,
     wellbeing: workout.wellbeing,
+    goblin: workout.goblin ? { spawnedAt: workout.goblin.spawnedAt.toISOString() } : null,
     name: workout.name,
     status: workout.status as ActiveWorkout["status"],
     startedAt: workout.startedAt?.toISOString() ?? null,

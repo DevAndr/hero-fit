@@ -16,7 +16,13 @@ const RETRY_MS = 15_000;
  * по порядку: старт → черновик → завершение. Нет сети — копим и повторяем: при появлении сети,
  * при возврате в приложение, раз в 15 с и по кнопке «Синхронизировать».
  */
-export function useWorkoutSync(workoutId: string, state: WorkoutState, onFinishError: (error: string) => void) {
+export function useWorkoutSync(
+  workoutId: string,
+  state: WorkoutState,
+  onFinishError: (error: string) => void,
+  /** Сервер при сохранении черновика выпустил Золотого гоблина (флаг). */
+  onGoblin?: (goblin: { spawnedAt: string }) => void,
+) {
   const [status, setStatus] = useState<SyncStatus>("saved");
   const [queuedFinish, setQueuedFinish] = useState<string | null>(null);
   const record = useRef<OfflineRecord>({
@@ -33,9 +39,11 @@ export function useWorkoutSync(workoutId: string, state: WorkoutState, onFinishE
   const timer = useRef<number | undefined>(undefined);
   const first = useRef(true);
   const finishErrorRef = useRef(onFinishError);
+  const goblinRef = useRef(onGoblin);
   const finishRejected = useRef(false);
   useEffect(() => {
     finishErrorRef.current = onFinishError;
+    goblinRef.current = onGoblin;
   });
 
   const persist = useCallback((patch: Partial<OfflineRecord>) => {
@@ -62,6 +70,7 @@ export function useWorkoutSync(workoutId: string, state: WorkoutState, onFinishE
         return;
       }
       savedJson.current = json;
+      if (result.goblin) goblinRef.current?.(result.goblin);
       if (JSON.stringify(toDraft(record.current.state)) === json) persist({ synced: true });
     }
     const finishAt = record.current.pendingFinish;

@@ -78,6 +78,12 @@ export type Action =
   | { type: "setRest"; key: string; restSec: number }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
+  /**
+   * «Вернуть» после удаления: подход встаёт после бывшего левого соседа `after`, если тот на месте, иначе перед
+   * правым `before`, иначе на прежнюю позицию `index` — так порядок сохраняется при возврате нескольких подходов
+   * в любом порядке. Повторный возврат ничего не меняет.
+   */
+  | { type: "restoreSet"; key: string; after: string | null; before: string | null; index: number; set: SetState }
   | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup" | "rir">> }
   | { type: "toggleComplete"; key: string; setKey: string; now: string }
   /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
@@ -167,6 +173,17 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     case "removeSet":
       return mapExercise(state, action.key, (e) => ({ ...e, sets: e.sets.filter((s) => s.key !== action.setKey) }));
 
+    case "restoreSet": {
+      const target = state.exercises.find((e) => e.key === action.key);
+      if (!target || target.sets.some((s) => s.key === action.set.key)) return state;
+      return mapExercise(state, action.key, (e) => {
+        const prev = e.sets.findIndex((s) => s.key === action.after);
+        const next = e.sets.findIndex((s) => s.key === action.before);
+        const at = prev >= 0 ? prev + 1 : next >= 0 ? next : Math.min(Math.max(action.index, 0), e.sets.length);
+        return { ...e, sets: [...e.sets.slice(0, at), action.set, ...e.sets.slice(at)] };
+      });
+    }
+
     case "updateSet":
       return mapExercise(state, action.key, (e) => ({
         ...e,
@@ -213,13 +230,32 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     }
 
     case "toggleComplete":
-      return mapExercise(state, action.key, (e) => ({
-        ...e,
-        sets: e.sets.map((s) =>
-          s.key === action.setKey ? { ...s, completedAt: s.completedAt ? null : action.now } : s,
-        ),
-      }));
+      return mapExercise(state, action.key, (e) => {
+        const at = e.sets.findIndex((s) => s.key === action.setKey);
+        if (at < 0) return e;
+        const toggled = e.sets[at];
+        const sets = e.sets.map((s, i) => (i === at ? { ...s, completedAt: s.completedAt ? null : action.now } : s));
+        // Отметили рабочий подход — его вес и повторы переходят в следующий невыполненный, если тот пустой
+        if (!toggled.completedAt && !toggled.isWarmup) {
+          const next = sets.findIndex((s, i) => i > at && !s.completedAt && !s.isWarmup);
+          if (next >= 0 && sets[next].weight === "" && sets[next].reps === "") {
+            sets[next] = { ...sets[next], weight: toggled.weight, reps: toggled.reps };
+          }
+        }
+        return { ...e, sets };
+      });
   }
+}
+
+/** Час без отмеченных подходов — тренировку, похоже, забыли завершить. */
+export const FORGOTTEN_AFTER_MS = 60 * 60 * 1000;
+
+/** Время последнего отмеченного подхода, если с него прошло `FORGOTTEN_AFTER_MS` и больше; иначе null. */
+export function forgottenSince(state: WorkoutState, now: number): string | null {
+  if (state.status !== "IN_PROGRESS") return null;
+  let last: string | null = null;
+  for (const e of state.exercises) for (const s of e.sets) if (s.completedAt && (!last || s.completedAt > last)) last = s.completedAt;
+  return last && now - Date.parse(last) >= FORGOTTEN_AFTER_MS ? last : null;
 }
 
 /** Все подходы упражнения отмечены выполненными (и подходы вообще есть). */

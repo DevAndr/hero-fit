@@ -26,6 +26,8 @@ import { Label } from "@/components/ui/label";
 import { ExerciseBlock } from "@/components/training/exercise-block";
 import { useClosingConfirmation } from "@/components/telegram/telegram-mini-app";
 import { BossBar } from "@/components/boss/boss-bar";
+import { useFlag } from "@/components/flags/flags-provider";
+import { GoblinBanner } from "@/components/goblin/goblin-banner";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -36,17 +38,20 @@ import {
   RestTimerSpacer,
   useRestTimer,
 } from "@/components/training/rest-timer";
-import { formatClock } from "@/lib/format";
+import { formatClock, formatDuration } from "@/lib/format";
 import { pickInitial, pruneRecords, readRecord, refreshTrainingCache } from "@/components/training/offline-store";
+import { useWakeLock } from "@/components/training/use-wake-lock";
 import { useWorkoutSync, type SyncStatus } from "@/components/training/use-workout-sync";
 import { DropIndicator, ExerciseDropList, SortableItem, WorkoutDnd } from "@/components/training/workout-dnd";
 import {
+  forgottenSince,
   initState,
   isCollapsed,
   lastWorkedKey,
   reducer,
   toDraft,
   type ExerciseState,
+  type WorkoutState,
   type SetState,
 } from "@/components/training/workout-state";
 import type { ExerciseItem } from "@/lib/exercises/queries";
@@ -83,6 +88,29 @@ export function WorkoutEditor(props: Props) {
       <RestTimerSpacer />
       <RestTimerBar />
     </RestTimerProvider>
+  );
+}
+
+const clockTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
+/** Час без отмеченных подходов: «тренировка ещё идёт?» — с кнопкой завершения. */
+function ForgottenBanner({ state, onFinish }: { state: WorkoutState; onFinish: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const since = forgottenSince(state, now);
+  if (!since) return null;
+  return (
+    <div role="region" aria-label="Тренировка ещё идёт?" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-streak/40 bg-streak/10 px-3 py-2 text-sm">
+      <span>
+        Последний подход был {formatDuration(Math.floor((now - Date.parse(since)) / 1000))} назад — тренировка ещё идёт?
+      </span>
+      <Button size="sm" variant="outline" onClick={onFinish}>
+        Завершить
+      </Button>
+    </div>
   );
 }
 
@@ -186,12 +214,23 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, wellbeing, last, hints, targets, own, exercises]);
   useEffect(() => () => setWorkout(null), [setWorkout]);
   const draft = useMemo(() => toDraft(state), [state]);
-  const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
+  const [goblin, setGoblin] = useState(workout.goblin ?? null);
+  const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error), setGoblin);
   const rest = useRestTimer();
   // Telegram переспросит перед закрытием, пока тренировка открыта
   useClosingConfirmation(true);
+  useWakeLock(state.status === "IN_PROGRESS");
+
+  // Золотой гоблин (флаг): бросок делает сервер при сохранении черновика — ответ приходит через useWorkoutSync
+  const goblinOn = useFlag("golden_goblin");
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
+  // Тренировку забыли завершить — в диалоге предлагаем время последнего подхода
+  const [forgotten, setForgotten] = useState<string | null>(null);
+  const openFinish = () => {
+    setForgotten(forgottenSince(state, Date.now()));
+    setFinishOpen(true);
+  };
   const [cancelOpen, setCancelOpen] = useState(false);
   // Отмена тренировки из плана по умолчанию пропускает и план на сегодня (иначе он так и висит «Сегодня по плану»)
   const [skipPlan, setSkipPlan] = useState(true);
@@ -253,10 +292,10 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   };
 
   /** Завершение: при успехе уводит на сводку; без сети — встаёт в очередь со временем с устройства. */
-  const finish = () =>
+  const finish = (at = new Date().toISOString()) =>
     startTransition(async () => {
       rest.skip();
-      const outcome = await sync.queueFinish(new Date().toISOString());
+      const outcome = await sync.queueFinish(at);
       if (outcome !== "sent") setFinishOpen(false);
     });
 
@@ -316,6 +355,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 )}
                 <SaveIndicator status={sync.status} onSync={() => void sync.syncNow()} />
               </div>
+              <ForgottenBanner state={state} onFinish={openFinish} />
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground tabular-nums">
                 <span>
@@ -345,6 +385,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 <NotificationToggle />
               </div>
             </div>
+
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {
@@ -402,7 +444,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 </Button>
               </section>
             ) : state.status === "IN_PROGRESS" ? (
-              <Button size="lg" className="w-full" onClick={() => setFinishOpen(true)} disabled={pending}>
+              <Button size="lg" className="w-full" onClick={openFinish} disabled={pending}>
                 <Flag />
                 Завершить тренировку
               </Button>
@@ -415,14 +457,31 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                   <AlertDialogDescription>
                     Выполнено подходов: {totals.sets}, объём {totals.volume.toLocaleString("ru-RU")} кг.
                     {pendingSets > 0 ? ` Неотмеченные подходы (${pendingSets}) не попадут в историю.` : ""}
+                    {forgotten && state.startedAt
+                      ? ` Последний подход отмечен в ${clockTime.format(new Date(forgotten))} — завершить тогда же? Длительность будет ${formatDuration(
+                          Math.max(0, Math.floor((Date.parse(forgotten) - Date.parse(state.startedAt)) / 1000)),
+                        )}.`
+                      : ""}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={pending}>Продолжить</AlertDialogCancel>
-                  <AlertDialogAction onClick={finish} disabled={pending}>
-                    {pending ? <Loader2 className="animate-spin" /> : null}
-                    Завершить
-                  </AlertDialogAction>
+                  {forgotten ? (
+                    <>
+                      <Button variant="outline" onClick={() => finish()} disabled={pending}>
+                        Завершить сейчас
+                      </Button>
+                      <AlertDialogAction onClick={() => finish(forgotten)} disabled={pending}>
+                        {pending ? <Loader2 className="animate-spin" /> : null}
+                        По последнему подходу
+                      </AlertDialogAction>
+                    </>
+                  ) : (
+                    <AlertDialogAction onClick={() => finish()} disabled={pending}>
+                      {pending ? <Loader2 className="animate-spin" /> : null}
+                      Завершить
+                    </AlertDialogAction>
+                  )}
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

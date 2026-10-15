@@ -84,6 +84,19 @@ test("launcher can be dragged and keeps its place", async ({ page }) => {
   await expect(chat(page)).toBeVisible();
 });
 
+test("in a workout the launcher is a small tab at the right edge", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("smart_coach", me.login);
+  await startWorkout(page, ["Жим штанги лёжа"]);
+  const launcher = page.getByRole("button", { name: "Помощник" });
+  const box = (await launcher.boundingBox())!;
+  const width = await page.evaluate(() => document.documentElement.clientWidth);
+  expect(Math.round(box.x + box.width)).toBe(width);
+  expect(box.width).toBeLessThan(32);
+  await launcher.click();
+  await expect(chat(page)).toBeVisible();
+});
+
 test("weight for today from history fills the sets", async ({ page }) => {
   const me = await registerUser(page);
   await addFlagUser("smart_coach", me.login);

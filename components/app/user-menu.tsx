@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users } from "lucide-react";
+import { Activity, Building2, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users, Bug } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -106,6 +106,12 @@ export function UserMenu({
           <DropdownMenuItem render={<Link href="/admin/flags" />}>
             <ToggleRight />
             Флаги
+          </DropdownMenuItem>
+        ) : null}
+        {isAdmin ? (
+          <DropdownMenuItem render={<Link href="/admin/errors" />}>
+            <Bug />
+            Ошибки
           </DropdownMenuItem>
         ) : null}
         {isAdmin ? (
