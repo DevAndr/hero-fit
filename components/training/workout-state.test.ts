@@ -274,6 +274,7 @@ describe("collapsing done exercises", () => {
   const ex = (key: string, done: (string | null)[]): ExerciseState => ({
     key,
     exercise: { id: key, name: key, muscleGroups: [], isBodyweight: false } as unknown as ExerciseState["exercise"],
+    group: null,
     restSec: 90,
     sets: done.map((completedAt, i) => ({ key: `${key}${i}`, weight: "60", reps: "10", isWarmup: false, rir: null, completedAt })),
   });
@@ -324,5 +325,85 @@ describe("forgottenSince", () => {
     expect(forgottenSince(s, at("2026-10-06T20:00:00.000Z"))).toBeNull();
     const planned = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
     expect(forgottenSince(planned, at("2026-10-06T20:00:00.000Z"))).toBeNull();
+  });
+});
+
+describe("workout reducer — supersets", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const dip = { id: "dip", name: "Брусья", muscleGroups: ["TRICEPS" as const], isBodyweight: true };
+  const withExercises = (...list: ExerciseState["exercise"][]) =>
+    reducer(empty(), { type: "addExercises", exercises: list.map((exercise) => ({ exercise, restSec: 90 })), last: {} });
+  const groups = (s: WorkoutState) => s.exercises.map((e) => e.group);
+  const names = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
+
+  it("linkNext and unlink", () => {
+    let s = withExercises(bench, pullup, squat);
+    expect(groups(s)).toEqual([null, null, null]);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    expect(groups(s)).toEqual([1, 1, null]);
+    s = reducer(s, { type: "unlink", key: s.exercises[0].key });
+    expect(groups(s)).toEqual([null, null, null]);
+  });
+
+  it("removing one of a pair leaves no group", () => {
+    let s = withExercises(bench, pullup);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "removeExercise", key: s.exercises[1].key });
+    expect(groups(s)).toEqual([null]);
+  });
+
+  it("dragging out of a group or into the middle of one keeps groups contiguous", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "reorderExercise", key: s.exercises[1].key, toIndex: 2 });
+    expect(names(s)).toEqual(["bench", "squat", "pullup"]);
+    expect(groups(s)).toEqual([null, null, null]);
+
+    let t = withExercises(bench, pullup, squat, dip);
+    t = reducer(t, { type: "linkNext", key: t.exercises[0].key });
+    t = reducer(t, { type: "linkNext", key: t.exercises[1].key });
+    expect(groups(t)).toEqual([1, 1, 1, null]);
+    t = reducer(t, { type: "reorderExercise", key: t.exercises[3].key, toIndex: 1 });
+    expect(names(t)).toEqual(["bench", "dip", "pullup", "squat"]);
+    expect(groups(t)).toEqual([null, null, 1, 1]);
+  });
+
+  it("moveExercise across a group boundary renormalizes", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "moveExercise", key: s.exercises[2].key, delta: -1 });
+    expect(groups(s)).toEqual([null, null, null]);
+  });
+
+  it("replace in place keeps the group; insert inside a group splits it", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "linkNext", key: s.exercises[1].key });
+    s = reducer(s, { type: "replaceExercise", key: s.exercises[1].key, exercise: dip, restSec: 60, last: {} });
+    expect(names(s)).toEqual(["bench", "dip", "squat"]);
+    expect(groups(s)).toEqual([1, 1, 1]);
+    s = reducer(s, { type: "addExercises", exercises: [{ exercise: pullup, restSec: 90 }], last: {}, index: 1 });
+    expect(names(s)).toEqual(["bench", "pullup", "dip", "squat"]);
+    expect(groups(s)).toEqual([null, null, 1, 1]);
+  });
+
+  it("initState and toDraft carry the group", () => {
+    const s = initState({
+      id: "w", name: "P", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, templateId: null,
+      exercises: [
+        { exercise: bench, restSec: 90, group: 1, sets: [] },
+        { exercise: pullup, restSec: 90, group: 1, sets: [] },
+      ],
+    } as never);
+    expect(groups(s)).toEqual([1, 1]);
+    expect(toDraft(s).exercises.map((e) => e.group)).toEqual([1, 1]);
+  });
+});
+
+describe("workout reducer — device state from before supersets", () => {
+  it("replace normalizes a missing group to null", () => {
+    const s = initState({ id: "w", name: "P", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, templateId: null, exercises: [] });
+    const old = { ...s, exercises: [{ key: "a", exercise: bench, restSec: 90, sets: [] }, { key: "b", exercise: bench, restSec: 90, sets: [] }] } as unknown as WorkoutState;
+    expect(reducer(s, { type: "replace", state: old }).exercises.map((e) => e.group)).toEqual([null, null]);
   });
 });

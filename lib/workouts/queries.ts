@@ -25,6 +25,8 @@ export type ActiveWorkout = {
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
+    /** Суперсет/круг (lib/workouts/supersets.ts). */
+    group: number | null;
     sets: { weight: number; reps: number; isWarmup: boolean; rir: number | null; completedAt: string | null }[];
   }[];
 };
@@ -58,6 +60,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     exercises: workout.exercises.map((we) => ({
       exercise: we.exercise,
       restSec: we.restSec,
+      group: we.supersetGroup,
       sets: we.sets.map((s) => ({
         weight: s.weight,
         reps: s.reps,

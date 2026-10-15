@@ -17,6 +17,12 @@ describe("normalizeGroups", () => {
     expect(groups(normalizeGroups(g(1, 1, 1, 1, 1, 1, 1, 1)))).toEqual([1, 1, 1, 1, 1, 1, 2, 2]);
   });
 
+  it("a state saved on the device before groups (no field) — no groups", () => {
+    const old = [{}, {}, {}] as { group: number | null }[];
+    expect(groups(normalizeGroups(old))).toEqual([null, null, null]);
+    expect(groupLabels(old)).toEqual([null, null, null]);
+  });
+
   it("keeps unchanged items as the same objects", () => {
     const items = g(1, 1, null);
     const out = normalizeGroups(items);

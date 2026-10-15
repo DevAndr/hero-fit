@@ -22,6 +22,7 @@ import { finishWorkout } from "@/lib/workouts/finish";
 import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
 import { skipOccurrence } from "@/lib/plans/mutations";
+import { normalizeGroups } from "@/lib/workouts/supersets";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -183,10 +184,12 @@ async function writeDraft(userId: string, workoutId: string, draft: WorkoutDraft
       data: {
         name: draft.name,
         exercises: {
-          create: draft.exercises.map((e, order) => ({
+          // Номера групп суперсетов — заново по порядку: клиенту не доверяем
+          create: normalizeGroups(draft.exercises).map((e, order) => ({
             exerciseId: e.exerciseId,
             order,
             restSec: e.restSec,
+            supersetGroup: e.group,
             sets: {
               create: e.sets.map((s, i) => ({
                 order: i,

@@ -11,7 +11,7 @@ function runs(items: Grouped[]) {
   const out: [number, number][] = [];
   for (let i = 0; i < items.length; i++) {
     const g = items[i].group;
-    if (g === null) continue;
+    if (g == null) continue; // и undefined — состояние с устройства до суперсетов
     let end = i;
     while (end + 1 < items.length && items[end + 1].group === g) end++;
     out.push([i, end]);
