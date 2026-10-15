@@ -90,6 +90,60 @@ describe("workout reducer", () => {
     expect(s.exercises[1].restSec).toBe(600);
   });
 
+  it("completing a working set copies its values into the next pending set only if that one is empty", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    const set = (i: number) => s.exercises[0].sets[i];
+    const values = () => s.exercises[0].sets.map((x) => [x.weight, x.reps]);
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(0).key, patch: { weight: "20", reps: "11" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(0).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["", ""]]);
+
+    // Заполненный следующий подход не перезаписывается
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(2).key, patch: { weight: "25", reps: "8" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(1).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["25", "8"]]);
+
+    // Снятие отметки ничего не копирует
+    s = reducer(s, { type: "updateSet", key: k, setKey: set(2).key, patch: { weight: "", reps: "" } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: set(1).key, now: NOW });
+    expect(values()).toEqual([["20", "11"], ["20", "11"], ["", ""]]);
+  });
+
+  it("completing a warm-up set copies nothing; bodyweight copies reps", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "setWarmup", key: k, sets: [{ weight: 20, reps: 10 }] });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[0].key, now: NOW });
+    expect(s.exercises[0].sets[1]).toMatchObject({ weight: "", reps: "" });
+
+    let p = reducer(empty(), { type: "addExercises", exercises: [{ exercise: pullup, restSec: 90 }], last: {} });
+    const pk = p.exercises[0].key;
+    p = reducer(p, { type: "updateSet", key: pk, setKey: p.exercises[0].sets[0].key, patch: { reps: "12" } });
+    p = reducer(p, { type: "toggleComplete", key: pk, setKey: p.exercises[0].sets[0].key, now: NOW });
+    expect(p.exercises[0].sets[1]).toMatchObject({ weight: "", reps: "12" });
+  });
+
+  it("restoreSet puts a removed set back at its position", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "updateSet", key: k, setKey: s.exercises[0].sets[1].key, patch: { weight: "60", reps: "8", rir: 2 } });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[1].key, now: NOW });
+    const removed = s.exercises[0].sets[1];
+    s = reducer(s, { type: "removeSet", key: k, setKey: removed.key });
+    expect(s.exercises[0].sets).toHaveLength(2);
+    s = reducer(s, { type: "restoreSet", key: k, index: 1, set: removed });
+    expect(s.exercises[0].sets[1]).toEqual(removed);
+    expect(s.exercises[0].sets).toHaveLength(3);
+    // Повтор и удалённое упражнение — без изменений
+    expect(reducer(s, { type: "restoreSet", key: k, index: 1, set: removed })).toBe(s);
+    expect(reducer(s, { type: "restoreSet", key: "nope", index: 0, set: { ...removed, key: "x" } })).toBe(s);
+    // Индекс за границей — в конец
+    s = reducer(s, { type: "removeSet", key: k, setKey: removed.key });
+    s = reducer(s, { type: "restoreSet", key: k, index: 99, set: removed });
+    expect(s.exercises[0].sets.at(-1)).toEqual(removed);
+  });
+
   const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
   const ids = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
   const three = () =>

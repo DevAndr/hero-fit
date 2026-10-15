@@ -78,6 +78,8 @@ export type Action =
   | { type: "setRest"; key: string; restSec: number }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
+  /** «Вернуть» после удаления: подход встаёт на прежнее место (если его там ещё нет). */
+  | { type: "restoreSet"; key: string; index: number; set: SetState }
   | { type: "updateSet"; key: string; setKey: string; patch: Partial<Pick<SetState, "weight" | "reps" | "isWarmup" | "rir">> }
   | { type: "toggleComplete"; key: string; setKey: string; now: string }
   /** Разминка перед рабочими подходами: заменяет невыполненные разминочные, выполненные не трогает. */
@@ -167,6 +169,15 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     case "removeSet":
       return mapExercise(state, action.key, (e) => ({ ...e, sets: e.sets.filter((s) => s.key !== action.setKey) }));
 
+    case "restoreSet": {
+      const target = state.exercises.find((e) => e.key === action.key);
+      if (!target || target.sets.some((s) => s.key === action.set.key)) return state;
+      return mapExercise(state, action.key, (e) => {
+        const at = Math.min(Math.max(action.index, 0), e.sets.length);
+        return { ...e, sets: [...e.sets.slice(0, at), action.set, ...e.sets.slice(at)] };
+      });
+    }
+
     case "updateSet":
       return mapExercise(state, action.key, (e) => ({
         ...e,
@@ -213,12 +224,20 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     }
 
     case "toggleComplete":
-      return mapExercise(state, action.key, (e) => ({
-        ...e,
-        sets: e.sets.map((s) =>
-          s.key === action.setKey ? { ...s, completedAt: s.completedAt ? null : action.now } : s,
-        ),
-      }));
+      return mapExercise(state, action.key, (e) => {
+        const at = e.sets.findIndex((s) => s.key === action.setKey);
+        if (at < 0) return e;
+        const toggled = e.sets[at];
+        const sets = e.sets.map((s, i) => (i === at ? { ...s, completedAt: s.completedAt ? null : action.now } : s));
+        // Отметили рабочий подход — его вес и повторы переходят в следующий невыполненный, если тот пустой
+        if (!toggled.completedAt && !toggled.isWarmup) {
+          const next = sets.findIndex((s, i) => i > at && !s.completedAt && !s.isWarmup);
+          if (next >= 0 && sets[next].weight === "" && sets[next].reps === "") {
+            sets[next] = { ...sets[next], weight: toggled.weight, reps: toggled.reps };
+          }
+        }
+        return { ...e, sets };
+      });
   }
 }
 
