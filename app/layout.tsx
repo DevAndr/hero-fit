@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { YandexMetrika } from "@/components/analytics/yandex-metrika";
 import { ThemeProvider } from "@/components/app/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ErrorReporter } from "@/components/errors/error-reporter";
 import { YM_ID } from "@/lib/analytics/queue";
 import { env } from "@/lib/env";
 import { isIndexable, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE } from "@/lib/seo";
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           {children}
           <Toaster richColors position="top-center" />
+          <ErrorReporter />
           {YM_ID ? <YandexMetrika id={YM_ID} /> : null}
         </ThemeProvider>
       </body>

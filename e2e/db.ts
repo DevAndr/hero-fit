@@ -1063,3 +1063,18 @@ export async function errorGroupByMessage(message: string) {
     return rows;
   });
 }
+
+/** userId событий группы по сообщению (null — обезличено). */
+export async function errorEventUsers(message: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ userId: string | null }>(
+      `select e."userId" from "ErrorEvent" e join "ErrorGroup" g on g.id = e."groupId" where g.message = $1`,
+      [message],
+    );
+    return rows.map((r) => r.userId);
+  });
+}
+
+export async function resolveErrorGroup(message: string) {
+  await withDb((db) => db.query(`update "ErrorGroup" set "resolvedAt" = now() where message = $1`, [message]));
+}
