@@ -26,7 +26,7 @@ import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, workoutXp } from "@/lib/progress/xp";
 import { workoutTotals } from "@/lib/workouts/schema";
-import { isDoneSet } from "@/lib/workouts/kinds";
+import { isDoneSet, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 export type NewRecord = { exerciseId: string; exerciseName: string; type: RecordType; value: number; previous: number };
 
@@ -140,14 +140,14 @@ export async function finishWorkout(
 
     // Личные рекорды
     const records: NewRecord[] = [];
-    const byExercise = new Map<string, { name: string; sets: { weight: number; reps: number }[] }>();
+    const byExercise = new Map<string, { name: string; kind: ExerciseKindName; sets: { weight: number; reps: number; durationSec: number | null; distanceM: number | null }[] }>();
     for (const we of workout.exercises) {
-      const entry = byExercise.get(we.exerciseId) ?? { name: we.exercise.name, sets: [] };
+      const entry = byExercise.get(we.exerciseId) ?? { name: we.exercise.name, kind: we.exercise.kind, sets: [] };
       entry.sets.push(...we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s)));
       byExercise.set(we.exerciseId, entry);
     }
-    for (const [exerciseId, { name, sets }] of byExercise) {
-      const current = bestOfSets(sets);
+    for (const [exerciseId, { name, kind, sets }] of byExercise) {
+      const current = bestOfSets(sets, kind);
       const existing = await tx.personalRecord.findMany({ where: { userId, exerciseId } });
       const previous: RecordValues = Object.fromEntries(existing.map((r) => [r.type, r.value]));
       const { improved, firstTime } = findNewRecords(current, previous);

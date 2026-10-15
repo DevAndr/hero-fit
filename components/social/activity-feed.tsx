@@ -1,5 +1,6 @@
 "use client";
 
+import { formatRecord } from "@/lib/progress/records";
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
 import { useOptimistic, useState, useTransition } from "react";
@@ -30,8 +31,11 @@ export function ago(iso: string) {
 
 const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы", MAX_DURATION: "время", MAX_DISTANCE: "дистанция", BEST_PACE: "темп" } as const;
 
+const TIMED_RECORDS: ReadonlySet<string> = new Set(["MAX_DURATION", "MAX_DISTANCE", "BEST_PACE"]);
+
 export function recordText(r: FeedEntry["records"][number]) {
   if (r.value === null) return `${r.exerciseName}: ${RECORD_LABEL[r.type]}`;
+  if (TIMED_RECORDS.has(r.type)) return `${r.exerciseName}: ${RECORD_LABEL[r.type]} ${formatRecord(r.type, r.value)}`;
   return `${r.exerciseName}: ${r.type === "MAX_REPS" ? `${r.value} повт.` : `${fmt(r.value)} кг`}`;
 }
 

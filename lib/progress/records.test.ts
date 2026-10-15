@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestOfSets, epley1RM, findNewRecords } from "./records";
+import { bestOfSets, epley1RM, findNewRecords, formatRecord } from "./records";
 
 describe("epley1RM", () => {
   it("uses Epley formula weight × (1 + reps/30)", () => {
@@ -40,5 +40,42 @@ describe("findNewRecords", () => {
     const r = findNewRecords({ MAX_WEIGHT: 110, MAX_REPS: 8, ONE_RM: 120 }, { MAX_WEIGHT: 100, MAX_REPS: 8 });
     expect(r.improved).toEqual([{ type: "MAX_WEIGHT", value: 110, previous: 100 }]);
     expect(r.firstTime).toEqual([{ type: "ONE_RM", value: 120 }]);
+  });
+});
+
+describe("records of timed and cardio exercises", () => {
+  it("TIME — longest hold only", () => {
+    expect(bestOfSets([{ weight: 0, reps: 0, durationSec: 60 }, { weight: 0, reps: 0, durationSec: 95 }], "TIME")).toEqual({ MAX_DURATION: 95 });
+  });
+
+  it("CARDIO — distance, duration and pace from 1 km", () => {
+    const best = bestOfSets(
+      [
+        { weight: 0, reps: 0, durationSec: 1720, distanceM: 5200 },
+        { weight: 0, reps: 0, durationSec: 200, distanceM: 800 },
+      ],
+      "CARDIO",
+    );
+    expect(Object.keys(best).sort()).toEqual(["BEST_PACE", "MAX_DISTANCE", "MAX_DURATION"]);
+    expect(best.MAX_DISTANCE).toBe(5200);
+    expect(best.MAX_DURATION).toBe(1720);
+    expect(best.BEST_PACE).toBeCloseTo(330.77, 2);
+  });
+
+  it("a short cardio set sets no pace", () => {
+    expect(bestOfSets([{ weight: 0, reps: 0, durationSec: 200, distanceM: 800 }], "CARDIO")).toEqual({ MAX_DISTANCE: 800, MAX_DURATION: 200 });
+  });
+
+  it("pace: lower is better", () => {
+    expect(findNewRecords({ BEST_PACE: 300 }, { BEST_PACE: 330 }).improved).toEqual([{ type: "BEST_PACE", value: 300, previous: 330 }]);
+    expect(findNewRecords({ BEST_PACE: 340 }, { BEST_PACE: 330 }).improved).toEqual([]);
+  });
+
+  it("formatRecord", () => {
+    expect(formatRecord("MAX_DURATION", 95)).toBe("1:35");
+    expect(formatRecord("MAX_DISTANCE", 5200)).toBe("5,2 км");
+    expect(formatRecord("BEST_PACE", 330.77)).toBe("5:31/км");
+    expect(formatRecord("MAX_WEIGHT", 102.5)).toBe("102,5 кг");
+    expect(formatRecord("MAX_REPS", 12)).toBe("12");
   });
 });
