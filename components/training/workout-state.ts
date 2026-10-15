@@ -247,6 +247,17 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
   }
 }
 
+/** Час без отмеченных подходов — тренировку, похоже, забыли завершить. */
+export const FORGOTTEN_AFTER_MS = 60 * 60 * 1000;
+
+/** Время последнего отмеченного подхода, если с него прошло `FORGOTTEN_AFTER_MS` и больше; иначе null. */
+export function forgottenSince(state: WorkoutState, now: number): string | null {
+  if (state.status !== "IN_PROGRESS") return null;
+  let last: string | null = null;
+  for (const e of state.exercises) for (const s of e.sets) if (s.completedAt && (!last || s.completedAt > last)) last = s.completedAt;
+  return last && now - Date.parse(last) >= FORGOTTEN_AFTER_MS ? last : null;
+}
+
 /** Все подходы упражнения отмечены выполненными (и подходы вообще есть). */
 export const isExerciseDone = (e: ExerciseState) => e.sets.length > 0 && e.sets.every((s) => s.completedAt);
 
