@@ -239,6 +239,8 @@ model User {
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
   goblinEncounters    GoblinEncounter[]
+  /// последнее появление Золотого гоблина — пауза 14 дней (не сбрасывается отменой тренировки)
+  goblinLastAt        DateTime?
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -454,6 +456,8 @@ model Workout {
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
   goblin       GoblinEncounter?
+  /// Золотой гоблин: до скольких выполненных рабочих подходов уже бросали (повторная отметка не даёт броска)
+  goblinRolledSets Int @default(0)
 
   @@index([userId, status])
   @@index([userId, finishedAt])

@@ -2,30 +2,47 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
-import { shouldSpawn } from "@/lib/goblin/rules";
+import { GOBLIN_SET_CHANCE, rollsFor, shouldSpawn } from "@/lib/goblin/rules";
+
+/** Шанс за бросок: в e2e GOBLIN_SET_CHANCE=1 (флаг там — только у тестовых пользователей гоблина). */
+const chance = () => {
+  const v = Number(process.env.GOBLIN_SET_CHANCE);
+  return Number.isFinite(v) && v >= 0 && v <= 1 && process.env.GOBLIN_SET_CHANCE ? v : GOBLIN_SET_CHANCE;
+};
 
 /**
- * Бросок на появление гоблина после отмеченного подхода: своя идущая тренировка, без гоблина, со второго рабочего
- * подхода, раз в 14 дней, шанс. Флаг проверяет вызывающий. Одна встреча на тренировку держит уникальный workoutId.
+ * Бросок после сохранения черновика (флаг проверяет вызывающий): по одному на каждый новый выполненный рабочий
+ * подход с повторами сверх уже разыгранных (`Workout.goblinRolledSets` — повторная отметка броска не даёт), одна
+ * встреча на тренировку (уникальный workoutId), пауза 14 дней по `User.goblinLastAt` (отмена тренировки её не сбрасывает).
  */
 export async function rollGoblin(userId: string, workoutId: string, now: Date, random: number): Promise<{ spawnedAt: string } | null> {
   const workout = await db.workout.findFirst({
     where: { id: workoutId, userId, status: WorkoutStatus.IN_PROGRESS },
-    select: { id: true, goblin: { select: { id: true } } },
+    select: { goblinRolledSets: true, goblin: { select: { id: true } }, user: { select: { goblinLastAt: true } } },
   });
-  if (!workout) return null;
-  const [completedWorkingSets, last] = await Promise.all([
-    db.workoutSet.count({ where: { workoutExercise: { workoutId }, isWarmup: false, completedAt: { not: null } } }),
-    db.goblinEncounter.findFirst({ where: { userId }, orderBy: { spawnedAt: "desc" }, select: { spawnedAt: true } }),
-  ]);
-  if (!shouldSpawn({ now, lastSpawnedAt: last?.spawnedAt ?? null, hasEncounter: Boolean(workout.goblin), completedWorkingSets, random })) {
-    return null;
-  }
+  if (!workout || workout.goblin) return null;
+  const completed = await db.workoutSet.count({
+    where: { workoutExercise: { workoutId }, isWarmup: false, reps: { gt: 0 }, completedAt: { not: null } },
+  });
+  const rolls = rollsFor({ rolledSets: workout.goblinRolledSets, completed });
+  if (rolls <= 0) return null;
+  // Разыгранные подходы — условно: из двух одновременных сохранений бросает одно
+  const claimed = await db.workout.updateMany({
+    where: { id: workoutId, goblinRolledSets: workout.goblinRolledSets },
+    data: { goblinRolledSets: completed },
+  });
+  if (claimed.count !== 1) return null;
+  const spawn = shouldSpawn({ now, lastSpawnedAt: workout.user.goblinLastAt, hasEncounter: false, rolls, random, chance: chance() });
+  if (!spawn) return null;
   try {
-    const created = await db.goblinEncounter.create({ data: { userId, workoutId, spawnedAt: now }, select: { spawnedAt: true } });
+    const created = await db.$transaction(async (tx) => {
+      const encounter = await tx.goblinEncounter.create({ data: { userId, workoutId, spawnedAt: now }, select: { spawnedAt: true } });
+      await tx.user.update({ where: { id: userId }, data: { goblinLastAt: now } });
+      return encounter;
+    });
     return { spawnedAt: created.spawnedAt.toISOString() };
   } catch (e) {
-    // Двойной вызов: гоблин этой тренировки уже есть
+    // Гоблин этой тренировки уже есть
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return null;
     throw e;
   }

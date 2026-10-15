@@ -8,24 +8,36 @@ export const GOBLIN_WINDOW_MS = 10 * 60_000;
 export const GOBLIN_SETS = 3;
 export const GOBLIN_REWARD_XP = 150;
 
-/** Появится ли гоблин после этого подхода: один на тренировку, со второго рабочего подхода, раз в 14 дней. */
-export function shouldSpawn(p: { now: Date; lastSpawnedAt: Date | null; hasEncounter: boolean; completedWorkingSets: number; random: number }) {
-  if (p.hasEncounter || p.completedWorkingSets < 2) return false;
+/**
+ * Бросков за это сохранение: по одному на каждый новый выполненный рабочий подход сверх уже разыгранных
+ * (`rolledSets` — максимум, до которого уже бросали; повторная отметка того же подхода броска не даёт), первый — нет.
+ */
+export function rollsFor({ rolledSets, completed }: { rolledSets: number; completed: number }) {
+  return Math.max(0, completed - Math.max(rolledSets, 1));
+}
+
+/** Появится ли гоблин: одна встреча на тренировку, раз в 14 дней, шанс 1 % за каждый бросок. */
+export function shouldSpawn(p: { now: Date; lastSpawnedAt: Date | null; hasEncounter: boolean; rolls: number; random: number; chance?: number }) {
+  if (p.hasEncounter || p.rolls <= 0) return false;
   if (p.lastSpawnedAt && p.now.getTime() - p.lastSpawnedAt.getTime() < GOBLIN_COOLDOWN_DAYS * 86_400_000) return false;
-  return p.random < GOBLIN_SET_CHANCE;
+  // Порог округлён: 1 − 0.99¹ в плавающей точке чуть больше 0.01
+  const threshold = Math.round((1 - (1 - (p.chance ?? GOBLIN_SET_CHANCE)) ** p.rolls) * 1e9) / 1e9;
+  return p.random < threshold;
 }
 
 const ms = (t: string | Date | number) => (typeof t === "number" ? t : new Date(t).getTime());
 
-/** Прогресс поимки: рабочие подходы, отмеченные в окне 10 минут с появления. Общая для редактора и сервера. */
+/** Прогресс поимки: рабочие подходы с повторами, отмеченные в окне 10 минут с появления. Общая для редактора и сервера. */
 export function goblinProgress(
   spawnedAt: string | Date,
-  sets: { completedAt: string | Date | null; isWarmup: boolean }[],
+  sets: { completedAt: string | Date | null; isWarmup: boolean; reps: number | string }[],
   now: Date | number | string,
 ) {
   const start = ms(spawnedAt);
   const end = start + GOBLIN_WINDOW_MS;
-  const inWindow = sets.filter((s) => !s.isWarmup && s.completedAt && ms(s.completedAt) >= start && ms(s.completedAt) <= end).length;
+  const inWindow = sets.filter(
+    (s) => !s.isWarmup && Number(s.reps) > 0 && s.completedAt && ms(s.completedAt) >= start && ms(s.completedAt) <= end,
+  ).length;
   const done = Math.min(inWindow, GOBLIN_SETS);
   const caught = done >= GOBLIN_SETS;
   const t = ms(now);

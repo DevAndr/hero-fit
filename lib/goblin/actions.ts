@@ -5,19 +5,10 @@ import { XpReason } from "@/generated/prisma/enums";
 import { evaluateAchievements } from "@/lib/achievements/engine";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
-import { rollGoblin } from "@/lib/goblin/queries";
 import { GOBLIN_REWARD_XP } from "@/lib/goblin/rules";
 import { levelProgress } from "@/lib/progress/level";
 import { COIN_RATES } from "@/lib/shop/coins";
 import { grantChestCoins } from "@/lib/shop/earn";
-
-/** После отметки рабочего подхода: не выскочил ли Золотой гоблин (решает сервер, только при флаге). */
-export async function rollGoblinAction(workoutId: string): Promise<{ spawnedAt: string } | null> {
-  const user = await requireUser();
-  if (typeof workoutId !== "string" || !(await isEnabled("golden_goblin", user.id))) return null;
-  return rollGoblin(user.id, workoutId, new Date(), Math.random());
-}
 
 /** Сундук пойманного гоблина: 150 XP и монеты, забрать можно один раз. */
 export async function openGoblinChestAction(id: string): Promise<{ ok: true; amount: number; coins: number } | { ok: false; error: string }> {

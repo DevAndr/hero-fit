@@ -6,6 +6,7 @@ import { WorkoutStatus } from "@/generated/prisma/enums";
 import { queueGoal, YM_ID } from "@/lib/analytics/queue";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
+import { rollGoblin } from "@/lib/goblin/queries";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { getOccurrence } from "@/lib/plans/queries";
@@ -204,11 +205,21 @@ async function writeDraft(userId: string, workoutId: string, draft: WorkoutDraft
   return { ok: true };
 }
 
-export async function saveWorkoutDraftAction(workoutId: string, draft: WorkoutDraft): Promise<Result> {
+export async function saveWorkoutDraftAction(
+  workoutId: string,
+  draft: WorkoutDraft,
+): Promise<Result & { goblin?: { spawnedAt: string } }> {
   const user = await requireUser();
   const parsed = workoutDraftSchema.safeParse(draft);
   if (!parsed.success) return { ok: false, error: "Некорректные данные тренировки" };
-  return writeDraft(user.id, workoutId, parsed.data);
+  const saved = await writeDraft(user.id, workoutId, parsed.data);
+  if (!saved.ok || !(await isEnabled("golden_goblin", user.id))) return saved;
+  // Золотой гоблин: бросок по новым выполненным подходам — уже по сохранённому черновику
+  const goblin = await rollGoblin(user.id, workoutId, new Date(), Math.random()).catch((e) => {
+    console.error("[goblin] roll failed", e);
+    return null;
+  });
+  return goblin ? { ...saved, goblin } : saved;
 }
 
 // ───────────────────────────── Старт / финиш / отмена ─────────────────────────────

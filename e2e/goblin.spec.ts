@@ -9,7 +9,7 @@ test.beforeEach(async ({}, info) => {
 
 const bench = (page: Page) => page.getByRole("region", { name: "Жим штанги лёжа" });
 const complete = (page: Page, n: number) => bench(page).getByRole("button", { name: `Подход ${n} выполнен` }).click();
-const banner = (page: Page) => page.getByRole("status", { name: "Золотой гоблин" });
+const banner = (page: Page) => page.getByRole("region", { name: "Золотой гоблин" });
 
 /** Идущая тренировка с одним выполненным подходом (жим 60×10), черновик на сервере. */
 async function startedWorkout(page: Page) {
@@ -128,4 +128,36 @@ test("cancelling the workout removes its goblin", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Отменить тренировку" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Отменить тренировку" }).click();
   await expect.poll(() => goblinRows(me.login)).toEqual([]);
+});
+
+// В e2e GOBLIN_SET_CHANCE=1: с флагом гоблин выпадает на первом же броске (второй рабочий подход)
+test("real roll: the second working set brings the goblin; cancelling keeps the 14-day pause", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("golden_goblin", me.login);
+  await startedWorkout(page);
+  await expect(banner(page)).toHaveCount(0); // первый подход не бросает
+  await complete(page, 2);
+  await expect(banner(page)).toContainText("Золотой гоблин! 3 подхода за 10 минут");
+  expect(await goblinRows(me.login)).toEqual([{ caught: false, opened: false }]);
+
+  // Отменили тренировку — встреча удалена, но пауза осталась: новая тренировка гоблина не даст
+  await page.getByRole("button", { name: "Действия с тренировкой" }).click();
+  await page.getByRole("menuitem", { name: "Отменить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Отменить тренировку" }).click();
+  await expect.poll(() => goblinRows(me.login)).toEqual([]);
+  await startedWorkout(page);
+  await complete(page, 2);
+  await complete(page, 3);
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
+  await expect(banner(page)).toHaveCount(0);
+  expect(await goblinRows(me.login)).toEqual([]);
+});
+
+test("no flag — no roll", async ({ page }) => {
+  const me = await registerUser(page);
+  await startedWorkout(page);
+  await complete(page, 2);
+  await complete(page, 3);
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
+  expect(await goblinRows(me.login)).toEqual([]);
 });

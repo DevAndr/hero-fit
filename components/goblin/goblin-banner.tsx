@@ -18,7 +18,7 @@ export function GoblinBanner({
   sets,
 }: {
   spawnedAt: string;
-  sets: { completedAt: string | null; isWarmup: boolean }[];
+  sets: { completedAt: string | null; isWarmup: boolean; reps: string | number }[];
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [closed, setClosed] = useState(false);
@@ -39,8 +39,8 @@ export function GoblinBanner({
 
   if (closed) return null;
   return (
+    // Живая область — только события (появился, N/3, пойман, ушёл); таймер раз в секунду в неё не входит
     <section
-      role="status"
       aria-label="Золотой гоблин"
       className={cn(
         "sticky top-[calc(3.5rem+var(--tg-safe-top)+0.5rem)] z-20 mb-3 flex items-center gap-3 rounded-xl border p-3 shadow-lg backdrop-blur motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95",
@@ -49,15 +49,17 @@ export function GoblinBanner({
     >
       <Image src={goblinSprite} alt="" className={cn("h-14 w-auto shrink-0", p.escaped && "opacity-40 grayscale")} sizes="48px" />
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-amber-300">
-          {p.caught ? "Пойман! Сундук ждёт в итогах тренировки" : p.escaped ? "Гоблин ушёл…" : "Золотой гоблин! 3 подхода за 10 минут"}
-        </p>
+        <div role="status">
+          <p className="font-bold text-amber-300">
+            {p.caught ? "Пойман! Сундук ждёт в итогах тренировки" : p.escaped ? "Гоблин ушёл…" : "Золотой гоблин! 3 подхода за 10 минут"}
+          </p>
+          {active ? <p className="text-sm text-muted-foreground">Подходы: {p.done}/{GOBLIN_SETS}</p> : null}
+        </div>
         {active ? (
-          <p className="text-sm tabular-nums text-muted-foreground">
+          <p role="timer" aria-live="off" aria-label="До побега гоблина" className="text-sm tabular-nums text-muted-foreground">
             <span data-testid="goblin-timer" className="font-mono font-semibold text-foreground">
               {formatClock(Math.ceil(p.leftMs / 1000))}
-            </span>{" "}
-            · Подходы: {p.done}/{GOBLIN_SETS}
+            </span>
           </p>
         ) : null}
       </div>
