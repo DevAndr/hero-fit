@@ -226,3 +226,25 @@ test("completed set carries its values to the next empty one; removed set can be
   await expect(time.locator("..")).toContainText("< 1 мин");
   expect((await time.boundingBox())!.y).toBeGreaterThan(xp.y);
 });
+
+test("forgotten workout: an hour without sets → banner, finish at the last set time", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  await fillSet(page, "Жим штанги лёжа", 1, "60", "10");
+  await completeSet(page, "Жим штанги лёжа", 1);
+  await page.getByRole("timer", { name: "Таймер отдыха" }).getByRole("button", { name: "Пропустить отдых" }).click();
+  const banner = page.getByRole("region", { name: "Тренировка ещё идёт?" });
+  await expect(banner).toBeHidden();
+
+  await page.clock.fastForward("02:00:00");
+  await expect(banner).toContainText("Последний подход был 2 ч назад");
+  await banner.getByRole("button", { name: "Завершить" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("завершить тогда же? Длительность будет < 1 мин");
+  await dialog.getByRole("button", { name: "По последнему подходу" }).click();
+
+  await expect(page).toHaveURL(/\/workouts\/\w+$/);
+  await expect(page.getByText("Время", { exact: true }).locator("..")).toContainText("< 1 мин");
+});

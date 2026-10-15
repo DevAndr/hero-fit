@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initState, isCollapsed, isExerciseDone, lastWorkedKey, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
+import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
 const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: ["BACK" as const], isBodyweight: true };
@@ -299,5 +299,30 @@ describe("collapsing done exercises", () => {
     expect(isCollapsed(b, "a")).toBe(false);
     expect(isCollapsed(a, "b", false)).toBe(false);
     expect(isCollapsed(b, "a", true)).toBe(true);
+  });
+});
+
+describe("forgottenSince", () => {
+  const at = (iso: string) => Date.parse(iso);
+  function started(): WorkoutState {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }, { exercise: pullup, restSec: 90 }], last: {} });
+    s = reducer(s, { type: "started", startedAt: "2026-10-06T09:00:00.000Z" });
+    const [a, b] = s.exercises;
+    s = reducer(s, { type: "toggleComplete", key: a.key, setKey: a.sets[0].key, now: "2026-10-06T09:40:00.000Z" });
+    s = reducer(s, { type: "toggleComplete", key: b.key, setKey: b.sets[0].key, now: "2026-10-06T09:20:00.000Z" });
+    return s;
+  }
+
+  it("last completed set an hour ago or more — its time", () => {
+    expect(forgottenSince(started(), at("2026-10-06T10:40:00.000Z"))).toBe("2026-10-06T09:40:00.000Z");
+    expect(forgottenSince(started(), at("2026-10-07T05:00:00.000Z"))).toBe("2026-10-06T09:40:00.000Z");
+  });
+
+  it("recent set, no completed sets or not started — null", () => {
+    expect(forgottenSince(started(), at("2026-10-06T10:39:59.000Z"))).toBeNull();
+    const s = reducer(empty(), { type: "started", startedAt: "2026-10-06T09:00:00.000Z" });
+    expect(forgottenSince(s, at("2026-10-06T20:00:00.000Z"))).toBeNull();
+    const planned = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
+    expect(forgottenSince(planned, at("2026-10-06T20:00:00.000Z"))).toBeNull();
   });
 });
