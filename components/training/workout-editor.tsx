@@ -30,6 +30,7 @@ import { useFlag } from "@/components/flags/flags-provider";
 import { GoblinBanner } from "@/components/goblin/goblin-banner";
 import { SupersetHeader, SupersetLink, SupersetPart } from "@/components/training/superset-frame";
 import { canLink, groupLabels, groupSize } from "@/lib/workouts/supersets";
+import { isTimed } from "@/lib/workouts/kinds";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -250,7 +251,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     }
   }, [workout, restore]);
 
-  const totals = workoutTotals(draft.exercises);
+  const totals = workoutTotals(draft.exercises.map((e, i) => ({ ...e, kind: state.exercises[i]?.exercise.kind })));
   const pendingSets = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => !s.completedAt).length, 0);
   const added = useMemo(() => new Set(state.exercises.map((e) => e.exercise.id)), [state.exercises]);
 
@@ -263,6 +264,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
           name: e.name,
           muscleGroups: e.muscleGroups,
           isBodyweight: e.isBodyweight,
+          kind: e.kind,
         },
         restSec: e.defaultRestSec,
       })),
@@ -416,7 +418,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                             last={last[item.exercise.id]}
                             hint={hints[item.exercise.id]}
                             coachTarget={coachTargets[item.exercise.id]}
-                            onAsk={assistant.available ? () => assistant.openExercise(item.exercise.id) : undefined}
+                            onAsk={assistant.available && !isTimed(item.exercise.kind) ? () => assistant.openExercise(item.exercise.id) : undefined}
                             dispatch={dispatch}
                             onComplete={onComplete}
                             handle={handle}

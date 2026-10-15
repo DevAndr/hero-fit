@@ -266,7 +266,8 @@ export type GoalFormData = { exercises: GoalFormExercise[]; streak: number; weig
 export async function getGoalFormData(userId: string, tz: string): Promise<GoalFormData> {
   const [exercises, records, streak, weight] = await Promise.all([
     db.exercise.findMany({
-      where: { archivedAt: null, OR: [{ userId: null }, { userId }] },
+      // Силовые цели — только упражнения с повторами
+      where: { archivedAt: null, kind: "REPS", OR: [{ userId: null }, { userId }] },
       select: { id: true, name: true, isBodyweight: true },
       orderBy: { name: "asc" },
     }),

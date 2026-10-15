@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { parseExerciseForm, type ExerciseInput } from "@/lib/exercises/schema";
@@ -23,7 +24,17 @@ export async function saveExerciseAction(
   const parsed = parseExerciseForm(formData);
   if (!parsed.success) return { errors: parsed.errors };
 
-  const { id, ...data } = parsed.data;
+  const { id, kind, ...rest } = parsed.data;
+  // Вид — только при флаге workout_formats: без него форма не присылает поле, и вид не трогаем (новое — силовое)
+  const formats = await isEnabled("workout_formats", user.id);
+  const data = formats ? { ...rest, kind } : rest;
+  if (formats && id) {
+    const current = await db.exercise.findFirst({ where: { id, userId: user.id }, select: { kind: true } });
+    if (current && current.kind !== kind) {
+      const used = await db.workoutSet.count({ where: { workoutExercise: { exerciseId: id }, completedAt: { not: null } } });
+      if (used > 0) return { message: "Вид нельзя сменить: по упражнению уже есть подходы" };
+    }
+  }
 
   // Название должно быть уникальным среди видимых пользователю упражнений (без учёта регистра).
   const clash = await db.exercise.findFirst({
@@ -61,7 +72,7 @@ export async function saveExerciseAction(
  * Удалённые упражнения архивируются (история тренировок сохраняется), а unique(userId, name)
  * продолжает действовать — поэтому одноимённое архивное упражнение «воскрешаем».
  */
-async function createOrRestore(userId: string, data: Omit<ExerciseInput, "id">) {
+async function createOrRestore(userId: string, data: Omit<ExerciseInput, "id" | "kind"> & { kind?: ExerciseInput["kind"] }) {
   const archived = await db.exercise.findFirst({
     where: { userId, archivedAt: { not: null }, name: { equals: data.name, mode: "insensitive" } },
     select: { id: true },

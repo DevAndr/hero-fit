@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, formatKm, formatPace, isDoneSet, parseClock } from "./kinds";
+import { formatClock, formatKm, formatPace, isDoneSet, parseClock, timedSetText } from "./kinds";
 
 const done = "2026-10-15T10:00:00.000Z";
 
@@ -35,5 +35,20 @@ describe("clock, pace, km", () => {
     expect(formatPace(300, 900)).toBeNull();
     expect(formatKm(5200)).toBe("5,2 км");
     expect(formatKm(10000)).toBe("10 км");
+  });
+});
+
+describe("time field on a phone keypad and set captions", () => {
+  it("comma or dot work as the minutes separator", () => {
+    expect(parseClock("1,30")).toBe(90);
+    expect(parseClock("1.30")).toBe(90);
+    expect(parseClock("28.40")).toBe(1720);
+  });
+
+  it("timedSetText", () => {
+    expect(timedSetText("TIME", { durationSec: 90 })).toBe("1:30");
+    expect(timedSetText("CARDIO", { durationSec: 1720, distanceM: 5200 })).toBe("5,2 км · 28:40 · 5:31/км");
+    expect(timedSetText("CARDIO", { durationSec: 600, distanceM: 800 })).toBe("0,8 км · 10:00");
+    expect(timedSetText("CARDIO", { durationSec: 1200, distanceM: null })).toBe("20:00");
   });
 });

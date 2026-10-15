@@ -12,9 +12,12 @@ export function isDoneSet(kind: ExerciseKindName | undefined, s: { reps: number;
   return isTimed(kind) ? (s.durationSec ?? 0) > 0 : s.reps > 0;
 }
 
-/** «1:30» → 90, «90» → 90, «1:02:05» → 3725; мусор (и секунды/минуты ≥ 60 в частях) → 0. */
+/**
+ * «1:30» → 90, «90» → 90, «1:02:05» → 3725; мусор (и секунды/минуты ≥ 60 в частях) → 0.
+ * Запятая и точка — тоже разделитель («1,30»): на цифровой клавиатуре телефона нет двоеточия.
+ */
 export function parseClock(value: string): number {
-  const parts = value.trim().split(":");
+  const parts = value.trim().split(/[:.,]/);
   if (!parts.length || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return 0;
   const nums = parts.map(Number);
   if (nums.length === 1) return nums[0];
@@ -41,4 +44,12 @@ export function formatPace(sec: number, m: number): string | null {
 /** 5200 → «5,2 км». */
 export function formatKm(m: number): string {
   return `${(m / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} км`;
+}
+
+/** Подпись подхода на время / кардио: «1:30»; «5,2 км · 28:40 · 5:31/км»; без дистанции — только время. */
+export function timedSetText(kind: ExerciseKindName, s: { durationSec?: number | null; distanceM?: number | null }): string {
+  const time = formatClock(s.durationSec ?? 0);
+  if (kind !== "CARDIO" || !s.distanceM) return time;
+  const pace = formatPace(s.durationSec ?? 0, s.distanceM);
+  return [formatKm(s.distanceM), time, pace].filter(Boolean).join(" · ");
 }

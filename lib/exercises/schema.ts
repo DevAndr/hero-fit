@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MuscleGroup } from "@/generated/prisma/enums";
+import { ExerciseKind, MuscleGroup } from "@/generated/prisma/enums";
 
 export const MAX_REST_SEC = 600;
 
@@ -16,6 +16,8 @@ export const exerciseSchema = z.object({
     .min(1, "Выберите хотя бы одну группу мышц")
     .transform((groups) => [...new Set(groups)]),
   isBodyweight: z.boolean(),
+  /** Повторы / на время / кардио (выбор — при флаге workout_formats). */
+  kind: z.enum(ExerciseKind, "Неизвестный вид упражнения").default("REPS"),
   defaultRestSec: z.coerce
     .number("Укажите время отдыха")
     .int("Целое число секунд")
@@ -33,6 +35,7 @@ export function parseExerciseForm(formData: FormData) {
     // Порядок важен: первая выбранная группа — основная.
     muscleGroups: formData.getAll("muscleGroups"),
     isBodyweight: formData.get("isBodyweight") === "on",
+    kind: formData.get("kind") || undefined,
     defaultRestSec: formData.get("defaultRestSec") ?? "",
   });
 

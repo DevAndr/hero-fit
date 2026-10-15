@@ -525,7 +525,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
       w.dispatch({
         type: "replaceExercise",
         key,
-        exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, isBodyweight: target.isBodyweight },
+        exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, isBodyweight: target.isBodyweight, kind: target.kind },
         restSec: target.defaultRestSec,
         last: w.last,
       });
