@@ -10,7 +10,8 @@ type FinishedWorkout = {
   templateId: string | null;
   exercises: {
     exerciseId: string;
-    exercise: { name: string; isBodyweight: boolean };
+    /** `kind` не REPS (на время, кардио) — прогрессия веса не применяется. */
+    exercise: { name: string; isBodyweight: boolean; kind?: string };
     sets: { weight: number; reps: number; isWarmup: boolean; completedAt: Date | null }[];
   }[];
 };
@@ -42,6 +43,7 @@ export async function applyProgression(
     const te = template.exercises.find((e) => e.exerciseId === target.exerciseId);
     if (!te) continue; // упражнение убрано из шаблона — задание не читается
     const mine = workout.exercises.filter((e) => e.exerciseId === target.exerciseId);
+    if (mine.some((e) => e.exercise.kind && e.exercise.kind !== "REPS")) continue;
     const done = mine.flatMap((e) => e.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0));
     const result = progressTarget({ target, template: { sets: te.targetSets, reps: te.targetReps }, done });
     if (!result) continue;

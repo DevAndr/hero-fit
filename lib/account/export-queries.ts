@@ -52,12 +52,12 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
           select: {
             exercise: { select: { name: true } },
             supersetGroup: true,
-            sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, completedAt: true } },
+            sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, completedAt: true, durationSec: true, distanceM: true } },
           },
         },
       },
     }),
-    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, defaultRestSec: true, archivedAt: true, createdAt: true } }),
+    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, kind: true, defaultRestSec: true, archivedAt: true, createdAt: true } }),
     db.workoutTemplate.findMany({
       where: { userId },
       select: {
@@ -135,7 +135,7 @@ export async function getCsvSets(userId: string): Promise<CsvSet[]> {
       finishedAt: true,
       exercises: {
         orderBy: { order: "asc" },
-        select: { exercise: { select: { name: true, isBodyweight: true } }, sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true } } },
+        select: { exercise: { select: { name: true, isBodyweight: true } }, sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, durationSec: true, distanceM: true } } },
       },
     },
   });
@@ -148,8 +148,10 @@ export async function getCsvSets(userId: string): Promise<CsvSet[]> {
         index: i + 1,
         warmup: s.isWarmup,
         weight: e.exercise.isBodyweight && s.weight === 0 ? null : s.weight,
-        reps: s.reps,
+        reps: s.durationSec ? null : s.reps,
         rir: s.rir,
+        durationSec: s.durationSec,
+        distanceM: s.distanceM,
       })),
     ),
   );

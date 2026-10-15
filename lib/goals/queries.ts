@@ -9,6 +9,7 @@ import {
   deadlineEnd,
   goalProgress,
   goalTitle,
+  isStrengthMetric,
   paceStatus,
   suggestGoals,
   type GoalInput,
@@ -253,7 +254,7 @@ export async function getExerciseGoal(userId: string, exerciseId: string, tz: st
     orderBy: { createdAt: "asc" },
     select: goalSelect,
   });
-  if (!g?.metric) return null;
+  if (!g || !isStrengthMetric(g.metric)) return null;
   const [view] = await toViews(db, userId, [g], tz);
   return { metric: g.metric, target: g.target, forecast: view.forecast?.text ?? null };
 }
@@ -265,7 +266,8 @@ export type GoalFormData = { exercises: GoalFormExercise[]; streak: number; weig
 export async function getGoalFormData(userId: string, tz: string): Promise<GoalFormData> {
   const [exercises, records, streak, weight] = await Promise.all([
     db.exercise.findMany({
-      where: { archivedAt: null, OR: [{ userId: null }, { userId }] },
+      // Силовые цели — только упражнения с повторами
+      where: { archivedAt: null, kind: "REPS", OR: [{ userId: null }, { userId }] },
       select: { id: true, name: true, isBodyweight: true },
       orderBy: { name: "asc" },
     }),

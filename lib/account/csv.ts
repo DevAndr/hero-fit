@@ -9,9 +9,12 @@ export type CsvSet = {
   weight: number | null;
   reps: number | null;
   rir: number | null;
+  /** Подход на время / кардио: время, с; дистанция, м. */
+  durationSec?: number | null;
+  distanceM?: number | null;
 };
 
-const HEADER = ["Дата", "Тренировка", "Упражнение", "Подход", "Разминка", "Вес, кг", "Повторы", "RIR"];
+const HEADER = ["Дата", "Тренировка", "Упражнение", "Подход", "Разминка", "Вес, кг", "Повторы", "RIR", "Время, с", "Дистанция, м"];
 
 /** RFC 4180 + защита от формул: ячейка с `= + - @` в начале — с апострофом (названия своих упражнений). */
 function cell(value: string): string {
@@ -26,7 +29,7 @@ export function toWorkoutsCsv(rows: CsvSet[], timeZone: string): string {
   const lines = [HEADER.join(";")];
   for (const r of rows) {
     lines.push(
-      [fmt.format(r.finishedAt), r.workout, r.exercise, String(r.index), r.warmup ? "да" : "нет", number(r.weight), number(r.reps), number(r.rir)]
+      [fmt.format(r.finishedAt), r.workout, r.exercise, String(r.index), r.warmup ? "да" : "нет", number(r.weight), number(r.reps), number(r.rir), number(r.durationSec ?? null), number(r.distanceM ?? null)]
         .map(cell)
         .join(";"),
     );

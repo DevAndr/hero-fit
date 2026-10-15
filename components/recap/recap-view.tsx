@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatRecord } from "@/lib/progress/records";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { ArrowDown, ArrowUp, Award, CalendarCheck, Crown, Flame, Medal, Shield, Snowflake, Swords, Trophy, Users } from "lucide-react";
 import { BossChestButton } from "@/components/boss/boss-chest-button";
@@ -16,7 +17,8 @@ import { cn } from "@/lib/utils";
 
 const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
 const duration = (min: number) => (min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч${min % 60 ? ` ${min % 60} мин` : ""}`);
-const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы" } as const;
+const TIMED_RECORDS: ReadonlySet<string> = new Set(["MAX_DURATION", "MAX_DISTANCE", "BEST_PACE"]);
+const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы", MAX_DURATION: "время", MAX_DISTANCE: "дистанция", BEST_PACE: "темп" } as const;
 
 function Block({ label, icon: Icon, children, className }: { label: string; icon: typeof Trophy; children: React.ReactNode; className?: string }) {
   return (
@@ -148,7 +150,8 @@ function Records({ records }: { records: NonNullable<RecapData["records"]> }) {
         <ul className="mt-2 flex flex-wrap gap-2" aria-label="Рекорды">
           {records.prs.map((r, i) => (
             <li key={`${r.exerciseId}-${r.type}-${i}`} className="rounded-full bg-xp/15 px-2.5 py-1 text-xs font-semibold text-xp">
-              {r.exerciseName}: {RECORD_LABEL[r.type]} {r.type === "MAX_REPS" ? r.value : kg(Math.round(r.value * 10) / 10)}
+              {r.exerciseName}: {RECORD_LABEL[r.type]}{" "}
+              {r.type === "MAX_REPS" ? r.value : TIMED_RECORDS.has(r.type) ? formatRecord(r.type, r.value) : kg(Math.round(r.value * 10) / 10)}
             </li>
           ))}
         </ul>

@@ -18,13 +18,14 @@ import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { saveTemplateAction } from "@/lib/templates/actions";
 import { progressionHint } from "@/lib/templates/progression";
 import { useFlag } from "@/components/flags/flags-provider";
+import { isTimed, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { SupersetHeader, SupersetLabel, SupersetLink, SupersetPart } from "@/components/training/superset-frame";
 import { canLink, groupLabels, groupSize, link, normalizeGroups, unlink } from "@/lib/workouts/supersets";
 import type { TemplateForEdit } from "@/lib/templates/queries";
 
 type Item = {
   key: string;
-  exercise: { id: string; name: string; muscleGroups: MuscleGroup[]; archived: boolean; isBodyweight: boolean };
+  exercise: { id: string; name: string; muscleGroups: MuscleGroup[]; archived: boolean; isBodyweight: boolean; kind: ExerciseKindName };
   targetSets: string;
   targetReps: string;
   targetWeight: string;
@@ -107,7 +108,7 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
       ...cur,
       ...picked.map((e) => ({
         key: key(),
-        exercise: { id: e.id, name: e.name, muscleGroups: e.muscleGroups, archived: false, isBodyweight: e.isBodyweight },
+        exercise: { id: e.id, name: e.name, muscleGroups: e.muscleGroups, archived: false, isBodyweight: e.isBodyweight, kind: e.kind },
         targetSets: "3",
         targetReps: "",
         targetWeight: "",
@@ -125,10 +126,11 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
         exercises: items.map((i) => ({
           exerciseId: i.exercise.id,
           targetSets: Math.round(parseNumber(i.targetSets)),
-          targetReps: Math.round(parseNumber(i.targetReps)) || null,
-          targetWeight: parseNumber(i.targetWeight) || null,
+          // На время и кардио — только подходы и отдых
+          targetReps: isTimed(i.exercise.kind) ? null : Math.round(parseNumber(i.targetReps)) || null,
+          targetWeight: isTimed(i.exercise.kind) ? null : parseNumber(i.targetWeight) || null,
           restSec: Math.round(parseNumber(i.restSec)),
-          step: parseNumber(i.step) || null,
+          step: isTimed(i.exercise.kind) ? null : parseNumber(i.step) || null,
           group: i.group,
         })),
       });
@@ -215,24 +217,30 @@ export function TemplateEditor({ template, exercises }: { template?: TemplateFor
               </div>
               <div className="mt-3 grid grid-cols-4 gap-2">
                 <NumberCell label="Подходы" value={item.targetSets} onChange={(v) => update(item.key, { targetSets: v })} />
-                <NumberCell label="Повторы" value={item.targetReps} onChange={(v) => update(item.key, { targetReps: v })} />
-                <NumberCell label="Вес, кг" decimal value={item.targetWeight} onChange={(v) => update(item.key, { targetWeight: v })} />
+                {isTimed(item.exercise.kind) ? null : (
+                  <>
+                    <NumberCell label="Повторы" value={item.targetReps} onChange={(v) => update(item.key, { targetReps: v })} />
+                    <NumberCell label="Вес, кг" decimal value={item.targetWeight} onChange={(v) => update(item.key, { targetWeight: v })} />
+                  </>
+                )}
                 <NumberCell label="Отдых, с" value={item.restSec} onChange={(v) => update(item.key, { restSec: v })} />
               </div>
-              <div className="mt-2 grid grid-cols-4 items-end gap-2">
-                <NumberCell label="Шаг, кг" decimal value={item.step} onChange={(v) => update(item.key, { step: v })} />
-                <p className="col-span-3 pb-2 text-xs text-muted-foreground">
-                  {progressionHint(
-                    {
-                      targetSets: Math.round(parseNumber(item.targetSets)) || 1,
-                      targetReps: Math.round(parseNumber(item.targetReps)) || null,
-                      targetWeight: parseNumber(item.targetWeight) || null,
-                      step: parseNumber(item.step) || null,
-                    },
-                    { bodyweight: item.exercise.isBodyweight },
-                  ) ?? "Шаг — вес растёт сам, когда цель выполнена"}
-                </p>
-              </div>
+              {isTimed(item.exercise.kind) ? null : (
+                <div className="mt-2 grid grid-cols-4 items-end gap-2">
+                  <NumberCell label="Шаг, кг" decimal value={item.step} onChange={(v) => update(item.key, { step: v })} />
+                  <p className="col-span-3 pb-2 text-xs text-muted-foreground">
+                    {progressionHint(
+                      {
+                        targetSets: Math.round(parseNumber(item.targetSets)) || 1,
+                        targetReps: Math.round(parseNumber(item.targetReps)) || null,
+                        targetWeight: parseNumber(item.targetWeight) || null,
+                        step: parseNumber(item.step) || null,
+                      },
+                      { bodyweight: item.exercise.isBodyweight },
+                    ) ?? "Шаг — вес растёт сам, когда цель выполнена"}
+                  </p>
+                </div>
+              )}
             </section>
           </SupersetPart>
           {formatsOn && items[index + 1] ? (

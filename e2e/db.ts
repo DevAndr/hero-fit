@@ -1130,3 +1130,20 @@ export async function setExerciseGroups(login: string, groups: (number | null)[]
     }
   });
 }
+
+/** Подходы на время / кардио последней завершённой тренировки пользователя: время и дистанция. */
+export async function timedSets(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; durationSec: number | null; distanceM: number | null }>(
+      `select e.name, s."durationSec", s."distanceM" from "WorkoutSet" s
+       join "WorkoutExercise" we on we.id = s."workoutExerciseId"
+       join "Exercise" e on e.id = we."exerciseId"
+       join "Workout" w on w.id = we."workoutId"
+       join "User" u on u.id = w."userId"
+       where u.login = $1 and w.status = 'COMPLETED' and e.kind in ('TIME', 'CARDIO')
+       order by we."order", s."order"`,
+      [login],
+    );
+    return rows;
+  });
+}

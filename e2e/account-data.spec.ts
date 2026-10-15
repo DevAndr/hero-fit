@@ -47,7 +47,7 @@ test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({
 
   const [csv] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Тренировки (CSV)" }).click()]);
   const rows = await readFile((await csv.path())!, "utf8");
-  expect(rows.startsWith("﻿Дата;Тренировка;Упражнение;Подход;Разминка;Вес, кг;Повторы;RIR\r\n")).toBe(true);
+  expect(rows.startsWith("﻿Дата;Тренировка;Упражнение;Подход;Разминка;Вес, кг;Повторы;RIR;Время, с;Дистанция, м\r\n")).toBe(true);
   expect(rows).toContain(";Жим штанги лёжа;1;нет;62,5;8;");
 
   expect((await page.request.get("/account/export/xml")).status()).toBe(404);

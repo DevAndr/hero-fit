@@ -1,4 +1,5 @@
 import "server-only";
+import { hiddenGoalCategories } from "@/lib/achievements/queries";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { nextGoals } from "@/lib/achievements/definitions";
@@ -76,7 +77,7 @@ export async function getDashboard(userId: string, timeZone: string) {
     weekHours: (weekTime._sum.durationSec ?? 0) / 3600,
     lastWorkout,
     activeWorkout,
-    nearestGoal: nextGoals(stats)[0] ?? null,
+    nearestGoal: nextGoals(stats, await hiddenGoalCategories(userId))[0] ?? null,
     streak: user,
   };
 }

@@ -18,9 +18,9 @@ describe("toWorkoutsCsv", () => {
     const csv = toWorkoutsCsv([set(), set({ index: 2, warmup: true, rir: 2, weight: null, reps: null })], "Europe/Moscow");
     expect(csv.startsWith("﻿")).toBe(true);
     const lines = csv.slice(1).split("\r\n");
-    expect(lines[0]).toBe("Дата;Тренировка;Упражнение;Подход;Разминка;Вес, кг;Повторы;RIR");
-    expect(lines[1]).toBe("2026-10-13 00:30;Грудь;Жим штанги лёжа;1;нет;62,5;8;");
-    expect(lines[2]).toBe("2026-10-13 00:30;Грудь;Жим штанги лёжа;2;да;;;2");
+    expect(lines[0]).toBe("Дата;Тренировка;Упражнение;Подход;Разминка;Вес, кг;Повторы;RIR;Время, с;Дистанция, м");
+    expect(lines[1]).toBe("2026-10-13 00:30;Грудь;Жим штанги лёжа;1;нет;62,5;8;;;");
+    expect(lines[2]).toBe("2026-10-13 00:30;Грудь;Жим штанги лёжа;2;да;;;2;;");
   });
   it("кавычки, ; и перевод строки — в кавычках", () => {
     const csv = toWorkoutsCsv([set({ exercise: 'Жим "узкий"; 2', workout: "день\nног" })], "UTC");
@@ -30,5 +30,12 @@ describe("toWorkoutsCsv", () => {
     const csv = toWorkoutsCsv([set({ exercise: '=HYPERLINK("x")' })], "UTC");
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
     expect(toWorkoutsCsv([set({ workout: "+1" })], "UTC")).toContain(";'+1;");
+  });
+});
+
+describe("toWorkoutsCsv — cardio and timed sets", () => {
+  it("time and distance columns", () => {
+    const csv = toWorkoutsCsv([set({ exercise: "Бег", weight: null, reps: null, durationSec: 1720, distanceM: 5200 })], "UTC");
+    expect(csv.slice(1).split("\r\n")[1]).toBe("2026-10-12 21:30;Грудь;Бег;1;нет;;;;1720;5200");
   });
 });

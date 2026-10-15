@@ -56,3 +56,12 @@ describe("goblinProgress", () => {
     expect(goblinProgress(spawned, [], at(4)).escaped).toBe(false);
   });
 });
+
+describe("goblinProgress — timed and cardio sets", () => {
+  it("a set with time but no reps counts", () => {
+    const at = new Date(now.getTime() + 60_000).toISOString();
+    const set = { completedAt: at, isWarmup: false, reps: 0, durationSec: 60 };
+    expect(goblinProgress(now, [set, set, set], new Date(now.getTime() + 120_000)).caught).toBe(true);
+    expect(goblinProgress(now, [{ ...set, durationSec: 0 }], new Date(now.getTime() + 120_000)).done).toBe(0);
+  });
+});

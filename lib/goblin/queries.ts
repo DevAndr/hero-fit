@@ -22,7 +22,7 @@ export async function rollGoblin(userId: string, workoutId: string, now: Date, r
   });
   if (!workout || workout.goblin) return null;
   const completed = await db.workoutSet.count({
-    where: { workoutExercise: { workoutId }, isWarmup: false, reps: { gt: 0 }, completedAt: { not: null } },
+    where: { workoutExercise: { workoutId }, isWarmup: false, OR: [{ reps: { gt: 0 } }, { durationSec: { gt: 0 } }], completedAt: { not: null } },
   });
   const rolls = rollsFor({ rolledSets: workout.goblinRolledSets, completed });
   if (rolls <= 0) return null;

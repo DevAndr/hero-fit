@@ -152,7 +152,7 @@ export async function getManageTasks(clubId: string, now = new Date()) {
   }));
 }
 
-/** Встроенные упражнения для заданий «Повторы». */
+/** Встроенные упражнения для заданий «Повторы» (у кардио и упражнений на время повторов нет). */
 export function builtinExercises() {
-  return db.exercise.findMany({ where: { userId: null }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  return db.exercise.findMany({ where: { userId: null, kind: "REPS" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 }

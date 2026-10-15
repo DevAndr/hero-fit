@@ -25,7 +25,7 @@ export async function ensureRetroCoins(userId: string): Promise<number> {
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" < ${user.coinsSince}
         AND NOT EXISTS (SELECT 1 FROM "CoinTx" c WHERE c."userId" = w."userId" AND c.key = 'workout:' || w.id)
         AND (SELECT COUNT(*) FROM "WorkoutSet" s JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
-             WHERE we."workoutId" = w.id AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s.reps > 0) >= 3
+             WHERE we."workoutId" = w.id AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND (s.reps > 0 OR s."durationSec" > 0)) >= 3
       GROUP BY 1`;
 
     const records = await tx.$queryRaw<{ n: number }[]>`

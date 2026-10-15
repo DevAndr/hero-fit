@@ -66,6 +66,10 @@ export const goalSchema = z
 
 export type GoalInput = z.infer<typeof goalSchema>;
 
+/** Метрики силовых целей (рекорды кардио и упражнений на время в целях не участвуют). */
+export type StrengthMetric = "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS";
+export const isStrengthMetric = (m: string | null | undefined): m is StrengthMetric => m === "ONE_RM" || m === "MAX_WEIGHT" || m === "MAX_REPS";
+
 
 function addMonths(day: string, n: number) {
   const d = new Date(`${day}T12:00:00Z`);

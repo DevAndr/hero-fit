@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { formatRecord } from "@/lib/progress/records";
 import { Fragment, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, Layers, Medal, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, HeartPulse, Layers, Medal, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
@@ -19,6 +20,8 @@ import { formatDuration, rirLabel } from "@/lib/format";
 import { GoblinSummary } from "@/components/goblin/goblin-summary";
 import { levelProgress } from "@/lib/progress/level";
 import { groupLabels, groupSize } from "@/lib/workouts/supersets";
+import { formatKm, isTimed, timedSetText } from "@/lib/workouts/kinds";
+import { workoutTotals } from "@/lib/workouts/schema";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import type { getWorkoutSummary } from "@/lib/workouts/queries";
@@ -32,10 +35,14 @@ const RECORD_LABELS: Record<RecordType, string> = {
   ONE_RM: "1RM (расчётный)",
   MAX_WEIGHT: "Макс. вес",
   MAX_REPS: "Макс. повторы",
+  MAX_DURATION: "Дольше всего",
+  MAX_DISTANCE: "Дальше всего",
+  BEST_PACE: "Лучший темп",
 };
 
 const kg = (n: number) => `${Math.round(n * 10) / 10} кг`;
-const recordValue = (type: RecordType, v: number) => (type === "MAX_REPS" ? `${v} повт.` : kg(v));
+const recordValue = (type: RecordType, v: number) => (type === "MAX_REPS" ? `${v} повт.` : TIMED_RECORDS.has(type) ? formatRecord(type, v) : kg(v));
+const TIMED_RECORDS: ReadonlySet<string> = new Set(["MAX_DURATION", "MAX_DISTANCE", "BEST_PACE"]);
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
 function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
@@ -89,6 +96,8 @@ export function WorkoutSummaryView({
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const groupItems = workout.exercises.map((we) => ({ group: we.supersetGroup }));
+  // Кардио и упражнения на время: минуты и км (подходы — уже только выполненные)
+  const cardio = workoutTotals(workout.exercises.map((we) => ({ kind: we.exercise.kind, sets: we.sets })));
   const labels = supersets ? groupLabels(groupItems) : [];
   const achievementsXp = meta?.achievementsXp ?? 0;
   const totalXp = workout.xpEarned + achievementsXp;
@@ -221,6 +230,13 @@ export function WorkoutSummaryView({
         <Stat icon={Layers} label="Подходы" value={String(workout.totalSets)} />
         <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
         <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
+        {cardio.workSec > 0 ? (
+          <Stat
+            icon={HeartPulse}
+            label="Кардио"
+            value={[`${Math.round(cardio.workSec / 60)} мин`, cardio.distanceM ? formatKm(cardio.distanceM) : null].filter(Boolean).join(" · ")}
+          />
+        ) : null}
       </div>
 
       {feedback ? <div className="mt-4">{feedback}</div> : null}
@@ -248,7 +264,11 @@ export function WorkoutSummaryView({
                       key={s.id}
                       className={cn("rounded-md px-2 py-0.5", s.isWarmup ? "bg-muted text-muted-foreground" : "bg-primary/10")}
                     >
-                      {s.weight ? `${s.weight} × ${s.reps}` : `${s.reps} повт.`}
+                      {isTimed(we.exercise.kind)
+                    ? timedSetText(we.exercise.kind, s)
+                    : s.weight
+                      ? `${s.weight} × ${s.reps}`
+                      : `${s.reps} повт.`}
                       {s.rir !== null ? <span className="ml-1 text-xs text-muted-foreground">@RIR {rirLabel(s.rir)}</span> : null}
                     </li>
                   ))}
