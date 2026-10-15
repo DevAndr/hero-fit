@@ -78,6 +78,17 @@ export type AchievementStats = {
   bossWins: number;
   /** Пойманных Золотых гоблинов (GoblinEncounter с caughtAt). */
   goblinCatches: number;
+  // Выносливость (кардио и упражнения на время)
+  /** Σ дистанций подходов кардио, м. */
+  cardioDistanceM: number;
+  /** Σ времени подходов на время и кардио, с. */
+  workSec: number;
+  /** Самый длинный подход кардио, м. */
+  longestCardioSetM: number;
+  /** Самый долгий подход на время, с. */
+  longestTimeSetSec: number;
+  /** Тренировок с силовым подходом и подходом кардио. */
+  hybridWorkouts: number;
   /** Побед в рейдах гильдии, где бил до победы (RaidReward). */
   raidWins: number;
   /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
@@ -141,6 +152,15 @@ export const COACH_CODE_PREFIX: Record<CoachLadderKey, string> = {
 
 export type LeaguePlace = 1 | 2 | 3;
 
+const CARDIO_KM_TITLES: Record<number, string> = { 10: "Первая десятка", 42: "Марафонская дистанция" };
+const CARDIO_SET: Record<number, { title: string; xp: number }> = {
+  5000: { title: "Пятёрка", xp: 30 },
+  10000: { title: "Десятка", xp: 40 },
+  21100: { title: "Полумарафон", xp: 60 },
+  42200: { title: "Марафон", xp: 100 },
+};
+const HOLD_XP: Record<number, number> = { 60: 20, 120: 30, 180: 40, 300: 60 };
+
 export const EMPTY_STATS: AchievementStats = {
   workouts: 0,
   longestStreak: 0,
@@ -174,6 +194,11 @@ export const EMPTY_STATS: AchievementStats = {
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
   bossWins: 0,
   goblinCatches: 0,
+  cardioDistanceM: 0,
+  workSec: 0,
+  longestCardioSetM: 0,
+  longestTimeSetSec: 0,
+  hybridWorkouts: 0,
   raidWins: 0,
   raidMvps: 0,
   clubTaskRewards: 0,
@@ -696,6 +721,74 @@ function ladders(s: AchievementStats): Ladder[] {
         }),
     },
 
+    // Выносливость
+    {
+      fixed: [10, 42, 100, 250, 500, 1000],
+      step: 500,
+      value: s.cardioDistanceM / 1000,
+      unit: " км",
+      def: (n) =>
+        def(n, {
+          code: `cardio_km:${n}`,
+          category: "ENDURANCE",
+          title: CARDIO_KM_TITLES[n] ?? `Дорога: ${number(n)} км`,
+          description: `Пройти, пробежать или проехать ${number(n)} км на кардио`,
+          xpReward: Math.round(20 + n / 5),
+        }),
+    },
+    {
+      fixed: [1, 5, 10, 25, 50],
+      step: 50,
+      value: s.workSec / 3600,
+      unit: " ч",
+      def: (n) =>
+        def(n, {
+          code: `work_hours:${n}`,
+          category: "ENDURANCE",
+          title: `Кардио: ${n} ч`,
+          description: `Провести ${n} ${plural(n, "час", "часа", "часов")} в кардио и упражнениях на время`,
+          xpReward: Math.round(20 + n),
+        }),
+    },
+    {
+      fixed: Object.keys(CARDIO_SET).map(Number),
+      value: s.longestCardioSetM,
+      goal: false,
+      def: (n) =>
+        def(n, {
+          code: `cardio_set:${n}`,
+          category: "ENDURANCE",
+          title: CARDIO_SET[n].title,
+          description: `${(n / 1000).toLocaleString("ru-RU")} км одним подходом кардио`,
+          xpReward: CARDIO_SET[n].xp,
+        }),
+    },
+    {
+      fixed: Object.keys(HOLD_XP).map(Number),
+      value: s.longestTimeSetSec,
+      goal: false,
+      def: (n) =>
+        def(n, {
+          code: `hold:${n}`,
+          category: "ENDURANCE",
+          title: `Стойкость: ${n / 60} мин`,
+          description: `Продержаться ${n / 60} мин одним подходом на время`,
+          xpReward: HOLD_XP[n],
+        }),
+    },
+    {
+      fixed: [1, 10, 50],
+      value: s.hybridWorkouts,
+      def: (n) =>
+        def(n, {
+          code: `hybrid:${n}`,
+          category: "ENDURANCE",
+          title: n === 1 ? "Гибрид" : `Гибрид ×${n}`,
+          description: n === 1 ? "Силовые и кардио в одной тренировке" : `${workouts(n)} с силовыми и кардио`,
+          xpReward: 25 + n,
+        }),
+    },
+
     // Рейды гильдии
     {
       fixed: [1, 5, 10, 25],
@@ -860,14 +953,18 @@ export function earnedAchievements(stats: AchievementStats): AchievementDef[] {
 
 export type Goal = AchievementDef & { current: number; target: number; percent: number; unit: string };
 
-/** Ближайшие неполученные ачивки по каждой лестнице (группе) — для прогресс-баров. Сначала самые близкие. */
-export function nextGoals(stats: AchievementStats): Goal[] {
+/**
+ * Ближайшие неполученные ачивки по каждой лестнице (группе) — для прогресс-баров. Сначала самые близкие.
+ * `hide` — категории за выключенным флагом (ENDURANCE без workout_formats).
+ */
+export function nextGoals(stats: AchievementStats, opts: { hide?: ReadonlySet<AchievementCategory> } = {}): Goal[] {
   const best = new Map<string, Goal>();
   for (const [i, l] of ladders(stats).entries()) {
     if (l.goal === false) continue;
     const current = Math.max(0, l.goalValue ?? l.value);
     const target = nextThreshold(l.fixed, l.step, current);
     if (target === undefined) continue;
+    if (opts.hide?.has(l.def(target).category)) continue;
     const g: Goal = {
       ...l.def(target),
       current: Math.round(current * 10) / 10,
