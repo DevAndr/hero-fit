@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, formatKm, formatPace, isDoneSet, parseClock, timedSetText } from "./kinds";
+import { formatClock, formatKm, formatPace, isDoneSet, parseClock, plannedTimedSets, timedSetText } from "./kinds";
 
 const done = "2026-10-15T10:00:00.000Z";
 
@@ -50,5 +50,25 @@ describe("time field on a phone keypad and set captions", () => {
     expect(timedSetText("CARDIO", { durationSec: 1720, distanceM: 5200 })).toBe("5,2 км · 28:40 · 5:31/км");
     expect(timedSetText("CARDIO", { durationSec: 600, distanceM: 800 })).toBe("0,8 км · 10:00");
     expect(timedSetText("CARDIO", { durationSec: 1200, distanceM: null })).toBe("20:00");
+  });
+});
+
+describe("cardio time: a bare number means minutes", () => {
+  it("«30» for a run is half an hour, not 30 seconds", () => {
+    expect(parseClock("30", { bareMinutes: true })).toBe(1800);
+    expect(parseClock("28:40", { bareMinutes: true })).toBe(1720);
+    expect(parseClock("90")).toBe(90);
+  });
+});
+
+describe("plannedTimedSets", () => {
+  it("time and distance from last time, no weight or reps", () => {
+    const last = [{ weight: 0, reps: 0, durationSec: 1720, distanceM: 5200 }, { weight: 0, reps: 0, durationSec: 600, distanceM: 2000 }];
+    expect(plannedTimedSets(3, last)).toEqual([
+      { weight: 0, reps: 0, durationSec: 1720, distanceM: 5200 },
+      { weight: 0, reps: 0, durationSec: 600, distanceM: 2000 },
+      { weight: 0, reps: 0, durationSec: 600, distanceM: 2000 },
+    ]);
+    expect(plannedTimedSets(1, [])).toEqual([{ weight: 0, reps: 0, durationSec: null, distanceM: null }]);
   });
 });

@@ -36,11 +36,12 @@ export async function saveExerciseAction(
     }
   }
 
-  // Название должно быть уникальным среди видимых пользователю упражнений (без учёта регистра).
+  // Название должно быть уникальным среди видимых пользователю упражнений (без учёта регистра);
+  // без флага встроенные на время и кардио скрыты — их названия не заняты
   const clash = await db.exercise.findFirst({
     where: {
       archivedAt: null,
-      OR: [{ userId: null }, { userId: user.id }],
+      OR: [{ userId: null, ...(formats ? {} : { kind: "REPS" as const }) }, { userId: user.id }],
       name: { equals: data.name, mode: "insensitive" },
       ...(id ? { id: { not: id } } : {}),
     },

@@ -37,6 +37,7 @@ import {
 } from "@/lib/assistant/scenarios";
 import type { Target } from "@/lib/coach/targets";
 import type { ExerciseItem } from "@/lib/exercises/queries";
+import { isTimed } from "@/lib/workouts/kinds";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { createWorkoutAction } from "@/lib/workouts/actions";
@@ -362,7 +363,8 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
     async (node: NodeId, painNow: PainSpot[]): Promise<Reply> => {
       const w = workoutRef.current;
       if (node === "menu" && w) {
-        const names = new Map(w.exercises.map((e) => [e.exercise.id, e.exercise.name]));
+        // Советы помощника — про вес и повторы: упражнения на время и кардио в меню не попадают
+        const names = new Map(w.exercises.filter((e) => !isTimed(e.exercise.kind)).map((e) => [e.exercise.id, e.exercise.name]));
         return {
           text: names.size ? "Чем помочь? Выбери упражнение или тему." : "Чем помочь?",
           buttons: [...[...names].map(([id, name]) => ({ label: name, go: `exercise:${id}` })), ...MENU_BUTTONS],

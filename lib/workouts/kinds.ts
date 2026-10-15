@@ -16,11 +16,12 @@ export function isDoneSet(kind: ExerciseKindName | undefined, s: { reps: number;
  * «1:30» → 90, «90» → 90, «1:02:05» → 3725; мусор (и секунды/минуты ≥ 60 в частях) → 0.
  * Запятая и точка — тоже разделитель («1,30»): на цифровой клавиатуре телефона нет двоеточия.
  */
-export function parseClock(value: string): number {
+export function parseClock(value: string, opts: { bareMinutes?: boolean } = {}): number {
   const parts = value.trim().split(/[:.,]/);
   if (!parts.length || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return 0;
   const nums = parts.map(Number);
-  if (nums.length === 1) return nums[0];
+  // Кардио: «30» — полчаса, а не 30 секунд (иначе темп «0:06/км» навсегда в рекордах)
+  if (nums.length === 1) return opts.bareMinutes ? nums[0] * 60 : nums[0];
   if (nums.slice(1).some((n) => n >= 60)) return 0;
   return nums.reduce((acc, n) => acc * 60 + n, 0);
 }
@@ -52,4 +53,14 @@ export function timedSetText(kind: ExerciseKindName, s: { durationSec?: number |
   if (kind !== "CARDIO" || !s.distanceM) return time;
   const pace = formatPace(s.durationSec ?? 0, s.distanceM);
   return [formatKm(s.distanceM), time, pace].filter(Boolean).join(" · ");
+}
+
+type TimedSet = { weight: number; reps: number; durationSec: number | null; distanceM: number | null };
+
+/** Подходы упражнения на время / кардио при старте: время и дистанция «как в прошлый раз», без веса и повторов. */
+export function plannedTimedSets(count: number, last: { durationSec?: number | null; distanceM?: number | null }[]): TimedSet[] {
+  return Array.from({ length: count }, (_, i) => {
+    const prev = last[i] ?? last.at(-1);
+    return { weight: 0, reps: 0, durationSec: prev?.durationSec ?? null, distanceM: prev?.distanceM ?? null };
+  });
 }

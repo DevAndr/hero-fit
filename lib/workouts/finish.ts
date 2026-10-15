@@ -129,7 +129,12 @@ export async function finishWorkout(
       // Подход «состоялся»: силовой — с повторами, на время и кардио — со временем
       where: {
         workoutExercise: { workoutId },
-        OR: [{ completedAt: null }, { reps: { lte: 0 }, OR: [{ durationSec: null }, { durationSec: { lte: 0 } }] }],
+        OR: [
+          { completedAt: null },
+          { reps: { lte: 0 }, OR: [{ durationSec: null }, { durationSec: { lte: 0 } }] },
+          // На время и кардио повторы не в счёт: без времени подход не состоялся
+          { workoutExercise: { exercise: { kind: { not: "REPS" } } }, OR: [{ durationSec: null }, { durationSec: { lte: 0 } }] },
+        ],
       },
     });
     await tx.workoutExercise.deleteMany({ where: { workoutId, sets: { none: {} } } });

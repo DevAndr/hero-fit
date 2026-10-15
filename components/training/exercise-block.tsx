@@ -21,10 +21,10 @@ import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { typoWarning, type TypoReference } from "@/lib/workouts/typo";
-import { isTimed, parseClock, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
+import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
-import { isExerciseDone, parseNumber, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
+import { isExerciseDone, parseNumber, setDurationSec, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
 
 /** Образец для «точно столько?»: прошлый выполненный рабочий подход здесь, иначе тот же по счёту в прошлый раз. */
 function typoReference(sets: SetState[], index: number, workingNumber: number, last?: LastPerformance[string]): TypoReference | null {
@@ -56,7 +56,7 @@ function CollapsedExercise({
   const kind: ExerciseKindName = item.exercise.kind ?? "REPS";
   const working = item.sets.filter((s) => !s.isWarmup);
   const summary = isTimed(kind)
-    ? working.map((s) => timedSetText(kind, { durationSec: parseClock(s.duration), distanceM: Math.round(parseNumber(s.distance) * 1000) })).join(", ")
+    ? working.map((s) => timedSetText(kind, { durationSec: setDurationSec(kind, s.duration), distanceM: Math.round(parseNumber(s.distance) * 1000) })).join(", ")
     : formatSets(working.map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) })));
   return (
     <section className="rounded-xl border bg-card" aria-label={item.exercise.name} data-exercise-key={item.key} data-collapsed>
@@ -298,7 +298,7 @@ export function ExerciseBlock({
                     onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { duration: e.target.value } })}
                     onBlur={(e) => {
                       // «1,30» и «90» → «1:30»: видно, как поняли ввод
-                      const sec = parseClock(e.target.value);
+                      const sec = setDurationSec(kind, e.target.value);
                       if (sec > 0 && e.target.value !== timedSetText("TIME", { durationSec: sec }))
                         dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { duration: timedSetText("TIME", { durationSec: sec }) } });
                     }}

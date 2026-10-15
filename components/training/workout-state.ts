@@ -1,7 +1,7 @@
 import type { ActiveWorkout, ExerciseInfo, LastPerformance } from "@/lib/workouts/queries";
 import type { WorkoutDraft } from "@/lib/workouts/schema";
 import { afterSet, link, normalizeGroups, unlink } from "@/lib/workouts/supersets";
-import { formatClock, parseClock } from "@/lib/workouts/kinds";
+import { formatClock, isTimed, parseClock, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 /** Вес и повторы — строки: пользователь может временно стереть поле или ввести «82,5». */
 export type SetState = {
@@ -58,6 +58,10 @@ export const parseNumber = (value: string) => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
+/** Время подхода из поля: у кардио голое число — минуты. */
+export const setDurationSec = (kind: ExerciseKindName | undefined, duration: string | undefined) =>
+  parseClock(duration ?? "", { bareMinutes: kind === "CARDIO" });
+
 export function toDraft(state: WorkoutState): WorkoutDraft {
   return {
     name: state.name.trim() || "Тренировка",
@@ -66,9 +70,10 @@ export function toDraft(state: WorkoutState): WorkoutDraft {
       restSec: e.restSec,
       group: e.group,
       sets: e.sets.map((s) => ({
-        weight: parseNumber(s.weight),
-        reps: Math.round(parseNumber(s.reps)),
-        durationSec: parseClock(s.duration ?? "") || null,
+        // На время и кардио — без веса и повторов (их мог подставить план, помощник или задание тренера)
+        weight: isTimed(e.exercise.kind) ? 0 : parseNumber(s.weight),
+        reps: isTimed(e.exercise.kind) ? 0 : Math.round(parseNumber(s.reps)),
+        durationSec: setDurationSec(e.exercise.kind, s.duration) || null,
         distanceM: Math.round(parseNumber(s.distance ?? "") * 1000) || null,
         isWarmup: s.isWarmup,
         rir: s.rir,
@@ -364,3 +369,16 @@ export function lastWorkedKey(exercises: ExerciseState[]): string | null {
  */
 export const isCollapsed = (e: ExerciseState, lastKey: string | null, manual?: boolean) =>
   manual ?? (isExerciseDone(e) && e.key !== lastKey);
+
+/** Подходы для живых индикаторов (полоса босса, Золотой гоблин): у подхода на время/кардио — время, повторы — 0. */
+export function liveSets(state: WorkoutState) {
+  return state.exercises.flatMap((e) =>
+    e.sets.map((s) => ({
+      completedAt: s.completedAt,
+      isWarmup: s.isWarmup,
+      rir: s.rir,
+      reps: isTimed(e.exercise.kind) ? 0 : Math.round(parseNumber(s.reps)),
+      durationSec: isTimed(e.exercise.kind) ? setDurationSec(e.exercise.kind, s.duration) : 0,
+    })),
+  );
+}

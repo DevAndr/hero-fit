@@ -51,6 +51,7 @@ import {
   initState,
   isCollapsed,
   lastWorkedKey,
+  liveSets,
   nextStep,
   reducer,
   toDraft,
@@ -379,7 +380,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 </span>
               </div>
 
-              {boss ? <BossBar boss={boss} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
+              {boss ? <BossBar boss={boss} sets={liveSets(state)} /> : null}
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {state.status === "PLANNED" ? (
@@ -396,7 +397,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
               </div>
             </div>
 
-            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={liveSets(state)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {

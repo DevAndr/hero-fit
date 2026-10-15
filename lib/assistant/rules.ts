@@ -147,8 +147,8 @@ export function repsOrWeight(input: { bodyweight: boolean; last: Sets | null }):
 }
 
 export function replacementCandidates<
-  E extends { id: string; muscleGroups: MuscleGroup[]; userId: string | null; archivedAt?: Date | string | null },
->(current: { id: string; muscleGroups: MuscleGroup[] }, all: E[], ctx: { inWorkout: string[]; pain: PainSpot[]; lastDate: Record<string, string>; today: string }): E[] {
+  E extends { id: string; muscleGroups: MuscleGroup[]; userId: string | null; archivedAt?: Date | string | null; kind?: string },
+>(current: { id: string; muscleGroups: MuscleGroup[]; kind?: string }, all: E[], ctx: { inWorkout: string[]; pain: PainSpot[]; lastDate: Record<string, string>; today: string }): E[] {
   const main = current.muscleGroups[0];
   const since = addDays(ctx.today, -90);
   const fit = all.filter(
@@ -157,6 +157,7 @@ export function replacementCandidates<
       !ctx.inWorkout.includes(e.id) &&
       !e.archivedAt &&
       e.muscleGroups[0] === main &&
+      (e.kind ?? "REPS") === (current.kind ?? "REPS") && // замена того же вида: присед — не на бег
       !painRelated(e.muscleGroups, ctx.pain),
   );
   const recent = fit

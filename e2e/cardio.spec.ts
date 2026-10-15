@@ -76,3 +76,15 @@ test("without the flag: no timed or cardio exercises in the catalog", async ({ p
   await expect(page.getByText("Планка", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Бег", { exact: true })).toHaveCount(0);
 });
+
+test("without the flag: own «Планка» can be created — the hidden built-in does not take the name", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Название").fill("Планка");
+  await dialog.getByRole("button", { name: "Пресс", exact: true }).click();
+  await dialog.getByRole("button", { name: "Добавить" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("Упражнение добавлено")).toBeVisible();
+});

@@ -42,7 +42,7 @@ async function exerciseStats(client: Client, userId: string): Promise<ExerciseSt
         AND w.status = 'COMPLETED'
         AND s."isWarmup" = false
         AND s."completedAt" IS NOT NULL
-        AND s.reps > 0
+        AND (s.reps > 0 OR s."durationSec" > 0) -- подходы на время и кардио тоже в счёт («Сет-герой»)
       GROUP BY we."exerciseId", w.id, w."finishedAt"
     )
     SELECT p.id, e.name,
