@@ -385,3 +385,46 @@ describe("ачивки тренера", () => {
     expect(nextGoals(empty).some((g) => g.category === "COACH")).toBe(false);
   });
 });
+
+describe("endurance", () => {
+  const title = (code: string, stats: Partial<AchievementStats>) =>
+    earnedAchievements({ ...empty, ...stats }).find((a) => a.code === code);
+
+  it("cardio kilometres", () => {
+    expect(codesOf("cardio_km", { cardioDistanceM: 9_999 })).toEqual([]);
+    expect(codesOf("cardio_km", { cardioDistanceM: 42_000 })).toEqual(["cardio_km:10", "cardio_km:42"]);
+    expect(title("cardio_km:10", { cardioDistanceM: 42_000 })).toMatchObject({ title: "Первая десятка", category: "ENDURANCE", xpReward: 22 });
+    expect(title("cardio_km:42", { cardioDistanceM: 42_000 })?.title).toBe("Марафонская дистанция");
+    expect(codesOf("cardio_km", { cardioDistanceM: 1_500_000 })).toContain("cardio_km:1500");
+    expect(title("cardio_km:250", { cardioDistanceM: 250_000 })?.title).toBe("Дорога: 250 км");
+  });
+
+  it("one long cardio set", () => {
+    expect(codesOf("cardio_set", { longestCardioSetM: 21_100 })).toEqual(["cardio_set:5000", "cardio_set:10000", "cardio_set:21100"]);
+    expect(title("cardio_set:21100", { longestCardioSetM: 21_100 })).toMatchObject({ title: "Полумарафон", xpReward: 60 });
+    expect(title("cardio_set:42200", { longestCardioSetM: 42_200 })).toMatchObject({ title: "Марафон", xpReward: 100 });
+  });
+
+  it("longest hold", () => {
+    expect(codesOf("hold", { longestTimeSetSec: 125 })).toEqual(["hold:60", "hold:120"]);
+    expect(title("hold:120", { longestTimeSetSec: 125 })).toMatchObject({ title: "Стойкость: 2 мин", xpReward: 30 });
+  });
+
+  it("hours of timed and cardio work", () => {
+    expect(codesOf("work_hours", { workSec: 5 * 3600 })).toEqual(["work_hours:1", "work_hours:5"]);
+    expect(title("work_hours:5", { workSec: 5 * 3600 })).toMatchObject({ title: "Кардио: 5 ч", xpReward: 25 });
+  });
+
+  it("hybrid workouts", () => {
+    expect(codesOf("hybrid", { hybridWorkouts: 10 })).toEqual(["hybrid:1", "hybrid:10"]);
+    expect(title("hybrid:1", { hybridWorkouts: 10 })).toMatchObject({ title: "Гибрид", xpReward: 26 });
+    expect(title("hybrid:10", { hybridWorkouts: 10 })?.title).toBe("Гибрид ×10");
+  });
+});
+
+describe("nextGoals — hidden categories", () => {
+  it("endurance goals can be hidden (flag off)", () => {
+    expect(nextGoals(empty).some((g) => g.category === "ENDURANCE")).toBe(true);
+    expect(nextGoals(empty, { hide: new Set(["ENDURANCE"]) }).some((g) => g.category === "ENDURANCE")).toBe(false);
+  });
+});

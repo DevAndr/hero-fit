@@ -33,7 +33,7 @@ const raw = (): ExportRaw => ({
       rpe: 7,
       notes: null,
       wellbeing: null,
-      exercises: [{ name: "Жим штанги лёжа", sets: [{ weight: 60, reps: 8, rir: 2, isWarmup: false, completedAt: new Date("2026-10-12T10:10:00Z") }] }],
+      exercises: [{ name: "Жим штанги лёжа", supersetGroup: 1, sets: [{ weight: 60, reps: 8, rir: 2, isWarmup: false, completedAt: new Date("2026-10-12T10:10:00Z") }] }],
     },
   ],
   friends: [{ nickname: "Маша", status: "ACCEPTED", since: new Date("2026-02-01T00:00:00Z"), id: "u_friend", login: "demo.masha" }],
@@ -84,7 +84,8 @@ describe("buildExport", () => {
   it("разделы верхнего уровня — по спеке", () => {
     expect(Object.keys(out)).toEqual(["version", "exportedAt", ...EXPORT_SECTIONS]);
     expect(out.version).toBe(1);
-    expect(out.workouts[0].exercises[0].sets[0]).toEqual({ weight: 60, reps: 8, rir: 2, warmup: false, done: true });
+    expect(out.workouts[0].exercises[0].sets[0]).toEqual({ weight: 60, reps: 8, rir: 2, warmup: false, done: true, durationSec: null, distanceM: null });
+    expect(out.workouts[0].exercises[0].superset).toBe(1);
   });
   it("раздел shop: баланс, названия из каталога, неизвестный код — код, без ключей событий", () => {
     const known = SHOP_ITEMS[0];
@@ -96,5 +97,13 @@ describe("buildExport", () => {
     expect(o.shop.items[1].name).toBe("zzz:unknown");
     expect(Object.keys(o.shop.coinHistory[0]).sort()).toEqual(["amount", "createdAt", "reason"]);
     expect(JSON.stringify(o)).not.toContain("secret-key");
+  });
+});
+
+describe("export — cardio sets", () => {
+  it("time and distance in JSON", () => {
+    const r = raw();
+    r.workouts[0].exercises[0].sets[0] = { ...r.workouts[0].exercises[0].sets[0], durationSec: 1720, distanceM: 5200 };
+    expect(buildExport(r, new Date("2026-10-13T00:00:00Z")).workouts[0].exercises[0].sets[0]).toMatchObject({ durationSec: 1720, distanceM: 5200 });
   });
 });

@@ -152,3 +152,15 @@ describe("вес не записан (0) у упражнения с отягощ
     expect(repsOrWeight({ bodyweight: false, last: noWeight }).why).not.toMatch(/бери|(^|[^\d,])0 кг/);
   });
 });
+
+describe("replacementCandidates — exercise kinds", () => {
+  it("a squat is not replaced with running, crunches not with a plank", () => {
+    const all = [
+      { id: "squat", muscleGroups: ["LEGS" as const], userId: null, kind: "REPS" as const },
+      { id: "run", muscleGroups: ["LEGS" as const], userId: null, kind: "CARDIO" as const },
+      { id: "lunge", muscleGroups: ["LEGS" as const], userId: null, kind: "REPS" as const },
+    ];
+    const ids = replacementCandidates(all[0], all, { inWorkout: ["squat"], pain: [], lastDate: {}, today: "2026-10-12" }).map((e) => e.id);
+    expect(ids).toEqual(["lunge"]);
+  });
+});

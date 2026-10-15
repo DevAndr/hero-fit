@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
+import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, liveSets, nextStep, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
 const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: ["BACK" as const], isBodyweight: true };
@@ -202,7 +202,7 @@ describe("toDraft", () => {
     s = reducer(s, { type: "rename", name: "   " });
     const draft = toDraft(s);
     expect(draft.name).toBe("Тренировка");
-    expect(draft.exercises[0].sets[0]).toEqual({ weight: 82.5, reps: 6, isWarmup: false, rir: null, completedAt: null });
+    expect(draft.exercises[0].sets[0]).toEqual({ weight: 82.5, reps: 6, durationSec: null, distanceM: null, isWarmup: false, rir: null, completedAt: null });
     expect(draft.exercises[0].sets[1]).toMatchObject({ weight: 0, reps: 0 });
   });
 });
@@ -274,8 +274,9 @@ describe("collapsing done exercises", () => {
   const ex = (key: string, done: (string | null)[]): ExerciseState => ({
     key,
     exercise: { id: key, name: key, muscleGroups: [], isBodyweight: false } as unknown as ExerciseState["exercise"],
+    group: null,
     restSec: 90,
-    sets: done.map((completedAt, i) => ({ key: `${key}${i}`, weight: "60", reps: "10", isWarmup: false, rir: null, completedAt })),
+    sets: done.map((completedAt, i) => ({ key: `${key}${i}`, weight: "60", reps: "10", duration: "", distance: "", isWarmup: false, rir: null, completedAt })),
   });
   const t = (m: number) => new Date(Date.UTC(2026, 9, 14, 10, m)).toISOString();
 
@@ -324,5 +325,183 @@ describe("forgottenSince", () => {
     expect(forgottenSince(s, at("2026-10-06T20:00:00.000Z"))).toBeNull();
     const planned = reducer(empty(), { type: "addExercises", exercises: [{ exercise: bench, restSec: 90 }], last: {} });
     expect(forgottenSince(planned, at("2026-10-06T20:00:00.000Z"))).toBeNull();
+  });
+});
+
+describe("workout reducer — supersets", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const dip = { id: "dip", name: "Брусья", muscleGroups: ["TRICEPS" as const], isBodyweight: true };
+  const withExercises = (...list: ExerciseState["exercise"][]) =>
+    reducer(empty(), { type: "addExercises", exercises: list.map((exercise) => ({ exercise, restSec: 90 })), last: {} });
+  const groups = (s: WorkoutState) => s.exercises.map((e) => e.group);
+  const names = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
+
+  it("linkNext and unlink", () => {
+    let s = withExercises(bench, pullup, squat);
+    expect(groups(s)).toEqual([null, null, null]);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    expect(groups(s)).toEqual([1, 1, null]);
+    s = reducer(s, { type: "unlink", key: s.exercises[0].key });
+    expect(groups(s)).toEqual([null, null, null]);
+  });
+
+  it("removing one of a pair leaves no group", () => {
+    let s = withExercises(bench, pullup);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "removeExercise", key: s.exercises[1].key });
+    expect(groups(s)).toEqual([null]);
+  });
+
+  it("dragging out of a group or into the middle of one keeps groups contiguous", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "reorderExercise", key: s.exercises[1].key, toIndex: 2 });
+    expect(names(s)).toEqual(["bench", "squat", "pullup"]);
+    expect(groups(s)).toEqual([null, null, null]);
+
+    let t = withExercises(bench, pullup, squat, dip);
+    t = reducer(t, { type: "linkNext", key: t.exercises[0].key });
+    t = reducer(t, { type: "linkNext", key: t.exercises[1].key });
+    expect(groups(t)).toEqual([1, 1, 1, null]);
+    t = reducer(t, { type: "reorderExercise", key: t.exercises[3].key, toIndex: 1 });
+    expect(names(t)).toEqual(["bench", "dip", "pullup", "squat"]);
+    expect(groups(t)).toEqual([null, null, 1, 1]);
+  });
+
+  it("moveExercise across a group boundary renormalizes", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "moveExercise", key: s.exercises[2].key, delta: -1 });
+    expect(groups(s)).toEqual([null, null, null]);
+  });
+
+  it("replace in place keeps the group; insert inside a group splits it", () => {
+    let s = withExercises(bench, pullup, squat);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "linkNext", key: s.exercises[1].key });
+    s = reducer(s, { type: "replaceExercise", key: s.exercises[1].key, exercise: dip, restSec: 60, last: {} });
+    expect(names(s)).toEqual(["bench", "dip", "squat"]);
+    expect(groups(s)).toEqual([1, 1, 1]);
+    s = reducer(s, { type: "addExercises", exercises: [{ exercise: pullup, restSec: 90 }], last: {}, index: 1 });
+    expect(names(s)).toEqual(["bench", "pullup", "dip", "squat"]);
+    expect(groups(s)).toEqual([null, null, 1, 1]);
+  });
+
+  it("initState and toDraft carry the group", () => {
+    const s = initState({
+      id: "w", name: "P", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, templateId: null,
+      exercises: [
+        { exercise: bench, restSec: 90, group: 1, sets: [] },
+        { exercise: pullup, restSec: 90, group: 1, sets: [] },
+      ],
+    } as never);
+    expect(groups(s)).toEqual([1, 1]);
+    expect(toDraft(s).exercises.map((e) => e.group)).toEqual([1, 1]);
+  });
+});
+
+describe("workout reducer — device state from before supersets", () => {
+  it("replace normalizes a missing group to null", () => {
+    const s = initState({ id: "w", name: "P", status: "PLANNED", startedAt: null, updatedAt: NOW, planKey: null, templateId: null, exercises: [] });
+    const old = { ...s, exercises: [{ key: "a", exercise: bench, restSec: 90, sets: [] }, { key: "b", exercise: bench, restSec: 90, sets: [] }] } as unknown as WorkoutState;
+    expect(reducer(s, { type: "replace", state: old }).exercises.map((e) => e.group)).toEqual([null, null]);
+  });
+});
+
+describe("nextStep — after a set (supersets on)", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const pair = () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [
+        { exercise: bench, restSec: 120 },
+        { exercise: pullup, restSec: 60 },
+      ],
+      last: {},
+    });
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    return s;
+  };
+
+  it("A1 working set → switch to A2; A2 → rest of the last in group towards A1", () => {
+    const s = pair();
+    const [a1, a2] = s.exercises;
+    expect(nextStep(s.exercises, a1, a1.sets[0])).toEqual({ kind: "switch", key: a2.key, label: "Подтягивания" });
+    expect(nextStep(s.exercises, a2, a2.sets[0])).toEqual({ kind: "rest", restSec: 60, label: "Жим лёжа" });
+  });
+
+  it("a warm-up set inside a superset — ordinary rest of that exercise, no switch", () => {
+    let s = pair();
+    s = reducer(s, { type: "setWarmup", key: s.exercises[0].key, sets: [{ weight: 20, reps: 10 }] });
+    const a1 = s.exercises[0];
+    expect(nextStep(s.exercises, a1, a1.sets[0])).toEqual({ kind: "rest", restSec: 120, label: "Жим лёжа" });
+  });
+
+  it("outside a group — as before", () => {
+    const s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: squat, restSec: 90 }], last: {} });
+    const e = s.exercises[0];
+    expect(nextStep(s.exercises, e, e.sets[0])).toEqual({ kind: "rest", restSec: 90, label: "Присед" });
+  });
+});
+
+describe("replaceExercise inside a started round", () => {
+  it("the replacement joins the same group", () => {
+    let s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [bench, pullup, bench].map((exercise) => ({ exercise, restSec: 90 })),
+      last: {},
+    });
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "linkNext", key: s.exercises[1].key });
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[1].key, setKey: s.exercises[1].sets[0].key, now: NOW });
+    const dip = { id: "dip", name: "Брусья", muscleGroups: ["TRICEPS" as const], isBodyweight: true };
+    s = reducer(s, { type: "replaceExercise", key: s.exercises[1].key, exercise: dip, restSec: 60, last: {} });
+    expect(s.exercises.map((e) => e.exercise.id)).toEqual(["bench", "pullup", "dip", "bench"]);
+    expect(s.exercises.map((e) => e.group)).toEqual([1, 1, 1, 1]);
+  });
+});
+
+describe("timed and cardio sets in the editor", () => {
+  const plank = { id: "plank", name: "Планка", muscleGroups: ["ABS" as const], isBodyweight: true, kind: "TIME" as const };
+  const run = { id: "run", name: "Бег", muscleGroups: ["LEGS" as const], isBodyweight: true, kind: "CARDIO" as const };
+
+  it("toDraft parses time and distance; the next empty set gets the values", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: plank, restSec: 60 }, { exercise: run, restSec: 120 }], last: {} });
+    const [p, r] = s.exercises;
+    s = reducer(s, { type: "updateSet", key: p.key, setKey: p.sets[0].key, patch: { duration: "1:30" } });
+    s = reducer(s, { type: "updateSet", key: r.key, setKey: r.sets[0].key, patch: { duration: "28:40", distance: "5,2" } });
+    s = reducer(s, { type: "toggleComplete", key: p.key, setKey: p.sets[0].key, now: NOW });
+    expect(s.exercises[0].sets[1]).toMatchObject({ duration: "1:30" });
+    const draft = toDraft(s);
+    expect(draft.exercises[0].sets[0]).toMatchObject({ reps: 0, weight: 0, durationSec: 90 });
+    expect(draft.exercises[1].sets[0]).toMatchObject({ durationSec: 1720, distanceM: 5200 });
+  });
+
+  it("last performance prefills time and distance", () => {
+    const s = reducer(empty(), {
+      type: "addExercises",
+      exercises: [{ exercise: run, restSec: 120 }],
+      last: { run: { date: NOW, sets: [{ weight: 0, reps: 0, durationSec: 1720, distanceM: 5200 }] } },
+    });
+    expect(s.exercises[0].sets.map((x) => [x.duration, x.distance])).toEqual([["28:40", "5,2"]]);
+  });
+});
+
+describe("review fixes — timed sets carry no reps or weight", () => {
+  const run = { id: "run", name: "Бег", muscleGroups: ["LEGS" as const], isBodyweight: true, kind: "CARDIO" as const };
+
+  it("toDraft zeroes reps and weight of a cardio set (assistant or plan put 10 there)", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: run, restSec: 120 }], last: {} });
+    const r = s.exercises[0];
+    s = reducer(s, { type: "updateSet", key: r.key, setKey: r.sets[0].key, patch: { weight: "20", reps: "10", duration: "", distance: "1" } });
+    expect(toDraft(s).exercises[0].sets[0]).toMatchObject({ weight: 0, reps: 0, durationSec: null, distanceM: 1000 });
+  });
+
+  it("liveSets: a cardio set counts by time for the boss bar and the goblin", () => {
+    let s = reducer(empty(), { type: "addExercises", exercises: [{ exercise: run, restSec: 120 }], last: {} });
+    const r = s.exercises[0];
+    s = reducer(s, { type: "updateSet", key: r.key, setKey: r.sets[0].key, patch: { duration: "30:00", distance: "5" } });
+    s = reducer(s, { type: "toggleComplete", key: r.key, setKey: r.sets[0].key, now: NOW });
+    expect(liveSets(s)[0]).toMatchObject({ reps: 0, durationSec: 1800, completedAt: NOW });
   });
 });

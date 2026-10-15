@@ -51,19 +51,20 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
           orderBy: { order: "asc" },
           select: {
             exercise: { select: { name: true } },
-            sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, completedAt: true } },
+            supersetGroup: true,
+            sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, completedAt: true, durationSec: true, distanceM: true } },
           },
         },
       },
     }),
-    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, defaultRestSec: true, archivedAt: true, createdAt: true } }),
+    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, kind: true, defaultRestSec: true, archivedAt: true, createdAt: true } }),
     db.workoutTemplate.findMany({
       where: { userId },
       select: {
         name: true,
         description: true,
         createdAt: true,
-        exercises: { orderBy: { order: "asc" }, select: { exercise: { select: { name: true } }, targetSets: true, targetReps: true, targetWeight: true, restSec: true, step: true } },
+        exercises: { orderBy: { order: "asc" }, select: { exercise: { select: { name: true } }, targetSets: true, targetReps: true, targetWeight: true, restSec: true, step: true, supersetGroup: true } },
       },
     }),
     db.planSeries.findMany({ where: { userId }, select: { title: true, weekday: true, time: true, durationMin: true, startDate: true, endDate: true, createdAt: true } }),
@@ -96,7 +97,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
 
   return {
     user,
-    workouts: workouts.map(({ exercises, ...w }) => ({ ...w, exercises: exercises.map((e) => ({ name: e.exercise.name, sets: e.sets })) })),
+    workouts: workouts.map(({ exercises, ...w }) => ({ ...w, exercises: exercises.map((e) => ({ name: e.exercise.name, supersetGroup: e.supersetGroup, sets: e.sets })) })),
     exercises,
     templates: templates.map(({ exercises, ...t }) => ({ ...t, exercises: exercises.map(({ exercise, ...row }) => ({ exercise: exercise.name, ...row })) })),
     plans: [...planSeries.map((p) => ({ kind: "weekly", ...p })), ...planEntries.map((p) => ({ kind: "single", ...p }))],
@@ -134,7 +135,7 @@ export async function getCsvSets(userId: string): Promise<CsvSet[]> {
       finishedAt: true,
       exercises: {
         orderBy: { order: "asc" },
-        select: { exercise: { select: { name: true, isBodyweight: true } }, sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true } } },
+        select: { exercise: { select: { name: true, isBodyweight: true } }, sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, durationSec: true, distanceM: true } } },
       },
     },
   });
@@ -147,8 +148,10 @@ export async function getCsvSets(userId: string): Promise<CsvSet[]> {
         index: i + 1,
         warmup: s.isWarmup,
         weight: e.exercise.isBodyweight && s.weight === 0 ? null : s.weight,
-        reps: s.reps,
+        reps: s.durationSec ? null : s.reps,
         rir: s.rir,
+        durationSec: s.durationSec,
+        distanceM: s.distanceM,
       })),
     ),
   );

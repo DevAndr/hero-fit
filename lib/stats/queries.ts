@@ -6,7 +6,7 @@ import { weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { progressionHint, type ProgressionHint } from "@/lib/progress/progression";
-import { bestOfSets, epley1RM } from "@/lib/progress/records";
+import { bestOfSets, epley1RM, LOWER_IS_BETTER } from "@/lib/progress/records";
 import { REP_RANGES, type RepRangeRow } from "@/lib/stats/ranges";
 import {
   activityGrid,
@@ -130,7 +130,7 @@ export async function getStats(userId: string, timeZone: string) {
 export type ExerciseSession = {
   workoutId: string;
   date: string;
-  sets: { weight: number; reps: number; rir: number | null }[];
+  sets: { weight: number; reps: number; rir: number | null; durationSec: number | null; distanceM: number | null }[];
   topWeight: number;
   best1RM: number;
   volume: number;
@@ -140,7 +140,7 @@ export type ExerciseSession = {
 export async function getExerciseProgress(userId: string, exerciseId: string) {
   const exercise = await db.exercise.findFirst({
     where: { id: exerciseId, OR: [{ userId: null }, { userId }] },
-    select: { id: true, name: true, muscleGroups: true, isBodyweight: true },
+    select: { id: true, name: true, muscleGroups: true, isBodyweight: true, kind: true },
   });
   if (!exercise) return null;
 
@@ -152,7 +152,7 @@ export async function getExerciseProgress(userId: string, exerciseId: string) {
         sets: {
           where: { isWarmup: false, completedAt: { not: null } },
           orderBy: { order: "asc" },
-          select: { weight: true, reps: true, rir: true },
+          select: { weight: true, reps: true, rir: true, durationSec: true, distanceM: true },
         },
       },
     });
@@ -183,14 +183,15 @@ export async function getExerciseProgress(userId: string, exerciseId: string) {
   // Рекорды считаем по истории — тот же источник, что и у графика.
   const records: { type: RecordType; value: number; achievedAt: Date }[] = [];
   for (const session of sessions) {
-    for (const [type, value] of Object.entries(bestOfSets(session.sets)) as [RecordType, number][]) {
+    for (const [type, value] of Object.entries(bestOfSets(session.sets, exercise.kind)) as [RecordType, number][]) {
       const current = records.find((r) => r.type === type);
+      const better = current && (LOWER_IS_BETTER.has(type) ? value < current.value - 1e-9 : value > current.value + 1e-9);
       if (!current) records.push({ type, value, achievedAt: new Date(session.date) });
-      else if (value > current.value + 1e-9) Object.assign(current, { value, achievedAt: new Date(session.date) });
+      else if (better) Object.assign(current, { value, achievedAt: new Date(session.date) });
     }
   }
 
-  return { exercise, sessions, records, hint: progressionHint(sessions) };
+  return { exercise, sessions, records, hint: exercise.kind === "REPS" ? progressionHint(sessions) : null };
 }
 
 /** Подсказки «Пора увеличить вес» для редактора тренировки: последние сессии по каждому упражнению. */
@@ -340,3 +341,25 @@ export async function getTrends(userId: string, timeZone: string) {
 }
 
 export type Trends = Awaited<ReturnType<typeof getTrends>>;
+
+export type CardioStats = { weekSec: number; weekM: number; monthSec: number; monthM: number };
+
+/** Кардио и упражнения на время за 7 и 30 дней: минуты работы и километры (подходы завершённых тренировок). */
+export async function getCardioStats(userId: string): Promise<CardioStats> {
+  const now = Date.now();
+  const week = new Date(now - 7 * 86_400_000);
+  const month = new Date(now - 30 * 86_400_000);
+  const [row] = await db.$queryRaw<CardioStats[]>`
+    SELECT COALESCE(SUM(s."durationSec") FILTER (WHERE w."finishedAt" >= ${week}), 0)::int AS "weekSec",
+           COALESCE(SUM(s."distanceM") FILTER (WHERE w."finishedAt" >= ${week} AND e.kind = 'CARDIO'), 0)::int AS "weekM",
+           COALESCE(SUM(s."durationSec"), 0)::int AS "monthSec",
+           COALESCE(SUM(s."distanceM") FILTER (WHERE e.kind = 'CARDIO'), 0)::int AS "monthM"
+    FROM "WorkoutSet" s
+    JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+    JOIN "Exercise" e ON e.id = we."exerciseId"
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${month}
+      AND e.kind IN ('TIME', 'CARDIO') AND s."completedAt" IS NOT NULL AND NOT s."isWarmup"
+  `;
+  return row;
+}

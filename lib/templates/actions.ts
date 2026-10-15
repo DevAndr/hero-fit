@@ -9,6 +9,7 @@ import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { keepProgress, rowFails } from "@/lib/templates/progression";
 import { templateSchema, type TemplateInput } from "@/lib/templates/schema";
+import { normalizeGroups } from "@/lib/workouts/supersets";
 
 export type SaveTemplateResult =
   | { ok: true; id: string }
@@ -30,7 +31,7 @@ export async function saveTemplateAction(id: string | null, input: TemplateInput
   const allowed = await db.exercise.count({ where: { id: { in: ids }, OR: [{ userId: null }, { userId: user.id }] } });
   if (allowed !== ids.length) return { ok: false, error: "Неизвестное упражнение" };
 
-  const items = exercises.map((e, order) => ({ ...e, order }));
+  const items = normalizeGroups(exercises).map(({ group, ...e }, order) => ({ ...e, order, supersetGroup: group }));
 
   if (id) {
     const { count } = await db.workoutTemplate.updateMany({ where: { id, userId: user.id }, data: { name, description } });
@@ -82,9 +83,11 @@ export async function copyTemplateAction(formData: FormData) {
       name: source.userId ? `${source.name} (копия)` : source.name,
       description: source.description,
       exercises: {
-        create: source.exercises.map(({ exerciseId, order, targetSets, targetReps, targetWeight, restSec, step }) => ({
+        // Архивные упражнения выпали — группы суперсетов пересчитываются
+        create: normalizeGroups(source.exercises.map((e) => ({ ...e, group: e.supersetGroup }))).map(({ exerciseId, order, targetSets, targetReps, targetWeight, restSec, step, group }) => ({
           exerciseId,
           order,
+          supersetGroup: group,
           targetSets,
           targetReps,
           targetWeight,

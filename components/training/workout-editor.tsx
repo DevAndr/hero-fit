@@ -28,6 +28,9 @@ import { useClosingConfirmation } from "@/components/telegram/telegram-mini-app"
 import { BossBar } from "@/components/boss/boss-bar";
 import { useFlag } from "@/components/flags/flags-provider";
 import { GoblinBanner } from "@/components/goblin/goblin-banner";
+import { SupersetHeader, SupersetLink, SupersetPart } from "@/components/training/superset-frame";
+import { canLink, groupLabels, groupSize } from "@/lib/workouts/supersets";
+import { isTimed } from "@/lib/workouts/kinds";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -48,6 +51,8 @@ import {
   initState,
   isCollapsed,
   lastWorkedKey,
+  liveSets,
+  nextStep,
   reducer,
   toDraft,
   type ExerciseState,
@@ -166,15 +171,6 @@ function SaveIndicator({ status, onSync }: { status: SyncStatus; onSync: () => v
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-/** Подпись для таймера отдыха: какой подход следующий. */
-function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone: SetState) {
-  const remainingHere = current.sets.filter((s) => s.key !== justDone.key && !s.completedAt);
-  if (remainingHere.length) return current.exercise.name;
-  const index = exercises.findIndex((e) => e.key === current.key);
-  const next = exercises.slice(index + 1).find((e) => e.sets.some((s) => !s.completedAt));
-  return next?.exercise.name ?? null;
-}
-
 const NO_TARGETS: Record<string, Target> = {};
 
 function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS }: Props) {
@@ -182,6 +178,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   // Выполненные упражнения сворачиваются (isCollapsed); ручной выбор — поверх правила (ключ упражнения → свёрнуто)
   const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
   const lastKey = lastWorkedKey(state.exercises);
+  const labels = groupLabels(state.exercises);
   // Свернувшийся блок выше сдвинул бы страницу под пальцем — держим упражнение, где отметили подход, на месте
   const anchor = useRef<{ key: string; top: number } | null>(null);
   useLayoutEffect(() => {
@@ -223,6 +220,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
 
   // Золотой гоблин (флаг): бросок делает сервер при сохранении черновика — ответ приходит через useWorkoutSync
   const goblinOn = useFlag("golden_goblin");
+  const formatsOn = useFlag("workout_formats");
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   // Тренировку забыли завершить — в диалоге предлагаем время последнего подхода
@@ -254,7 +252,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     }
   }, [workout, restore]);
 
-  const totals = workoutTotals(draft.exercises);
+  const totals = workoutTotals(draft.exercises.map((e, i) => ({ ...e, kind: state.exercises[i]?.exercise.kind })));
   const pendingSets = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => !s.completedAt).length, 0);
   const added = useMemo(() => new Set(state.exercises.map((e) => e.exercise.id)), [state.exercises]);
 
@@ -267,6 +265,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
           name: e.name,
           muscleGroups: e.muscleGroups,
           isBodyweight: e.isBodyweight,
+          kind: e.kind,
         },
         restSec: e.defaultRestSec,
       })),
@@ -287,8 +286,20 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     if (top !== undefined) anchor.current = { key: item.key, top };
     // Развёрнутое вручную выполненное упражнение снова сворачивается, когда работа ушла дальше
     setManualCollapse((prev) => new Map([...prev].filter(([, collapsed]) => collapsed)));
-    const label = nextLabel(state.exercises, item, set);
-    if (label) rest.start(item.restSec, label);
+    const step = nextStep(state.exercises, item, set, formatsOn);
+    if (step?.kind === "switch") {
+      rest.skip();
+      toast(`Дальше: ${step.label}`);
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      requestAnimationFrame(() =>
+        document
+          .querySelector(`[data-exercise-key="${step.key}"]`)
+          ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }),
+      );
+      anchor.current = null;
+      return;
+    }
+    if (step) rest.start(step.restSec, step.label);
   };
 
   /** Завершение: при успехе уводит на сводку; без сети — встаёт в очередь со временем с устройства. */
@@ -369,7 +380,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 </span>
               </div>
 
-              {boss ? <BossBar boss={boss} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
+              {boss ? <BossBar boss={boss} sets={liveSets(state)} /> : null}
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {state.status === "PLANNED" ? (
@@ -386,32 +397,48 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
               </div>
             </div>
 
-            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={liveSets(state)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {
                 const collapsed = isCollapsed(item, lastKey, manualCollapse.get(item.key));
+                const next = state.exercises[index + 1];
+                const grouped = formatsOn && item.group !== null;
+                const startsGroup = grouped && state.exercises[index - 1]?.group !== item.group;
                 return (
                   <Fragment key={item.key}>
                     {dropIndex === index ? <DropIndicator /> : null}
+                    {startsGroup ? <SupersetHeader size={groupSize(state.exercises, index)} /> : null}
                     <SortableItem id={item.key} label={item.exercise.name}>
                       {(handle) => (
-                        <ExerciseBlock
-                          item={item}
-                          index={index}
-                          total={state.exercises.length}
-                          last={last[item.exercise.id]}
-                          hint={hints[item.exercise.id]}
-                          coachTarget={coachTargets[item.exercise.id]}
-                          onAsk={assistant.available ? () => assistant.openExercise(item.exercise.id) : undefined}
-                          dispatch={dispatch}
-                          onComplete={onComplete}
-                          handle={handle}
-                          collapsed={collapsed}
-                          onToggleCollapsed={() => setManualCollapse((prev) => new Map(prev).set(item.key, !collapsed))}
-                        />
+                        <SupersetPart grouped={grouped}>
+                          <ExerciseBlock
+                            item={item}
+                            index={index}
+                            total={state.exercises.length}
+                            last={last[item.exercise.id]}
+                            hint={hints[item.exercise.id]}
+                            coachTarget={coachTargets[item.exercise.id]}
+                            onAsk={assistant.available && !isTimed(item.exercise.kind) ? () => assistant.openExercise(item.exercise.id) : undefined}
+                            dispatch={dispatch}
+                            onComplete={onComplete}
+                            handle={handle}
+                            collapsed={collapsed}
+                            onToggleCollapsed={() => setManualCollapse((prev) => new Map(prev).set(item.key, !collapsed))}
+                            groupLabel={formatsOn ? labels[index] : null}
+                          />
+                        </SupersetPart>
                       )}
                     </SortableItem>
+                    {formatsOn && next ? (
+                      <SupersetLink
+                        names={[item.exercise.name, next.exercise.name]}
+                        linked={item.group !== null && next.group === item.group}
+                        canLink={canLink(state.exercises, index)}
+                        onLink={() => dispatch({ type: "linkNext", key: item.key })}
+                        onUnlink={() => dispatch({ type: "unlink", key: item.key })}
+                      />
+                    ) : null}
                   </Fragment>
                 );
               })}

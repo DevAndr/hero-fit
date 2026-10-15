@@ -1103,3 +1103,47 @@ export async function goblinRows(login: string) {
     return rows;
   });
 }
+
+/** Группы суперсетов упражнений последней тренировки пользователя (по порядку). */
+export async function exerciseGroups(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ g: number | null }>(
+      `select we."supersetGroup" g from "WorkoutExercise" we
+       where we."workoutId" = (select w.id from "Workout" w join "User" u on u.id = w."userId" where u.login = $1 order by w."createdAt" desc limit 1)
+       order by we."order"`,
+      [login],
+    );
+    return rows.map((r) => r.g);
+  });
+}
+
+/** Проставить группы суперсетов упражнениям идущей тренировки (по порядку). */
+export async function setExerciseGroups(login: string, groups: (number | null)[]) {
+  await withDb(async (db) => {
+    for (const [i, g] of groups.entries()) {
+      await db.query(
+        `update "WorkoutExercise" we set "supersetGroup" = $3
+         from "Workout" w join "User" u on u.id = w."userId"
+         where we."workoutId" = w.id and u.login = $1 and w.status in ('PLANNED', 'IN_PROGRESS') and we."order" = $2`,
+        [login, i, g],
+      );
+    }
+  });
+}
+
+/** Подходы на время / кардио последней завершённой тренировки пользователя: время и дистанция. */
+export async function timedSets(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; durationSec: number | null; distanceM: number | null }>(
+      `select e.name, s."durationSec", s."distanceM" from "WorkoutSet" s
+       join "WorkoutExercise" we on we.id = s."workoutExerciseId"
+       join "Exercise" e on e.id = we."exerciseId"
+       join "Workout" w on w.id = we."workoutId"
+       join "User" u on u.id = w."userId"
+       where u.login = $1 and w.status = 'COMPLETED' and e.kind in ('TIME', 'CARDIO')
+       order by we."order", s."order"`,
+      [login],
+    );
+    return rows;
+  });
+}

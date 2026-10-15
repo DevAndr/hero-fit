@@ -6,7 +6,7 @@ type FinishedWorkout = {
   templateId: string | null;
   exercises: {
     exerciseId: string;
-    exercise: { name: string; isBodyweight: boolean };
+    exercise: { name: string; isBodyweight: boolean; kind?: string };
     sets: { weight: number; reps: number; isWarmup: boolean; completedAt: Date | null }[];
   }[];
 };
@@ -28,6 +28,7 @@ export async function applyOwnProgression(tx: Prisma.TransactionClient, userId: 
     seen.add(row.exerciseId);
     const mine = workout.exercises.filter((e) => e.exerciseId === row.exerciseId);
     if (!mine.length) continue; // упражнение убрали из тренировки — не попытка
+    if (mine.some((e) => e.exercise.kind && e.exercise.kind !== "REPS")) continue; // на время и кардио — без прогрессии веса
     const done = mine.flatMap((e) => e.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0));
     const result = progressTarget({
       target: { sets: row.targetSets, reps: row.targetReps, weight: row.targetWeight, step: row.step, fails: row.fails },

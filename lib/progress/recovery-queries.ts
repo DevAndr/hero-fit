@@ -77,6 +77,7 @@ async function planCandidates(userId: string, now: Date) {
            (ROW_NUMBER() OVER (ORDER BY e."createdAt", e.id))::int AS "order"
     FROM "Exercise" e
     WHERE e."archivedAt" IS NULL AND (e."userId" IS NULL OR e."userId" = ${userId})
+      AND e.kind = 'REPS' -- сборка по восстановлению — силовая (подходы 3 × 10)
   `;
 }
 

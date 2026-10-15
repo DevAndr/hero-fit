@@ -25,6 +25,7 @@ describe("parseExerciseForm", () => {
       description: null,
       muscleGroups: ["CHEST", "TRICEPS"],
       isBodyweight: false,
+      kind: "REPS",
       defaultRestSec: 90,
     });
   });
@@ -52,5 +53,14 @@ describe("parseExerciseForm", () => {
     );
     expect(r.errors?.muscleGroups).toBeDefined();
     expect(r.errors?.defaultRestSec).toBeDefined();
+  });
+});
+
+describe("exercise kind", () => {
+  it("defaults to REPS, accepts TIME and CARDIO, rejects garbage", () => {
+    expect(parseExerciseForm(form(valid)).data?.kind).toBe("REPS");
+    expect(parseExerciseForm(form([...valid, ["kind", "CARDIO"]])).data?.kind).toBe("CARDIO");
+    expect(parseExerciseForm(form([...valid, ["kind", "TIME"]])).data?.kind).toBe("TIME");
+    expect(parseExerciseForm(form([...valid, ["kind", "SWIM"]])).success).toBe(false);
   });
 });

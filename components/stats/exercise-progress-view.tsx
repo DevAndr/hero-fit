@@ -6,7 +6,8 @@ import { HintBadge } from "@/components/stats/hint-badge";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
 import type { RecordType } from "@/generated/prisma/enums";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
-import { epley1RM } from "@/lib/progress/records";
+import { epley1RM, formatRecord } from "@/lib/progress/records";
+import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { formatSet } from "@/lib/format";
 import type { getExerciseProgress } from "@/lib/stats/queries";
 
@@ -15,11 +16,19 @@ export type ExerciseProgressData = NonNullable<Awaited<ReturnType<typeof getExer
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-const RECORDS: { type: RecordType; label: string; unit: string }[] = [
-  { type: "ONE_RM", label: "1RM (расчётный)", unit: "кг" },
-  { type: "MAX_WEIGHT", label: "Макс. вес", unit: "кг" },
-  { type: "MAX_REPS", label: "Макс. повторы", unit: "повт." },
-];
+const RECORDS: Record<ExerciseKindName, { type: RecordType; label: string; unit: string }[]> = {
+  REPS: [
+    { type: "ONE_RM", label: "1RM (расчётный)", unit: "кг" },
+    { type: "MAX_WEIGHT", label: "Макс. вес", unit: "кг" },
+    { type: "MAX_REPS", label: "Макс. повторы", unit: "повт." },
+  ],
+  TIME: [{ type: "MAX_DURATION", label: "Дольше всего", unit: "" }],
+  CARDIO: [
+    { type: "MAX_DISTANCE", label: "Дальше всего", unit: "" },
+    { type: "MAX_DURATION", label: "Дольше всего", unit: "" },
+    { type: "BEST_PACE", label: "Лучший темп", unit: "" },
+  ],
+};
 
 /** Прогресс по упражнению — общий для /stats/exercises/[id] и карточки клиента у тренера. */
 export function ExerciseProgressView({
@@ -35,6 +44,8 @@ export function ExerciseProgressView({
   goal?: { metric: "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS"; target: number; forecast?: string | null } | null;
 }) {
   const { exercise, sessions, records, hint } = data;
+  const kind: ExerciseKindName = exercise.kind ?? "REPS";
+  const timed = isTimed(kind);
 
   // Калькулятор предзаполняем лучшим подходом по 1RM.
   const bestSet = sessions
@@ -56,12 +67,12 @@ export function ExerciseProgressView({
       {hint ? <HintBadge hint={hint} className="w-fit text-sm" /> : null}
 
       <section aria-label="Личные рекорды" className="grid grid-cols-3 gap-3">
-        {RECORDS.map(({ type, label, unit }) => {
+        {RECORDS[kind].map(({ type, label, unit }) => {
           const record = records.find((r) => r.type === type);
           return (
             <div key={type} className="rounded-xl border bg-card p-4">
               <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-1 text-2xl font-black">{record ? `${fmt(record.value)} ${unit}` : "—"}</p>
+              <p className="mt-1 text-2xl font-black">{record ? (timed ? formatRecord(type, record.value) : `${fmt(record.value)} ${unit}`) : "—"}</p>
               {record ? <p className="text-xs text-muted-foreground">{date.format(record.achievedAt)}</p> : null}
             </div>
           );
@@ -71,14 +82,16 @@ export function ExerciseProgressView({
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           {(() => {
-            const shown = goal?.metric === (exercise.isBodyweight ? "MAX_REPS" : "MAX_WEIGHT") ? goal : null;
-            return <ExerciseProgressChart sessions={sessions} goal={shown?.target ?? null} forecast={shown?.forecast ?? null} />;
+            const shown = !timed && goal?.metric === (exercise.isBodyweight ? "MAX_REPS" : "MAX_WEIGHT") ? goal : null;
+            return <ExerciseProgressChart sessions={sessions} goal={shown?.target ?? null} forecast={shown?.forecast ?? null} kind={kind} />;
           })()}
         </div>
-        <OneRmCalculator
-          initialWeight={bestSet ? String(bestSet.weight) : ""}
-          initialReps={bestSet ? String(bestSet.reps) : ""}
-        />
+        {timed ? null : (
+          <OneRmCalculator
+            initialWeight={bestSet ? String(bestSet.weight) : ""}
+            initialReps={bestSet ? String(bestSet.reps) : ""}
+          />
+        )}
       </div>
 
       <section aria-label="Тренировки с упражнением" className="space-y-2">
@@ -93,11 +106,13 @@ export function ExerciseProgressView({
                   {date.format(new Date(s.date))}
                 </Link>
                 <span className="text-muted-foreground tabular-nums">
-                  {s.sets.map(formatSet).join(", ")}
+                  {timed ? s.sets.map((x) => timedSetText(kind, x)).join(", ") : s.sets.map(formatSet).join(", ")}
                 </span>
-                <span className="tabular-nums">
-                  {fmt(s.volume)} кг{s.best1RM ? ` · 1RM ≈ ${fmt(s.best1RM)}` : ""}
-                </span>
+                {timed ? null : (
+                  <span className="tabular-nums">
+                    {fmt(s.volume)} кг{s.best1RM ? ` · 1RM ≈ ${fmt(s.best1RM)}` : ""}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

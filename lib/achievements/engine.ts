@@ -42,7 +42,7 @@ async function exerciseStats(client: Client, userId: string): Promise<ExerciseSt
         AND w.status = 'COMPLETED'
         AND s."isWarmup" = false
         AND s."completedAt" IS NOT NULL
-        AND s.reps > 0
+        AND (s.reps > 0 OR s."durationSec" > 0) -- подходы на время и кардио тоже в счёт («Сет-герой»)
       GROUP BY we."exerciseId", w.id, w."finishedAt"
     )
     SELECT p.id, e.name,
@@ -74,6 +74,33 @@ type Totals = {
   late: number;
   maxGapDays: number;
 };
+
+type Endurance = Pick<AchievementStats, "cardioDistanceM" | "workSec" | "longestCardioSetM" | "longestTimeSetSec" | "hybridWorkouts">;
+
+/** Выносливость: подходы на время и кардио в завершённых тренировках; гибрид — силовой и кардио-подход в одной тренировке. */
+async function enduranceStats(client: Client, userId: string): Promise<Endurance> {
+  const [row] = await client.$queryRaw<Endurance[]>`
+    WITH s AS (
+      SELECT w.id AS wid, e.kind, s.reps, s."durationSec", s."distanceM"
+      FROM "WorkoutSet" s
+      JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Workout" w ON w.id = we."workoutId"
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND s."completedAt" IS NOT NULL AND NOT s."isWarmup"
+    ),
+    hybrid AS (
+      SELECT wid FROM s GROUP BY wid
+      HAVING bool_or(kind = 'REPS' AND reps > 0) AND bool_or(kind = 'CARDIO' AND "durationSec" > 0)
+    )
+    SELECT COALESCE(SUM("distanceM") FILTER (WHERE kind = 'CARDIO'), 0)::int AS "cardioDistanceM",
+           COALESCE(SUM("durationSec") FILTER (WHERE kind IN ('TIME', 'CARDIO')), 0)::int AS "workSec",
+           COALESCE(MAX("distanceM") FILTER (WHERE kind = 'CARDIO'), 0)::int AS "longestCardioSetM",
+           COALESCE(MAX("durationSec") FILTER (WHERE kind = 'TIME'), 0)::int AS "longestTimeSetSec",
+           (SELECT COUNT(*) FROM hybrid)::int AS "hybridWorkouts"
+    FROM s
+  `;
+  return row;
+}
 
 /** Агрегаты по завершённым тренировкам; время суток — в поясе пользователя (колонки хранят UTC). */
 async function workoutTotals(client: Client, userId: string, tz: string): Promise<Totals> {
@@ -232,7 +259,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
   });
   const tz = safeTimeZone(timeZone);
   const { weekWorkouts, weekWorkoutsKey, isCoach, ...rest } = user;
-  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, goblinCatches, raidWins, raidMvps, goalsAchieved, clubTaskRewards, coach] =
+  const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, goblinCatches, raidWins, raidMvps, goalsAchieved, clubTaskRewards, coach, endurance] =
     await Promise.all([
       exerciseStats(client, userId),
       workoutTotals(client, userId, tz),
@@ -252,6 +279,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
       client.goal.count({ where: { userId, status: "ACHIEVED" } }),
       client.clubTaskReward.count({ where: { userId } }),
       coachStats(client, userId, isCoach && opts.coach !== false),
+      enduranceStats(client, userId),
     ]);
   return {
     ...rest,
@@ -259,6 +287,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
     leaguePlaces,
     bossWins: wins,
     goblinCatches,
+    ...endurance,
     raidWins,
     raidMvps,
     goalsAchieved,

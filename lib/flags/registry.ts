@@ -24,6 +24,10 @@ export const FLAGS = {
     description: "Золотой гоблин: редкая встреча посреди тренировки",
     expires: "2027-04-30",
   },
+  workout_formats: {
+    description: "Форматы тренировки: суперсеты и круговые (дальше — кардио)",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

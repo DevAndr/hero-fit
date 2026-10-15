@@ -1,11 +1,12 @@
 import "server-only";
+import type { ExerciseKindName } from "@/lib/workouts/kinds";
 import { WorkoutStatus, type MuscleGroup } from "@/generated/prisma/enums";
 import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
 
-export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean };
+export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean; /** Нет — силовое (REPS). */ kind?: ExerciseKindName };
 
 /** Сериализуемое состояние активной тренировки для клиентского редактора. */
 export type ActiveWorkout = {
@@ -25,11 +26,13 @@ export type ActiveWorkout = {
   exercises: {
     exercise: ExerciseInfo;
     restSec: number;
-    sets: { weight: number; reps: number; isWarmup: boolean; rir: number | null; completedAt: string | null }[];
+    /** Суперсет/круг (lib/workouts/supersets.ts). */
+    group: number | null;
+    sets: { weight: number; reps: number; durationSec: number | null; distanceM: number | null; isWarmup: boolean; rir: number | null; completedAt: string | null }[];
   }[];
 };
 
-const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, isBodyweight: true } as const;
+const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, isBodyweight: true, kind: true } as const;
 
 export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | null> {
   const workout = await db.workout.findFirst({
@@ -58,9 +61,12 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     exercises: workout.exercises.map((we) => ({
       exercise: we.exercise,
       restSec: we.restSec,
+      group: we.supersetGroup,
       sets: we.sets.map((s) => ({
         weight: s.weight,
         reps: s.reps,
+        durationSec: s.durationSec,
+        distanceM: s.distanceM,
         isWarmup: s.isWarmup,
         rir: s.rir,
         completedAt: s.completedAt?.toISOString() ?? null,
@@ -69,7 +75,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
   };
 }
 
-export type LastPerformance = Record<string, { date: string; sets: { weight: number; reps: number }[] }>;
+export type LastPerformance = Record<string, { date: string; sets: { weight: number; reps: number; durationSec?: number | null; distanceM?: number | null }[] }>;
 
 /** Рабочие подходы из последней завершённой тренировки для каждого упражнения. */
 export async function getLastPerformance(userId: string, exerciseIds: string[]): Promise<LastPerformance> {
@@ -84,7 +90,7 @@ export async function getLastPerformance(userId: string, exerciseIds: string[]):
       sets: {
         where: { isWarmup: false, completedAt: { not: null } },
         orderBy: { order: "asc" },
-        select: { weight: true, reps: true },
+        select: { weight: true, reps: true, durationSec: true, distanceM: true },
       },
     },
   });
@@ -129,7 +135,7 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
       exercises: {
         orderBy: { order: "asc" },
         include: {
-          exercise: { select: { name: true, muscleGroups: true } },
+          exercise: { select: { name: true, muscleGroups: true, kind: true } },
           sets: { orderBy: { order: "asc" } },
         },
       },
@@ -138,7 +144,7 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
         select: {
           userId: true,
           name: true,
-          exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true } },
+          exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true, supersetGroup: true } },
         },
       },
     },

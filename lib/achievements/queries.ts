@@ -1,4 +1,6 @@
 import "server-only";
+import { isEnabled } from "@/lib/flags/server";
+import type { AchievementCategory } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { getAchievementStats } from "@/lib/achievements/engine";
 import { nextGoals } from "@/lib/achievements/definitions";
@@ -12,6 +14,11 @@ export async function getUnseenAchievements(userId: string) {
   });
 }
 
+/** Категории целей за выключенными флагами: «Выносливость» — без workout_formats (полученные ачивки видны всегда). */
+export async function hiddenGoalCategories(userId: string): Promise<{ hide: ReadonlySet<AchievementCategory> }> {
+  return { hide: new Set<AchievementCategory>((await isEnabled("workout_formats", userId)) ? [] : ["ENDURANCE"]) };
+}
+
 export async function getAchievementsOverview(userId: string) {
   const [earned, stats] = await Promise.all([
     db.userAchievement.findMany({
@@ -21,5 +28,5 @@ export async function getAchievementsOverview(userId: string) {
     }),
     getAchievementStats(db, userId),
   ]);
-  return { earned, goals: nextGoals(stats) };
+  return { earned, goals: nextGoals(stats, await hiddenGoalCategories(userId)) };
 }

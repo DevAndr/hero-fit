@@ -18,7 +18,7 @@ export function GoblinBanner({
   sets,
 }: {
   spawnedAt: string;
-  sets: { completedAt: string | null; isWarmup: boolean; reps: string | number }[];
+  sets: { completedAt: string | null; isWarmup: boolean; reps: string | number; durationSec?: number | null }[];
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [closed, setClosed] = useState(false);

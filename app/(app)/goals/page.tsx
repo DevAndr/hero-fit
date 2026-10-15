@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { getGoalFormData, getGoalsPage } from "@/lib/goals/queries";
-import { GOALS_ACTIVE_MAX, type GoalInput } from "@/lib/goals/rules";
+import { GOALS_ACTIVE_MAX, isStrengthMetric, type GoalInput } from "@/lib/goals/rules";
 
 export const metadata: Metadata = { title: "Цели" };
 
@@ -29,7 +29,7 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   const againExercise = againGoal?.exerciseId && form.exercises.some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
   const again: Partial<GoalInput> | null =
     againGoal && activeCount < GOALS_ACTIVE_MAX
-      ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: againGoal.metric ?? undefined }
+      ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: isStrengthMetric(againGoal.metric) ? againGoal.metric : undefined }
       : null;
   const weightGoal = page.active.find((g) => g.type === "BODY_WEIGHT" && g.status === "ACTIVE");
 

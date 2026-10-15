@@ -23,3 +23,11 @@ describe("workoutXp", () => {
     expect(PR_XP).toBeGreaterThan(0);
   });
 });
+
+describe("workoutXp — minutes of timed and cardio work", () => {
+  it("adds a point per full minute, keeps the cap", () => {
+    expect(workoutXp({ sets: 1, reps: 0, volume: 0, workSec: 1800 })).toBe(85);
+    expect(workoutXp({ sets: 1, reps: 0, volume: 0, workSec: 59 })).toBe(55);
+    expect(workoutXp({ sets: 10, reps: 0, volume: 0, workSec: 60 * 1000 })).toBe(600);
+  });
+});

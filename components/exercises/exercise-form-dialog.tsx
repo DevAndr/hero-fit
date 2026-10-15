@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { saveExerciseAction, type ExerciseFormState } from "@/lib/exercises/actions";
 import type { ExerciseItem } from "@/lib/exercises/queries";
+import type { ExerciseKindName } from "@/lib/workouts/kinds";
+import { useFlag } from "@/components/flags/flags-provider";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
 
@@ -58,9 +60,17 @@ export function ExerciseFormDialog({
   );
 }
 
+const KINDS: { value: ExerciseKindName; label: string; hint: string }[] = [
+  { value: "REPS", label: "Повторы", hint: "Вес и повторы — жим, присед, подтягивания" },
+  { value: "TIME", label: "Время", hint: "Подход — время: планка, вис, стульчик" },
+  { value: "CARDIO", label: "Кардио", hint: "Подход — дистанция и время: бег, велотренажёр, гребля" },
+];
+
 function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: () => void }) {
   const [groups, setGroups] = useState<MuscleGroup[]>(exercise?.muscleGroups ?? []);
   const [rest, setRest] = useState(String(exercise?.defaultRestSec ?? 90));
+  const formatsOn = useFlag("workout_formats");
+  const [kind, setKind] = useState<ExerciseKindName>(exercise?.kind ?? "REPS");
 
   const [state, action, pending] = useActionState(
     async (prev: ExerciseFormState, formData: FormData) => {
@@ -145,6 +155,29 @@ function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: (
           </div>
           <FieldError errors={toErrors(state.errors?.muscleGroups)} />
         </FieldSet>
+
+        {formatsOn ? (
+          <FieldSet>
+            <FieldLegend variant="label">Вид</FieldLegend>
+            <input type="hidden" name="kind" value={kind} />
+            <div role="radiogroup" aria-label="Вид упражнения" className="flex flex-wrap gap-2">
+              {KINDS.map((k) => (
+                <Button
+                  key={k.value}
+                  type="button"
+                  size="sm"
+                  role="radio"
+                  aria-checked={kind === k.value}
+                  variant={kind === k.value ? "secondary" : "outline"}
+                  onClick={() => setKind(k.value)}
+                >
+                  {k.label}
+                </Button>
+              ))}
+            </div>
+            <FieldDescription>{KINDS.find((k) => k.value === kind)?.hint}</FieldDescription>
+          </FieldSet>
+        ) : null}
 
         <Field data-invalid={Boolean(state.errors?.defaultRestSec) || undefined}>
           <FieldLabel htmlFor="exercise-rest">Отдых между подходами, сек</FieldLabel>

@@ -24,6 +24,8 @@ type SeedExercise = {
   muscleGroups: MuscleGroup[]; // первая — основная
   restSec: number;
   bodyweight?: boolean;
+  /** На время / кардио (флаг workout_formats); по умолчанию — силовое. */
+  kind?: "TIME" | "CARDIO";
 };
 
 const EXERCISES: SeedExercise[] = [
@@ -63,6 +65,18 @@ const EXERCISES: SeedExercise[] = [
   // Пресс
   { name: "Скручивания", muscleGroups: ["ABS"], restSec: 45, bodyweight: true },
   { name: "Подъём ног в висе", muscleGroups: ["ABS"], restSec: 60, bodyweight: true },
+  // На время
+  { name: "Планка", muscleGroups: ["ABS"], restSec: 60, bodyweight: true, kind: "TIME" },
+  { name: "Боковая планка", muscleGroups: ["ABS"], restSec: 60, bodyweight: true, kind: "TIME" },
+  { name: "Вис на перекладине", muscleGroups: ["FOREARMS", "BACK"], restSec: 60, bodyweight: true, kind: "TIME" },
+  { name: "Стульчик у стены", muscleGroups: ["LEGS"], restSec: 60, bodyweight: true, kind: "TIME" },
+  // Кардио
+  { name: "Бег", muscleGroups: ["LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  { name: "Ходьба", muscleGroups: ["LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  { name: "Велотренажёр", muscleGroups: ["LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  { name: "Эллипс", muscleGroups: ["LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  { name: "Гребной тренажёр", muscleGroups: ["BACK", "LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  { name: "Скакалка", muscleGroups: ["CALVES"], restSec: 120, bodyweight: true, kind: "CARDIO" },
 ];
 
 type SeedTemplate = {
@@ -155,6 +169,7 @@ async function seedExercises() {
       muscleGroups: e.muscleGroups,
       defaultRestSec: e.restSec,
       isBodyweight: e.bodyweight ?? false,
+      kind: e.kind ?? ("REPS" as const),
     };
     const existing = await db.exercise.findFirst({ where: { userId: null, name: e.name } });
     const exercise = existing

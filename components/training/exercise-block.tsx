@@ -1,5 +1,6 @@
 "use client";
 
+import { SupersetLabel } from "@/components/training/superset-frame";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -20,9 +21,10 @@ import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { typoWarning, type TypoReference } from "@/lib/workouts/typo";
+import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
-import { isExerciseDone, parseNumber, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
+import { isExerciseDone, parseNumber, setDurationSec, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
 
 /** Образец для «точно столько?»: прошлый выполненный рабочий подход здесь, иначе тот же по счёту в прошлый раз. */
 function typoReference(sets: SetState[], index: number, workingNumber: number, last?: LastPerformance[string]): TypoReference | null {
@@ -40,10 +42,22 @@ const formatSets = (sets: { weight: number; reps: number }[]) =>
   sets.map((s) => (s.weight ? `${s.weight}×${s.reps}` : `${s.reps}`)).join(", ");
 
 /** Свёрнутое выполненное упражнение: одна строка без полей ввода, тап — развернуть. */
-function CollapsedExercise({ item, handle, onToggle }: { item: ExerciseState; handle?: ReactNode; onToggle: () => void }) {
-  const working = item.sets
-    .filter((s) => !s.isWarmup)
-    .map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) }));
+function CollapsedExercise({
+  item,
+  handle,
+  onToggle,
+  groupLabel,
+}: {
+  item: ExerciseState;
+  handle?: ReactNode;
+  onToggle: () => void;
+  groupLabel?: string | null;
+}) {
+  const kind: ExerciseKindName = item.exercise.kind ?? "REPS";
+  const working = item.sets.filter((s) => !s.isWarmup);
+  const summary = isTimed(kind)
+    ? working.map((s) => timedSetText(kind, { durationSec: setDurationSec(kind, s.duration), distanceM: Math.round(parseNumber(s.distance) * 1000) })).join(", ")
+    : formatSets(working.map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) })));
   return (
     <section className="rounded-xl border bg-card" aria-label={item.exercise.name} data-exercise-key={item.key} data-collapsed>
       <div className="flex items-center gap-2 p-3">
@@ -59,10 +73,13 @@ function CollapsedExercise({ item, handle, onToggle }: { item: ExerciseState; ha
             <Check className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{item.exercise.name}</span>
+            <span className="block truncate font-semibold">
+              <SupersetLabel label={groupLabel} />
+              {item.exercise.name}
+            </span>
             <span className="block truncate text-xs text-muted-foreground tabular-nums">
               {item.sets.length}/{item.sets.length}
-              {working.length ? ` · ${formatSets(working)}` : null}
+              {working.length ? ` · ${summary}` : null}
             </span>
           </span>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
@@ -85,6 +102,7 @@ export function ExerciseBlock({
   handle,
   collapsed = false,
   onToggleCollapsed,
+  groupLabel,
 }: {
   item: ExerciseState;
   index: number;
@@ -104,8 +122,14 @@ export function ExerciseBlock({
   collapsed?: boolean;
   /** Свернуть/развернуть вручную; кнопка «Свернуть» — только у выполненного упражнения. */
   onToggleCollapsed?: () => void;
+  /** Метка суперсета A1/A2 (только при флаге workout_formats). */
+  groupLabel?: string | null;
 }) {
   const { exercise } = item;
+  const kind: ExerciseKindName = exercise.kind ?? "REPS";
+  // На время и кардио: без веса, повторов, разминки, запаса повторов и «точно столько?»
+  const timed = isTimed(kind);
+  const columns = kind === "TIME" ? "grid-cols-[2.5rem_1fr_2.75rem_2rem]" : "grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem]";
   const doneCount = item.sets.filter((s) => s.completedAt).length;
   // Подходы, у которых сейчас играет анимация «готово» вместо кнопки
   // Строка, где сейчас печатают: «точно столько?» не мигает на промежуточных цифрах
@@ -119,24 +143,30 @@ export function ExerciseBlock({
     });
   useEffect(() => preloadLottie("success"), []);
 
-  if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} />;
+  if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} groupLabel={groupLabel} />;
 
   return (
     <section className="rounded-xl border bg-card" aria-label={exercise.name} data-exercise-key={item.key}>
       <header className="flex items-start gap-2 p-4 pb-2">
         {handle}
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold">{exercise.name}</h3>
+          <h3 className="font-semibold">
+            <SupersetLabel label={groupLabel} />
+            {exercise.name}
+          </h3>
           <p className="text-xs text-muted-foreground">
             {exercise.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")} · {doneCount}/{item.sets.length}
           </p>
           {last?.sets.length ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              Прошлый раз: <span className="text-foreground">{formatSets(last.sets)}</span>
+              Прошлый раз:{" "}
+              <span className="text-foreground">
+                {timed ? last.sets.map((s) => timedSetText(kind, s)).join(", ") : formatSets(last.sets)}
+              </span>
             </p>
           ) : null}
           {coachTarget ? <p className="mt-1 text-sm font-medium text-primary">{coachTarget}</p> : null}
-          {hint ? <HintBadge hint={hint} className="mt-1.5 w-fit" /> : null}
+          {hint && !timed ? <HintBadge hint={hint} className="mt-1.5 w-fit" /> : null}
         </div>
 
         <div className="flex items-center gap-0.5 rounded-lg border px-1 text-xs" aria-label="Отдых между подходами">
@@ -174,11 +204,11 @@ export function ExerciseBlock({
           <DropdownMenuContent align="end" className="w-48">
             {onAsk ? (
               <>
-                <DropdownMenuItem onClick={onAsk}>
-                  <MessageCircleQuestion />
-                  Спросить помощника
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onAsk}>
+                    <MessageCircleQuestion />
+                    Спросить помощника
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
               </>
             ) : null}
             <DropdownMenuItem disabled={index === 0} onClick={() => dispatch({ type: "moveExercise", key: item.key, delta: -1 })}>
@@ -202,10 +232,11 @@ export function ExerciseBlock({
       </header>
 
       <div className="px-2 pb-2">
-        <div className="grid grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem] items-center gap-2 px-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <div className={cn("grid items-center gap-2 px-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground", columns)}>
           <span>#</span>
-          <span>{exercise.isBodyweight ? "доп. кг" : "кг"}</span>
-          <span>повт.</span>
+          {kind === "CARDIO" ? <span>км</span> : null}
+          {timed ? <span>время</span> : <span>{exercise.isBodyweight ? "доп. кг" : "кг"}</span>}
+          {timed ? null : <span>повт.</span>}
           <span className="sr-only">Выполнен</span>
           <span className="sr-only">Удалить</span>
         </div>
@@ -214,7 +245,7 @@ export function ExerciseBlock({
           const done = Boolean(set.completedAt);
           const workingNumber = item.sets.slice(0, i + 1).filter((s) => !s.isWarmup).length;
           const typo =
-            set.isWarmup || editing === set.key
+            timed || set.isWarmup || editing === set.key
               ? null
               : typoWarning(
                   { weight: parseNumber(set.weight), reps: parseNumber(set.reps) },
@@ -227,23 +258,55 @@ export function ExerciseBlock({
                 data-done={done || undefined}
                 onFocus={() => setEditing(set.key)}
                 onBlur={() => setEditing(null)}
-                className={cn(
-                  "grid grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem] items-center gap-2 rounded-lg px-2 py-1 transition-colors",
-                  done && "bg-primary/10",
-                )}
+                className={cn("grid items-center gap-2 rounded-lg px-2 py-1 transition-colors", columns, done && "bg-primary/10")}
               >
-                <button
-                  type="button"
-                  title="Нажмите, чтобы отметить как разминочный"
-                  aria-label={`Подход ${i + 1}: ${set.isWarmup ? "разминка" : "рабочий"}`}
-                  onClick={() => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { isWarmup: !set.isWarmup } })}
-                  className={cn(
-                    "h-8 rounded-md text-sm font-bold tabular-nums",
-                    set.isWarmup ? "text-xp" : "text-muted-foreground",
-                  )}
-                >
-                  {set.isWarmup ? "Р" : workingNumber}
-                </button>
+                {timed ? (
+                  <span className="flex h-8 items-center justify-center text-sm font-bold text-muted-foreground tabular-nums">{i + 1}</span>
+                ) : (
+                  <button
+                    type="button"
+                    title="Нажмите, чтобы отметить как разминочный"
+                    aria-label={`Подход ${i + 1}: ${set.isWarmup ? "разминка" : "рабочий"}`}
+                    onClick={() => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { isWarmup: !set.isWarmup } })}
+                    className={cn(
+                      "h-8 rounded-md text-sm font-bold tabular-nums",
+                      set.isWarmup ? "text-xp" : "text-muted-foreground",
+                    )}
+                  >
+                    {set.isWarmup ? "Р" : workingNumber}
+                  </button>
+                )}
+                {kind === "CARDIO" ? (
+                  <Input
+                    {...selectOnFocus}
+                    inputMode="decimal"
+                    value={set.distance}
+                    placeholder="0"
+                    aria-label={`Дистанция, подход ${i + 1}`}
+                    onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { distance: e.target.value } })}
+                    className="h-9 text-center tabular-nums"
+                  />
+                ) : null}
+                {timed ? (
+                  <Input
+                    {...selectOnFocus}
+                    inputMode="decimal"
+                    value={set.duration}
+                    placeholder="0:00"
+                    aria-label={`Время, подход ${i + 1}`}
+                    title="Минуты и секунды: 1:30, 1,30 или 90"
+                    onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { duration: e.target.value } })}
+                    onBlur={(e) => {
+                      // «1,30» и «90» → «1:30»: видно, как поняли ввод
+                      const sec = setDurationSec(kind, e.target.value);
+                      if (sec > 0 && e.target.value !== timedSetText("TIME", { durationSec: sec }))
+                        dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { duration: timedSetText("TIME", { durationSec: sec }) } });
+                    }}
+                    className="h-9 text-center tabular-nums"
+                  />
+                ) : null}
+                {timed ? null : (
+                  <>
                 <Input
                   {...selectOnFocus}
                   inputMode="decimal"
@@ -262,6 +325,8 @@ export function ExerciseBlock({
                   onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { reps: e.target.value } })}
                   className="h-9 text-center tabular-nums"
                 />
+                  </>
+                )}
                 <Button
                   type="button"
                   size="icon"
@@ -324,7 +389,7 @@ export function ExerciseBlock({
                   {typo}
                 </p>
               ) : null}
-              {done && !set.isWarmup ? (
+              {done && !set.isWarmup && !timed ? (
                 <RirPicker
                   value={set.rir}
                   label={`Запас повторов, подход ${i + 1}`}
@@ -345,7 +410,7 @@ export function ExerciseBlock({
           <Plus />
           Подход
         </Button>
-        {exercise.isBodyweight ? null : <PlateTools item={item} dispatch={dispatch} />}
+        {exercise.isBodyweight || timed ? null : <PlateTools item={item} dispatch={dispatch} />}
       </div>
     </section>
   );

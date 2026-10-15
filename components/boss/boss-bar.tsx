@@ -7,11 +7,11 @@ import { prefersReducedMotion } from "@/components/lottie/lottie-player";
 import { setDamage } from "@/lib/boss/damage";
 import type { BossView } from "@/lib/boss/queries";
 
-type SetLike = { completedAt: string | null; isWarmup: boolean; rir: number | null; reps: string };
+type SetLike = { completedAt: string | null; isWarmup: boolean; rir: number | null; reps: number; durationSec: number };
 
 /** Урон выполненных рабочих подходов текущей тренировки (криты — только при завершении). */
 function liveDamage(sets: SetLike[]) {
-  return sets.reduce((sum, s) => (s.completedAt && !s.isWarmup && Number(s.reps) > 0 ? sum + setDamage(s.rir) : sum), 0);
+  return sets.reduce((sum, s) => (s.completedAt && !s.isWarmup && (s.reps > 0 || s.durationSec > 0) ? sum + setDamage(s.rir) : sum), 0);
 }
 
 /**

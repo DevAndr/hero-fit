@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { GoalType, RecordType } from "@/generated/prisma/enums";
+import type { GoalType } from "@/generated/prisma/enums";
 import { plural } from "@/lib/format";
 import { createGoalAction } from "@/lib/goals/actions";
 import type { GoalFormData } from "@/lib/goals/queries";
-import { GOALS_ACTIVE_MAX, type GoalInput, type GoalSuggestion } from "@/lib/goals/rules";
+import { GOALS_ACTIVE_MAX, type GoalInput, type GoalSuggestion, type StrengthMetric } from "@/lib/goals/rules";
 import { cn } from "@/lib/utils";
 
 const TYPES: { type: GoalType; label: string; icon: typeof Dumbbell; hint: string }[] = [
@@ -25,7 +25,7 @@ const TYPES: { type: GoalType; label: string; icon: typeof Dumbbell; hint: strin
   { type: "BODY_WEIGHT", label: "Вес тела", icon: Scale, hint: "Сбросить или набрать" },
 ];
 
-const METRICS: { metric: RecordType; label: string }[] = [
+const METRICS: { metric: StrengthMetric; label: string }[] = [
   { metric: "MAX_WEIGHT", label: "Рабочий вес" },
   { metric: "ONE_RM", label: "1ПМ" },
   { metric: "MAX_REPS", label: "Повторы" },
@@ -34,7 +34,7 @@ const METRICS: { metric: RecordType; label: string }[] = [
 const kg = (n: number) => `${String(Math.round(n * 10) / 10).replace(".", ",")} кг`;
 const num = (s: string) => Number(s.trim().replace(",", "."));
 
-function targetLabel(type: GoalType, metric: RecordType | null) {
+function targetLabel(type: GoalType, metric: StrengthMetric | null) {
   switch (type) {
     case "STRENGTH":
       return metric === "MAX_REPS" ? "Цель, повторов" : "Цель, кг";
@@ -49,7 +49,7 @@ function targetLabel(type: GoalType, metric: RecordType | null) {
   }
 }
 
-type Draft = { type: GoalType | null; exerciseId: string | null; metric: RecordType | null; target: string; deadline: string | null; currentWeight: string };
+type Draft = { type: GoalType | null; exerciseId: string | null; metric: StrengthMetric | null; target: string; deadline: string | null; currentWeight: string };
 const emptyDraft: Draft = { type: null, exerciseId: null, metric: null, target: "", deadline: null, currentWeight: "" };
 
 function draftOf(g: Partial<GoalInput>): Draft {
@@ -264,7 +264,7 @@ export function NewGoal({
                         aria-label="Что улучшаем"
                         aria-invalid={errors.metric ? true : undefined}
                         aria-describedby={errors.metric ? "goal-metric-error" : undefined}
-                        value={draft.metric ?? ""} onValueChange={(v) => set({ metric: v as RecordType, target: "" })} className="flex flex-wrap gap-2">
+                        value={draft.metric ?? ""} onValueChange={(v) => set({ metric: v as StrengthMetric, target: "" })} className="flex flex-wrap gap-2">
                         {METRICS.filter((m) => !exercise.isBodyweight || m.metric === "MAX_REPS").map((m) => (
                           <Radio.Root
                             key={m.metric}

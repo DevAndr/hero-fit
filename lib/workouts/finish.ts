@@ -26,6 +26,7 @@ import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, workoutXp } from "@/lib/progress/xp";
 import { workoutTotals } from "@/lib/workouts/schema";
+import { isDoneSet, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 export type NewRecord = { exerciseId: string; exerciseName: string; type: RecordType; value: number; previous: number };
 
@@ -100,7 +101,7 @@ export async function finishWorkout(
     const workout = await tx.workout.findFirst({
       where: { id: workoutId, userId },
       include: {
-        exercises: { include: { exercise: { select: { name: true, isBodyweight: true } }, sets: true } },
+        exercises: { include: { exercise: { select: { name: true, isBodyweight: true, kind: true } }, sets: true } },
       },
     });
     if (!workout) return { ok: false, error: "Тренировка не найдена" };
@@ -109,7 +110,7 @@ export async function finishWorkout(
       return { ok: false, error: "Сначала начните тренировку" };
     }
 
-    const totals = workoutTotals(workout.exercises);
+    const totals = workoutTotals(workout.exercises.map((we) => ({ kind: we.exercise.kind, sets: we.sets })));
     if (totals.sets === 0) return { ok: false, error: "Отметьте хотя бы один выполненный подход" };
 
     // Цели — значения до тренировки (до захвата и рекордов): для строк прироста в сводке
@@ -125,7 +126,16 @@ export async function finishWorkout(
 
     // В истории остаются только выполненные подходы и упражнения, где они есть.
     await tx.workoutSet.deleteMany({
-      where: { workoutExercise: { workoutId }, OR: [{ completedAt: null }, { reps: { lte: 0 } }] },
+      // Подход «состоялся»: силовой — с повторами, на время и кардио — со временем
+      where: {
+        workoutExercise: { workoutId },
+        OR: [
+          { completedAt: null },
+          { reps: { lte: 0 }, OR: [{ durationSec: null }, { durationSec: { lte: 0 } }] },
+          // На время и кардио повторы не в счёт: без времени подход не состоялся
+          { workoutExercise: { exercise: { kind: { not: "REPS" } } }, OR: [{ durationSec: null }, { durationSec: { lte: 0 } }] },
+        ],
+      },
     });
     await tx.workoutExercise.deleteMany({ where: { workoutId, sets: { none: {} } } });
 
@@ -135,14 +145,14 @@ export async function finishWorkout(
 
     // Личные рекорды
     const records: NewRecord[] = [];
-    const byExercise = new Map<string, { name: string; sets: { weight: number; reps: number }[] }>();
+    const byExercise = new Map<string, { name: string; kind: ExerciseKindName; sets: { weight: number; reps: number; durationSec: number | null; distanceM: number | null }[] }>();
     for (const we of workout.exercises) {
-      const entry = byExercise.get(we.exerciseId) ?? { name: we.exercise.name, sets: [] };
-      entry.sets.push(...we.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0));
+      const entry = byExercise.get(we.exerciseId) ?? { name: we.exercise.name, kind: we.exercise.kind, sets: [] };
+      entry.sets.push(...we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s)));
       byExercise.set(we.exerciseId, entry);
     }
-    for (const [exerciseId, { name, sets }] of byExercise) {
-      const current = bestOfSets(sets);
+    for (const [exerciseId, { name, kind, sets }] of byExercise) {
+      const current = bestOfSets(sets, kind);
       const existing = await tx.personalRecord.findMany({ where: { userId, exerciseId } });
       const previous: RecordValues = Object.fromEntries(existing.map((r) => [r.type, r.value]));
       const { improved, firstTime } = findNewRecords(current, previous);
@@ -222,7 +232,7 @@ export async function finishWorkout(
 
     // Монеты: строка пользователя заблокирована UPDATE выше — лимит «2 тренировки в день» не обойти гонкой двух финишей.
     // День — местный день finishedAt (офлайн-финиш задним числом считается по своему дню).
-    const workingSets = workout.exercises.reduce((n, we) => n + we.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0).length, 0);
+    const workingSets = workout.exercises.reduce((n, we) => n + we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s)).length, 0);
     const day = dayKey(now, tz);
     const levelBefore = levelProgress(user.xp).level;
     const coinGrants = await grantCoinsDetailed(
@@ -245,7 +255,7 @@ export async function finishWorkout(
     const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
     const before = await weekDamage(tx, userId, week, tz, workoutId);
     const hit = workoutDamage(
-      workout.exercises.flatMap((we) => we.sets.filter((s) => s.completedAt && !s.isWarmup && s.reps > 0)),
+      workout.exercises.flatMap((we) => we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s))),
       new Set(records.map((r) => r.exerciseId)).size,
     );
     let defeated = false;
