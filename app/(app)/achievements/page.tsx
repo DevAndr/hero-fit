@@ -6,9 +6,12 @@ import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/components/achievements/category";
 import { GoalCard } from "@/components/achievements/goal-card";
 import { Bestiary } from "@/components/boss/bestiary";
+import { GoblinCard } from "@/components/goblin/goblin-card";
 import { requireUser } from "@/lib/auth/dal";
 import { getAchievementsOverview } from "@/lib/achievements/queries";
 import { getBestiary } from "@/lib/boss/queries";
+import { isEnabled } from "@/lib/flags/server";
+import { getGoblinStats } from "@/lib/goblin/queries";
 import { safeTimeZone } from "@/lib/daily-login";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +45,10 @@ export default async function AchievementsPage({ searchParams }: PageProps<"/ach
         ))}
       </nav>
       {tab === "bestiary" ? (
-        <Bestiary entries={await getBestiary(user.id, safeTimeZone(user.timeZone))} />
+        <Bestiary
+          entries={await getBestiary(user.id, safeTimeZone(user.timeZone))}
+          rare={(await isEnabled("golden_goblin", user.id)) ? <GoblinCard stats={await getGoblinStats(user.id)} /> : undefined}
+        />
       ) : (
         <AchievementsTab earned={earned} goals={goals} />
       )}

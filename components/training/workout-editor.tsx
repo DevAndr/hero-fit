@@ -26,6 +26,8 @@ import { Label } from "@/components/ui/label";
 import { ExerciseBlock } from "@/components/training/exercise-block";
 import { useClosingConfirmation } from "@/components/telegram/telegram-mini-app";
 import { BossBar } from "@/components/boss/boss-bar";
+import { useFlag } from "@/components/flags/flags-provider";
+import { GoblinBanner } from "@/components/goblin/goblin-banner";
 import { ExerciseCatalog } from "@/components/training/exercise-catalog";
 import type { BossView } from "@/lib/boss/queries";
 import { ExercisePicker } from "@/components/training/exercise-picker";
@@ -212,11 +214,15 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, wellbeing, last, hints, targets, own, exercises]);
   useEffect(() => () => setWorkout(null), [setWorkout]);
   const draft = useMemo(() => toDraft(state), [state]);
-  const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error));
+  const [goblin, setGoblin] = useState(workout.goblin ?? null);
+  const sync = useWorkoutSync(workout.id, state, (error) => toast.error(error), setGoblin);
   const rest = useRestTimer();
   // Telegram переспросит перед закрытием, пока тренировка открыта
   useClosingConfirmation(true);
   useWakeLock(state.status === "IN_PROGRESS");
+
+  // Золотой гоблин (флаг): бросок делает сервер при сохранении черновика — ответ приходит через useWorkoutSync
+  const goblinOn = useFlag("golden_goblin");
   const [pending, startTransition] = useTransition();
   const [finishOpen, setFinishOpen] = useState(false);
   // Тренировку забыли завершить — в диалоге предлагаем время последнего подхода
@@ -379,6 +385,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 <NotificationToggle />
               </div>
             </div>
+
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={state.exercises.flatMap((e) => e.sets)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {

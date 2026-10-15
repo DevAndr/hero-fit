@@ -1078,3 +1078,28 @@ export async function errorEventUsers(message: string) {
 export async function resolveErrorGroup(message: string) {
   await withDb((db) => db.query(`update "ErrorGroup" set "resolvedAt" = now() where message = $1`, [message]));
 }
+
+/** Золотой гоблин для идущей тренировки пользователя, появившийся `minutesAgo` минут назад (минуя случайность). */
+export async function spawnGoblin(login: string, minutesAgo = 0) {
+  await withDb((db) =>
+    db.query(
+      `insert into "GoblinEncounter" (id, "userId", "workoutId", "spawnedAt")
+       select $2, u.id, w.id, now() - make_interval(mins => $3::int)
+       from "User" u join "Workout" w on w."userId" = u.id and w.status = 'IN_PROGRESS'
+       where u.login = $1`,
+      [login, randomUUID(), minutesAgo],
+    ),
+  );
+}
+
+/** Встречи с гоблином пользователя: поймана ли, открыт ли сундук. */
+export async function goblinRows(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ caught: boolean; opened: boolean }>(
+      `select g."caughtAt" is not null as caught, g."rewardOpenedAt" is not null as opened
+       from "GoblinEncounter" g join "User" u on u.id = g."userId" where u.login = $1`,
+      [login],
+    );
+    return rows;
+  });
+}

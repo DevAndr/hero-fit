@@ -15,6 +15,7 @@ import { Haptic } from "@/components/telegram/haptic";
 import type { RecordType } from "@/generated/prisma/enums";
 import { progressionLine, type ProgressionItem } from "@/lib/coach/progression";
 import { formatDuration, rirLabel } from "@/lib/format";
+import { GoblinSummary } from "@/components/goblin/goblin-summary";
 import { levelProgress } from "@/lib/progress/level";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
@@ -61,6 +62,7 @@ export function WorkoutSummaryView({
   renderComment,
   feedback,
   goalChests = [],
+  goblinOpened = true,
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -77,6 +79,8 @@ export function WorkoutSummaryView({
   feedback?: ReactNode;
   /** Цели этой тренировки с ещё не открытым сундуком. */
   goalChests?: string[];
+  /** Сундук Золотого гоблина этой тренировки уже открыт (нет гоблина — не важно). */
+  goblinOpened?: boolean;
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const achievementsXp = meta?.achievementsXp ?? 0;
@@ -199,6 +203,7 @@ export function WorkoutSummaryView({
       {meta?.boss ? (
         <BossDamage boss={meta.boss} rewardOpened={readOnly || bossTaken} celebrate={!readOnly && freshFinish} readOnly={readOnly} />
       ) : null}
+      {meta?.goblin ? <GoblinSummary goblin={meta.goblin} opened={goblinOpened} readOnly={readOnly} /> : null}
       {meta?.raid ? <RaidDamage raid={meta.raid} readOnly={readOnly} /> : null}
       {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
       {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}

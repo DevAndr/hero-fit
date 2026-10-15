@@ -76,6 +76,8 @@ export type AchievementStats = {
   leaguePlaces: Record<LeaguePlace, number>;
   /** Побед над боссом недели (BossWeek с defeatedAt). */
   bossWins: number;
+  /** Пойманных Золотых гоблинов (GoblinEncounter с caughtAt). */
+  goblinCatches: number;
   /** Побед в рейдах гильдии, где бил до победы (RaidReward). */
   raidWins: number;
   /** Рейдов, где был MVP (RaidWeek.mvpUserId). */
@@ -171,6 +173,7 @@ export const EMPTY_STATS: AchievementStats = {
   freezeSaves: 0,
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
   bossWins: 0,
+  goblinCatches: 0,
   raidWins: 0,
   raidMvps: 0,
   clubTaskRewards: 0,
@@ -676,6 +679,20 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 1 ? "Победитель босса" : `Охотник на боссов ×${n}`,
           description: n === 1 ? "Победить босса недели" : `Победить ${n} ${plural(n, "босса", "боссов", "боссов")} недели`,
           xpReward: 30 + n * 5,
+        }),
+    },
+
+    // Золотой гоблин
+    {
+      fixed: [1, 5, 10],
+      value: s.goblinCatches,
+      def: (n) =>
+        def(n, {
+          code: `goblin:${n}`,
+          category: "BOSS",
+          title: n === 1 ? "Охотник за золотом" : `Охотник за золотом ×${n}`,
+          description: n === 1 ? "Поймать Золотого гоблина" : `Поймать ${n} ${plural(n, "золотого гоблина", "золотых гоблинов", "золотых гоблинов")}`,
+          xpReward: 25 + n * 5,
         }),
     },
 

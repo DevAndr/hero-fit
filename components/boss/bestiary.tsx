@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Star } from "lucide-react";
 import { BossDetails } from "@/components/boss/boss-details";
 import { BossSprite } from "@/components/boss/boss-sprite";
@@ -69,7 +70,7 @@ function BossEntry({ entry }: { entry: BestiaryEntry }) {
 }
 
 /** Бестиарий: коллекция боссов недели — победы, звёзды и титулы. */
-export function Bestiary({ entries }: { entries: BestiaryEntry[] }) {
+export function Bestiary({ entries, rare }: { entries: BestiaryEntry[]; rare?: ReactNode }) {
   const starred = entries.filter((e) => e.stars > 0).length;
   return (
     <section className="space-y-3">
@@ -85,6 +86,12 @@ export function Bestiary({ entries }: { entries: BestiaryEntry[] }) {
           <BossEntry key={e.code} entry={e} />
         ))}
       </div>
+      {rare ? (
+        <>
+          <h2 className="pt-2 text-lg font-bold">Редкие</h2>
+          <div className="grid gap-3 md:grid-cols-2">{rare}</div>
+        </>
+      ) : null}
     </section>
   );
 }

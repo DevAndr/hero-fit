@@ -31,6 +31,8 @@ export function coinLabel(tx: { reason: CoinReason; key: string; meta: unknown }
       return "Сундук цели";
     case "CLUB_TASK_CHEST":
       return "Сундук задания клуба";
+    case "GOBLIN_CHEST":
+      return "Сундук Золотого гоблина";
     case "ACHIEVEMENT": {
       const title = str(tx.meta, "title");
       return title ? `Ачивка: ${title}` : "Ачивка";

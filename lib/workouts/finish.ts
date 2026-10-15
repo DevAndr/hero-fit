@@ -5,6 +5,7 @@ import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/en
 import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
+import { goblinProgress } from "@/lib/goblin/rules";
 import { applyRaidHit } from "@/lib/raid/apply";
 import { applyClubTasks, type FinishClubTask } from "@/lib/club/tasks-apply";
 import { applyGoals, snapshotGoals } from "@/lib/goals/apply";
@@ -61,6 +62,8 @@ export type FinishMeta = {
     /** Титулы, открытые этой победой (названия). */
     titles?: string[];
   };
+  /** Золотой гоблин этой тренировки (флаг golden_goblin): пойман ли — сундук в итогах. */
+  goblin?: { id: string; caught: boolean };
   /** Рейд-босс гильдии: урон этой тренировки, HP до/после, победа; rewardXp — моя награда, если победа дала сундук. */
   raid?: {
     raidId: string;
@@ -87,7 +90,12 @@ export type FinishResult = { ok: true } | { ok: false; error: string };
  * Завершение тренировки одной транзакцией: чистим невыполненное, считаем итоги,
  * обновляем рекорды, XP, уровень и streak.
  */
-export async function finishWorkout(userId: string, workoutId: string, now = new Date()): Promise<FinishResult> {
+export async function finishWorkout(
+  userId: string,
+  workoutId: string,
+  now = new Date(),
+  opts: { goblin?: boolean } = {},
+): Promise<FinishResult> {
   return db.$transaction(async (tx) => {
     const workout = await tx.workout.findFirst({
       where: { id: workoutId, userId },
@@ -284,6 +292,19 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       ...(titles.length ? { titles } : {}),
     };
 
+    // Золотой гоблин: 3 рабочих подхода за 10 минут с появления — пойман (условие по caughtAt — без повторов)
+    let goblin: FinishMeta["goblin"];
+    if (opts.goblin) {
+      const encounter = await tx.goblinEncounter.findUnique({ where: { workoutId }, select: { id: true, spawnedAt: true, caughtAt: true } });
+      if (encounter) {
+        const { caught } = goblinProgress(encounter.spawnedAt, workout.exercises.flatMap((e) => e.sets), now);
+        if (caught && !encounter.caughtAt) {
+          await tx.goblinEncounter.updateMany({ where: { id: encounter.id, caughtAt: null }, data: { caughtAt: now } });
+        }
+        goblin = { id: encounter.id, caught: caught || Boolean(encounter.caughtAt) };
+      }
+    }
+
     // Рейд гильдии — тем же уроном; окно рейда — по реальному времени (офлайн-финиш прошлой недели не бьёт)
     const raid = await applyRaidHit(tx, { userId, workoutId, finishedAt: now, damage: hit.damage, crits: hit.crits, now: new Date() });
 
@@ -325,6 +346,7 @@ export async function finishWorkout(userId: string, workoutId: string, now = new
       usedFreezes: streak.frozenWeeks.length,
       weekCount,
       boss,
+      ...(goblin ? { goblin } : {}),
       ...(raid ? { raid } : {}),
       ...(goals ? { goals } : {}),
       ...(clubTasks ? { clubTasks } : {}),
