@@ -44,6 +44,7 @@ export async function getTemplateForEdit(userId: string, id: string) {
           targetWeight: true,
           restSec: true,
           step: true,
+          supersetGroup: true,
           exercise: { select: { id: true, name: true, muscleGroups: true, defaultRestSec: true, archivedAt: true, isBodyweight: true } },
         },
       },

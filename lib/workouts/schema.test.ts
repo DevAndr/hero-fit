@@ -73,3 +73,14 @@ describe("clampClientTime", () => {
     expect(clampClientTime("garbage", now, null, H)).toEqual(now);
   });
 });
+
+describe("workoutDraftSchema — superset group", () => {
+  it("an old draft without group reads as no group; garbage — no group", () => {
+    const old = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e1", restSec: 60, sets: [] }] });
+    expect(old.exercises[0].group).toBeNull();
+    const bad = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e1", restSec: 60, group: "x", sets: [] }] });
+    expect(bad.exercises[0].group).toBeNull();
+    const ok = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e1", restSec: 60, group: 2, sets: [] }] });
+    expect(ok.exercises[0].group).toBe(2);
+  });
+});

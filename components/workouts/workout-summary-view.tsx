@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, Layers, Medal, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
@@ -11,12 +11,14 @@ import { GoalsReached } from "@/components/goals/goals-reached";
 import { StreakFlame } from "@/components/lottie/streak-flame";
 import { LevelUpBar } from "@/components/progress/level-up-bar";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
+import { SupersetHeader, SupersetLabel, SupersetPart } from "@/components/training/superset-frame";
 import { Haptic } from "@/components/telegram/haptic";
 import type { RecordType } from "@/generated/prisma/enums";
 import { progressionLine, type ProgressionItem } from "@/lib/coach/progression";
 import { formatDuration, rirLabel } from "@/lib/format";
 import { GoblinSummary } from "@/components/goblin/goblin-summary";
 import { levelProgress } from "@/lib/progress/level";
+import { groupLabels, groupSize } from "@/lib/workouts/supersets";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import type { getWorkoutSummary } from "@/lib/workouts/queries";
@@ -63,6 +65,7 @@ export function WorkoutSummaryView({
   feedback,
   goalChests = [],
   goblinOpened = true,
+  supersets = false,
 }: {
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
@@ -81,8 +84,12 @@ export function WorkoutSummaryView({
   goalChests?: string[];
   /** Сундук Золотого гоблина этой тренировки уже открыт (нет гоблина — не важно). */
   goblinOpened?: boolean;
+  /** Показывать суперсеты (флаг workout_formats). */
+  supersets?: boolean;
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
+  const groupItems = workout.exercises.map((we) => ({ group: we.supersetGroup }));
+  const labels = supersets ? groupLabels(groupItems) : [];
   const achievementsXp = meta?.achievementsXp ?? 0;
   const totalXp = workout.xpEarned + achievementsXp;
   const xpAfter = meta ? meta.xpBefore + totalXp : owner.xp;
@@ -222,26 +229,34 @@ export function WorkoutSummaryView({
 
       <section className="mt-6 space-y-3">
         <h2 className="text-lg font-bold">Упражнения</h2>
-        {workout.exercises.map((we) => (
-          <div key={we.id} className="rounded-xl border bg-card p-4">
-            <h3 className="font-semibold">
-              <Link href={exerciseHref(we.exerciseId)} className="hover:text-primary hover:underline">
-                {we.exercise.name}
-              </Link>
-            </h3>
-            <ol className="mt-2 flex flex-wrap gap-2 text-sm tabular-nums">
-              {we.sets.map((s) => (
-                <li
-                  key={s.id}
-                  className={cn("rounded-md px-2 py-0.5", s.isWarmup ? "bg-muted text-muted-foreground" : "bg-primary/10")}
-                >
-                  {s.weight ? `${s.weight} × ${s.reps}` : `${s.reps} повт.`}
-                  {s.rir !== null ? <span className="ml-1 text-xs text-muted-foreground">@RIR {rirLabel(s.rir)}</span> : null}
-                </li>
-              ))}
-            </ol>
-            {renderComment?.(we.id)}
-          </div>
+        {workout.exercises.map((we, index) => (
+          <Fragment key={we.id}>
+            {supersets && we.supersetGroup !== null && workout.exercises[index - 1]?.supersetGroup !== we.supersetGroup ? (
+              <SupersetHeader size={groupSize(groupItems, index)} />
+            ) : null}
+            <SupersetPart grouped={supersets && we.supersetGroup !== null}>
+              <div className="rounded-xl border bg-card p-4">
+                <h3 className="font-semibold">
+                  <SupersetLabel label={labels[index]} />
+                  <Link href={exerciseHref(we.exerciseId)} className="hover:text-primary hover:underline">
+                    {we.exercise.name}
+                  </Link>
+                </h3>
+                <ol className="mt-2 flex flex-wrap gap-2 text-sm tabular-nums">
+                  {we.sets.map((s) => (
+                    <li
+                      key={s.id}
+                      className={cn("rounded-md px-2 py-0.5", s.isWarmup ? "bg-muted text-muted-foreground" : "bg-primary/10")}
+                    >
+                      {s.weight ? `${s.weight} × ${s.reps}` : `${s.reps} повт.`}
+                      {s.rir !== null ? <span className="ml-1 text-xs text-muted-foreground">@RIR {rirLabel(s.rir)}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+                {renderComment?.(we.id)}
+              </div>
+            </SupersetPart>
+            </Fragment>
         ))}
       </section>
 

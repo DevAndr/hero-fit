@@ -412,6 +412,8 @@ model TemplateExercise {
   step         Float?
   /// неудач подряд (своя прогрессия): на 3-й — разгрузка −10 %
   fails        Int    @default(0)
+  /// суперсет/круг: соседние упражнения с одним номером; null — вне группы
+  supersetGroup Int?
 
   template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
@@ -469,6 +471,8 @@ model WorkoutExercise {
   exerciseId String
   order      Int
   restSec    Int    @default(90)
+  /// суперсет/круг: соседние упражнения с одним номером (lib/workouts/supersets.ts); null — вне группы
+  supersetGroup Int?
 
   workout  Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Restrict)

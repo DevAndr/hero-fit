@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { goblinOfWorkout } from "@/lib/goblin/queries";
+import { isEnabled } from "@/lib/flags/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CoachCommentSection, CoachExerciseNote } from "@/components/coach/coach-comment-note";
@@ -49,6 +50,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       readOnly={false}
       bossTaken={bossTaken}
       goblinOpened={goblinOpened}
+      supersets={await isEnabled("workout_formats", user.id)}
       goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}

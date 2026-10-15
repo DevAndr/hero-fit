@@ -51,6 +51,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
           orderBy: { order: "asc" },
           select: {
             exercise: { select: { name: true } },
+            supersetGroup: true,
             sets: { orderBy: { order: "asc" }, select: { weight: true, reps: true, rir: true, isWarmup: true, completedAt: true } },
           },
         },
@@ -63,7 +64,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
         name: true,
         description: true,
         createdAt: true,
-        exercises: { orderBy: { order: "asc" }, select: { exercise: { select: { name: true } }, targetSets: true, targetReps: true, targetWeight: true, restSec: true, step: true } },
+        exercises: { orderBy: { order: "asc" }, select: { exercise: { select: { name: true } }, targetSets: true, targetReps: true, targetWeight: true, restSec: true, step: true, supersetGroup: true } },
       },
     }),
     db.planSeries.findMany({ where: { userId }, select: { title: true, weekday: true, time: true, durationMin: true, startDate: true, endDate: true, createdAt: true } }),
@@ -96,7 +97,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
 
   return {
     user,
-    workouts: workouts.map(({ exercises, ...w }) => ({ ...w, exercises: exercises.map((e) => ({ name: e.exercise.name, sets: e.sets })) })),
+    workouts: workouts.map(({ exercises, ...w }) => ({ ...w, exercises: exercises.map((e) => ({ name: e.exercise.name, supersetGroup: e.supersetGroup, sets: e.sets })) })),
     exercises,
     templates: templates.map(({ exercises, ...t }) => ({ ...t, exercises: exercises.map(({ exercise, ...row }) => ({ exercise: exercise.name, ...row })) })),
     plans: [...planSeries.map((p) => ({ kind: "weekly", ...p })), ...planEntries.map((p) => ({ kind: "single", ...p }))],

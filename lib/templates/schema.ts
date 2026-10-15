@@ -10,6 +10,8 @@ export const templateExerciseSchema = z.object({
   restSec: z.number().int().min(0).max(MAX_REST_SEC),
   /** Своя прогрессия: шаг, кг; работает при заданном весе. */
   step: z.number().min(0.5, "Шаг от 0,5 кг").max(20, "Шаг до 20 кг").nullable().default(null),
+  /** Суперсет/круг: номер группы (lib/workouts/supersets.ts); null — вне группы. */
+  group: z.number().int().min(1).nullable().default(null).catch(null),
 });
 
 export const templateSchema = z.object({

@@ -17,7 +17,7 @@ export type ExportWorkout = {
   rpe: number | null;
   notes: string | null;
   wellbeing: string | null;
-  exercises: { name: string; sets: { weight: number; reps: number; rir: number | null; isWarmup: boolean; completedAt: Dated }[] }[];
+  exercises: { name: string; supersetGroup?: number | null; sets: { weight: number; reps: number; rir: number | null; isWarmup: boolean; completedAt: Dated }[] }[];
 };
 
 export type ExportRaw = {
@@ -114,6 +114,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
       wellbeing: w.wellbeing,
       exercises: w.exercises.map((e) => ({
         name: e.name,
+        superset: e.supersetGroup ?? null,
         sets: e.sets.map((s) => ({ weight: s.weight, reps: s.reps, rir: s.rir, warmup: s.isWarmup, done: s.completedAt !== null })),
       })),
     })),

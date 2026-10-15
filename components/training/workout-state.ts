@@ -1,5 +1,6 @@
 import type { ActiveWorkout, ExerciseInfo, LastPerformance } from "@/lib/workouts/queries";
 import type { WorkoutDraft } from "@/lib/workouts/schema";
+import { afterSet, link, normalizeGroups, unlink } from "@/lib/workouts/supersets";
 
 /** Вес и повторы — строки: пользователь может временно стереть поле или ввести «82,5». */
 export type SetState = {
@@ -11,7 +12,8 @@ export type SetState = {
   rir: number | null;
   completedAt: string | null;
 };
-export type ExerciseState = { key: string; exercise: ExerciseInfo; restSec: number; sets: SetState[] };
+/** `group` — суперсет/круг (lib/workouts/supersets.ts); хранится и без флага, чтобы автосохранение его не стёрло. */
+export type ExerciseState = { key: string; exercise: ExerciseInfo; restSec: number; group: number | null; sets: SetState[] };
 export type WorkoutState = {
   name: string;
   status: "PLANNED" | "IN_PROGRESS";
@@ -33,6 +35,7 @@ export function initState(workout: ActiveWorkout): WorkoutState {
       key: key(),
       exercise: e.exercise,
       restSec: e.restSec,
+      group: e.group ?? null,
       sets: e.sets.map((s) => ({ key: key(), ...s, weight: fmt(s.weight), reps: fmt(s.reps) })),
     })),
   };
@@ -49,6 +52,7 @@ export function toDraft(state: WorkoutState): WorkoutDraft {
     exercises: state.exercises.map((e) => ({
       exerciseId: e.exercise.id,
       restSec: e.restSec,
+      group: e.group,
       sets: e.sets.map((s) => ({
         weight: parseNumber(s.weight),
         reps: Math.round(parseNumber(s.reps)),
@@ -76,6 +80,9 @@ export type Action =
   | { type: "moveExercise"; key: string; delta: -1 | 1 }
   | { type: "reorderExercise"; key: string; toIndex: number }
   | { type: "setRest"; key: string; restSec: number }
+  /** Суперсет: связать упражнение со следующим / отсоединить следующее. */
+  | { type: "linkNext"; key: string }
+  | { type: "unlink"; key: string }
   | { type: "addSet"; key: string }
   | { type: "removeSet"; key: string; setKey: string }
   /**
@@ -114,10 +121,56 @@ const workingSet = (s: { weight: number; reps: number }): SetState => ({
 function newExercise(exercise: ExerciseInfo, restSec: number, last: LastPerformance): ExerciseState {
   const previous = last[exercise.id]?.sets ?? [];
   const template = previous.length ? previous : Array.from({ length: DEFAULT_SETS }, () => ({ weight: 0, reps: 0 }));
-  return { key: key(), exercise, restSec, sets: template.map(workingSet) };
+  return { key: key(), exercise, restSec, group: null, sets: template.map(workingSet) };
 }
 
+/** Подпись для таймера отдыха: какой подход следующий. */
+function nextLabel(exercises: ExerciseState[], current: ExerciseState, justDone: SetState) {
+  const remainingHere = current.sets.filter((s) => s.key !== justDone.key && !s.completedAt);
+  if (remainingHere.length) return current.exercise.name;
+  const index = exercises.findIndex((e) => e.key === current.key);
+  const next = exercises.slice(index + 1).find((e) => e.sets.some((s) => !s.completedAt));
+  return next?.exercise.name ?? null;
+}
+
+export type NextStep = { kind: "rest"; restSec: number; label: string } | { kind: "switch"; key: string; label: string } | null;
+
+/**
+ * Что после отметки подхода: отдых (с подписью, что дальше) или — внутри суперсета — переход к следующему
+ * упражнению круга без таймера. Разминка и выключенные суперсеты — как раньше: отдых этого упражнения.
+ */
+export function nextStep(exercises: ExerciseState[], item: ExerciseState, set: SetState, supersets = true): NextStep {
+  if (!supersets || set.isWarmup || item.group === null) {
+    const label = nextLabel(exercises, item, set);
+    return label ? { kind: "rest", restSec: item.restSec, label } : null;
+  }
+  const index = exercises.findIndex((e) => e.key === item.key);
+  const step = afterSet(
+    exercises.map((e) => ({ group: e.group, pending: e.sets.filter((s) => !s.completedAt && s.key !== set.key).length })),
+    index,
+  );
+  if (step.kind === "switch") return { kind: "switch", key: exercises[step.next].key, label: exercises[step.next].exercise.name };
+  if (step.next === null) return null;
+  // После круга — отдых последнего упражнения группы
+  let last = index;
+  while (exercises[last + 1]?.group === item.group) last++;
+  return { kind: "rest", restSec: exercises[last].restSec, label: exercises[step.next].exercise.name };
+}
+
+/** Список упражнений поменялся — группы суперсетов без «дыр» и одиночек. */
+function regroup(state: WorkoutState): WorkoutState {
+  const exercises = normalizeGroups(state.exercises);
+  return exercises.every((e, i) => e === state.exercises[i]) ? state : { ...state, exercises };
+}
+
+const GROUPING: ReadonlySet<Action["type"]> = new Set(["replace", "addExercises", "removeExercise", "moveExercise", "reorderExercise", "replaceExercise", "skipPending"]);
+
 export function reducer(state: WorkoutState, action: Action): WorkoutState {
+  const next = apply(state, action);
+  return GROUPING.has(action.type) ? regroup(next) : next;
+}
+
+function apply(state: WorkoutState, action: Action): WorkoutState {
   switch (action.type) {
     case "rename":
       return { ...state, name: action.name };
@@ -152,6 +205,14 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
       if (from < 0 || from === to || to < 0 || to >= state.exercises.length) return state;
       const exercises = [...state.exercises];
       exercises.splice(to, 0, ...exercises.splice(from, 1));
+      return { ...state, exercises };
+    }
+
+    case "linkNext":
+    case "unlink": {
+      const at = state.exercises.findIndex((e) => e.key === action.key);
+      if (at < 0) return state;
+      const exercises = (action.type === "linkNext" ? link : unlink)(state.exercises, at);
       return { ...state, exercises };
     }
 
@@ -216,8 +277,9 @@ export function reducer(state: WorkoutState, action: Action): WorkoutState {
     case "replaceExercise": {
       const at = state.exercises.findIndex((e) => e.key === action.key);
       if (at < 0) return state;
-      const fresh = newExercise(action.exercise, action.restSec, action.last);
       const started = state.exercises[at].sets.some((s) => s.completedAt);
+      // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения
+      const fresh = { ...newExercise(action.exercise, action.restSec, action.last), group: state.exercises[at].group };
       const exercises = [...state.exercises];
       exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
       return { ...state, exercises };

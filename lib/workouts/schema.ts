@@ -16,6 +16,8 @@ export const setDraftSchema = z.object({
 export const exerciseDraftSchema = z.object({
   exerciseId: z.string().min(1),
   restSec: z.number().int().min(0).max(MAX_REST_SEC),
+  /** Суперсет/круг: номер группы (lib/workouts/supersets.ts); null — вне группы. Старые черновики — без поля. */
+  group: z.number().int().min(1).nullable().default(null).catch(null),
   sets: z.array(setDraftSchema).max(MAX_SETS),
 });
 
