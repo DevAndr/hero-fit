@@ -1,14 +1,17 @@
 # Золотой гоблин
 
-Релиз `release/2026-11-ux` (0.8.0), пятая фича, под фича-флагом `golden_goblin`.
+Релиз `release/2026-11-ux` (0.8.0), пятая фича, под фича-флагом `golden_goblin`. Идея — заметка «11. Случайные редкие
+боссы»: «Посреди тренировки иногда появляется Золотой гоблин: 3 подхода за 10 минут — и он твой. Не успел — ушёл.
+Пойманных собирают в бестиарий редких».
 
 ## Цель
 
-Редкая случайная встреча, ради которой хочется прийти на тренировку в ближайшие два дня: после тренировки иногда
-выскакивает Золотой гоблин; поймал (набил урон) за 48 часов — золотой сундук с XP и монетами, не успел — сбежал.
-Азарт за счёт непредсказуемости, без нового сложного интерфейса. Босс недели остаётся как есть: подходы бьют обоих.
+Непредсказуемая награда прямо в зале: тренировку хочется не пропустить — вдруг сегодня выпадет. Посреди тренировки
+изредка выскакивает Золотой гоблин; 3 рабочих подхода за 10 минут — пойман, золотой сундук в итогах. Не успел —
+ушёл. Босс недели не меняется.
 
-Вне рамок: напоминание «убежит через 12 ч», титулы, гоблин в ленте друзей и в лиге, общий гоблин на всех.
+Вне рамок: гоблин без сети (запрос не уйдёт — не появится), уведомления, гоблин на дашборде, в ленте и в лиге,
+другие редкие боссы (раздел «Редкие» бестиария готов к ним, но сейчас там только гоблин).
 
 ## Решения
 
@@ -18,100 +21,94 @@
 
 ```prisma
 model GoblinEncounter {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// тренировка, после которой появился (её урон гоблина не бьёт)
-  spawnWorkoutId  String
-  spawnedAt       DateTime
-  /// spawnedAt + 48 ч — после этого не пойманный гоблин сбежал
-  expiresAt       DateTime
-  hp              Int
-  damage          Int       @default(0)
-  caughtAt        DateTime?
-  rewardOpenedAt  DateTime?
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// одна встреча на тренировку; отменили тренировку (удаление) — встреча удаляется
+  workoutId      String    @unique
+  workout        Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  spawnedAt      DateTime
+  caughtAt       DateTime?
+  rewardOpenedAt DateTime?
   @@index([userId, spawnedAt])
 }
 ```
 
-У `User` — `goblinEncounters GoblinEncounter[]`. Статус вычисляется, не хранится: `caughtAt` — пойман; иначе
-`expiresAt > now` — активен; иначе — сбежал.
-
-Флаг — `golden_goblin` в `lib/flags/registry.ts` (`description: "Золотой гоблин: редкая встреча после тренировки"`,
+`User.goblinEncounters`, `Workout.goblin GoblinEncounter?`. `XpReason.GOBLIN_REWARD`, `CoinReason.GOBLIN_CHEST`.
+Флаг — `golden_goblin` в `lib/flags/registry.ts` (`description: "Золотой гоблин: редкая встреча посреди тренировки"`,
 `expires: "2027-04-30"`).
 
 ### Правила — чистые функции `lib/goblin/rules.ts`
 
-- `GOBLIN_CHANCE = 0.12`, `GOBLIN_COOLDOWN_DAYS = 14`, `GOBLIN_WINDOW_MS = 48 * 3_600_000`, `GOBLIN_MIN_HP = 1000`.
-- `shouldSpawn({ now, lastSpawnedAt, blocking, random }): boolean` — `false`, если `blocking` (есть активный
-  гоблин или пойманный с неоткрытым сундуком), или с `lastSpawnedAt` прошло меньше 14 дней; иначе `random < 0.12`.
-- `goblinHp(avgWorkoutDamage: number): number` — `max(1000, round(avg / 100) * 100)`; `avg` — средний урон
-  тренировки с уроном за 4 прошлые недели (как у босса — `damageByWeek`: сумма урона / число тренировок); нет
-  истории — 1000.
-- `goblinRewardXp(hp) = round(hp / 10)`; монеты — `COIN_RATES.goblinChest = 40` (`CoinReason.GOBLIN_CHEST`,
-  ключ `chest:goblin:<id>`, через `grantChestCoins` — магазин выключен → монеты не начисляются, как у сундука босса).
-- `goblinStatus(e, now): "active" | "caught" | "escaped"`.
+Константы: `GOBLIN_SET_CHANCE = 0.01`, `GOBLIN_COOLDOWN_DAYS = 14`, `GOBLIN_WINDOW_MS = 10 * 60_000`,
+`GOBLIN_SETS = 3`, `GOBLIN_REWARD_XP = 150`; `COIN_RATES.goblinChest = 40` (`lib/shop/coins.ts`).
 
-### Завершение тренировки (`finishWorkout`, та же транзакция, после блока босса)
+- `shouldSpawn({ now, lastSpawnedAt, hasEncounter, completedWorkingSets, random }): boolean` — `false`, если у
+  тренировки уже есть встреча, или выполнено меньше 2 рабочих подходов, или с `lastSpawnedAt` прошло меньше 14 дней;
+  иначе `random < 0.01`.
+- `goblinProgress(spawnedAt, sets: { completedAt: string | Date | null; isWarmup: boolean }[], now): { done: number;
+  caught: boolean; escaped: boolean; leftMs: number }` — `done` — рабочие подходы с `completedAt` в
+  `[spawnedAt, spawnedAt + 10 мин]` (не больше 3); `caught = done ≥ 3`; `escaped = !caught && now > spawnedAt + 10 мин`;
+  `leftMs ≥ 0`. Одна функция для редактора и сервера.
 
-Только если флаг включён: `finishWorkoutAction` вызывает `isEnabled("golden_goblin", userId)` до транзакции и
-передаёт `finishWorkout(..., { goblin: boolean })` (по умолчанию `false` — офлайн-синхронизация и прочие вызовы идут тем же
-action):
+### Появление — `rollGoblinAction(workoutId)` (`lib/goblin/actions.ts`)
 
-1. **Урон.** Активная встреча пользователя, у которой `spawnWorkoutId ≠ эта тренировка`, `caughtAt = null` и
-   `spawnedAt < finishedAt ≤ expiresAt` (время — `finishedAt` тренировки: офлайн-тренировка в окне засчитывается)
-   → `damage += hit.damage` (тот же `workoutDamage`, что у босса). Если `damage ≥ hp` — `caughtAt = now` условным
-   `updateMany` по `caughtAt = null` (повтор и параллельная тренировка не поймают дважды). Поймал → уведомление
-   `GOBLIN` «🪙 Золотой гоблин пойман!», тело «Сундук ждёт в сводке тренировки · +N XP», ссылка на сводку.
-2. **Появление** (только если на шаге 1 эта тренировка не била гоблина): `shouldSpawn` с `Math.random()` →
-   создать встречу (`spawnedAt = finishedAt`, `hp = goblinHp(...)`) и уведомление `GOBLIN`
-   «🪙 Золотой гоблин! Поймай за 48 ч», тело «Набей N урона следующей тренировкой», ссылка `/dashboard`.
-   Push — по `notifyAchievements`, как у босса.
+Редактор вызывает после отметки рабочего подхода (не разминки, не снятия отметки), если флаг включён у
+пользователя (`useFlag`) и у тренировки ещё нет гоблина. Сервер: `requireUser`, `isEnabled("golden_goblin")`,
+тренировка своя и `IN_PROGRESS`, число выполненных рабочих подходов — из сохранённого черновика (вызов идёт после
+автосохранения; если черновик ещё не дошёл — считаем по тому, что есть), последняя встреча пользователя,
+`shouldSpawn` с `Math.random()`. Выпало — `create` (`spawnedAt = now`; уникальность `workoutId` — защита от двойного
+вызова, ошибка уникальности = «уже есть»). Ответ: `{ spawnedAt: string } | null`.
 
-`FinishMeta.goblin?: { id; event: "spawned" | "hit" | "caught"; hp; damageBefore; damageAfter; expiresAt; reward }`
-— в сводку. `NotificationType` + `GOBLIN`.
+### Поимка — `finishWorkout`
+
+`finishWorkoutAction` передаёт `finishWorkout(..., { goblin: isEnabled(...) })`. В транзакции, если флаг включён и у
+тренировки есть встреча: `goblinProgress` по подходам тренировки на момент `now`; `caught` → `caughtAt = now`
+условным `updateMany` по `caughtAt = null`. `FinishMeta.goblin?: { id: string; caught: boolean; reward: number }`.
+Без флага встреча остаётся как есть (не поймана).
 
 ### Сундук
 
-`openGoblinChestAction(id)` (`lib/goblin/actions.ts`) — по образцу `openBossChestAction`: своя встреча, пойман,
-`rewardOpenedAt` условным `updateMany`; XP `goblinRewardXp(hp)` (`XpReason.GOBLIN_REWARD`, `meta: { id }`), уровень,
-монеты, `evaluateAchievements`. Диалог — общий `ChestDialog`.
+`openGoblinChestAction(id)` — по образцу `openBossChestAction`: своя встреча, пойман, `rewardOpenedAt` условным
+`updateMany`; XP `GOBLIN_REWARD_XP` (`XpReason.GOBLIN_REWARD`, `meta: { id }`), уровень, монеты
+(`grantChestCoins`, ключ `chest:goblin:<id>`), `evaluateAchievements`. Диалог — общий `ChestDialog`.
 
 ### Ачивки
 
-Лестница `goblin:N` для `N ∈ {1, 5, 10}`, категория `BOSS`: «Охотник за золотом» / «Охотник за золотом ×N»,
-«Поймать Золотого гоблина» / «Поймать N золотых гоблинов», `xpReward: 25 + n * 5`. Значение — `goblinCatches`
-(число встреч с `caughtAt`), поле в состоянии ачивок рядом с `bossWins`. Ачивки видны всем: без флага до них просто
-не дойти (как ачивки клубов).
+Лестница `goblin:N` для `N ∈ {1, 5, 10}`, категория `BOSS`: N = 1 — «Охотник за золотом» / «Поймать Золотого
+гоблина», иначе «Охотник за золотом ×N» / «Поймать N золотых гоблинов»; `xpReward: 25 + n * 5`. Значение —
+`goblinCatches` (встречи с `caughtAt`) рядом с `bossWins`. Ачивки видны всем (без флага их не получить — как у
+клубов).
 
 ### Интерфейс (только при флаге)
 
-- **Карточка босса на дашборде** (`BossCard`) — строка гоблина внутри карточки, не новый блок: картинка,
-  «Золотой гоблин · 600 / 1500 HP · убежит через 31 ч»; пойман с неоткрытым сундуком — «Пойман! Открыть сундук»
-  (ссылка на сводку тренировки поимки). Сбежал — строки нет.
-- **Редактор тренировки** — под `BossBar` полоса гоблина (`GoblinBar`): HP с учётом урона текущих подходов (клиент
-  считает той же `setDamage`), «убежит через …». Только для активного гоблина и тренировки, которая его бьёт.
-- **Сводка тренировки** — блок `GoblinSummary` после босса: «🪙 Появился Золотой гоблин! Поймай за 48 ч»;
-  «Урон по гоблину: −N HP»; «Пойман!» + кнопка сундука.
-- **Бестиарий** — карточка «Золотой гоблин» в конце: поймано, сбежало, первая поимка; не встречен — «???».
-- **Картинка** — `assets/icons/game/bosses/gold_goblin.png` (742×890, прозрачный фон, без баннера с именем — в отличие
-  от спрайтов боссов ~700×500 с баннером, поэтому имя «Золотой гоблин» выводится текстом рядом).
+- **Редактор** — `ActiveWorkout.goblin: { spawnedAt: string } | null` (загрузка с тренировкой), состояние
+  обновляется ответом `rollGoblinAction`. Липкая плашка `GoblinBanner` под шапкой страницы (над упражнениями):
+  картинка, «Золотой гоблин! 3 подхода за 10 минут», таймер `9:41` (раз в секунду), «Подходы: 1/3». Пойман —
+  «Пойман! Сундук ждёт в итогах тренировки». Ушёл — «Гоблин ушёл…» с кнопкой «Закрыть» (скрыть до перезагрузки).
+  Появление — короткая анимация (без неё при «уменьшить движение»), вибрация `haptic("success")`.
+- **Итоги тренировки** — `GoblinSummary` после блока босса: пойман — «🪙 Золотой гоблин пойман!» и кнопка сундука
+  (открыт — «Сундук открыт · +150 XP»); не пойман — «Золотой гоблин ушёл».
+- **Бестиарий** — раздел «Редкие» под боссами: карточка «Золотой гоблин» — встречен N, пойман M, первая поимка;
+  не встречен — «???».
+- **Картинка** — `assets/icons/game/bosses/gold_goblin.png` (742×890, прозрачный фон, без баннера с именем — имя
+  выводится текстом).
 
 ### Сквозное
 
-- Удаление аккаунта — `onDelete: Cascade`; выгрузка «Мои данные» — массив `goblins` (`spawnedAt`, `hp`, `damage`,
-  `caughtAt`) в JSON.
+- Удаление аккаунта — `Cascade` от `User`; выгрузка «Мои данные» — `goblins` (`spawnedAt`, `caughtAt`) в JSON.
 - «Что нового» 0.8.0 — пункт с `flag: "golden_goblin"`.
-- e2e с флагом — списком на пользователя (`addFlagUser`), не глобально.
+- e2e — флаг списком на пользователя (`addFlagUser`), только desktop.
 
 ## Тестирование
 
-Unit (`lib/goblin/rules.test.ts`): `shouldSpawn` (блокировка, пауза 13/14 дней, порог шанса 0.11/0.12),
-`goblinHp` (минимум, округление), `goblinRewardXp`, `goblinStatus` (граница `expiresAt`); ачивки `goblin:1/5`.
+Unit (`lib/goblin/rules.test.ts`): `shouldSpawn` — встреча уже есть, 1 подход, пауза 13 и 14 дней, порог 0.009/0.01;
+`goblinProgress` — 3 подхода в окне → пойман, подход после 10 минут и разминка не считаются, `escaped` после окна,
+`leftMs`. Ачивки `goblin:1/5`.
 
-e2e (`e2e/goblin.spec.ts`, desktop, флаг на пользователя; гоблин вставляется в БД хелпером — случайность в e2e
-не участвует):
-- активный гоблин (HP 300) → строка на дашборде и полоса в редакторе → тренировка с 3 подходами → сводка «Пойман!» →
-  сундук → XP выросли на `hp / 10`; ачивка «Охотник за золотом»;
-- истёкший гоблин → на дашборде строки нет, в бестиарии «сбежало: 1», тренировка его не бьёт;
-- без флага — нет ни строки, ни полосы, тренировка гоблина не бьёт.
+e2e (`e2e/goblin.spec.ts`; встреча вставляется в БД хелпером для идущей тренировки — случайность не участвует):
+- плашка с таймером → 3 подхода → «Пойман!» → завершить → итоги «пойман» → сундук → XP +150, ачивка «Охотник за
+  золотом», в бестиарии «пойман: 1»;
+- встреча 11 минут назад → «Гоблин ушёл», итоги «ушёл», сундука нет;
+- без флага — плашки нет, итоги без гоблина;
+- `rollGoblinAction` без флага и для чужой тренировки — `null`.
