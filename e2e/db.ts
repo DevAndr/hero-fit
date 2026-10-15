@@ -1103,3 +1103,30 @@ export async function goblinRows(login: string) {
     return rows;
   });
 }
+
+/** Группы суперсетов упражнений последней тренировки пользователя (по порядку). */
+export async function exerciseGroups(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ g: number | null }>(
+      `select we."supersetGroup" g from "WorkoutExercise" we
+       where we."workoutId" = (select w.id from "Workout" w join "User" u on u.id = w."userId" where u.login = $1 order by w."createdAt" desc limit 1)
+       order by we."order"`,
+      [login],
+    );
+    return rows.map((r) => r.g);
+  });
+}
+
+/** Проставить группы суперсетов упражнениям идущей тренировки (по порядку). */
+export async function setExerciseGroups(login: string, groups: (number | null)[]) {
+  await withDb(async (db) => {
+    for (const [i, g] of groups.entries()) {
+      await db.query(
+        `update "WorkoutExercise" we set "supersetGroup" = $3
+         from "Workout" w join "User" u on u.id = w."userId"
+         where we."workoutId" = w.id and u.login = $1 and w.status in ('PLANNED', 'IN_PROGRESS') and we."order" = $2`,
+        [login, i, g],
+      );
+    }
+  });
+}
