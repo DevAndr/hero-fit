@@ -1,5 +1,6 @@
 "use client";
 
+import { SupersetLabel } from "@/components/training/superset-frame";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -40,7 +41,17 @@ const formatSets = (sets: { weight: number; reps: number }[]) =>
   sets.map((s) => (s.weight ? `${s.weight}×${s.reps}` : `${s.reps}`)).join(", ");
 
 /** Свёрнутое выполненное упражнение: одна строка без полей ввода, тап — развернуть. */
-function CollapsedExercise({ item, handle, onToggle }: { item: ExerciseState; handle?: ReactNode; onToggle: () => void }) {
+function CollapsedExercise({
+  item,
+  handle,
+  onToggle,
+  groupLabel,
+}: {
+  item: ExerciseState;
+  handle?: ReactNode;
+  onToggle: () => void;
+  groupLabel?: string | null;
+}) {
   const working = item.sets
     .filter((s) => !s.isWarmup)
     .map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) }));
@@ -59,7 +70,10 @@ function CollapsedExercise({ item, handle, onToggle }: { item: ExerciseState; ha
             <Check className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">{item.exercise.name}</span>
+            <span className="block truncate font-semibold">
+              <SupersetLabel label={groupLabel} />
+              {item.exercise.name}
+            </span>
             <span className="block truncate text-xs text-muted-foreground tabular-nums">
               {item.sets.length}/{item.sets.length}
               {working.length ? ` · ${formatSets(working)}` : null}
@@ -85,6 +99,7 @@ export function ExerciseBlock({
   handle,
   collapsed = false,
   onToggleCollapsed,
+  groupLabel,
 }: {
   item: ExerciseState;
   index: number;
@@ -104,6 +119,8 @@ export function ExerciseBlock({
   collapsed?: boolean;
   /** Свернуть/развернуть вручную; кнопка «Свернуть» — только у выполненного упражнения. */
   onToggleCollapsed?: () => void;
+  /** Метка суперсета A1/A2 (только при флаге workout_formats). */
+  groupLabel?: string | null;
 }) {
   const { exercise } = item;
   const doneCount = item.sets.filter((s) => s.completedAt).length;
@@ -119,14 +136,17 @@ export function ExerciseBlock({
     });
   useEffect(() => preloadLottie("success"), []);
 
-  if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} />;
+  if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} groupLabel={groupLabel} />;
 
   return (
     <section className="rounded-xl border bg-card" aria-label={exercise.name} data-exercise-key={item.key}>
       <header className="flex items-start gap-2 p-4 pb-2">
         {handle}
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold">{exercise.name}</h3>
+          <h3 className="font-semibold">
+            <SupersetLabel label={groupLabel} />
+            {exercise.name}
+          </h3>
           <p className="text-xs text-muted-foreground">
             {exercise.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")} · {doneCount}/{item.sets.length}
           </p>
