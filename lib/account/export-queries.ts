@@ -21,6 +21,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     xpHistory,
     recaps,
     boss,
+    goblins,
     raids,
     friendships,
     guild,
@@ -77,6 +78,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.xpEvent.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { amount: true, reason: true, createdAt: true } }),
     db.weeklyRecap.findMany({ where: { userId }, orderBy: { week: "asc" }, select: { week: true, data: true } }),
     db.bossWeek.findMany({ where: { userId }, orderBy: { week: "asc" }, select: { week: true, bossCode: true, hp: true, defeatedAt: true } }),
+    db.goblinEncounter.findMany({ where: { userId }, orderBy: { spawnedAt: "asc" }, select: { spawnedAt: true, caughtAt: true } }),
     db.raidHit.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { damage: true, crits: true, createdAt: true } }),
     db.friendship.findMany({
       where: { OR: [{ requesterId: userId }, { addresseeId: userId }] },
@@ -105,6 +107,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     xpHistory,
     recaps,
     boss,
+    goblins,
     raids,
     friends: friendships.map((f) => ({
       nickname: (f.requesterId === userId ? f.addressee : f.requester).nickname,

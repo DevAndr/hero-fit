@@ -38,6 +38,7 @@ export type ExportRaw = {
   xpHistory: unknown[];
   recaps: unknown[];
   boss: unknown[];
+  goblins: unknown[];
   raids: unknown[];
   guild: unknown;
   club: unknown;
@@ -63,6 +64,7 @@ export const EXPORT_SECTIONS = [
   "xpHistory",
   "recaps",
   "boss",
+  "goblins",
   "raids",
   "friends",
   "guild",
@@ -125,6 +127,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     xpHistory: raw.xpHistory,
     recaps: raw.recaps,
     boss: raw.boss,
+    goblins: raw.goblins,
     raids: raw.raids,
     friends: people(raw.friends, ["nickname", "status", "since"]),
     guild: raw.guild,

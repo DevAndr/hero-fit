@@ -93,6 +93,7 @@ enum XpReason {
   RAID_REWARD // сундук рейда гильдии (lib/raid)
   GOAL_REWARD // сундук за выполненную цель (lib/goals)
   CLUB_TASK_REWARD // сундук за задание клуба (lib/club/tasks)
+  GOBLIN_REWARD // сундук Золотого гоблина (lib/goblin)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -237,6 +238,7 @@ model User {
   goals               Goal[]
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
+  goblinEncounters    GoblinEncounter[]
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -451,6 +453,7 @@ model Workout {
   comments     CoachComment[]
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
+  goblin       GoblinEncounter?
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -554,6 +557,7 @@ enum CoinReason {
   RAID_CHEST
   GOAL_CHEST
   CLUB_TASK_CHEST
+  GOBLIN_CHEST
   ACHIEVEMENT
   STREAK_WEEK
   LEVEL_UP
@@ -1275,4 +1279,19 @@ model ErrorEvent {
 
   @@index([groupId, at])
   @@index([at])
+}
+
+/// Золотой гоблин — редкая встреча посреди тренировки (спека: docs/superpowers/specs/2026-10-15-golden-goblin-design.md).
+model GoblinEncounter {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// одна встреча на тренировку; отменили тренировку (удаление) — встреча удаляется
+  workoutId      String    @unique
+  workout        Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  spawnedAt      DateTime
+  caughtAt       DateTime?
+  rewardOpenedAt DateTime?
+
+  @@index([userId, spawnedAt])
 }

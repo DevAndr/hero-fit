@@ -283,6 +283,17 @@ describe("nextGoals", () => {
   });
 });
 
+describe("golden goblin", () => {
+  it("лестница поимок: 1, 5, 10", () => {
+    expect(codesOf("goblin", { goblinCatches: 5 })).toEqual(["goblin:1", "goblin:5"]);
+    expect(codesOf("goblin", { goblinCatches: 0 })).toEqual([]);
+    const first = earnedAchievements({ ...empty, goblinCatches: 1 }).find((a) => a.code === "goblin:1");
+    expect(first).toMatchObject({ category: "BOSS", title: "Охотник за золотом", description: "Поймать Золотого гоблина", xpReward: 30 });
+    const fifth = earnedAchievements({ ...empty, goblinCatches: 5 }).find((a) => a.code === "goblin:5");
+    expect(fifth).toMatchObject({ title: "Охотник за золотом ×5", description: "Поймать 5 золотых гоблинов" });
+  });
+});
+
 describe("boss hunter", () => {
   it("лестница побед над боссом: 1, 5, 10, 25, 50", () => {
     expect(codesOf("boss", { bossWins: 5 })).toEqual(["boss:1", "boss:5"]);

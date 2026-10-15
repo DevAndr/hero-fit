@@ -49,6 +49,7 @@ const raw = (): ExportRaw => ({
   xpHistory: [],
   recaps: [],
   boss: [],
+  goblins: [],
   raids: [],
   guild: null,
   club: null,

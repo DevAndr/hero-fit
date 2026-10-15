@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { WorkoutStatus } from "@/generated/prisma/enums";
 import { queueGoal, YM_ID } from "@/lib/analytics/queue";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
 import { getOccurrence } from "@/lib/plans/queries";
@@ -248,7 +249,7 @@ export async function finishWorkoutAction(
   } else {
     const workout = await db.workout.findFirst({ where: { id: workoutId, userId: user.id }, select: { startedAt: true } });
     const finishedAt = clampClientTime(clientFinishedAt, new Date(), workout?.startedAt ?? null, 24 * H);
-    const result = await finishWorkout(user.id, workoutId, finishedAt);
+    const result = await finishWorkout(user.id, workoutId, finishedAt, { goblin: await isEnabled("golden_goblin", user.id) });
     if (!result.ok) return result;
     if (YM_ID) {
       await queueGoal("workout_finish");
