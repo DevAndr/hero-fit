@@ -1037,3 +1037,29 @@ export async function backdateUser(login: string, s: { createdAt: Date; timeZone
 export async function clearCohort(from: Date, to: Date) {
   await withDb((db) => db.query(`update "User" set "createdAt" = now() where "createdAt" >= $1 and "createdAt" < $2`, [from, to]));
 }
+
+/** Группа ошибок с одним событием (минуя приём) — для админки; id группы. */
+export async function insertErrorGroup(p: { message: string; source: "SERVER" | "CLIENT"; count: number; resolved?: boolean }) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "ErrorGroup" (id, fingerprint, source, message, stack, path, count, users, "firstSeen", "lastSeen", version, "resolvedAt")
+       values ($1, $2, $3, $4, $5, '/dashboard', $6, 0, now(), now(), '0.7.0', $7)`,
+      [id, `e2e-${id}`, p.source, p.message, `Error: ${p.message}\n    at e2e (/app/lib/e2e.ts:1:1)`, p.count, p.resolved ? new Date() : null],
+    );
+    await db.query(`insert into "ErrorEvent" (id, "groupId", at, path, "userAgent", version) values ($1, $2, now(), '/dashboard', 'Mozilla/5.0 Chrome/130', '0.7.0')`, [randomUUID(), id]);
+    return id;
+  });
+}
+
+/** Группа ошибок по сообщению: счётчик, события и пользователи событий. */
+export async function errorGroupByMessage(message: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; source: string; count: number; events: number; resolved: boolean }>(
+      `select g.id, g.source, g.count, (select count(*)::int from "ErrorEvent" e where e."groupId" = g.id) as events, g."resolvedAt" is not null as resolved
+       from "ErrorGroup" g where g.message = $1`,
+      [message],
+    );
+    return rows;
+  });
+}

@@ -26,3 +26,5 @@ export const clientReportSchema = z.object({
 
 /** Путь без query-строки и якоря: в query бывают токены (сброс пароля). */
 export const stripQuery = (path: string) => path.split(/[?#]/, 1)[0];
+
+export const SOURCE_LABELS = { SERVER: "Сервер", CLIENT: "Браузер" } as const;
