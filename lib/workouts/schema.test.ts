@@ -10,7 +10,7 @@ describe("workoutDraftSchema", () => {
       exercises: [{ exerciseId: "e1", restSec: 90, sets: [{ weight: 100, reps: 5, completedAt: null }] }],
     });
     expect(r.name).toBe("Push");
-    expect(r.exercises[0].sets[0]).toEqual({ weight: 100, reps: 5, isWarmup: false, rir: null, completedAt: null });
+    expect(r.exercises[0].sets[0]).toEqual({ weight: 100, reps: 5, isWarmup: false, rir: null, durationSec: null, distanceM: null, completedAt: null });
   });
 
   it("coerces garbage numbers in sets to 0 instead of failing autosave", () => {
@@ -93,5 +93,14 @@ describe("workoutTotals — timed and cardio", () => {
       { kind: "TIME", sets: [{ weight: 0, reps: 0, durationSec: 90, completedAt: done }, { weight: 0, reps: 0, durationSec: 0, completedAt: done }] },
     ]);
     expect(t).toEqual({ sets: 3, reps: 10, volume: 600, exercises: 3, workSec: 1810, distanceM: 5200 });
+  });
+});
+
+describe("workoutDraftSchema — time and distance", () => {
+  it("an old draft without the fields reads as null; garbage — null", () => {
+    const r = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e", restSec: 60, sets: [{ weight: 0, reps: 0, completedAt: null }] }] });
+    expect(r.exercises[0].sets[0]).toMatchObject({ durationSec: null, distanceM: null });
+    const bad = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e", restSec: 60, sets: [{ weight: 0, reps: 0, durationSec: "x", distanceM: -5, completedAt: null }] }] });
+    expect(bad.exercises[0].sets[0]).toMatchObject({ durationSec: null, distanceM: null });
   });
 });

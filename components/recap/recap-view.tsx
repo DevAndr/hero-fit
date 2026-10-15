@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} кг`;
 const duration = (min: number) => (min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч${min % 60 ? ` ${min % 60} мин` : ""}`);
-const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы" } as const;
+const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы", MAX_DURATION: "время", MAX_DISTANCE: "дистанция", BEST_PACE: "темп" } as const;
 
 function Block({ label, icon: Icon, children, className }: { label: string; icon: typeof Trophy; children: React.ReactNode; className?: string }) {
   return (

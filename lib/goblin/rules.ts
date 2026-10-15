@@ -30,13 +30,13 @@ const ms = (t: string | Date | number) => (typeof t === "number" ? t : new Date(
 /** Прогресс поимки: рабочие подходы с повторами, отмеченные в окне 10 минут с появления. Общая для редактора и сервера. */
 export function goblinProgress(
   spawnedAt: string | Date,
-  sets: { completedAt: string | Date | null; isWarmup: boolean; reps: number | string }[],
+  sets: { completedAt: string | Date | null; isWarmup: boolean; reps: number | string; durationSec?: number | null }[],
   now: Date | number | string,
 ) {
   const start = ms(spawnedAt);
   const end = start + GOBLIN_WINDOW_MS;
   const inWindow = sets.filter(
-    (s) => !s.isWarmup && Number(s.reps) > 0 && s.completedAt && ms(s.completedAt) >= start && ms(s.completedAt) <= end,
+    (s) => !s.isWarmup && (Number(s.reps) > 0 || (s.durationSec ?? 0) > 0) && s.completedAt && ms(s.completedAt) >= start && ms(s.completedAt) <= end,
   ).length;
   const done = Math.min(inWindow, GOBLIN_SETS);
   const caught = done >= GOBLIN_SETS;

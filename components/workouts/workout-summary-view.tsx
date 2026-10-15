@@ -32,6 +32,9 @@ const RECORD_LABELS: Record<RecordType, string> = {
   ONE_RM: "1RM (расчётный)",
   MAX_WEIGHT: "Макс. вес",
   MAX_REPS: "Макс. повторы",
+  MAX_DURATION: "Дольше всего",
+  MAX_DISTANCE: "Дальше всего",
+  BEST_PACE: "Лучший темп",
 };
 
 const kg = (n: number) => `${Math.round(n * 10) / 10} кг`;

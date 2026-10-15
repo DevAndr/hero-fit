@@ -200,6 +200,8 @@ async function writeDraft(userId: string, workoutId: string, draft: WorkoutDraft
                 order: i,
                 weight: s.weight,
                 reps: s.reps,
+                durationSec: s.durationSec,
+                distanceM: s.distanceM,
                 isWarmup: s.isWarmup,
                 rir: s.rir,
                 completedAt: s.completedAt ? new Date(s.completedAt) : null,

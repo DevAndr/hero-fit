@@ -9,6 +9,7 @@ import {
   deadlineEnd,
   goalProgress,
   goalTitle,
+  isStrengthMetric,
   paceStatus,
   suggestGoals,
   type GoalInput,
@@ -253,7 +254,7 @@ export async function getExerciseGoal(userId: string, exerciseId: string, tz: st
     orderBy: { createdAt: "asc" },
     select: goalSelect,
   });
-  if (!g?.metric) return null;
+  if (!g || !isStrengthMetric(g.metric)) return null;
   const [view] = await toViews(db, userId, [g], tz);
   return { metric: g.metric, target: g.target, forecast: view.forecast?.text ?? null };
 }

@@ -40,6 +40,16 @@ enum RecordType {
   ONE_RM // расчётный 1RM по Эпли
   MAX_WEIGHT
   MAX_REPS
+  MAX_DURATION // самый долгий подход (на время, кардио), с
+  MAX_DISTANCE // самый длинный подход кардио, м
+  BEST_PACE // лучший темп кардио, с/км — меньше лучше (подходы от 1 км)
+}
+
+/// Вид упражнения: силовое (вес × повторы), на время (подход — секунды), кардио (время + дистанция)
+enum ExerciseKind {
+  REPS
+  TIME
+  CARDIO
 }
 
 enum AchievementCategory {
@@ -61,6 +71,7 @@ enum AchievementCategory {
   GUILD // победы в рейдах гильдии
   GOAL // выполненные личные цели (lib/goals)
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
+  ENDURANCE // кардио и упражнения на время
 }
 
 enum NotificationType {
@@ -359,6 +370,7 @@ model Exercise {
   description    String?
   muscleGroups   MuscleGroup[] // первая — основная
   isBodyweight   Boolean       @default(false)
+  kind           ExerciseKind  @default(REPS)
   defaultRestSec Int           @default(90)
   archivedAt     DateTime? // «удалённое» упражнение — скрыто, но история тренировок сохраняется
   createdAt      DateTime      @default(now())
@@ -492,6 +504,10 @@ model WorkoutSet {
   isWarmup          Boolean   @default(false)
   /// Запас повторов (Reps In Reserve): 0 — до отказа … 4 — «4 и больше»; null — не указан
   rir               Int?
+  /// подход на время/кардио: время, с (reps и weight — 0)
+  durationSec       Int?
+  /// подход кардио: дистанция, м
+  distanceM         Int?
   completedAt       DateTime?
 
   workoutExercise WorkoutExercise  @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)

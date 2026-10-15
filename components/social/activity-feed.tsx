@@ -28,7 +28,7 @@ export function ago(iso: string) {
   return fullDate.format(new Date(iso));
 }
 
-const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы" } as const;
+const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы", MAX_DURATION: "время", MAX_DISTANCE: "дистанция", BEST_PACE: "темп" } as const;
 
 export function recordText(r: FeedEntry["records"][number]) {
   if (r.value === null) return `${r.exerciseName}: ${RECORD_LABEL[r.type]}`;

@@ -11,6 +11,9 @@ export const setDraftSchema = z.object({
   isWarmup: z.boolean().default(false),
   /** Запас повторов: 0 — до отказа … 4 — «4+»; null — не указан. */
   rir: z.number().int().min(0).max(4).nullable().default(null).catch(null),
+  /** Подход на время/кардио: время, с; дистанция, м (старые черновики — без полей). */
+  durationSec: z.number().int().min(0).max(86_400).nullable().default(null).catch(null),
+  distanceM: z.number().int().min(0).max(1_000_000).nullable().default(null).catch(null),
   completedAt: z.iso.datetime().nullable(),
 });
 
