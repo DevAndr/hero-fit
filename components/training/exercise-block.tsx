@@ -19,9 +19,22 @@ import { PlateTools } from "@/components/training/plate-tools";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { typoWarning, type TypoReference } from "@/lib/workouts/typo";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
 import { isExerciseDone, parseNumber, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
+
+/** Образец для «точно столько?»: прошлый выполненный рабочий подход здесь, иначе тот же по счёту в прошлый раз. */
+function typoReference(sets: SetState[], index: number, workingNumber: number, last?: LastPerformance[string]): TypoReference | null {
+  for (let j = index - 1; j >= 0; j--) {
+    const s = sets[j];
+    if (s.completedAt && !s.isWarmup && (parseNumber(s.weight) || parseNumber(s.reps))) {
+      return { weight: parseNumber(s.weight), reps: parseNumber(s.reps), source: "set" };
+    }
+  }
+  const prev = last?.sets[workingNumber - 1] ?? last?.sets.at(-1);
+  return prev ? { ...prev, source: "last" } : null;
+}
 
 const formatSets = (sets: { weight: number; reps: number }[]) =>
   sets.map((s) => (s.weight ? `${s.weight}×${s.reps}` : `${s.reps}`)).join(", ");
@@ -95,6 +108,8 @@ export function ExerciseBlock({
   const { exercise } = item;
   const doneCount = item.sets.filter((s) => s.completedAt).length;
   // Подходы, у которых сейчас играет анимация «готово» вместо кнопки
+  // Строка, где сейчас печатают: «точно столько?» не мигает на промежуточных цифрах
+  const [editing, setEditing] = useState<string | null>(null);
   const [celebrating, setCelebrating] = useState<ReadonlySet<string>>(new Set());
   const stopCelebrating = (setKey: string) =>
     setCelebrating((prev) => {
@@ -198,11 +213,20 @@ export function ExerciseBlock({
         {item.sets.map((set, i) => {
           const done = Boolean(set.completedAt);
           const workingNumber = item.sets.slice(0, i + 1).filter((s) => !s.isWarmup).length;
+          const typo =
+            set.isWarmup || editing === set.key
+              ? null
+              : typoWarning(
+                  { weight: parseNumber(set.weight), reps: parseNumber(set.reps) },
+                  typoReference(item.sets, i, workingNumber, last),
+                );
           return (
             <Fragment key={set.key}>
               <div
                 data-testid="set-row"
                 data-done={done || undefined}
+                onFocus={() => setEditing(set.key)}
+                onBlur={() => setEditing(null)}
                 className={cn(
                   "grid grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem] items-center gap-2 rounded-lg px-2 py-1 transition-colors",
                   done && "bg-primary/10",
@@ -295,6 +319,11 @@ export function ExerciseBlock({
                   <X className="size-4" />
                 </button>
               </div>
+              {typo ? (
+                <p className="-mt-0.5 px-2 pl-12 text-xs text-streak" data-testid="typo-warning">
+                  {typo}
+                </p>
+              ) : null}
               {done && !set.isWarmup ? (
                 <RirPicker
                   value={set.rir}
