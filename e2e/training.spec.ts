@@ -248,3 +248,22 @@ test("forgotten workout: an hour without sets → banner, finish at the last set
   await expect(page).toHaveURL(/\/workouts\/\w+$/);
   await expect(page.getByText("Время", { exact: true }).locator("..")).toContainText("< 1 мин");
 });
+
+test("typo warning: far off the previous set, hidden while typing, gone once fixed", async ({ page }) => {
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const bench = exerciseBlock(page, "Жим штанги лёжа");
+  await fillSet(page, "Жим штанги лёжа", 1, "60", "10");
+  await completeSet(page, "Жим штанги лёжа", 1);
+  const warning = bench.getByTestId("typo-warning");
+
+  const weight2 = bench.getByLabel("Вес, подход 2");
+  await weight2.fill("600");
+  await expect(warning).toHaveCount(0); // пока печатают — молчим
+  await weight2.blur();
+  await expect(warning).toHaveText("В прошлом подходе 60 кг — точно 600?");
+
+  await weight2.fill("60");
+  await weight2.blur();
+  await expect(warning).toHaveCount(0);
+});
