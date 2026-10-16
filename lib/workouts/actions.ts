@@ -38,7 +38,7 @@ type PlannedExercise = {
 // ───────────────────────────── Старт ─────────────────────────────
 
 /** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из цели прогрессии, задания тренера или прошлой тренировки. */
-async function fromTemplate(userId: string, id: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
+async function fromTemplate(userId: string, id: string, day?: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
   if (!(await templateAccessible(userId, id))) return null;
   const template = await db.workoutTemplate.findUnique({
     where: { id },
@@ -54,7 +54,7 @@ async function fromTemplate(userId: string, id: string): Promise<{ name: string;
   const [last, targets] = await Promise.all([
     getLastPerformance(userId, template.exercises.map((e) => e.exerciseId)),
     // Свой шаблон — цели своей прогрессии; шаблон тренера — его задания
-    template.userId === userId ? ownTargets(template.exercises) : getTemplateTargets(userId, template.id),
+    template.userId === userId ? ownTargets(template.exercises) : getTemplateTargets(userId, template.id, day),
   ]);
   return {
     name: template.name,
@@ -102,7 +102,8 @@ export async function createWorkoutAction(formData: FormData) {
       planKey = key;
       name = found.occurrence.title;
       // Шаблон удалён или недоступен — пустая тренировка с названием плана
-      const fromTpl = found.occurrence.templateId ? await fromTemplate(user.id, found.occurrence.templateId) : null;
+      // Неделя программы тренера — по дате вхождения
+      const fromTpl = found.occurrence.templateId ? await fromTemplate(user.id, found.occurrence.templateId, found.occurrence.date) : null;
       if (fromTpl) ({ templateId, planned } = fromTpl);
     }
   } else if (kind === "recovery") {

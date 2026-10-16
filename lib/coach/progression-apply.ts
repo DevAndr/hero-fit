@@ -4,6 +4,9 @@ import { NotificationType } from "@/generated/prisma/enums";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { DELOAD_AFTER, progressTarget, type ProgressionItem } from "@/lib/coach/progression";
 import { notify } from "@/lib/notifications/service";
+import { isDeloadWeek, programLabel, programWeekIndex } from "@/lib/coach/program";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { isEnabled } from "@/lib/flags/server";
 
 type FinishedWorkout = {
   id: string;
@@ -25,10 +28,13 @@ export async function applyProgression(
   tx: Prisma.TransactionClient,
   userId: string,
   workout: FinishedWorkout,
-): Promise<{ items: ProgressionItem[]; coachId: string | null }> {
+): Promise<{ items: ProgressionItem[]; coachId: string | null; program?: string }> {
   if (!workout.templateId) return { items: [], coachId: null };
   const link = await tx.coachLink.findFirst({ where: { clientId: userId, endedAt: null }, select: { coachId: true } });
   if (!link) return { items: [], coachId: null };
+  // Программа тренера на несколько недель ведёт вес сама: автопрогрессия по её шаблонам не действует
+  const program = await activeProgramWeek(tx, userId, link.coachId, workout.templateId);
+  if (program) return { items: [], coachId: link.coachId, program };
   const template = await tx.workoutTemplate.findFirst({
     where: { id: workout.templateId, userId: link.coachId },
     select: {
@@ -80,4 +86,16 @@ export async function applyProgression(
     }
   }
   return { items, coachId: link.coachId };
+}
+
+/** Метка недели активной программы тренера по шаблону («Неделя 3/8») или null — нет программы, флага или недели. */
+async function activeProgramWeek(tx: Prisma.TransactionClient, clientId: string, coachId: string, templateId: string) {
+  const a = await tx.programAssignment.findFirst({
+    where: { clientId, coachId, endedAt: null, series: { some: { templateId } } },
+    orderBy: { createdAt: "desc" },
+    select: { startDate: true, weeks: true, deloadEvery: true, client: { select: { timeZone: true } } },
+  });
+  if (!a || !(await isEnabled("coach_programs", coachId))) return null;
+  const week = programWeekIndex(a.startDate, dayKey(new Date(), safeTimeZone(a.client.timeZone)));
+  return week !== null && week <= a.weeks ? programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery)) : null;
 }

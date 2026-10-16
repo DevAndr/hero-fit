@@ -89,7 +89,7 @@ function CardBody({
         {event.coachName ? (
           <li className="flex items-center gap-2">
             <UserRound className="size-4 text-muted-foreground" />
-            {`от тренера · ${event.coachName}`}
+            {`от тренера · ${event.coachName}${event.program ? ` · ${event.program}` : ""}`}
           </li>
         ) : null}
         <li className="flex items-center gap-2">

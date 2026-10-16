@@ -6,7 +6,7 @@ import type { Occurrence } from "@/lib/plans/expand";
 import { dayLabel } from "@/lib/plans/view";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 
-type Plan = Pick<Occurrence, "key" | "title" | "time" | "date" | "coachId">;
+type Plan = Pick<Occurrence, "key" | "title" | "time" | "date" | "coachId"> & { program?: string | null };
 
 function StartButton({ plan, activePlanKey }: { plan: Plan; activePlanKey: string | null }) {
   if (activePlanKey === plan.key) {
@@ -44,7 +44,8 @@ export function TodayPlan({
   coachName?: string | null;
 }) {
   const [first] = today;
-  const fromCoach = coachName && [first, missedYesterday, next].find((p) => p)?.coachId ? `от тренера · ${coachName}` : null;
+  const shown = [first, missedYesterday, next].find((p) => p);
+  const fromCoach = coachName && shown?.coachId ? `от тренера · ${coachName}${shown.program ? ` · ${shown.program}` : ""}` : null;
   let text: string;
   let action: React.ReactNode;
   if (first) {

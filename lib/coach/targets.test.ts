@@ -100,3 +100,10 @@ describe("parseTargetInput", () => {
     expect(parseTargetInput("4", { int: true })).toBe(4);
   });
 });
+
+describe("formatTarget — программа тренера", () => {
+  it("неделя программы — в скобках", () => {
+    expect(formatTarget({ sets: 4, reps: 8, weight: 105, program: "Неделя 3/8" })).toBe("от тренера: 4 × 8 · 105 кг (неделя 3/8)");
+    expect(formatTarget({ sets: 3, reps: 8, weight: 95, program: "Разгрузка · неделя 4/8" })).toBe("от тренера: 3 × 8 · 95 кг (разгрузка · неделя 4/8)");
+  });
+});

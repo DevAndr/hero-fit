@@ -28,6 +28,10 @@ export const FLAGS = {
     description: "Форматы тренировки: суперсеты и круговые (дальше — кардио)",
     expires: "2027-04-30",
   },
+  coach_programs: {
+    description: "Программы тренера на несколько недель: вес по неделям и разгрузки",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

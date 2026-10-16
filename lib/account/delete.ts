@@ -98,6 +98,8 @@ export async function deleteAccount(tx: Tx, userId: string): Promise<void> {
   // Счётчик входа хранит логин и email ключом — после удаления их не остаётся
   await tx.loginThrottle.deleteMany({ where: { key: { in: [`id:${me.login.toLowerCase()}`, ...(me.email ? [`id:${me.email.toLowerCase()}`] : [])] } } });
 
+  // Программы тренера у клиентов закрываются: без тренера они не идут, а новому тренеру не мешают
+  await tx.programAssignment.updateMany({ where: { coachId: userId, endedAt: null }, data: { endedAt: new Date() } });
   await rehomeExercises(tx, userId);
   // Свои тренировки и шаблоны — раньше пользователя: на свои упражнения из них ссылки с Restrict
   await tx.workout.deleteMany({ where: { userId } });

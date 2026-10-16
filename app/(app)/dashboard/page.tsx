@@ -20,6 +20,7 @@ import { getDashboard } from "@/lib/dashboard/queries";
 import { getBossView } from "@/lib/boss/queries";
 import { getOnboardingPrograms } from "@/lib/onboarding/queries";
 import { getTodayPlan } from "@/lib/plans/queries";
+import { programWeekLabels } from "@/lib/coach/program-queries";
 import { getOrCreateRecap } from "@/lib/recap/queries";
 import { recapWeekFor } from "@/lib/recap/schedule";
 import { getFeed } from "@/lib/social/queries";
@@ -141,6 +142,7 @@ export default async function DashboardPage() {
     getDashboardGoals(user.id, userTz),
     getClubDashboard(user.id, userTz),
   ]);
+  const programOf = await programWeekLabels([...plan.today, plan.next, plan.missedYesterday].map((p) => p?.seriesId ?? null));
   const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
@@ -172,7 +174,11 @@ export default async function DashboardPage() {
         </Link>
       </section>
 
-      <TodayPlan today={plan.today} next={plan.next} missedYesterday={plan.missedYesterday} activePlanKey={plan.activePlanKey}
+      <TodayPlan
+        today={plan.today.map((p) => ({ ...p, program: programOf(p.seriesId, p.date) }))}
+        next={plan.next && { ...plan.next, program: programOf(plan.next.seriesId, plan.next.date) }}
+        missedYesterday={plan.missedYesterday && { ...plan.missedYesterday, program: programOf(plan.missedYesterday.seriesId, plan.missedYesterday.date) }}
+        activePlanKey={plan.activePlanKey}
         coachName={coach ? clientDisplayName(coach) : null}
       />
       {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}

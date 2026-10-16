@@ -240,6 +240,12 @@ export function WorkoutSummaryView({
 
       {feedback ? <div className="mt-4">{feedback}</div> : null}
 
+      {meta?.program ? (
+        <section aria-label="План тренера" className="mt-4 rounded-xl border p-4">
+          <h2 className="font-bold">План тренера</h2>
+          <p className="mt-2 text-sm">Программа: {meta.program[0].toLowerCase() + meta.program.slice(1)}</p>
+        </section>
+      ) : null}
       {meta?.progression?.length ? <ProgressionBlock items={meta.progression} title={meta.progressionSource === "own" ? "Прогрессия" : "План тренера"} /> : null}
 
       <section className="mt-6 space-y-3">
