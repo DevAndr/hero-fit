@@ -126,6 +126,9 @@ deploy:
   services:
     - name: docker:28-dind
       alias: docker
+      # Образы — через зеркало Google (Docker Hub — запасной путь): у Docker Hub лимит анонимных скачиваний на IP,
+      # а DNS-прокси Docker Desktop на раннере иногда отдаёт ему только IPv6-адреса — сборка падала «network is unreachable»
+      command: ["--registry-mirror=https://mirror.gcr.io"]
   variables:
     DOCKER_HOST: tcp://docker:2376
     DOCKER_TLS_CERTDIR: /certs
