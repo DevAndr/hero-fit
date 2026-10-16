@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Globe, Users } from "lucide-react";
+import { CalendarRange, Globe, Users } from "lucide-react";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
+import { isEnabled } from "@/lib/flags/server";
 import { AssignManyButton } from "@/components/coach/assign-many";
 import { ClientList } from "@/components/coach/client-list";
 import { GroupFilter } from "@/components/coach/group-filter";
@@ -36,6 +37,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
   const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0, coins: [] });
   const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
+  const programsOn = await isEnabled("coach_programs", coach.id);
   const [code, clients, templates, groups] = await Promise.all([
     ensureCoachCode(coach.id),
     getCoachClients(coach.id, now),
@@ -57,10 +59,19 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
         title="Клиенты"
         description="Тренировки и прогресс ваших клиентов"
         actions={
-          <Link href="/coach/page" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <Globe />
-            Публичная страница
-          </Link>
+          <>
+            {/* Программы — и без клиентов: их готовят заранее */}
+            {programsOn ? (
+              <Link href="/coach/programs" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <CalendarRange />
+                Программы
+              </Link>
+            ) : null}
+            <Link href="/coach/page" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <Globe />
+              Публичная страница
+            </Link>
+          </>
         }
       />
       {/* Группы правятся и без клиентов: иначе оставшийся фильтр «Утро (0)» не убрать */}
