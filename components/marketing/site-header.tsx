@@ -2,17 +2,17 @@ import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 
-/** `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %). */
+/**
+ * `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %). Пунктов — не больше, чем влезает в max-w-6xl:
+ * иначе кнопки справа уезжают за экран. «Как это работает», «Калькулятор блинов» и «Что нового» — в подвале.
+ */
 const NAV: { href: string; label: string; clubs?: true }[] = [
   { href: "/#features", label: "Возможности" },
-  { href: "/#how", label: "Как это работает" },
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
-  { href: "/tools/plates", label: "Калькулятор блинов" },
   { href: "/#guilds", label: "Гильдии" },
   { href: "/#clubs", label: "Клубы", clubs: true },
   { href: "/#coaches", label: "Тренерам" },
   { href: "/#pricing", label: "Тарифы" },
-  { href: "/changelog", label: "Что нового" },
   { href: "/#faq", label: "Вопросы" },
 ];
 

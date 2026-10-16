@@ -110,3 +110,11 @@ test("guilds block: header link, raid infographic, CTA, FAQ", async ({ page }) =
   await expect(block.getByRole("link", { name: "Собрать гильдию" })).toHaveAttribute("href", "/register");
   await expect(page.getByRole("heading", { name: "Что такое гильдия и рейд?" })).toBeVisible();
 });
+
+test("header fits: no horizontal scroll on wide screens", async ({ page }) => {
+  for (const width of [1280, 1440, 1536, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ширина ${width}`).toBe(0);
+  }
+});
