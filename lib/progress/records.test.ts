@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bestOfSets, epley1RM, findNewRecords, formatRecord } from "./records";
+import type { RecordType } from "@/generated/prisma/enums";
+import { bestOfSets, epley1RM, findNewRecords, formatRecord, isTimedRecord } from "./records";
 
 describe("epley1RM", () => {
   it("uses Epley formula weight × (1 + reps/30)", () => {
@@ -77,5 +78,12 @@ describe("records of timed and cardio exercises", () => {
     expect(formatRecord("BEST_PACE", 330.77)).toBe("5:31/км");
     expect(formatRecord("MAX_WEIGHT", 102.5)).toBe("102,5 кг");
     expect(formatRecord("MAX_REPS", 12)).toBe("12");
+  });
+});
+
+describe("isTimedRecord", () => {
+  it("время, дистанция и темп — рекорды на время и кардио", () => {
+    expect(["MAX_DURATION", "MAX_DISTANCE", "BEST_PACE"].every((t) => isTimedRecord(t as RecordType))).toBe(true);
+    expect(["ONE_RM", "MAX_WEIGHT", "MAX_REPS"].some((t) => isTimedRecord(t as RecordType))).toBe(false);
   });
 });

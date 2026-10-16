@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { typoWarning } from "./typo";
+import { cardioWarning, typoWarning } from "./typo";
 
 const last = (weight: number, reps: number) => ({ weight, reps, source: "last" as const });
 const prev = (weight: number, reps: number) => ({ weight, reps, source: "set" as const });
@@ -30,5 +30,21 @@ describe("typoWarning", () => {
     expect(typoWarning({ weight: 600, reps: 10 }, null)).toBeNull();
     expect(typoWarning({ weight: 0, reps: 0 }, last(60, 10))).toBeNull();
     expect(typoWarning({ weight: 40, reps: 10 }, last(0, 10))).toBeNull();
+  });
+});
+
+describe("cardioWarning", () => {
+  it("дистанция без времени — подход не засчитается", () => {
+    expect(cardioWarning({ durationSec: 0, distanceM: 5000 })).toBe("Укажите время — без него подход не засчитается");
+  });
+  it("быстрее 60 км/ч — похоже на опечатку в дистанции", () => {
+    expect(cardioWarning({ durationSec: 1720, distanceM: 52_000 })).toBe("Точно 52 км за 28:40? Это 109 км/ч");
+    expect(cardioWarning({ durationSec: 1720, distanceM: 5200 })).toBeNull();
+    // Велотренажёр: 40 км/ч — норма
+    expect(cardioWarning({ durationSec: 3600, distanceM: 40_000 })).toBeNull();
+  });
+  it("пусто или только время — без подсказки", () => {
+    expect(cardioWarning({ durationSec: 0, distanceM: 0 })).toBeNull();
+    expect(cardioWarning({ durationSec: 600, distanceM: 0 })).toBeNull();
   });
 });

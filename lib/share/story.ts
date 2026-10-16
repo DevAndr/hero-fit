@@ -3,7 +3,7 @@ import type { RecordType } from "@/generated/prisma/enums";
 import { bossName } from "@/lib/boss/bosses";
 import { plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
-import { formatRecord } from "@/lib/progress/records";
+import { formatRecord, isTimedRecord } from "@/lib/progress/records";
 import type { FinishMeta } from "@/lib/workouts/finish";
 
 export type StoryInput = {
@@ -49,7 +49,7 @@ function kg(v: number) {
 
 function recordValue(type: RecordType, value: number, hideWeights: boolean) {
   if (type === "MAX_REPS") return `${value} повт.`;
-  if (type === "MAX_DURATION" || type === "MAX_DISTANCE" || type === "BEST_PACE") return formatRecord(type, value);
+  if (isTimedRecord(type)) return formatRecord(type, value);
   if (hideWeights) return "новый рекорд";
   return type === "ONE_RM" ? `1ПМ ${kg(value)}` : kg(value);
 }

@@ -20,7 +20,7 @@ import { PlateTools } from "@/components/training/plate-tools";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
-import { typoWarning, type TypoReference } from "@/lib/workouts/typo";
+import { cardioWarning, typoWarning, type TypoReference } from "@/lib/workouts/typo";
 import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
@@ -127,7 +127,7 @@ export function ExerciseBlock({
 }) {
   const { exercise } = item;
   const kind: ExerciseKindName = exercise.kind ?? "REPS";
-  // На время и кардио: без веса, повторов, разминки, запаса повторов и «точно столько?»
+  // На время и кардио: без веса, повторов, разминки и запаса повторов; у кардио своё «точно столько?» (cardioWarning)
   const timed = isTimed(kind);
   const columns = kind === "TIME" ? "grid-cols-[2.5rem_1fr_2.75rem_2rem]" : "grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem]";
   const doneCount = item.sets.filter((s) => s.completedAt).length;
@@ -245,12 +245,14 @@ export function ExerciseBlock({
           const done = Boolean(set.completedAt);
           const workingNumber = item.sets.slice(0, i + 1).filter((s) => !s.isWarmup).length;
           const typo =
-            timed || set.isWarmup || editing === set.key
+            set.isWarmup || editing === set.key || kind === "TIME"
               ? null
-              : typoWarning(
-                  { weight: parseNumber(set.weight), reps: parseNumber(set.reps) },
-                  typoReference(item.sets, i, workingNumber, last),
-                );
+              : kind === "CARDIO"
+                ? cardioWarning({ durationSec: setDurationSec(kind, set.duration), distanceM: Math.round(parseNumber(set.distance) * 1000) })
+                : typoWarning(
+                    { weight: parseNumber(set.weight), reps: parseNumber(set.reps) },
+                    typoReference(item.sets, i, workingNumber, last),
+                  );
           return (
             <Fragment key={set.key}>
               <div

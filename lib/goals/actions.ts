@@ -47,7 +47,8 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
   let isBodyweight = false;
   if (g.type === "STRENGTH") {
     const exercise = await db.exercise.findFirst({
-      where: { id: g.exerciseId, archivedAt: null, OR: [{ userId: null }, { userId: user.id }] },
+      // Силовая цель — по весу и повторам: кардио и упражнения на время не подходят
+      where: { id: g.exerciseId, archivedAt: null, kind: "REPS", OR: [{ userId: null }, { userId: user.id }] },
       select: { isBodyweight: true },
     });
     if (!exercise) return { ok: false, error: "Упражнение не найдено", field: "exerciseId" };

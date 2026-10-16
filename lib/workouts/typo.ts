@@ -1,4 +1,5 @@
 import { plural } from "@/lib/format";
+import { formatClock, formatKm } from "@/lib/workouts/kinds";
 
 /** Образец для сравнения: прошлый выполненный подход в этой тренировке или подход прошлой тренировки. */
 export type TypoReference = { weight: number; reps: number; source: "set" | "last" };
@@ -21,5 +22,17 @@ export function typoWarning(set: { weight: number; reps: number }, ref: TypoRefe
     return `${before} ${ref.reps} ${plural(ref.reps, "повтор", "повтора", "повторов")} — точно ${set.reps}?`;
   }
   if (set.reps > 100) return `Точно ${set.reps} ${plural(set.reps, "повтор", "повтора", "повторов")}?`;
+  return null;
+}
+
+/** Быстрее — уже не бег и не велотренажёр, а опечатка в дистанции («52» вместо «5,2»). */
+const MAX_KMH = 60;
+
+/** Подсказка у подхода кардио: дистанция без времени не засчитается; скорость больше 60 км/ч — «точно столько?». */
+export function cardioWarning(set: { durationSec: number; distanceM: number }): string | null {
+  if (set.distanceM <= 0) return null;
+  if (set.durationSec <= 0) return "Укажите время — без него подход не засчитается";
+  const kmh = set.distanceM / 1000 / (set.durationSec / 3600);
+  if (kmh > MAX_KMH) return `Точно ${formatKm(set.distanceM)} за ${formatClock(set.durationSec)}? Это ${Math.round(kmh)} км/ч`;
   return null;
 }

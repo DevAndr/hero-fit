@@ -15,6 +15,7 @@ export function isDoneSet(kind: ExerciseKindName | undefined, s: { reps: number;
 /**
  * «1:30» → 90, «90» → 90, «1:02:05» → 3725; мусор (и секунды/минуты ≥ 60 в частях) → 0.
  * Запятая и точка — тоже разделитель («1,30»): на цифровой клавиатуре телефона нет двоеточия.
+ * Одна цифра после запятой или точки — доля минуты: «1,5» — 1:30, а не 1:05.
  */
 export function parseClock(value: string, opts: { bareMinutes?: boolean } = {}): number {
   const parts = value.trim().split(/[:.,]/);
@@ -22,6 +23,7 @@ export function parseClock(value: string, opts: { bareMinutes?: boolean } = {}):
   const nums = parts.map(Number);
   // Кардио: «30» — полчаса, а не 30 секунд (иначе темп «0:06/км» навсегда в рекордах)
   if (nums.length === 1) return opts.bareMinutes ? nums[0] * 60 : nums[0];
+  if (nums.length === 2 && parts[1].length === 1 && !value.includes(":")) return nums[0] * 60 + nums[1] * 6;
   if (nums.slice(1).some((n) => n >= 60)) return 0;
   return nums.reduce((acc, n) => acc * 60 + n, 0);
 }
@@ -53,6 +55,11 @@ export function timedSetText(kind: ExerciseKindName, s: { durationSec?: number |
   if (kind !== "CARDIO" || !s.distanceM) return time;
   const pace = formatPace(s.durationSec ?? 0, s.distanceM);
   return [formatKm(s.distanceM), time, pace].filter(Boolean).join(" · ");
+}
+
+/** График кардио — по дистанции, если она хоть раз была; иначе (скакалка, на время) — по времени. */
+export function chartsDistance(kind: ExerciseKindName, sessions: { sets: { distanceM?: number | null }[] }[]) {
+  return kind === "CARDIO" && sessions.some((s) => s.sets.some((x) => (x.distanceM ?? 0) > 0));
 }
 
 type TimedSet = { weight: number; reps: number; durationSec: number | null; distanceM: number | null };
