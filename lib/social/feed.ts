@@ -142,3 +142,8 @@ export function decodeCursor(cursor: string | null | undefined) {
   const date = new Date(at);
   return id && !Number.isNaN(date.getTime()) ? { at: date, id } : null;
 }
+
+/** «подходов: 15 · повторов: 120»; без повторов (кардио и на время) — только подходы. */
+export function countsText(e: { sets: number; reps: number }) {
+  return e.reps > 0 ? `подходов: ${e.sets} · повторов: ${e.reps}` : `подходов: ${e.sets}`;
+}

@@ -6,6 +6,8 @@
 import { itemByCode } from "@/lib/shop/catalog";
 
 type Dated = Date | null;
+type ProgramRuleFields = { weeks: number; stepKind: string; stepValue: number; deloadEvery: number | null; deloadPct: number };
+const ruleOf = (p: ProgramRuleFields) => ({ stepKind: p.stepKind, stepValue: p.stepValue, deloadEvery: p.deloadEvery, deloadPct: p.deloadPct });
 
 export type ExportWorkout = {
   name: string;
@@ -43,6 +45,12 @@ export type ExportRaw = {
   guild: unknown;
   club: unknown;
   coachComments: unknown[];
+  /** Заметки тренеров обо мне и мои заметки о клиентах — с лишними полями (id) на входе: в выгрузку — текст, дата, ник. */
+  coachNotesAboutMe: ({ text: string; updatedAt: Date; coach: string | null } & Record<string, unknown>)[];
+  clientNotes: ({ text: string; updatedAt: Date; client: string | null } & Record<string, unknown>)[];
+  /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
+  programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
+  coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   notifications: unknown[];
   shop: {
     coins: number;
@@ -72,6 +80,10 @@ export const EXPORT_SECTIONS = [
   "coach",
   "clients",
   "coachComments",
+  "coachNotesAboutMe",
+  "clientNotes",
+  "programs",
+  "coachPrograms",
   "notifications",
   "shop",
 ] as const;
@@ -144,6 +156,22 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     coach: people(raw.coach, ["nickname", "since", "until"]),
     clients: people(raw.clients, ["nickname", "since", "until"]),
     coachComments: raw.coachComments,
+    coachNotesAboutMe: raw.coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach })),
+    clientNotes: raw.clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client })),
+    programs: raw.programs.map((p) => ({
+      name: p.name,
+      startDate: p.startDate,
+      weeks: p.weeks,
+      rule: ruleOf(p),
+      ended: p.endedAt !== null,
+      bases: p.bases.map((b) => ({ template: b.template, exercise: b.exercise, weight: b.weight, fromWeek: b.fromWeek })),
+    })),
+    coachPrograms: raw.coachPrograms.map((p) => ({
+      name: p.name,
+      weeks: p.weeks,
+      rule: ruleOf(p),
+      days: p.days.map((d) => ({ weekday: d.weekday, template: d.template, time: d.time })),
+    })),
     notifications: raw.notifications,
     shop: {
       coins: raw.shop.coins,

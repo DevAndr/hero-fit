@@ -3,7 +3,9 @@
 import { useActionState, useState, type ReactElement } from "react";
 import { Loader2, Star } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Radio } from "@base-ui/react/radio";
+import { RadioGroup } from "@base-ui/react/radio-group";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -160,21 +162,18 @@ function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: (
           <FieldSet>
             <FieldLegend variant="label">Вид</FieldLegend>
             <input type="hidden" name="kind" value={kind} />
-            <div role="radiogroup" aria-label="Вид упражнения" className="flex flex-wrap gap-2">
+            {/* Base UI: стрелки переключают вид, Tab — один шаг на всю группу */}
+            <RadioGroup aria-label="Вид упражнения" value={kind} onValueChange={(v) => setKind(v as ExerciseKindName)} className="flex flex-wrap gap-2">
               {KINDS.map((k) => (
-                <Button
+                <Radio.Root
                   key={k.value}
-                  type="button"
-                  size="sm"
-                  role="radio"
-                  aria-checked={kind === k.value}
-                  variant={kind === k.value ? "secondary" : "outline"}
-                  onClick={() => setKind(k.value)}
+                  value={k.value}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "data-checked:border-transparent data-checked:bg-secondary data-checked:text-secondary-foreground")}
                 >
                   {k.label}
-                </Button>
+                </Radio.Root>
               ))}
-            </div>
+            </RadioGroup>
             <FieldDescription>{KINDS.find((k) => k.value === kind)?.hint}</FieldDescription>
           </FieldSet>
         ) : null}

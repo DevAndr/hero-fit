@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeCursor, encodeCursor, kudosLabel, streakMilestone, toFeedEntry, type FeedRow } from "./feed";
+import { decodeCursor, encodeCursor, countsText, kudosLabel, streakMilestone, toFeedEntry, type FeedRow } from "./feed";
 
 const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
   id: "w1",
@@ -159,5 +159,12 @@ describe("goals", () => {
 
   it("без целей — пусто", () => {
     expect(toFeedEntry(row(), "viewer").goals).toEqual([]);
+  });
+});
+
+describe("countsText", () => {
+  it("без повторов (кардио и на время) — только подходы", () => {
+    expect(countsText({ sets: 15, reps: 120 })).toBe("подходов: 15 · повторов: 120");
+    expect(countsText({ sets: 2, reps: 0 })).toBe("подходов: 2");
   });
 });

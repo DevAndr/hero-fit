@@ -6,7 +6,18 @@ import { lastWorkoutLabel, type ClientRow } from "@/lib/coach/clients";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 
 /** Клиенты тренера: сигналы риска (lib/coach/signals.ts) и сортировка (lib/coach/clients.ts). */
-export function ClientList({ rows, now, groupNames = {} }: { rows: ClientRow[]; now: Date; groupNames?: Record<string, string[]> }) {
+export function ClientList({
+  rows,
+  now,
+  groupNames = {},
+  programs = {},
+}: {
+  rows: ClientRow[];
+  now: Date;
+  groupNames?: Record<string, string[]>;
+  /** Неделя активной программы тренера: «Нед. 3/8». */
+  programs?: Record<string, string>;
+}) {
   return (
     <ul aria-label="Клиенты" className="divide-y divide-border/60 rounded-xl border bg-card">
       {rows.map((r) => {
@@ -26,6 +37,7 @@ export function ClientList({ rows, now, groupNames = {} }: { rows: ClientRow[]; 
               ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              {programs[r.id] ? <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">{programs[r.id]}</span> : null}
               {r.signals.map((kind) => (
                 <SignalBadge key={kind} kind={kind} />
               ))}

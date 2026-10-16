@@ -54,6 +54,23 @@ const raw = (): ExportRaw => ({
   guild: null,
   club: null,
   coachComments: [],
+  coachNotesAboutMe: [{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo", coachId: "u_coach" }],
+  clientNotes: [{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя", clientId: "u_client" }],
+  programs: [
+    {
+      name: "Сила",
+      startDate: "2026-10-19",
+      weeks: 8,
+      stepKind: "PERCENT",
+      stepValue: 2.5,
+      deloadEvery: 4,
+      deloadPct: 10,
+      endedAt: null,
+      id: "pa_secret",
+      bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1, assignmentId: "pa_secret" }],
+    },
+  ],
+  coachPrograms: [{ name: "Сила", weeks: 8, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, id: "cp_secret", days: [{ weekday: 0, template: "Жим", time: "18:00", id: "d_secret" }] }],
   notifications: [],
   shop: {
     coins: 120,
@@ -70,7 +87,7 @@ describe("buildExport", () => {
   const text = JSON.stringify(out);
 
   it("секретов и чужих id/логинов нет", () => {
-    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach"]) {
+    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach", "u_client", "pa_secret", "cp_secret", "d_secret"]) {
       expect(text).not.toContain(bad);
     }
   });
@@ -105,5 +122,32 @@ describe("export — cardio sets", () => {
     const r = raw();
     r.workouts[0].exercises[0].sets[0] = { ...r.workouts[0].exercises[0].sets[0], durationSec: 1720, distanceM: 5200 };
     expect(buildExport(r, new Date("2026-10-13T00:00:00Z")).workouts[0].exercises[0].sets[0]).toMatchObject({ durationSec: 1720, distanceM: 5200 });
+  });
+});
+
+describe("export — coach notes", () => {
+  it("заметки тренера обо мне и мои заметки о клиентах — текст, дата и ник", () => {
+    const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
+    expect(o.coachNotesAboutMe).toEqual([{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo" }]);
+    expect(o.clientNotes).toEqual([{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя" }]);
+  });
+});
+
+describe("export — coach programs", () => {
+  it("программы клиента и библиотека тренера — без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
+    expect(o.programs).toEqual([
+      {
+        name: "Сила",
+        startDate: "2026-10-19",
+        weeks: 8,
+        rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 },
+        ended: false,
+        bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1 }],
+      },
+    ]);
+    expect(o.coachPrograms).toEqual([
+      { name: "Сила", weeks: 8, rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 }, days: [{ weekday: 0, template: "Жим", time: "18:00" }] },
+    ]);
   });
 });

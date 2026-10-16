@@ -72,11 +72,11 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: six features, header link, CTA opens coach sign-up", async ({ page }) => {
+test("coaches block: eight features, header link, CTA opens coach sign-up", async ({ page }) => {
   await page.goto("/");
   const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
-  await expect(block.getByRole("listitem")).toHaveCount(6);
-  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Тренировки в календарь", "Задания и прогрессия", "Комментарии к тренировкам", "Своя страница тренера"]) {
+  await expect(block.getByRole("listitem")).toHaveCount(8);
+  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Тренировки в календарь", "Программы на несколько недель", "Задания и прогрессия", "Комментарии к тренировкам", "Заметки о клиенте", "Своя страница тренера"]) {
     await expect(block.getByRole("heading", { name: title })).toBeVisible();
   }
   await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();
@@ -109,4 +109,12 @@ test("guilds block: header link, raid infographic, CTA, FAQ", async ({ page }) =
   await expect(block).toContainText("MVP");
   await expect(block.getByRole("link", { name: "Собрать гильдию" })).toHaveAttribute("href", "/register");
   await expect(page.getByRole("heading", { name: "Что такое гильдия и рейд?" })).toBeVisible();
+});
+
+test("header fits: no horizontal scroll on wide screens", async ({ page }) => {
+  for (const width of [1280, 1440, 1536, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ширина ${width}`).toBe(0);
+  }
 });

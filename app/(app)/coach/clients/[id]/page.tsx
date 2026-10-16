@@ -3,6 +3,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RemoveClientButton } from "@/components/coach/client-header";
+import { CoachNote } from "@/components/coach/coach-note";
+import { AssignProgramButton } from "@/components/coach/assign-program-dialog";
+import { ProgramProgress } from "@/components/coach/program-progress";
+import { getActiveAssignment, getCoachPrograms, type ActiveAssignment } from "@/lib/coach/program-queries";
+import { isDeloadWeek, programPreview, programWeek, programWeekIndex } from "@/lib/coach/program";
+import { ruleOfAssignment } from "@/lib/coach/program-assign";
 import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
@@ -135,7 +141,7 @@ async function Overview({
   base: string;
 }) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, recent, signalInput, goals] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent, signalInput, goals, note] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
@@ -146,6 +152,7 @@ async function Overview({
     }),
     getSignalInput(coachId, clientId, tz, linkedAt, now),
     getClientGoals(clientId, tz),
+    db.coachNote.findUnique({ where: { coachId_clientId: { coachId, clientId } }, select: { text: true, updatedAt: true } }),
   ]);
   const signals = clientSignals(signalInput, now, tz);
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
@@ -179,6 +186,7 @@ async function Overview({
         <Tile label="Серия, недель" value={String(streak)} />
         <Tile label="Уровень" value={String(levelProgress(xp).level)} />
       </div>
+      <CoachNote clientId={clientId} initialText={note?.text ?? ""} initialUpdatedAt={note?.updatedAt.toISOString() ?? null} timeZone={tz} />
       <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} timeZone={tz} />
       <BodyMap recovery={recovery} balance={balance} />
       {hinted.length ? (
@@ -252,18 +260,23 @@ async function Plan({
     status,
     workoutId,
   });
+  const [programs, active] = await Promise.all([getCoachPrograms(coachId), getActiveAssignment(clientId, today, coachId)]);
   return (
-    <ClientPlan
-      clientId={clientId}
-      today={dayKey(now, tz)}
-      base={base}
-      templates={templates}
-      upcoming={upcoming.map(strip)}
-      past={past.map(strip)}
-      targets={targets}
-      timeZone={tz}
-      copy={copy}
-    />
+    <div className="space-y-4">
+      {active ? <ProgramProgress clientId={clientId} name={active.name} {...programProgressProps(active, today)} /> : null}
+      <AssignProgramButton clientId={clientId} programs={programs.map(({ id, name, rule }) => ({ id, name, rule }))} today={today} activeName={active?.name ?? null} />
+      <ClientPlan
+        clientId={clientId}
+        today={dayKey(now, tz)}
+        base={base}
+        templates={templates}
+        upcoming={upcoming.map(strip)}
+        past={past.map(strip)}
+        targets={targets}
+        timeZone={tz}
+        copy={copy}
+      />
+    </div>
   );
 }
 
@@ -321,4 +334,25 @@ async function Stats({ clientId, tz, base }: { clientId: string; tz: string; bas
       emptyText="Клиент ещё не завершил ни одной тренировки."
     />
   );
+}
+
+/** Блок «Программа»: статус недели и веса этой и финальной недели по базам (названия — из библиотеки). */
+function programProgressProps(active: ActiveAssignment, today: string) {
+  const rule = ruleOfAssignment(active);
+  const week = Math.max(1, Math.min(rule.weeks, programWeekIndex(active.startDate, today) ?? 1));
+  const started = (programWeekIndex(active.startDate, today) ?? 0) >= 1;
+  let nextDeload: number | null = null;
+  for (let w = week; w <= rule.weeks; w++) if (isDeloadWeek(w, rule.deloadEvery)) (nextDeload ??= w);
+  const status = [
+    started ? `Неделя ${week} из ${rule.weeks}` : `Старт ${active.startDate.split("-").reverse().join(".")} · ${rule.weeks} нед.`,
+    nextDeload ? (nextDeload === week && started ? "сейчас разгрузка" : `разгрузка — неделя ${nextDeload}`) : null,
+  ].filter(Boolean).join(" · ");
+  return { status, rows: active.bases.map((b) => ({
+    templateId: b.templateId,
+    exerciseId: b.exerciseId,
+    name: active.names[b.exerciseId] ?? "Упражнение",
+    templateName: active.templateNames[b.templateId] ?? "",
+    now: programWeek(rule, b, week).weight,
+    final: programPreview(rule, b).at(-1)?.weight ?? b.weight,
+  })) };
 }

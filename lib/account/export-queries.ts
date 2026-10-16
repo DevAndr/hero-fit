@@ -29,6 +29,10 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coachLinks,
     clientLinks,
     coachComments,
+    coachNotesAboutMe,
+    clientNotes,
+    programs,
+    coachPrograms,
     notifications,
     userItems,
     coinTx,
@@ -90,6 +94,10 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.coachLink.findMany({ where: { clientId: userId }, select: { createdAt: true, endedAt: true, coach: person } }),
     db.coachLink.findMany({ where: { coachId: userId }, select: { createdAt: true, endedAt: true, client: person } }),
     db.coachComment.findMany({ where: { clientId: userId }, orderBy: { createdAt: "asc" }, select: { text: true, createdAt: true, coach: person } }),
+    db.coachNote.findMany({ where: { clientId: userId }, orderBy: { updatedAt: "asc" }, select: { text: true, updatedAt: true, coach: person } }),
+    db.coachNote.findMany({ where: { coachId: userId }, orderBy: { updatedAt: "asc" }, select: { text: true, updatedAt: true, client: person } }),
+    db.programAssignment.findMany({ where: { clientId: userId }, orderBy: { createdAt: "asc" }, include: { bases: true } }),
+    db.coachProgram.findMany({ where: { coachId: userId }, orderBy: { createdAt: "asc" }, include: { days: { orderBy: { weekday: "asc" }, include: { template: { select: { name: true } } } } } }),
     db.notification.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { type: true, title: true, body: true, createdAt: true } }),
     db.userItem.findMany({ where: { userId }, orderBy: { acquiredAt: "asc" }, select: { code: true, acquiredAt: true } }),
     db.coinTx.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { amount: true, reason: true, createdAt: true } }),
@@ -120,6 +128,10 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coach: coachLinks.map((l) => ({ nickname: l.coach.nickname, since: l.createdAt, until: l.endedAt })),
     clients: clientLinks.map((l) => ({ nickname: l.client.nickname, since: l.createdAt, until: l.endedAt })),
     coachComments: coachComments.map((c) => ({ text: c.text, createdAt: c.createdAt, coach: c.coach?.nickname ?? null })),
+    coachNotesAboutMe: coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach.nickname })),
+    clientNotes: clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client.nickname })),
+    programs: await programsWithNames(programs),
+    coachPrograms: coachPrograms.map((p) => ({ ...p, days: p.days.map((d) => ({ weekday: d.weekday, template: d.template.name, time: d.time })) })),
     notifications,
     shop: { coins: user.coins, items: userItems, coinHistory: coinTx },
   };
@@ -155,4 +167,19 @@ export async function getCsvSets(userId: string): Promise<CsvSet[]> {
       })),
     ),
   );
+}
+
+/** Базы программ — с названиями шаблонов и упражнений (шаблон тренера мог быть удалён — «Шаблон»). */
+async function programsWithNames<T extends { bases: { templateId: string; exerciseId: string; weight: number; fromWeek: number }[] }>(rows: T[]) {
+  const bases = rows.flatMap((r) => r.bases);
+  const [templates, exercises] = await Promise.all([
+    db.workoutTemplate.findMany({ where: { id: { in: bases.map((b) => b.templateId) } }, select: { id: true, name: true } }),
+    db.exercise.findMany({ where: { id: { in: bases.map((b) => b.exerciseId) } }, select: { id: true, name: true } }),
+  ]);
+  const t = new Map(templates.map((x) => [x.id, x.name]));
+  const e = new Map(exercises.map((x) => [x.id, x.name]));
+  return rows.map((r) => ({
+    ...r,
+    bases: r.bases.map((b) => ({ template: t.get(b.templateId) ?? "Шаблон", exercise: e.get(b.exerciseId) ?? "Упражнение", weight: b.weight, fromWeek: b.fromWeek })),
+  }));
 }

@@ -6,7 +6,7 @@ import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, C
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
-import { AssignedWeek, ClientRows, CoachNote, InviteFlow, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
+import { AssignedWeek, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
@@ -145,7 +145,7 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Босс недели, сундуки и титулы", false],
   ["Восстановление мышц и баланс нагрузки", false],
   ["Напоминания о тренировках по плану", false],
-  ["Тренировки с тренером: план, задания и комментарии", false],
+  ["Тренировки с тренером: план, программы, задания и комментарии", false],
 ];
 
 const CLUB_POINTS = [
@@ -200,6 +200,11 @@ const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[]
     visual: <AssignedWeek />,
   },
   {
+    title: "Программы на несколько недель",
+    text: "Соберите цикл на 2–16 недель: дни по шаблонам, вес растёт каждую неделю на % или кг, разгрузка — по расписанию. Назначьте клиенту — веса недели подставятся сами.",
+    visual: <ProgramWeeks />,
+  },
+  {
     title: "Задания и прогрессия",
     text: "Подходы, повторы и вес — свои для каждого клиента. Справился — в следующий раз тяжелее на шаг, три неудачи подряд — разгрузка.",
     visual: <ProgressionTicker />,
@@ -208,6 +213,11 @@ const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[]
     title: "Комментарии к тренировкам",
     text: "Общий отзыв и заметки к упражнениям прямо в сводке тренировки — клиенту приходит уведомление.",
     visual: <CoachNote />,
+  },
+  {
+    title: "Заметки о клиенте",
+    text: "Цели, травмы со слов клиента, инвентарь — личная заметка в карточке клиента. Видите только вы.",
+    visual: <ClientNote />,
   },
   {
     title: "Своя страница тренера",

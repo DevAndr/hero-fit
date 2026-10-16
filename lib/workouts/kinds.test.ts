@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, formatKm, formatPace, isDoneSet, parseClock, plannedTimedSets, timedSetText } from "./kinds";
+import { chartsDistance, formatClock, formatKm, formatPace, isDoneSet, parseClock, plannedTimedSets, timedSetText } from "./kinds";
 
 const done = "2026-10-15T10:00:00.000Z";
 
@@ -70,5 +70,25 @@ describe("plannedTimedSets", () => {
       { weight: 0, reps: 0, durationSec: 600, distanceM: 2000 },
     ]);
     expect(plannedTimedSets(1, [])).toEqual([{ weight: 0, reps: 0, durationSec: null, distanceM: null }]);
+  });
+});
+
+describe("parseClock — одна цифра после запятой — доля минуты", () => {
+  it("«1,5» — полторы минуты, а не 1:05", () => {
+    expect(parseClock("1,5")).toBe(90);
+    expect(parseClock("1.5")).toBe(90);
+    expect(parseClock("45,5", { bareMinutes: true })).toBe(2730);
+    // Две цифры — по-прежнему секунды, двоеточие — всегда часы-минуты-секунды
+    expect(parseClock("1,05")).toBe(65);
+    expect(parseClock("1:5")).toBe(65);
+  });
+});
+
+describe("chartsDistance", () => {
+  const session = (sets: { durationSec: number; distanceM: number | null }[]) => ({ sets });
+  it("кардио с дистанцией — график по км; без дистанции (скакалка) и на время — по времени", () => {
+    expect(chartsDistance("CARDIO", [session([{ durationSec: 600, distanceM: 2000 }])])).toBe(true);
+    expect(chartsDistance("CARDIO", [session([{ durationSec: 600, distanceM: null }])])).toBe(false);
+    expect(chartsDistance("TIME", [session([{ durationSec: 60, distanceM: null }])])).toBe(false);
   });
 });
