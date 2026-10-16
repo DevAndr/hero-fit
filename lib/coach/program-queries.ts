@@ -1,5 +1,6 @@
 import "server-only";
-import type { ProgramRule } from "@/lib/coach/program";
+import { programEndDay, type ProgramRule } from "@/lib/coach/program";
+import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 export type ProgramView = {
@@ -31,3 +32,14 @@ export async function getCoachPrograms(coachId: string): Promise<ProgramView[]> 
     days: p.days.map((d) => ({ weekday: d.weekday, templateId: d.templateId, templateName: d.template.name, time: d.time, durationMin: d.durationMin })),
   }));
 }
+
+/** Активное назначение клиента: не закрыто и срок не кончился (день — в поясе клиента). */
+export async function getActiveAssignment(clientId: string, today: string) {
+  const rows = await db.programAssignment.findMany({
+    where: { clientId, endedAt: null, startDate: { lte: addDays(today, 7 * 16) } },
+    orderBy: { createdAt: "desc" },
+    include: { bases: true },
+  });
+  return rows.find((a) => programEndDay(a.startDate, a.weeks) >= today) ?? null;
+}
+export type ActiveAssignment = NonNullable<Awaited<ReturnType<typeof getActiveAssignment>>>;

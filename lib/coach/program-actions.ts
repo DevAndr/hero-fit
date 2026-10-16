@@ -1,8 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCoach } from "@/lib/coach/access";
-import { PROGRAMS_MAX, programSchema, type ProgramInput } from "@/lib/coach/program";
+import { queueGoal } from "@/lib/analytics/queue";
+import { requireClientOf, requireCoach } from "@/lib/coach/access";
+import { assignProgramSchema, PROGRAMS_MAX, programSchema, type AssignProgramInput, type ProgramInput } from "@/lib/coach/program";
+import { assignProgram, endAssignment } from "@/lib/coach/program-assign";
+import { getActiveAssignment, getCoachPrograms } from "@/lib/coach/program-queries";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { addDays, weekdayOf } from "@/lib/dates";
+import { getLastPerformance } from "@/lib/workouts/queries";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 
@@ -53,5 +59,76 @@ export async function deleteProgramAction(id: string): Promise<Result> {
   const { count } = await db.coachProgram.deleteMany({ where: { id: String(id), coachId: coach.id } });
   if (!count) return { ok: false, error: NOT_FOUND };
   revalidatePath("/coach/programs");
+  return { ok: true };
+}
+
+async function clientProgramCoach(clientId: string) {
+  const access = await requireClientOf(String(clientId));
+  return (await isEnabled("coach_programs", access.coach.id)) ? access : null;
+}
+
+const todayOf = (tz: string) => dayKey(new Date(), safeTimeZone(tz));
+
+/** Базы для диалога назначения: силовые упражнения шаблонов программы; вес — задание → последний рабочий → шаблон → 0. */
+export async function getProgramBasesAction(
+  clientId: string,
+  programId: string,
+): Promise<{ ok: true; bases: { templateId: string; templateName: string; exerciseId: string; exerciseName: string; weight: number }[] } | { ok: false; error: string }> {
+  const access = await clientProgramCoach(clientId);
+  if (!access) return { ok: false, error: UNAVAILABLE };
+  const program = (await getCoachPrograms(access.coach.id)).find((p) => p.id === String(programId));
+  if (!program) return { ok: false, error: NOT_FOUND };
+  const templateIds = [...new Set(program.days.map((d) => d.templateId))];
+  const rows = await db.templateExercise.findMany({
+    where: { templateId: { in: templateIds }, exercise: { kind: "REPS" } },
+    orderBy: [{ templateId: "asc" }, { order: "asc" }],
+    select: { templateId: true, exerciseId: true, targetWeight: true, template: { select: { name: true } }, exercise: { select: { name: true } } },
+  });
+  const [targets, last] = await Promise.all([
+    db.coachTarget.findMany({ where: { clientId, templateId: { in: templateIds } }, select: { templateId: true, exerciseId: true, weight: true } }),
+    getLastPerformance(clientId, [...new Set(rows.map((r) => r.exerciseId))]),
+  ]);
+  const seen = new Set<string>();
+  const bases = rows.flatMap((r) => {
+    const key = `${r.templateId}:${r.exerciseId}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const target = targets.find((t) => t.templateId === r.templateId && t.exerciseId === r.exerciseId)?.weight;
+    const lastWeight = Math.max(0, ...(last[r.exerciseId]?.sets.map((s) => s.weight) ?? []));
+    return [{ templateId: r.templateId, templateName: r.template.name, exerciseId: r.exerciseId, exerciseName: r.exercise.name, weight: target ?? (lastWeight || (r.targetWeight ?? 0)) }];
+  });
+  return { ok: true, bases };
+}
+
+/** Назначить программу клиенту; прежняя активная закрывается. Две вкладки не оставят двух активных — строка клиента под FOR UPDATE. */
+export async function assignProgramAction(clientId: string, input: AssignProgramInput): Promise<Result> {
+  const access = await clientProgramCoach(clientId);
+  if (!access) return { ok: false, error: UNAVAILABLE };
+  const parsed = assignProgramSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте поля" };
+  const today = todayOf(access.client.timeZone);
+  if (parsed.data.startDate < addDays(today, -weekdayOf(today))) return { ok: false, error: "Старт — не раньше текущей недели" };
+  const program = (await getCoachPrograms(access.coach.id)).find((p) => p.id === parsed.data.programId);
+  if (!program) return { ok: false, error: NOT_FOUND };
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${access.client.id} FOR UPDATE`;
+    await assignProgram(tx, access.coach.id, access.client.id, program, parsed.data, today);
+  });
+  await queueGoal("coach_program_assign");
+  revalidatePath(`/coach/clients/${access.client.id}`);
+  revalidatePath("/coach");
+  return { ok: true };
+}
+
+/** Завершить программу клиента досрочно: вес последней прошедшей обычной недели — в задания. */
+export async function endProgramAction(clientId: string): Promise<Result> {
+  const access = await clientProgramCoach(clientId);
+  if (!access) return { ok: false, error: UNAVAILABLE };
+  const today = todayOf(access.client.timeZone);
+  const active = await getActiveAssignment(access.client.id, today);
+  if (!active || active.coachId !== access.coach.id) return { ok: false, error: NOT_FOUND };
+  await db.$transaction((tx) => endAssignment(tx, active.id, today, { writeTargets: true }));
+  revalidatePath(`/coach/clients/${access.client.id}`);
+  revalidatePath("/coach");
   return { ok: true };
 }

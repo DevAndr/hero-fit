@@ -60,6 +60,20 @@ export function programPreview(rule: ProgramRule, base: ProgramBaseWeight) {
   });
 }
 
+/** Вес последней обычной недели не позже lastWeek (её вес переходит в задание после программы); раньше старта — база. */
+export function lastLoadedWeight(rule: ProgramRule, base: ProgramBaseWeight, lastWeek: number): number {
+  for (let week = Math.min(lastWeek, rule.weeks); week >= base.fromWeek; week--) {
+    if (!isDeloadWeek(week, rule.deloadEvery)) return programWeek(rule, base, week).weight;
+  }
+  return base.weight;
+}
+
+/** Первый день каждой серии: такой день недели не раньше старта и не раньше сегодня (без задним числом). */
+export function seriesStarts(startDate: string, weekdays: number[], today: string): { weekday: number; startDate: string }[] {
+  const from = startDate > today ? startDate : today;
+  return weekdays.map((weekday) => ({ weekday, startDate: addDays(from, (weekday - weekdayOf(from) + 7) % 7) }));
+}
+
 export const programLabel = (week: number, weeks: number, deload: boolean) => (deload ? `Разгрузка · неделя ${week}/${weeks}` : `Неделя ${week}/${weeks}`);
 
 export const PROGRAMS_MAX = 30;

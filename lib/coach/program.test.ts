@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/lib/daily-login";
-import { assignProgramSchema, isDeloadWeek, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
+import { assignProgramSchema, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
 
 const rule = (patch: Partial<ProgramRule> = {}): ProgramRule => ({ weeks: 7, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, ...patch });
 const base = (weight: number, fromWeek = 1) => ({ weight, fromWeek });
@@ -74,5 +74,24 @@ describe("схемы", () => {
     const input = { programId: "p1", startDate: "2026-10-19", bases: [{ templateId: "t1", exerciseId: "e1", weight: 100 }] };
     expect(assignProgramSchema.safeParse(input).success).toBe(true);
     expect(assignProgramSchema.safeParse({ ...input, startDate: "2026-10-20" }).success).toBe(false);
+  });
+});
+
+describe("seriesStarts", () => {
+  it("старт на текущей неделе в четверг: прошедшие дни — со следующей недели, без задним числом", () => {
+    expect(seriesStarts("2026-10-12", [0, 2, 4], "2026-10-15")).toEqual([
+      { weekday: 0, startDate: "2026-10-19" },
+      { weekday: 2, startDate: "2026-10-21" },
+      { weekday: 4, startDate: "2026-10-16" },
+    ]);
+    expect(seriesStarts("2026-10-19", [0], "2026-10-15")).toEqual([{ weekday: 0, startDate: "2026-10-19" }]);
+  });
+});
+
+describe("lastLoadedWeight", () => {
+  it("вес последней обычной недели — не разгрузки", () => {
+    expect(lastLoadedWeight(rule(), base(100), 4)).toBe(105);
+    expect(lastLoadedWeight(rule(), base(100), 2)).toBe(102.5);
+    expect(lastLoadedWeight(rule(), base(100), 0)).toBe(100);
   });
 });
