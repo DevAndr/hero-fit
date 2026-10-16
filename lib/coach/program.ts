@@ -111,13 +111,15 @@ export const shouldRemindProgramEnd = (endDay: string, today: string, remindedAt
 /**
  * Какие базы при окончании программы пишут вес в задания: пара «шаблон:упражнение» ещё есть в шаблонах тренера
  * (иначе задание сослалось бы на удалённое), вес > 0 и неделя базы уже прошла (не началась — нечего переносить).
+ * База, изменённая посреди программы (fromWeek > 1), пишется и до конца своей недели — это вес, который тренер
+ * только что задал (lastLoadedWeight вернёт саму базу); иначе клиент откатился бы к весу до программы.
  */
 export function basesToWrite<T extends { templateId: string; exerciseId: string; weight: number; fromWeek: number }>(
   bases: T[],
   existingPairs: ReadonlySet<string>,
   lastWeek: number,
 ): T[] {
-  return bases.filter((b) => b.weight > 0 && lastWeek >= b.fromWeek && existingPairs.has(`${b.templateId}:${b.exerciseId}`));
+  return bases.filter((b) => b.weight > 0 && (lastWeek >= b.fromWeek || b.fromWeek > 1) && existingPairs.has(`${b.templateId}:${b.exerciseId}`));
 }
 
 /** «Изменить базу» с недели W: база, при которой вес недели W равен введённому (в разгрузку — до снижения). */
@@ -125,6 +127,12 @@ export function baseForWeekWeight(rule: ProgramRule, weight: number, week: numbe
   if (weight <= 0 || !isDeloadWeek(week, rule.deloadEvery)) return weight;
   return Math.round((weight / (1 - rule.deloadPct / 100)) * 100) / 100;
 }
+
+/**
+ * Первый день, с которого при окончании программы убираются вхождения её серий. Досрочно — с завтра: сегодняшняя
+ * тренировка остаётся в календаре (уже без наложения программы); новая программа — с сегодня, её серии займут день.
+ */
+export const seriesCutoff = (today: string, keepToday: boolean) => (keepToday ? addDays(today, 1) : today);
 
 /** Задание изменено после последнего дня программы (с запасом суток на пояс) — тренер уже решил сам. */
 export const targetEditedAfterEnd = (updatedAt: Date | null, endDay: string) =>

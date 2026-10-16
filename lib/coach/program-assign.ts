@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType } from "@/generated/prisma/enums";
-import { basesToWrite, lastLoadedWeight, programEndDay, programWeekIndex, seriesStarts, targetEditedAfterEnd, type ProgramRule } from "@/lib/coach/program";
+import { basesToWrite, lastLoadedWeight, programEndDay, programWeekIndex, seriesCutoff, seriesStarts, targetEditedAfterEnd, type ProgramRule } from "@/lib/coach/program";
 import { addDays } from "@/lib/dates";
 import { plural } from "@/lib/format";
 import { notify } from "@/lib/notifications/service";
@@ -21,15 +21,16 @@ export const ruleOfAssignment = (a: { weeks: number; stepKind: "PERCENT" | "KG";
 
 /**
  * Закрыть назначение: endedAt, будущие вхождения серий убираются (не начавшиеся — удаляются), прошедшие тренировки
- * остаются. writeTargets — вес последней обычной недели (до lastWeek) переходит в задания тренера, чтобы клиент не
+ * остаются; keepToday (досрочно) — сегодняшняя тоже остаётся. writeTargets — вес последней обычной недели (до lastWeek) переходит в задания тренера, чтобы клиент не
  * откатился к базе. Условно по endedAt = null: повторный вызов ничего не делает.
  */
-export async function endAssignment(tx: Tx, assignmentId: string, today: string, opts: { writeTargets: boolean; lastWeek?: number }) {
+export async function endAssignment(tx: Tx, assignmentId: string, today: string, opts: { writeTargets: boolean; lastWeek?: number; keepToday?: boolean }) {
   const { count } = await tx.programAssignment.updateMany({ where: { id: assignmentId, endedAt: null }, data: { endedAt: new Date() } });
   if (!count) return;
   const a = await tx.programAssignment.findUniqueOrThrow({ where: { id: assignmentId }, include: { bases: true } });
-  await tx.planSeries.deleteMany({ where: { programAssignmentId: a.id, startDate: { gte: today } } });
-  await tx.planSeries.updateMany({ where: { programAssignmentId: a.id, OR: [{ endDate: null }, { endDate: { gte: today } }] }, data: { endDate: addDays(today, -1) } });
+  const cutoff = seriesCutoff(today, opts.keepToday ?? false);
+  await tx.planSeries.deleteMany({ where: { programAssignmentId: a.id, startDate: { gte: cutoff } } });
+  await tx.planSeries.updateMany({ where: { programAssignmentId: a.id, OR: [{ endDate: null }, { endDate: { gte: cutoff } }] }, data: { endDate: addDays(cutoff, -1) } });
   // Тренера нет (аккаунт удалён) — заданий у клиента от него тоже нет
   if (!opts.writeTargets || !a.coachId) return;
   const rule = ruleOfAssignment(a);
@@ -78,6 +79,10 @@ export async function assignProgram(
 ) {
   const active = await tx.programAssignment.findMany({ where: { clientId, endedAt: null }, select: { id: true } });
   for (const a of active) await endAssignment(tx, a.id, today, { writeTargets: true });
+  // Сегодняшние тренировки программы, завершённой досрочно сегодня же, уступают день новой — без дубля в календаре
+  const keptToday = { userId: clientId, endDate: today, programAssignment: { endedAt: { not: null } } };
+  await tx.planSeries.deleteMany({ where: { ...keptToday, startDate: today } });
+  await tx.planSeries.updateMany({ where: keptToday, data: { endDate: addDays(today, -1) } });
 
   const { rule } = program;
   const assignment = await tx.programAssignment.create({

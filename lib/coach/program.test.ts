@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/lib/daily-login";
-import { applyProgramToTargets, assignProgramSchema, baseForWeekWeight, basesToWrite, targetEditedAfterEnd, shouldRemindProgramEnd, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
+import { applyProgramToTargets, seriesCutoff, assignProgramSchema, baseForWeekWeight, basesToWrite, targetEditedAfterEnd, shouldRemindProgramEnd, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
 
 const rule = (patch: Partial<ProgramRule> = {}): ProgramRule => ({ weeks: 7, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, ...patch });
 const base = (weight: number, fromWeek = 1) => ({ weight, fromWeek });
@@ -117,6 +117,11 @@ describe("applyProgramToTargets", () => {
     const targets = new Map([["fly", { sets: 3, reps: 12, weight: 14 }]]);
     expect(applyProgramToTargets(targets, tpl, bases, r, 2).get("fly")).toEqual({ sets: 3, reps: 12, weight: 14 });
   });
+  it("база есть, а упражнение убрали из шаблона и задания нет — пропуск, без падения", () => {
+    const out = applyProgramToTargets(new Map(), new Map([["pull", 3]]), bases, r, 2);
+    expect(out.has("press")).toBe(false);
+    expect(out.get("pull")?.sets).toBe(3);
+  });
 });
 
 describe("shouldRemindProgramEnd", () => {
@@ -135,9 +140,12 @@ describe("basesToWrite — веса программы в задания при 
   it("только пары, что ещё есть в шаблонах тренера (шаблон или упражнение удалены — пропуск)", () => {
     expect(basesToWrite([b("t1", "squat"), b("t2", "squat"), b("t1", "gone")], pairs, 3)).toEqual([b("t1", "squat")]);
   });
-  it("программа не началась или неделя базы ещё не прошла — ничего не пишем", () => {
+  it("программа не началась — ничего не пишем", () => {
     expect(basesToWrite([b("t1", "squat")], pairs, 0)).toEqual([]);
-    expect(basesToWrite([b("t1", "squat", 100, 4)], pairs, 3)).toEqual([]);
+  });
+  it("базу изменили на текущей неделе и сразу завершили — пишем новую базу (не откат к весу до программы)", () => {
+    expect(basesToWrite([b("t1", "squat", 100, 4)], pairs, 3)).toEqual([b("t1", "squat", 100, 4)]);
+    expect(lastLoadedWeight(rule(), base(120, 4), 3)).toBe(120);
   });
   it("база 0 (своим весом) не пишется", () => {
     expect(basesToWrite([b("t1", "press", 0)], pairs, 3)).toEqual([]);
@@ -160,5 +168,14 @@ describe("targetEditedAfterEnd", () => {
     expect(targetEditedAfterEnd(new Date("2026-12-08T09:00:00Z"), "2026-12-06")).toBe(true);
     expect(targetEditedAfterEnd(new Date("2026-12-01T09:00:00Z"), "2026-12-06")).toBe(false);
     expect(targetEditedAfterEnd(null, "2026-12-06")).toBe(false);
+  });
+});
+
+describe("seriesCutoff — с какого дня убрать вхождения серий при окончании", () => {
+  it("досрочно — сегодняшняя тренировка остаётся, убираем с завтра", () => {
+    expect(seriesCutoff("2026-11-11", true)).toBe("2026-11-12");
+  });
+  it("новая программа — с сегодня (вместо неё сегодняшняя новой)", () => {
+    expect(seriesCutoff("2026-11-11", false)).toBe("2026-11-11");
   });
 });
