@@ -149,10 +149,19 @@ deploy:
     - scp $SSH_OPTS deploy/docker-compose.yml deploy/Caddyfile "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
     # Первый деплой — реестра на сервере ещё нет
     - ssh $SSH_OPTS "$SSH_USER@$SSH_HOST" "cd '$DEPLOY_PATH' && docker compose up -d registry"
+    # Образ туннеля — с повтором: разовый сбой сети раннера до Docker Hub не должен валить выкатку
+    - |
+      i=0
+      until docker pull -q alpine:3; do
+        i=$((i + 1))
+        if [ "$i" -ge 5 ]; then echo "alpine:3 is not pulled after 5 attempts" >&2; exit 1; fi
+        echo "docker pull alpine:3 failed, retry $i in 15s"
+        sleep 15
+      done
     # Туннель — контейнер в сети dind: пушит демон dind, и localhost:5000 должен быть его localhost
     - >
       docker create --name tunnel --network host alpine:3 sh -c
-      "apk add --no-cache openssh-client >/dev/null && chmod 600 /key &&
+      "for i in 1 2 3 4 5; do apk add --no-cache openssh-client >/dev/null && break; sleep 5; done; chmod 600 /key &&
       exec ssh -i /key -o Port=$SSH_PORT -o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes
       -o ServerAliveInterval=30 -N -L 5000:127.0.0.1:5000 $SSH_USER@$SSH_HOST"
     - docker cp "$SSH_KEY" tunnel:/key
