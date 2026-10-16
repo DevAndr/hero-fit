@@ -1,8 +1,8 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { addFlagUser, coachTargetFull, coachTemplate, enableCoach, idOf, linkCoach, removeFlagUser, shiftProgramStart, withDb } from "./db";
+import { coachTargetFull, coachTemplate, enableCoach, idOf, linkCoach, shiftProgramStart, withDb } from "./db";
 import { registerUser } from "./helpers";
 
-// Программы тренера (флаг coach_programs — списком на тренера, можно и на mobile); два контекста — --workers=8
+// Программы тренера на несколько недель; два контекста — --workers=8
 
 const nickOf = (login: string, p: string) => `${p.slice(0, 4)}_${login.replace(/^e2e_/, "").replace(/_/g, "").slice(-15)}`;
 const SQUAT = "Приседания со штангой";
@@ -39,7 +39,6 @@ test("coach builds a program, assigns it; the client gets week weights, a deload
   test.slow();
   const coach = await registerUser(page, "Тренер");
   await enableCoach(coach.login, nickOf(coach.login, "Coach"));
-  await addFlagUser("coach_programs", coach.login);
   await coachTemplate(coach.login, TEMPLATE);
   const client = await another(browser);
   await linkCoach(coach.login, client.login);
@@ -64,7 +63,7 @@ test("coach builds a program, assigns it; the client gets week weights, a deload
     await page.getByRole("option", { name: /с этой недели/ }).click();
     await assign.getByRole("button", { name: "Дальше" }).click();
     await assign.getByLabel(`База, ${SQUAT} (${TEMPLATE})`).fill("100");
-    await assign.getByRole("button", { name: "Назначить" }).click();
+    await assign.getByRole("button", { name: "Назначить", exact: true }).click();
     await expect(assign).toBeHidden();
     const block = page.getByRole("region", { name: "Программа" });
     await expect(block).toContainText("Неделя 1 из 8");
@@ -88,15 +87,6 @@ test("coach builds a program, assigns it; the client gets week weights, a deload
     await expect(squat).toContainText("(разгрузка · неделя 4/8)");
     await cancelWorkout(client.page);
 
-    // Флаг у тренера выключен — веса не по программе, без пометки недели
-    await removeFlagUser("coach_programs", coach.login);
-    await startFromCoach(client.page);
-    await expect(squat.getByLabel("Вес, подход 3")).toBeVisible();
-    await expect(squat).not.toContainText("неделя 4/8");
-    await finishWorkout(client.page);
-    await expect(client.page.getByText(/Программа:/)).toHaveCount(0);
-    await addFlagUser("coach_programs", coach.login);
-
     // Досрочно: вес последней прошедшей обычной недели (3-я — 105 кг) — в задание тренера
     await page.reload();
     await page.getByRole("region", { name: "Программа" }).getByRole("button", { name: "Завершить досрочно" }).click();
@@ -108,20 +98,10 @@ test("coach builds a program, assigns it; the client gets week weights, a deload
   }
 });
 
-test("without the flag the coach sees no programs", async ({ page }) => {
-  const coach = await registerUser(page, "Тренер");
-  await enableCoach(coach.login, nickOf(coach.login, "Coach"));
-  await page.goto("/coach");
-  await expect(page.getByRole("link", { name: "Программы" })).toHaveCount(0);
-  const res = await page.goto("/coach/programs");
-  expect(res?.status()).toBe(404);
-});
-
 test("the coach deletes the program's template: the client still trains, the coach ends and reassigns", async ({ page, browser }) => {
   test.slow();
   const coach = await registerUser(page, "Тренер");
   await enableCoach(coach.login, nickOf(coach.login, "Coach"));
-  await addFlagUser("coach_programs", coach.login);
   const doomed = await coachTemplate(coach.login, TEMPLATE);
   await coachTemplate(coach.login, "Ноги — запас");
   const client = await another(browser);
@@ -148,7 +128,7 @@ test("the coach deletes the program's template: the client still trains, the coa
     await page.getByRole("option", { name: /с этой недели/ }).click();
     await dialog.getByRole("button", { name: "Дальше" }).click();
     await dialog.getByLabel(new RegExp(`^База, ${SQUAT}`)).fill("100");
-    await dialog.getByRole("button", { name: "Назначить" }).click();
+    await dialog.getByRole("button", { name: "Назначить", exact: true }).click();
     await expect(dialog).toBeHidden();
   };
   try {

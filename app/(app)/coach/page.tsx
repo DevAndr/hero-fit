@@ -3,7 +3,6 @@ import Link from "next/link";
 import { CalendarRange, Globe, Users } from "lucide-react";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
-import { isEnabled } from "@/lib/flags/server";
 import { programBadges } from "@/lib/coach/program-queries";
 import { AssignManyButton } from "@/components/coach/assign-many";
 import { ClientList } from "@/components/coach/client-list";
@@ -38,7 +37,6 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
   const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0, coins: [] });
   const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
-  const programsOn = await isEnabled("coach_programs", coach.id);
   const [code, clients, templates, groups] = await Promise.all([
     ensureCoachCode(coach.id),
     getCoachClients(coach.id, now),
@@ -46,7 +44,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
     getCoachGroups(coach.id),
   ]);
   const sorted = sortClients(clients);
-  const programs = programsOn ? await programBadges(coach.id, clients, now) : {};
+  const programs = await programBadges(coach.id, clients, now);
   const tz = safeTimeZone(coach.timeZone);
   const picker = clientPickLabels(sorted.map((c) => ({ id: c.id, name: c.name, linkedDay: dayKey(c.linkedAt, tz) })));
   // Нет такой группы (удалена, чужая) — все клиенты
@@ -63,12 +61,10 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
         actions={
           <>
             {/* Программы — и без клиентов: их готовят заранее */}
-            {programsOn ? (
-              <Link href="/coach/programs" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                <CalendarRange />
-                Программы
-              </Link>
-            ) : null}
+            <Link href="/coach/programs" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <CalendarRange />
+              Программы
+            </Link>
             <Link href="/coach/page" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Globe />
               Публичная страница

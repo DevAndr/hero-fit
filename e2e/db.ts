@@ -1158,9 +1158,3 @@ export async function shiftProgramStart(clientLogin: string, weeks: number) {
   });
 }
 
-/** Убрать пользователя из списка флага (атомарно — параллельным тестам не мешает). */
-export async function removeFlagUser(key: string, login: string) {
-  await withDb(async (db) => {
-    await db.query(`update "FeatureFlag" set "userIds" = array_remove("userIds", $2), "updatedAt" = now() where key = $1`, [key, await userId(db, login)]);
-  });
-}

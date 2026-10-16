@@ -5,14 +5,13 @@ import { programEndDay, shouldRemindProgramEnd } from "@/lib/coach/program";
 import { endAssignment } from "@/lib/coach/program-assign";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
 import { notify } from "@/lib/notifications/service";
 
 const TICK_BUDGET_MS = 1000;
 
 /**
- * Тик программ тренера: кончившиеся по сроку закрываются (вес последней недели — в задания, если флаг у тренера
- * включён и тренер не правил задание после конца), за неделю до конца — напоминание тренеру, один раз.
+ * Тик программ тренера: кончившиеся по сроку закрываются (вес последней недели — в задания, если тренер есть
+ * и не правил задание после конца), за неделю до конца — напоминание тренеру, один раз.
  * Возвращает число отправленных напоминаний.
  */
 export async function processProgramReminders(now = new Date()): Promise<number> {
@@ -28,7 +27,7 @@ export async function processProgramReminders(now = new Date()): Promise<number>
     if (Date.now() > deadline) break;
     const today = dayKey(now, safeTimeZone(a.client.timeZone));
     const endDay = programEndDay(a.startDate, a.weeks);
-    const on = a.coachId !== null && (await isEnabled("coach_programs", a.coachId));
+    const on = a.coachId !== null;
     if (endDay < today) {
       await db.$transaction((tx) => endAssignment(tx, a.id, today, { writeTargets: on, lastWeek: a.weeks }));
       continue;

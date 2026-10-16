@@ -41,14 +41,14 @@ test("coach assigns a template mon/wed/fri; client sees it in the calendar and g
   const { coachNick, client, clientId } = await setup(page, browser);
   try {
     await page.goto(`/coach/clients/${clientId}?tab=plan`);
-    await page.getByRole("button", { name: "Назначить" }).click();
+    await page.getByRole("button", { name: "Назначить", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await pickOption(page, dialog.getByLabel("Шаблон"), "Ноги — база");
     await dialog.getByLabel("Дата").fill(nextMonday());
     await dialog.getByRole("checkbox", { name: "Повторять каждую неделю" }).click();
     await dialog.getByRole("button", { name: "Ср" }).click();
     await dialog.getByRole("button", { name: "Пт" }).click();
-    await dialog.getByRole("button", { name: "Назначить" }).click();
+    await dialog.getByRole("button", { name: "Назначить", exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
     const upcoming = page.getByRole("region", { name: "Ближайшие 2 недели" });
@@ -81,11 +81,11 @@ test("client disconnecting the coach removes assigned plans from the calendar", 
   const { coachNick, client, clientId } = await setup(page, browser);
   try {
     await page.goto(`/coach/clients/${clientId}?tab=plan`);
-    await page.getByRole("button", { name: "Назначить" }).click();
+    await page.getByRole("button", { name: "Назначить", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await pickOption(page, dialog.getByLabel("Шаблон"), "Ноги — база");
     await dialog.getByLabel("Дата").fill(nextMonday());
-    await dialog.getByRole("button", { name: "Назначить" }).click();
+    await dialog.getByRole("button", { name: "Назначить", exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
     await client.page.goto(`/calendar?date=${nextMonday()}`);
@@ -233,13 +233,13 @@ test("coach swaps the template for one occurrence of a series; the client starts
   try {
     await coachTemplate(coach.login, "Спина — база");
     await page.goto(`/coach/clients/${clientId}?tab=plan`);
-    await page.getByRole("button", { name: "Назначить" }).click();
+    await page.getByRole("button", { name: "Назначить", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await pickOption(page, dialog.getByLabel("Шаблон"), "Ноги — база");
     await dialog.getByLabel("Дата").fill(localDate(0));
     await dialog.getByLabel("Начало").fill("23:30");
     await dialog.getByRole("checkbox", { name: "Повторять каждую неделю" }).click();
-    await dialog.getByRole("button", { name: "Назначить" }).click();
+    await dialog.getByRole("button", { name: "Назначить", exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
     const upcoming = page.getByRole("region", { name: "Ближайшие 2 недели" });

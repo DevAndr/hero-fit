@@ -10,22 +10,14 @@ import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { addDays, weekdayOf } from "@/lib/dates";
 import { getLastPerformance } from "@/lib/workouts/queries";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-const UNAVAILABLE = "Программы недоступны";
 const NOT_FOUND = "Программа не найдена";
-
-async function programCoach() {
-  const coach = await requireCoach();
-  return (await isEnabled("coach_programs", coach.id)) ? coach : null;
-}
 
 /** Создать (id = null) или изменить программу; дни заменяются целиком. Шаблоны — только свои. */
 export async function saveProgramAction(id: string | null, input: ProgramInput): Promise<Result> {
-  const coach = await programCoach();
-  if (!coach) return { ok: false, error: UNAVAILABLE };
+  const coach = await requireCoach();
   const parsed = programSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте поля" };
   const { days, ...data } = parsed.data;
@@ -54,17 +46,11 @@ export async function saveProgramAction(id: string | null, input: ProgramInput):
 
 /** Удалить программу из библиотеки; назначенные клиентам остаются (снимок). */
 export async function deleteProgramAction(id: string): Promise<Result> {
-  const coach = await programCoach();
-  if (!coach) return { ok: false, error: UNAVAILABLE };
+  const coach = await requireCoach();
   const { count } = await db.coachProgram.deleteMany({ where: { id: String(id), coachId: coach.id } });
   if (!count) return { ok: false, error: NOT_FOUND };
   revalidatePath("/coach/programs");
   return { ok: true };
-}
-
-async function clientProgramCoach(clientId: string) {
-  const access = await requireClientOf(String(clientId));
-  return (await isEnabled("coach_programs", access.coach.id)) ? access : null;
 }
 
 const todayOf = (tz: string) => dayKey(new Date(), safeTimeZone(tz));
@@ -74,8 +60,7 @@ export async function getProgramBasesAction(
   clientId: string,
   programId: string,
 ): Promise<{ ok: true; bases: { templateId: string; templateName: string; exerciseId: string; exerciseName: string; weight: number }[] } | { ok: false; error: string }> {
-  const access = await clientProgramCoach(clientId);
-  if (!access) return { ok: false, error: UNAVAILABLE };
+  const access = await requireClientOf(String(clientId));
   const program = (await getCoachPrograms(access.coach.id)).find((p) => p.id === String(programId));
   if (!program) return { ok: false, error: NOT_FOUND };
   const templateIds = [...new Set(program.days.map((d) => d.templateId))];
@@ -102,8 +87,7 @@ export async function getProgramBasesAction(
 
 /** Назначить программу клиенту; прежняя активная закрывается. Две вкладки не оставят двух активных — строка клиента под FOR UPDATE. */
 export async function assignProgramAction(clientId: string, input: AssignProgramInput): Promise<Result> {
-  const access = await clientProgramCoach(clientId);
-  if (!access) return { ok: false, error: UNAVAILABLE };
+  const access = await requireClientOf(String(clientId));
   const parsed = assignProgramSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте поля" };
   const today = todayOf(access.client.timeZone);
@@ -122,8 +106,7 @@ export async function assignProgramAction(clientId: string, input: AssignProgram
 
 /** Завершить программу клиента досрочно: вес последней прошедшей обычной недели — в задания. */
 export async function endProgramAction(clientId: string): Promise<Result> {
-  const access = await clientProgramCoach(clientId);
-  if (!access) return { ok: false, error: UNAVAILABLE };
+  const access = await requireClientOf(String(clientId));
   const today = todayOf(access.client.timeZone);
   const active = await getActiveAssignment(access.client.id, today, access.coach.id);
   if (!active) return { ok: false, error: NOT_FOUND };
@@ -135,8 +118,7 @@ export async function endProgramAction(clientId: string): Promise<Result> {
 
 /** «Изменить базу»: новые базы действуют с текущей недели (рост — заново от них). */
 export async function updateBasesAction(clientId: string, bases: { templateId: string; exerciseId: string; weight: number }[]): Promise<Result> {
-  const access = await clientProgramCoach(clientId);
-  if (!access) return { ok: false, error: UNAVAILABLE };
+  const access = await requireClientOf(String(clientId));
   const parsed = assignProgramSchema.shape.bases.safeParse(bases);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте вес" };
   const today = todayOf(access.client.timeZone);
