@@ -15,8 +15,17 @@ test("run and plank: time and distance, cardio tile, XP per minute, endurance ac
 
   // У кардио — дистанция и время, без веса и повторов
   await expect(block(page, "Бег").getByLabel("Вес, подход 1")).toHaveCount(0);
-  await block(page, "Бег").getByLabel("Дистанция, подход 1").fill("5,2");
+  const warning = block(page, "Бег").getByTestId("typo-warning");
+  // Дистанция без времени — подсказка, что подход не засчитается; опечатка в дистанции — «точно столько?»
+  await block(page, "Бег").getByLabel("Дистанция, подход 1").fill("52");
+  await block(page, "Бег").getByRole("heading").click();
+  await expect(warning).toHaveText("Укажите время — без него подход не засчитается");
   await block(page, "Бег").getByLabel("Время, подход 1").fill("28,40");
+  await block(page, "Бег").getByRole("heading").click();
+  await expect(warning).toHaveText("Точно 52 км за 28:40? Это 109 км/ч");
+  await block(page, "Бег").getByLabel("Дистанция, подход 1").fill("5,2");
+  await block(page, "Бег").getByRole("heading").click();
+  await expect(warning).toHaveCount(0);
   await block(page, "Бег").getByRole("button", { name: "Подход 1 выполнен" }).click();
   // «28,40» понят как 28:40
   await expect(block(page, "Бег").getByLabel("Время, подход 1")).toHaveValue("28:40");
@@ -58,7 +67,10 @@ test("own exercise of kind «Кардио» gets distance and time inputs", asyn
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Название").fill("Сайкл в зале");
   await dialog.getByRole("button", { name: "Ноги", exact: true }).click();
-  await dialog.getByRole("radio", { name: "Кардио" }).click();
+  // Вид — радиогруппа со стрелками
+  await dialog.getByRole("radio", { name: "Время" }).click();
+  await page.keyboard.press("ArrowRight");
+  await expect(dialog.getByRole("radio", { name: "Кардио" })).toBeChecked();
   await dialog.getByRole("button", { name: "Добавить" }).click();
   await expect(dialog).toBeHidden();
 

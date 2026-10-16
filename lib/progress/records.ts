@@ -15,6 +15,11 @@ export const PACE_MIN_M = 1000;
 /** Рекорды, где меньше — лучше. */
 export const LOWER_IS_BETTER: ReadonlySet<RecordType> = new Set<RecordType>(["BEST_PACE"]);
 
+const TIMED_RECORDS: ReadonlySet<RecordType> = new Set<RecordType>(["MAX_DURATION", "MAX_DISTANCE", "BEST_PACE"]);
+
+/** Рекорд упражнения на время или кардио (показывается через `formatRecord`). */
+export const isTimedRecord = (type: RecordType) => TIMED_RECORDS.has(type);
+
 type RecordSet = { weight: number; reps: number; durationSec?: number | null; distanceM?: number | null };
 
 /**

@@ -5,7 +5,7 @@ import { Area, AreaChart, ReferenceLine, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import type { ExerciseSession } from "@/lib/stats/queries";
 import { formatSet } from "@/lib/format";
-import { formatClock, formatKm, isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
+import { chartsDistance, formatClock, formatKm, isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -20,10 +20,10 @@ type Metric = { label: string; title: string; value: (s: ExerciseSession) => num
 
 function metricOf(kind: ExerciseKindName, sessions: ExerciseSession[]): Metric {
   if (isTimed(kind)) {
-    const cardio = kind === "CARDIO";
+    const cardio = chartsDistance(kind, sessions);
     return {
-      label: cardio ? "Дистанция" : "Лучшее время",
-      title: cardio ? "Самый длинный подход" : "Лучшее время подхода",
+      label: cardio ? "Дистанция" : kind === "CARDIO" ? "Время" : "Лучшее время",
+      title: cardio ? "Самый длинный подход" : kind === "CARDIO" ? "Самый долгий подход" : "Лучшее время подхода",
       value: (s) => Math.max(...s.sets.map((x) => (cardio ? (x.distanceM ?? 0) : (x.durationSec ?? 0)))),
       show: cardio ? formatKm : formatClock,
       sets: (s) => s.sets.map((x) => timedSetText(kind, x)).join(", "),
