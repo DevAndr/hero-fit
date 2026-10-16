@@ -1147,3 +1147,20 @@ export async function timedSets(login: string) {
     return rows;
   });
 }
+
+/** Программа тренера: сдвинуть старт активного назначения клиента на N недель назад (идёт уже неделя N + 1). */
+export async function shiftProgramStart(clientLogin: string, weeks: number) {
+  await withDb(async (db) => {
+    await db.query(
+      `update "ProgramAssignment" set "startDate" = to_char("startDate"::date - $2::int * 7, 'YYYY-MM-DD') where "clientId" = $1 and "endedAt" is null`,
+      [await userId(db, clientLogin), weeks],
+    );
+  });
+}
+
+/** Убрать пользователя из списка флага (атомарно — параллельным тестам не мешает). */
+export async function removeFlagUser(key: string, login: string) {
+  await withDb(async (db) => {
+    await db.query(`update "FeatureFlag" set "userIds" = array_remove("userIds", $2), "updatedAt" = now() where key = $1`, [key, await userId(db, login)]);
+  });
+}

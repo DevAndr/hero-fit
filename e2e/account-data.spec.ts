@@ -299,3 +299,35 @@ test("delete: error events stay without the user", async ({ page, baseURL }) => 
   await expect(page).toHaveURL(/\/\?deleted=1$/);
   expect(await errorEventUsers(message)).toEqual([null]);
 });
+
+test("coach program: the coach and then the client delete their accounts", async ({ browser }) => {
+  const coach = await player(browser, "Тренер");
+  const client = await player(browser, "Клиент");
+  const [coachId, clientId] = [await idOf(coach.login), await idOf(client.login)];
+  await withDb(async (db) => {
+    const t = randomUUID();
+    const p = randomUUID();
+    const a = randomUUID();
+    await db.query(`insert into "WorkoutTemplate" (id, "userId", name, "updatedAt") values ($1, $2, 'Программа', now())`, [t, coachId]);
+    await db.query(`insert into "CoachProgram" (id, "coachId", name, weeks, "stepKind", "stepValue", "updatedAt") values ($1, $2, 'Сила', 8, 'PERCENT', 2.5, now())`, [p, coachId]);
+    await db.query(`insert into "CoachProgramDay" (id, "programId", weekday, "templateId", time) values ($1, $2, 0, $3, '18:00')`, [randomUUID(), p, t]);
+    await db.query(
+      `insert into "ProgramAssignment" (id, "clientId", "coachId", "programId", name, "startDate", weeks, "stepKind", "stepValue", "deloadPct") values ($1, $2, $3, $4, 'Сила', '2026-10-12', 8, 'PERCENT', 2.5, 10)`,
+      [a, clientId, coachId, p],
+    );
+    await db.query(`insert into "ProgramBase" ("assignmentId", "templateId", "exerciseId", weight) select $1, $2, id, 100 from "Exercise" where "userId" is null limit 1`, [a, t]);
+    await db.query(
+      `insert into "PlanSeries" (id, "userId", "templateId", title, weekday, time, "startDate", "endDate", "coachId", "programAssignmentId", "updatedAt") values ($1, $2, $3, 'Программа', 0, '18:00', '2026-10-12', '2026-12-06', $4, $5, now())`,
+      [randomUUID(), clientId, t, coachId, a],
+    );
+  });
+  await deleteAccount(coach.page, PASSWORD);
+  await expect(coach.page).toHaveURL(/deleted=1/);
+  // Назначение у клиента осталось без тренера — выгрузка и удаление не падают
+  await client.page.goto("/settings");
+  const [json] = await Promise.all([client.page.waitForEvent("download"), client.page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  expect(JSON.parse(await readFile((await json.path())!, "utf8")).programs).toEqual([expect.objectContaining({ name: "Сила", weeks: 8 })]);
+  await deleteAccount(client.page, PASSWORD);
+  await expect(client.page).toHaveURL(/deleted=1/);
+  expect(await userExists(client.login)).toBe(false);
+});
