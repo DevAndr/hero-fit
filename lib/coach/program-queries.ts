@@ -3,7 +3,6 @@ import { applyProgramToTargets, isDeloadWeek, programEndDay, programLabel, progr
 import { endAssignment, ruleOfAssignment } from "@/lib/coach/program-assign";
 import type { Target } from "@/lib/coach/targets";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
-import { isEnabled } from "@/lib/flags/server";
 import { db } from "@/lib/db";
 
 export type ProgramView = {
@@ -58,7 +57,7 @@ export async function getActiveAssignment(clientId: string, today: string, coach
 export type ActiveAssignment = NonNullable<Awaited<ReturnType<typeof getActiveAssignment>>>;
 
 /**
- * Программа поверх заданий клиента по шаблону (getTemplateTargets): флаг — у тренера назначения; программа
+ * Программа поверх заданий клиента по шаблону (getTemplateTargets): у назначения есть тренер; программа
  * активна, шаблон — в её сериях, день в пределах недель. Кончился срок — ленивое окончание: вес последней обычной
  * недели переходит в задания (один раз, условно по endedAt).
  */
@@ -72,7 +71,7 @@ export async function programForTemplate(
     orderBy: { createdAt: "desc" },
     include: { bases: { where: { templateId } }, client: { select: { timeZone: true } } },
   });
-  if (!assignment?.coachId || !(await isEnabled("coach_programs", assignment.coachId))) return { ended: false, overlay: null };
+  if (!assignment?.coachId) return { ended: false, overlay: null };
   const today = day ?? dayKey(new Date(), safeTimeZone(assignment.client.timeZone));
   const week = programWeekIndex(assignment.startDate, today);
   const rule = ruleOfAssignment(assignment);
@@ -95,10 +94,7 @@ export async function programWeekLabels(seriesIds: (string | null)[]): Promise<(
         select: { id: true, programAssignment: { select: { startDate: true, weeks: true, deloadEvery: true, coachId: true } } },
       })
     : [];
-  const coaches = [...new Set(rows.map((r) => r.programAssignment?.coachId).filter((id): id is string => Boolean(id)))];
-  const on = new Set<string>();
-  for (const id of coaches) if (await isEnabled("coach_programs", id)) on.add(id);
-  const bySeries = new Map(rows.flatMap((r) => (r.programAssignment?.coachId && on.has(r.programAssignment.coachId) ? [[r.id, r.programAssignment] as const] : [])));
+  const bySeries = new Map(rows.flatMap((r) => (r.programAssignment?.coachId ? [[r.id, r.programAssignment] as const] : [])));
   return (seriesId, date) => {
     const a = seriesId ? bySeries.get(seriesId) : undefined;
     if (!a) return null;
@@ -109,7 +105,7 @@ export async function programWeekLabels(seriesIds: (string | null)[]): Promise<(
 
 /** «Нед. 3/8» по клиентам тренера для списка /coach (активные программы этого тренера). */
 export async function programBadges(coachId: string, clients: { id: string; timeZone: string }[], now = new Date()): Promise<Record<string, string>> {
-  if (!clients.length || !(await isEnabled("coach_programs", coachId))) return {};
+  if (!clients.length) return {};
   const rows = await db.programAssignment.findMany({
     where: { coachId, endedAt: null, clientId: { in: clients.map((c) => c.id) } },
     select: { clientId: true, startDate: true, weeks: true },

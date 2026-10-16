@@ -260,16 +260,11 @@ async function Plan({
     status,
     workoutId,
   });
-  const programsOn = await isEnabled("coach_programs", coachId);
-  const [programs, active] = programsOn ? await Promise.all([getCoachPrograms(coachId), getActiveAssignment(clientId, today, coachId)]) : [[], null];
+  const [programs, active] = await Promise.all([getCoachPrograms(coachId), getActiveAssignment(clientId, today, coachId)]);
   return (
     <div className="space-y-4">
-      {programsOn ? (
-        <>
-          {active ? <ProgramProgress clientId={clientId} name={active.name} {...programProgressProps(active, today)} /> : null}
-          <AssignProgramButton clientId={clientId} programs={programs.map(({ id, name, rule }) => ({ id, name, rule }))} today={today} activeName={active?.name ?? null} />
-        </>
-      ) : null}
+      {active ? <ProgramProgress clientId={clientId} name={active.name} {...programProgressProps(active, today)} /> : null}
+      <AssignProgramButton clientId={clientId} programs={programs.map(({ id, name, rule }) => ({ id, name, rule }))} today={today} activeName={active?.name ?? null} />
       <ClientPlan
         clientId={clientId}
         today={dayKey(now, tz)}
