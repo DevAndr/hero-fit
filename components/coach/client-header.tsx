@@ -27,7 +27,7 @@ export function RemoveClientButton({ clientId, name }: { clientId: string; name:
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить клиента {name}?</AlertDialogTitle>
-            <AlertDialogDescription>Вы потеряете доступ к тренировкам клиента, он получит уведомление.</AlertDialogDescription>
+            <AlertDialogDescription>Вы потеряете доступ к тренировкам клиента, он получит уведомление. Заметка о клиенте будет удалена.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>Отмена</AlertDialogCancel>
