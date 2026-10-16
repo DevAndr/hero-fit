@@ -104,6 +104,10 @@ export function applyProgramToTargets(
   return out;
 }
 
+/** Напомнить тренеру «заканчивается через неделю»: последние 7 дней программы, ещё не напоминали. */
+export const shouldRemindProgramEnd = (endDay: string, today: string, remindedAt: Date | null) =>
+  remindedAt === null && today <= endDay && today >= addDays(endDay, -7);
+
 export const PROGRAMS_MAX = 30;
 
 const daySchema = z.object({

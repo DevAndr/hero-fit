@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/lib/daily-login";
-import { applyProgramToTargets, assignProgramSchema, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
+import { applyProgramToTargets, assignProgramSchema, shouldRemindProgramEnd, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
 
 const rule = (patch: Partial<ProgramRule> = {}): ProgramRule => ({ weeks: 7, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, ...patch });
 const base = (weight: number, fromWeek = 1) => ({ weight, fromWeek });
@@ -116,5 +116,15 @@ describe("applyProgramToTargets", () => {
   it("упражнение без базы (добавили в шаблон позже) не трогается", () => {
     const targets = new Map([["fly", { sets: 3, reps: 12, weight: 14 }]]);
     expect(applyProgramToTargets(targets, tpl, bases, r, 2).get("fly")).toEqual({ sets: 3, reps: 12, weight: 14 });
+  });
+});
+
+describe("shouldRemindProgramEnd", () => {
+  it("за 7 дней до конца и позже — один раз", () => {
+    expect(shouldRemindProgramEnd("2026-11-15", "2026-11-07", null)).toBe(false);
+    expect(shouldRemindProgramEnd("2026-11-15", "2026-11-08", null)).toBe(true);
+    expect(shouldRemindProgramEnd("2026-11-15", "2026-11-15", null)).toBe(true);
+    expect(shouldRemindProgramEnd("2026-11-15", "2026-11-16", null)).toBe(false);
+    expect(shouldRemindProgramEnd("2026-11-15", "2026-11-10", new Date())).toBe(false);
   });
 });

@@ -44,7 +44,17 @@ export async function getActiveAssignment(clientId: string, today: string) {
     orderBy: { createdAt: "desc" },
     include: { bases: true },
   });
-  return rows.find((a) => programEndDay(a.startDate, a.weeks) >= today) ?? null;
+  const active = rows.find((a) => programEndDay(a.startDate, a.weeks) >= today);
+  if (!active) return null;
+  const [exercises, templates] = await Promise.all([
+    db.exercise.findMany({ where: { id: { in: active.bases.map((b) => b.exerciseId) } }, select: { id: true, name: true } }),
+    db.workoutTemplate.findMany({ where: { id: { in: active.bases.map((b) => b.templateId) } }, select: { id: true, name: true } }),
+  ]);
+  return {
+    ...active,
+    names: Object.fromEntries(exercises.map((e) => [e.id, e.name])) as Record<string, string>,
+    templateNames: Object.fromEntries(templates.map((t) => [t.id, t.name])) as Record<string, string>,
+  };
 }
 export type ActiveAssignment = NonNullable<Awaited<ReturnType<typeof getActiveAssignment>>>;
 
@@ -96,4 +106,20 @@ export async function programWeekLabels(seriesIds: (string | null)[]): Promise<(
     const week = programWeekIndex(a.startDate, date);
     return week !== null && week <= a.weeks ? programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery)) : null;
   };
+}
+
+/** «Нед. 3/8» по клиентам тренера для списка /coach (активные программы этого тренера). */
+export async function programBadges(coachId: string, clients: { id: string; timeZone: string }[], now = new Date()): Promise<Record<string, string>> {
+  if (!clients.length || !(await isEnabled("coach_programs", coachId))) return {};
+  const rows = await db.programAssignment.findMany({
+    where: { coachId, endedAt: null, clientId: { in: clients.map((c) => c.id) } },
+    select: { clientId: true, startDate: true, weeks: true },
+  });
+  const tz = new Map(clients.map((c) => [c.id, c.timeZone]));
+  const out: Record<string, string> = {};
+  for (const a of rows) {
+    const week = programWeekIndex(a.startDate, dayKey(now, safeTimeZone(tz.get(a.clientId) ?? "UTC")));
+    if (week !== null && week <= a.weeks) out[a.clientId] = `Нед. ${week}/${a.weeks}`;
+  }
+  return out;
 }

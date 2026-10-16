@@ -4,6 +4,7 @@ import { CalendarRange, Globe, Users } from "lucide-react";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
 import { isEnabled } from "@/lib/flags/server";
+import { programBadges } from "@/lib/coach/program-queries";
 import { AssignManyButton } from "@/components/coach/assign-many";
 import { ClientList } from "@/components/coach/client-list";
 import { GroupFilter } from "@/components/coach/group-filter";
@@ -45,6 +46,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
     getCoachGroups(coach.id),
   ]);
   const sorted = sortClients(clients);
+  const programs = programsOn ? await programBadges(coach.id, clients, now) : {};
   const tz = safeTimeZone(coach.timeZone);
   const picker = clientPickLabels(sorted.map((c) => ({ id: c.id, name: c.name, linkedDay: dayKey(c.linkedAt, tz) })));
   // Нет такой группы (удалена, чужая) — все клиенты
@@ -83,7 +85,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
       ) : null}
       <GroupFilter groups={groups} active={active?.id ?? null} />
       {shown.length ? (
-        <ClientList rows={shown} now={now} groupNames={groupNames} />
+        <ClientList rows={shown} now={now} groupNames={groupNames} programs={programs} />
       ) : clients.length ? (
         <p className="rounded-xl border border-dashed px-6 py-8 text-center text-sm text-muted-foreground">В группе пока никого.</p>
       ) : (
