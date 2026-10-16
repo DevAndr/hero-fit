@@ -49,7 +49,7 @@ export default async function TrainingPage() {
     // Урон этой тренировки досчитывает редактор
     getBossView(user.id, safeTimeZone(user.timeZone), new Date(), workout.id),
     // Пометка «от тренера» — текущие задания активного тренера по шаблону тренировки
-    workout.templateId ? getTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
+    workout.templateId ? getTemplateTargets(user.id, workout.templateId) : new Map<string, Target & { program?: string }>(),
     // Своя прогрессия по шаблону тренировки — вес растёт сам, подсказка «Пора увеличить вес» лишняя
     workout.templateId ? getOwnTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
   ]);

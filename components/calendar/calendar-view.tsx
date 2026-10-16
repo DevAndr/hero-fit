@@ -32,6 +32,8 @@ export type CalendarEvent = {
   exercises: number | null;
   /** Назначил тренер — его ник; клиент такое не меняет и не перетаскивает. */
   coachName: string | null;
+  /** Неделя программы тренера на несколько недель: «Неделя 3/8», «Разгрузка · неделя 4/8». */
+  program?: string | null;
 };
 
 export type CalendarActions = {

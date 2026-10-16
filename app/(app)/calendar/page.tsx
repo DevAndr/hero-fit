@@ -4,6 +4,7 @@ import { CalendarView, type CalendarEvent } from "@/components/calendar/calendar
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
+import { programWeekLabels } from "@/lib/coach/program-queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { getCalendar } from "@/lib/plans/queries";
 import { planDateSchema } from "@/lib/plans/schema";
@@ -33,6 +34,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   ]);
   // Назначения есть только от активного тренера — разрыв связи их удаляет
   const coachName = coach ? clientDisplayName(coach) : null;
+  const programOf = await programWeekLabels(calendar.occurrences.map((o) => o.seriesId));
 
   const events: CalendarEvent[] = [
     ...calendar.occurrences.map((o) => ({
@@ -48,6 +50,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       workoutId: o.workoutId ?? null,
       exercises: o.templateId ? (calendar.templates[o.templateId]?.exercises ?? null) : null,
       coachName: o.coachId ? coachName : null,
+      program: programOf(o.seriesId, o.date),
     })),
     // Тренировки вне плана — по фактическому времени
     ...calendar.extra.map((w) => ({
@@ -63,6 +66,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       workoutId: w.id,
       exercises: null,
       coachName: null,
+      program: null,
     })),
   ];
   const [hh, mm] = localTime(now, tz).split(":").map(Number);

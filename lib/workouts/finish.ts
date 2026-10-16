@@ -50,6 +50,8 @@ export type FinishMeta = {
   progression?: ProgressionItem[];
   /** Чья прогрессия: own — свой шаблон; нет поля — тренера (и в старых записях). */
   progressionSource?: "own";
+  /** Неделя программы тренера на несколько недель («Неделя 3/8»): вес ведёт программа, прогрессии нет. */
+  program?: string;
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
   boss?: {
     week: string;
@@ -362,6 +364,7 @@ export async function finishWorkout(
       ...(clubTasks ? { clubTasks } : {}),
       ...(coinTotal > 0 ? { coins: { total: coinTotal, items: coinItems } } : {}),
       ...(progression.items.length ? { progression: progression.items } : {}),
+      ...(progression.program ? { program: progression.program } : {}),
       ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };
 

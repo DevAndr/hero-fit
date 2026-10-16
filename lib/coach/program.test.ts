@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/lib/daily-login";
-import { assignProgramSchema, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
+import { applyProgramToTargets, assignProgramSchema, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
 
 const rule = (patch: Partial<ProgramRule> = {}): ProgramRule => ({ weeks: 7, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, ...patch });
 const base = (weight: number, fromWeek = 1) => ({ weight, fromWeek });
@@ -93,5 +93,28 @@ describe("lastLoadedWeight", () => {
     expect(lastLoadedWeight(rule(), base(100), 4)).toBe(105);
     expect(lastLoadedWeight(rule(), base(100), 2)).toBe(102.5);
     expect(lastLoadedWeight(rule(), base(100), 0)).toBe(100);
+  });
+});
+
+describe("applyProgramToTargets", () => {
+  const r = rule({ weeks: 8 });
+  const tpl = new Map([["press", 3], ["pull", 3], ["fly", 3]]);
+  const bases = [
+    { exerciseId: "press", weight: 100, fromWeek: 1 },
+    { exerciseId: "pull", weight: 0, fromWeek: 1 },
+  ];
+  it("вес недели поверх задания; повторы и подходы задания остаются", () => {
+    const targets = new Map([["press", { sets: 4, reps: 8, weight: 60 }]]);
+    expect(applyProgramToTargets(targets, tpl, bases, r, 3).get("press")).toEqual({ sets: 4, reps: 8, weight: 105, program: "Неделя 3/8" });
+  });
+  it("разгрузка: подходов на 1 меньше; без задания — подходы шаблона", () => {
+    const out = applyProgramToTargets(new Map(), tpl, bases, r, 4);
+    expect(out.get("press")).toEqual({ sets: 2, reps: null, weight: 95, program: "Разгрузка · неделя 4/8" });
+    // Своим весом: вес — по истории (null), подходы −1
+    expect(out.get("pull")).toEqual({ sets: 2, reps: null, weight: null, program: "Разгрузка · неделя 4/8" });
+  });
+  it("упражнение без базы (добавили в шаблон позже) не трогается", () => {
+    const targets = new Map([["fly", { sets: 3, reps: 12, weight: 14 }]]);
+    expect(applyProgramToTargets(targets, tpl, bases, r, 2).get("fly")).toEqual({ sets: 3, reps: 12, weight: 14 });
   });
 });

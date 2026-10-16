@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { addDays, weekdayOf } from "@/lib/dates";
 import { planDateSchema, planInputSchema } from "@/lib/plans/schema";
+import type { Target } from "@/lib/coach/targets";
 
 export type ProgramRule = { weeks: number; stepKind: "PERCENT" | "KG"; stepValue: number; deloadEvery: number | null; deloadPct: number };
 export type ProgramBaseWeight = { weight: number; fromWeek: number };
@@ -75,6 +76,33 @@ export function seriesStarts(startDate: string, weekdays: number[], today: strin
 }
 
 export const programLabel = (week: number, weeks: number, deload: boolean) => (deload ? `Разгрузка · неделя ${week}/${weeks}` : `Неделя ${week}/${weeks}`);
+
+/**
+ * Задания с программой недели: по упражнениям с базой — вес недели (база 0 — вес задания или по истории) и подходы
+ * (задание → шаблон) + setsDelta, не меньше 1; метка недели — в `program`. Упражнения без базы — как были.
+ */
+export function applyProgramToTargets(
+  targets: Map<string, Target>,
+  templateSets: Map<string, number>,
+  bases: { exerciseId: string; weight: number; fromWeek: number }[],
+  rule: ProgramRule,
+  week: number,
+): Map<string, Target & { program?: string }> {
+  const out = new Map<string, Target & { program?: string }>(targets);
+  for (const base of bases) {
+    const sets = targets.get(base.exerciseId)?.sets ?? templateSets.get(base.exerciseId);
+    if (sets === undefined) continue; // упражнение убрали из шаблона
+    const target = targets.get(base.exerciseId);
+    const w = programWeek(rule, base, week);
+    out.set(base.exerciseId, {
+      sets: Math.max(1, sets + w.setsDelta),
+      reps: target?.reps ?? null,
+      weight: base.weight > 0 ? w.weight : (target?.weight ?? null),
+      program: programLabel(week, rule.weeks, w.deload),
+    });
+  }
+  return out;
+}
 
 export const PROGRAMS_MAX = 30;
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { programForTemplate } from "@/lib/coach/program-queries";
 import { assignedWhere } from "@/lib/coach/templates";
 import type { PlannedSet, Target } from "@/lib/coach/targets";
 import { dayKey } from "@/lib/daily-login";
@@ -10,14 +11,17 @@ import { getLastPerformance } from "@/lib/workouts/queries";
  * Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента.
  * Только упражнения, которые сейчас в шаблоне: задание по убранному не читается (и не даёт пометку).
  */
-export async function getTemplateTargets(clientId: string, templateId: string): Promise<Map<string, Target>> {
+export async function getTemplateTargets(clientId: string, templateId: string, day?: string): Promise<Map<string, Target & { program?: string }>> {
   const link = await db.coachLink.findFirst({ where: { clientId, endedAt: null }, select: { coachId: true } });
   if (!link) return new Map();
+  // Программа тренера на несколько недель: вес недели поверх задания (день — дата вхождения или «сегодня» клиента)
+  const program = await programForTemplate(clientId, templateId, day);
   const rows = await db.coachTarget.findMany({
     where: { clientId, templateId, template: { userId: link.coachId }, exercise: { templateExercises: { some: { templateId } } } },
     select: { exerciseId: true, sets: true, reps: true, weight: true },
   });
-  return new Map(rows.map(({ exerciseId, ...t }) => [exerciseId, t]));
+  const targets = new Map(rows.map(({ exerciseId, ...t }) => [exerciseId, t]));
+  return program.overlay ? program.overlay(targets) : targets;
 }
 
 export type ClientTemplateTargets = {
