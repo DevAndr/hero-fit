@@ -230,6 +230,9 @@ model User {
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
   coachNotesWritten   CoachNote[]          @relation("CoachNoteCoach")
   coachNotesAbout     CoachNote[]          @relation("CoachNoteClient")
+  coachPrograms             CoachProgram[]
+  programAssignmentsAsClient ProgramAssignment[] @relation("ProgramAssignmentClient")
+  programAssignmentsAsCoach  ProgramAssignment[] @relation("ProgramAssignmentCoach")
   coachTargets        CoachTarget[]
   coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
   coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
@@ -423,6 +426,7 @@ model WorkoutTemplate {
   planSeries   PlanSeries[]
   planEntries  PlanEntry[]
   coachTargets CoachTarget[]
+  programDays  CoachProgramDay[]
 
   @@index([userId])
 }
@@ -746,9 +750,13 @@ model PlanSeries {
   coach    User?            @relation("PlanSeriesCoach", fields: [coachId], references: [id], onDelete: SetNull)
   template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   entries  PlanEntry[]
+  /// серия программы тренера на несколько недель (lib/coach/program.ts)
+  programAssignmentId String?
+  programAssignment   ProgramAssignment? @relation(fields: [programAssignmentId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, coachId])
+  @@index([programAssignmentId])
 }
 
 /// Разовая тренировка или исключение из серии (перенос / отмена одной даты).
@@ -1334,4 +1342,92 @@ model GoblinEncounter {
   rewardOpenedAt DateTime?
 
   @@index([userId, spawnedAt])
+}
+
+// ───────────────────── Программы тренера на несколько недель ─────────────────────
+
+enum ProgramStep {
+  PERCENT
+  KG
+}
+
+/// Программа тренера (библиотека): неделя-шаблон + правило веса. Изменения — только для новых назначений.
+model CoachProgram {
+  id          String      @id @default(cuid())
+  coachId     String
+  name        String
+  weeks       Int
+  stepKind    ProgramStep
+  stepValue   Float
+  /// разгрузка каждая N-я неделя (3…8); null — без разгрузки
+  deloadEvery Int?
+  deloadPct   Float       @default(10)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  coach       User                @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  days        CoachProgramDay[]
+  assignments ProgramAssignment[]
+
+  @@index([coachId])
+}
+
+model CoachProgramDay {
+  id          String @id @default(cuid())
+  programId   String
+  /// 0 — понедельник (как PlanSeries.weekday)
+  weekday     Int
+  templateId  String
+  time        String
+  durationMin Int    @default(60)
+
+  program  CoachProgram    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, weekday])
+  @@index([templateId])
+}
+
+/// Программа, назначенная клиенту: снимок названия и правила. Активная — endedAt = null и не кончился срок.
+model ProgramAssignment {
+  id          String      @id @default(cuid())
+  clientId    String
+  /// null — аккаунт тренера удалён
+  coachId     String?
+  /// null — программа удалена из библиотеки
+  programId   String?
+  name        String
+  /// понедельник старта, "YYYY-MM-DD"
+  startDate   String
+  weeks       Int
+  stepKind    ProgramStep
+  stepValue   Float
+  deloadEvery Int?
+  deloadPct   Float
+  endedAt     DateTime?
+  /// тренеру отправлено «заканчивается через неделю»
+  remindedAt  DateTime?
+  createdAt   DateTime    @default(now())
+
+  client  User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
+  coach   User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  program CoachProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  bases   ProgramBase[]
+  series  PlanSeries[]
+
+  @@index([clientId, endedAt])
+  @@index([coachId, endedAt])
+}
+
+/// Базовый вес упражнения шаблона в назначении; fromWeek — с какой недели действует («Изменить базу»).
+model ProgramBase {
+  assignmentId String
+  templateId   String
+  exerciseId   String
+  weight       Float
+  fromWeek     Int    @default(1)
+
+  assignment ProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@id([assignmentId, templateId, exerciseId])
 }
