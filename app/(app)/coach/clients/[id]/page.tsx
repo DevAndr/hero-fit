@@ -261,7 +261,7 @@ async function Plan({
     workoutId,
   });
   const programsOn = await isEnabled("coach_programs", coachId);
-  const [programs, active] = programsOn ? await Promise.all([getCoachPrograms(coachId), getActiveAssignment(clientId, today)]) : [[], null];
+  const [programs, active] = programsOn ? await Promise.all([getCoachPrograms(coachId), getActiveAssignment(clientId, today, coachId)]) : [[], null];
   return (
     <div className="space-y-4">
       {programsOn ? (

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { queueGoal } from "@/lib/analytics/queue";
 import { requireClientOf, requireCoach } from "@/lib/coach/access";
-import { assignProgramSchema, PROGRAMS_MAX, programSchema, programWeekIndex, type AssignProgramInput, type ProgramInput } from "@/lib/coach/program";
-import { assignProgram, endAssignment } from "@/lib/coach/program-assign";
+import { assignProgramSchema, baseForWeekWeight, PROGRAMS_MAX, programSchema, programWeekIndex, type AssignProgramInput, type ProgramInput } from "@/lib/coach/program";
+import { assignProgram, endAssignment, ruleOfAssignment } from "@/lib/coach/program-assign";
 import { getActiveAssignment, getCoachPrograms } from "@/lib/coach/program-queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { addDays, weekdayOf } from "@/lib/dates";
@@ -125,8 +125,8 @@ export async function endProgramAction(clientId: string): Promise<Result> {
   const access = await clientProgramCoach(clientId);
   if (!access) return { ok: false, error: UNAVAILABLE };
   const today = todayOf(access.client.timeZone);
-  const active = await getActiveAssignment(access.client.id, today);
-  if (!active || active.coachId !== access.coach.id) return { ok: false, error: NOT_FOUND };
+  const active = await getActiveAssignment(access.client.id, today, access.coach.id);
+  if (!active) return { ok: false, error: NOT_FOUND };
   await db.$transaction((tx) => endAssignment(tx, active.id, today, { writeTargets: true }));
   revalidatePath(`/coach/clients/${access.client.id}`);
   revalidatePath("/coach");
@@ -140,16 +140,17 @@ export async function updateBasesAction(clientId: string, bases: { templateId: s
   const parsed = assignProgramSchema.shape.bases.safeParse(bases);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте вес" };
   const today = todayOf(access.client.timeZone);
-  const active = await getActiveAssignment(access.client.id, today);
-  if (!active || active.coachId !== access.coach.id) return { ok: false, error: NOT_FOUND };
+  const active = await getActiveAssignment(access.client.id, today, access.coach.id);
+  if (!active) return { ok: false, error: NOT_FOUND };
   const fromWeek = Math.max(1, programWeekIndex(active.startDate, today) ?? 1);
   await db.$transaction(async (tx) => {
     for (const b of parsed.data) {
       const current = active.bases.find((x) => x.templateId === b.templateId && x.exerciseId === b.exerciseId);
-      if (!current || (current.weight === b.weight && current.fromWeek === fromWeek)) continue;
+      if (!current) continue;
       await tx.programBase.update({
         where: { assignmentId_templateId_exerciseId: { assignmentId: active.id, templateId: b.templateId, exerciseId: b.exerciseId } },
-        data: { weight: b.weight, fromWeek },
+        // В разгрузку — база «до снижения»: вес этой недели равен введённому
+        data: { weight: baseForWeekWeight(ruleOfAssignment(active), b.weight, fromWeek), fromWeek },
       });
     }
   });

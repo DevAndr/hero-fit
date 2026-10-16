@@ -4,7 +4,6 @@ import { endAssignment, ruleOfAssignment } from "@/lib/coach/program-assign";
 import type { Target } from "@/lib/coach/targets";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { isEnabled } from "@/lib/flags/server";
-import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 export type ProgramView = {
@@ -38,9 +37,9 @@ export async function getCoachPrograms(coachId: string): Promise<ProgramView[]> 
 }
 
 /** Активное назначение клиента: не закрыто и срок не кончился (день — в поясе клиента). */
-export async function getActiveAssignment(clientId: string, today: string) {
+export async function getActiveAssignment(clientId: string, today: string, coachId?: string) {
   const rows = await db.programAssignment.findMany({
-    where: { clientId, endedAt: null, startDate: { lte: addDays(today, 7 * 16) } },
+    where: { clientId, endedAt: null, ...(coachId ? { coachId } : {}) },
     orderBy: { createdAt: "desc" },
     include: { bases: true },
   });

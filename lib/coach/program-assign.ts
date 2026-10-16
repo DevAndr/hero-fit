@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType } from "@/generated/prisma/enums";
-import { lastLoadedWeight, programEndDay, programWeekIndex, seriesStarts, type ProgramRule } from "@/lib/coach/program";
+import { basesToWrite, lastLoadedWeight, programEndDay, programWeekIndex, seriesStarts, targetEditedAfterEnd, type ProgramRule } from "@/lib/coach/program";
 import { addDays } from "@/lib/dates";
 import { plural } from "@/lib/format";
 import { notify } from "@/lib/notifications/service";
@@ -30,15 +30,27 @@ export async function endAssignment(tx: Tx, assignmentId: string, today: string,
   const a = await tx.programAssignment.findUniqueOrThrow({ where: { id: assignmentId }, include: { bases: true } });
   await tx.planSeries.deleteMany({ where: { programAssignmentId: a.id, startDate: { gte: today } } });
   await tx.planSeries.updateMany({ where: { programAssignmentId: a.id, OR: [{ endDate: null }, { endDate: { gte: today } }] }, data: { endDate: addDays(today, -1) } });
-  if (!opts.writeTargets) return;
+  // Тренера нет (аккаунт удалён) — заданий у клиента от него тоже нет
+  if (!opts.writeTargets || !a.coachId) return;
   const rule = ruleOfAssignment(a);
-  // Досрочно — последняя полностью прошедшая неделя; по сроку — последняя неделя программы
+  // По сроку — последняя неделя программы (задание, правленное тренером после конца, не трогаем); досрочно — последняя прошедшая
+  const natural = opts.lastWeek !== undefined;
   const lastWeek = opts.lastWeek ?? (programWeekIndex(a.startDate, today) ?? 1) - 1;
-  for (const b of a.bases) {
-    if (b.weight <= 0) continue;
+  const rows = await tx.templateExercise.findMany({
+    where: { templateId: { in: a.bases.map((b) => b.templateId) }, template: { userId: a.coachId } },
+    select: { templateId: true, exerciseId: true },
+  });
+  const bases = basesToWrite(a.bases, new Set(rows.map((r) => `${r.templateId}:${r.exerciseId}`)), lastWeek);
+  const endDay = programEndDay(a.startDate, a.weeks);
+  for (const b of bases) {
+    const key = { clientId_templateId_exerciseId: { clientId: a.clientId, templateId: b.templateId, exerciseId: b.exerciseId } };
+    if (natural) {
+      const current = await tx.coachTarget.findUnique({ where: key, select: { updatedAt: true } });
+      if (targetEditedAfterEnd(current?.updatedAt ?? null, endDay)) continue;
+    }
     const weight = lastLoadedWeight(rule, b, lastWeek);
     await tx.coachTarget.upsert({
-      where: { clientId_templateId_exerciseId: { clientId: a.clientId, templateId: b.templateId, exerciseId: b.exerciseId } },
+      where: key,
       create: { clientId: a.clientId, templateId: b.templateId, exerciseId: b.exerciseId, weight },
       update: { weight, fails: 0 },
     });
@@ -72,8 +84,13 @@ export async function assignProgram(
     data: { clientId, coachId, programId: program.id, name: program.name, startDate: input.startDate, ...rule },
     select: { id: true },
   });
-  const templateIds = new Set(program.days.map((d) => d.templateId));
-  const bases = input.bases.filter((b) => templateIds.has(b.templateId));
+  // Базы — только силовые упражнения шаблонов программы (не любой id)
+  const pairs = await tx.templateExercise.findMany({
+    where: { templateId: { in: program.days.map((d) => d.templateId) }, template: { userId: coachId }, exercise: { kind: "REPS" } },
+    select: { templateId: true, exerciseId: true },
+  });
+  const allowed = new Set(pairs.map((p) => `${p.templateId}:${p.exerciseId}`));
+  const bases = input.bases.filter((b) => allowed.has(`${b.templateId}:${b.exerciseId}`));
   if (bases.length) await tx.programBase.createMany({ data: bases.map((b) => ({ ...b, assignmentId: assignment.id })), skipDuplicates: true });
 
   const endDate = programEndDay(input.startDate, rule.weeks);

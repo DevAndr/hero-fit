@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/lib/daily-login";
-import { applyProgramToTargets, assignProgramSchema, shouldRemindProgramEnd, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
+import { applyProgramToTargets, assignProgramSchema, baseForWeekWeight, basesToWrite, targetEditedAfterEnd, shouldRemindProgramEnd, isDeloadWeek, lastLoadedWeight, seriesStarts, programLabel, programPreview, programSchema, programWeek, programWeekIndex, type ProgramRule } from "./program";
 
 const rule = (patch: Partial<ProgramRule> = {}): ProgramRule => ({ weeks: 7, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, ...patch });
 const base = (weight: number, fromWeek = 1) => ({ weight, fromWeek });
@@ -126,5 +126,39 @@ describe("shouldRemindProgramEnd", () => {
     expect(shouldRemindProgramEnd("2026-11-15", "2026-11-15", null)).toBe(true);
     expect(shouldRemindProgramEnd("2026-11-15", "2026-11-16", null)).toBe(false);
     expect(shouldRemindProgramEnd("2026-11-15", "2026-11-10", new Date())).toBe(false);
+  });
+});
+
+describe("basesToWrite — веса программы в задания при окончании", () => {
+  const b = (templateId: string, exerciseId: string, weight = 100, fromWeek = 1) => ({ templateId, exerciseId, weight, fromWeek });
+  const pairs = new Set(["t1:squat", "t1:press"]);
+  it("только пары, что ещё есть в шаблонах тренера (шаблон или упражнение удалены — пропуск)", () => {
+    expect(basesToWrite([b("t1", "squat"), b("t2", "squat"), b("t1", "gone")], pairs, 3)).toEqual([b("t1", "squat")]);
+  });
+  it("программа не началась или неделя базы ещё не прошла — ничего не пишем", () => {
+    expect(basesToWrite([b("t1", "squat")], pairs, 0)).toEqual([]);
+    expect(basesToWrite([b("t1", "squat", 100, 4)], pairs, 3)).toEqual([]);
+  });
+  it("база 0 (своим весом) не пишется", () => {
+    expect(basesToWrite([b("t1", "press", 0)], pairs, 3)).toEqual([]);
+  });
+});
+
+describe("baseForWeekWeight — «Изменить базу»", () => {
+  it("в обычную неделю база = введённому", () => {
+    expect(baseForWeekWeight(rule(), 100, 3)).toBe(100);
+  });
+  it("в разгрузку вес этой недели равен введённому, дальше рост выше него", () => {
+    const base = baseForWeekWeight(rule(), 100, 4);
+    expect(programWeek(rule(), { weight: base, fromWeek: 4 }, 4).weight).toBe(100);
+    expect(programWeek(rule(), { weight: base, fromWeek: 4 }, 5).weight).toBeGreaterThan(100);
+  });
+});
+
+describe("targetEditedAfterEnd", () => {
+  it("тренер правил задание после конца программы — окончание по сроку его не затирает", () => {
+    expect(targetEditedAfterEnd(new Date("2026-12-08T09:00:00Z"), "2026-12-06")).toBe(true);
+    expect(targetEditedAfterEnd(new Date("2026-12-01T09:00:00Z"), "2026-12-06")).toBe(false);
+    expect(targetEditedAfterEnd(null, "2026-12-06")).toBe(false);
   });
 });

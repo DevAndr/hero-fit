@@ -108,6 +108,28 @@ export function applyProgramToTargets(
 export const shouldRemindProgramEnd = (endDay: string, today: string, remindedAt: Date | null) =>
   remindedAt === null && today <= endDay && today >= addDays(endDay, -7);
 
+/**
+ * Какие базы при окончании программы пишут вес в задания: пара «шаблон:упражнение» ещё есть в шаблонах тренера
+ * (иначе задание сослалось бы на удалённое), вес > 0 и неделя базы уже прошла (не началась — нечего переносить).
+ */
+export function basesToWrite<T extends { templateId: string; exerciseId: string; weight: number; fromWeek: number }>(
+  bases: T[],
+  existingPairs: ReadonlySet<string>,
+  lastWeek: number,
+): T[] {
+  return bases.filter((b) => b.weight > 0 && lastWeek >= b.fromWeek && existingPairs.has(`${b.templateId}:${b.exerciseId}`));
+}
+
+/** «Изменить базу» с недели W: база, при которой вес недели W равен введённому (в разгрузку — до снижения). */
+export function baseForWeekWeight(rule: ProgramRule, weight: number, week: number): number {
+  if (weight <= 0 || !isDeloadWeek(week, rule.deloadEvery)) return weight;
+  return Math.round((weight / (1 - rule.deloadPct / 100)) * 100) / 100;
+}
+
+/** Задание изменено после последнего дня программы (с запасом суток на пояс) — тренер уже решил сам. */
+export const targetEditedAfterEnd = (updatedAt: Date | null, endDay: string) =>
+  updatedAt !== null && updatedAt.getTime() > Date.parse(`${addDays(endDay, 1)}T12:00:00Z`);
+
 export const PROGRAMS_MAX = 30;
 
 const daySchema = z.object({
