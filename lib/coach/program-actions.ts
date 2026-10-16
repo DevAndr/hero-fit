@@ -110,7 +110,7 @@ export async function endProgramAction(clientId: string): Promise<Result> {
   const today = todayOf(access.client.timeZone);
   const active = await getActiveAssignment(access.client.id, today, access.coach.id);
   if (!active) return { ok: false, error: NOT_FOUND };
-  await db.$transaction((tx) => endAssignment(tx, active.id, today, { writeTargets: true }));
+  await db.$transaction((tx) => endAssignment(tx, active.id, today, { writeTargets: true, keepToday: true }));
   revalidatePath(`/coach/clients/${access.client.id}`);
   revalidatePath("/coach");
   return { ok: true };

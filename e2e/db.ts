@@ -1158,3 +1158,17 @@ export async function shiftProgramStart(clientLogin: string, weeks: number) {
   });
 }
 
+
+/** Сколько серий программ клиента дают тренировку сегодня (в поясе e2e). */
+export async function programSeriesToday(clientLogin: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query(
+      `with d as (select (now() at time zone $2)::date as day)
+       select count(*)::int as n from "PlanSeries", d
+       where "userId" = $1 and "programAssignmentId" is not null and weekday = extract(isodow from d.day)::int - 1
+         and "startDate" <= to_char(d.day, 'YYYY-MM-DD') and ("endDate" is null or "endDate" >= to_char(d.day, 'YYYY-MM-DD'))`,
+      [await userId(db, clientLogin), E2E_TZ],
+    );
+    return rows[0].n as number;
+  });
+}
