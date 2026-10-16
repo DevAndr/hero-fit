@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/app/app-shell";
 import { RemoveClientButton } from "@/components/coach/client-header";
+import { CoachNote } from "@/components/coach/coach-note";
 import { GroupBadges } from "@/components/coach/group-filter";
 import { SignalBadge } from "@/components/coach/signal-badge";
 import { ClientPlan } from "@/components/coach/client-plan";
@@ -135,7 +136,7 @@ async function Overview({
   base: string;
 }) {
   const now = new Date();
-  const [{ totals: t }, recovery, balance, recent, signalInput, goals] = await Promise.all([
+  const [{ totals: t }, recovery, balance, recent, signalInput, goals, note] = await Promise.all([
     getStats(clientId, tz),
     getMuscleRecovery(clientId, now),
     getMuscleBalance(clientId, now),
@@ -146,6 +147,7 @@ async function Overview({
     }),
     getSignalInput(coachId, clientId, tz, linkedAt, now),
     getClientGoals(clientId, tz),
+    db.coachNote.findUnique({ where: { coachId_clientId: { coachId, clientId } }, select: { text: true, updatedAt: true } }),
   ]);
   const signals = clientSignals(signalInput, now, tz);
   const hints = await getProgressionHints(clientId, recent.map((r) => r.exerciseId));
@@ -179,6 +181,7 @@ async function Overview({
         <Tile label="Серия, недель" value={String(streak)} />
         <Tile label="Уровень" value={String(levelProgress(xp).level)} />
       </div>
+      <CoachNote clientId={clientId} initialText={note?.text ?? ""} initialUpdatedAt={note?.updatedAt.toISOString() ?? null} timeZone={tz} />
       <ClientGoals active={goals.active} achieved={goals.achieved} today={dayKey(now, tz)} timeZone={tz} />
       <BodyMap recovery={recovery} balance={balance} />
       {hinted.length ? (

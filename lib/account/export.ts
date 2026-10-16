@@ -43,6 +43,9 @@ export type ExportRaw = {
   guild: unknown;
   club: unknown;
   coachComments: unknown[];
+  /** Заметки тренеров обо мне и мои заметки о клиентах — с лишними полями (id) на входе: в выгрузку — текст, дата, ник. */
+  coachNotesAboutMe: ({ text: string; updatedAt: Date; coach: string | null } & Record<string, unknown>)[];
+  clientNotes: ({ text: string; updatedAt: Date; client: string | null } & Record<string, unknown>)[];
   notifications: unknown[];
   shop: {
     coins: number;
@@ -72,6 +75,8 @@ export const EXPORT_SECTIONS = [
   "coach",
   "clients",
   "coachComments",
+  "coachNotesAboutMe",
+  "clientNotes",
   "notifications",
   "shop",
 ] as const;
@@ -144,6 +149,8 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     coach: people(raw.coach, ["nickname", "since", "until"]),
     clients: people(raw.clients, ["nickname", "since", "until"]),
     coachComments: raw.coachComments,
+    coachNotesAboutMe: raw.coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach })),
+    clientNotes: raw.clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client })),
     notifications: raw.notifications,
     shop: {
       coins: raw.shop.coins,

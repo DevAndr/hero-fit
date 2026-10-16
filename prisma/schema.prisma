@@ -228,6 +228,8 @@ model User {
   coachPlanEntries    PlanEntry[]          @relation("PlanEntryCoach")
   coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
   coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
+  coachNotesWritten   CoachNote[]          @relation("CoachNoteCoach")
+  coachNotesAbout     CoachNote[]          @relation("CoachNoteClient")
   coachTargets        CoachTarget[]
   coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
   coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
@@ -287,6 +289,20 @@ model CoachLink {
 
   @@index([coachId, endedAt])
   @@index([clientId, endedAt])
+}
+
+/// Личная заметка тренера о клиенте — видит только тренер; удаляется при разрыве связи (dropAssignments).
+model CoachNote {
+  coachId   String
+  clientId  String
+  text      String
+  updatedAt DateTime @updatedAt
+
+  coach  User @relation("CoachNoteCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  client User @relation("CoachNoteClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([coachId, clientId])
+  @@index([clientId])
 }
 
 /// Комментарий тренера к завершённой тренировке клиента: общий (workoutExerciseId = null) или к упражнению.

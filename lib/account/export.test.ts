@@ -54,6 +54,8 @@ const raw = (): ExportRaw => ({
   guild: null,
   club: null,
   coachComments: [],
+  coachNotesAboutMe: [{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo", coachId: "u_coach" }],
+  clientNotes: [{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя", clientId: "u_client" }],
   notifications: [],
   shop: {
     coins: 120,
@@ -70,7 +72,7 @@ describe("buildExport", () => {
   const text = JSON.stringify(out);
 
   it("секретов и чужих id/логинов нет", () => {
-    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach"]) {
+    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach", "u_client"]) {
       expect(text).not.toContain(bad);
     }
   });
@@ -105,5 +107,13 @@ describe("export — cardio sets", () => {
     const r = raw();
     r.workouts[0].exercises[0].sets[0] = { ...r.workouts[0].exercises[0].sets[0], durationSec: 1720, distanceM: 5200 };
     expect(buildExport(r, new Date("2026-10-13T00:00:00Z")).workouts[0].exercises[0].sets[0]).toMatchObject({ durationSec: 1720, distanceM: 5200 });
+  });
+});
+
+describe("export — coach notes", () => {
+  it("заметки тренера обо мне и мои заметки о клиентах — текст, дата и ник", () => {
+    const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
+    expect(o.coachNotesAboutMe).toEqual([{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo" }]);
+    expect(o.clientNotes).toEqual([{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя" }]);
   });
 });
