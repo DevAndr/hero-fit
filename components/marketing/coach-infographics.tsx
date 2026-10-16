@@ -5,8 +5,9 @@
  * Анимации стартуют при попадании в экран (useSeen) и учитывают «уменьшить движение» через MotionProvider.
  */
 import { m } from "motion/react";
-import { ArrowDown, ArrowUp, Check, Link2, MessageSquareText, ShieldCheck } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Link2, Lock, MessageSquareText, ShieldCheck } from "lucide-react";
 import { CountUp, useSeen } from "@/components/marketing/motion";
+import { programPreview } from "@/lib/coach/program";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.2, 0.7, 0.2, 1] as const;
@@ -111,6 +112,82 @@ export function AssignedWeek({ className }: { className?: string }) {
         от тренера · 8 недель
       </m.p>
     </div>
+  );
+}
+
+/** Программа на 8 недель: вес растёт по неделям, каждая 4-я — разгрузка (тот же расчёт, что в приложении). */
+const PROGRAM = programPreview({ weeks: 8, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 }, { weight: 100, fromWeek: 1 });
+
+export function ProgramWeeks({ className }: { className?: string }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  const max = Math.max(...PROGRAM.map((w) => w.weight));
+  const min = Math.min(...PROGRAM.map((w) => w.weight)) - 10;
+  return (
+    <div ref={ref} aria-hidden className={cn("text-[10px]", className)}>
+      <div className="flex h-20 items-end gap-1">
+        {PROGRAM.map((w, i) => (
+          <div key={w.week} className="flex h-full flex-1 flex-col items-center justify-end gap-0.5">
+            <span className={cn("font-semibold tabular-nums", w.deload ? "text-streak" : "text-muted-foreground")}>{w.weight.toLocaleString("ru-RU")}</span>
+            <m.div
+              className={cn("w-full origin-bottom rounded-t-sm", w.deload ? "bg-streak/60" : "bg-primary/70")}
+              style={{ height: `${((w.weight - min) / (max - min)) * 100}%` }}
+              initial={{ scaleY: 0 }}
+              animate={seen ? { scaleY: 1 } : undefined}
+              transition={{ duration: 0.5, delay: 0.15 + i * 0.07, ease: EASE }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 flex gap-1 text-center text-muted-foreground">
+        {PROGRAM.map((w) => (
+          <span key={w.week} className="flex-1">
+            {w.week}
+          </span>
+        ))}
+      </div>
+      <m.p
+        className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground"
+        initial={{ opacity: 0 }}
+        animate={seen ? { opacity: 1 } : undefined}
+        transition={{ duration: 0.4, delay: 0.9 }}
+      >
+        <span className="flex items-center gap-1">
+          <ArrowUp className="size-3 text-primary" />
+          +2,5 % в неделю
+        </span>
+        <span className="flex items-center gap-1">
+          <ArrowDown className="size-3 text-streak" />
+          разгрузка −10 %
+        </span>
+      </m.p>
+    </div>
+  );
+}
+
+/** Личная заметка тренера о клиенте. */
+export function ClientNote({ className }: { className?: string }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  return (
+    <m.div
+      ref={ref}
+      aria-hidden
+      className={cn("rounded-xl border bg-card p-3 text-xs shadow-sm", className)}
+      initial={{ opacity: 0, rotate: 2, y: 10 }}
+      animate={seen ? { opacity: 1, rotate: 0, y: 0 } : undefined}
+      transition={{ duration: 0.6, delay: 0.15, ease: EASE }}
+    >
+      <p className="flex items-center justify-between font-semibold">
+        Заметки
+        <span className="flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
+          <Lock className="size-3" /> видите только вы
+        </span>
+      </p>
+      <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
+        <li>Цель — 100 кг в жиме к весне</li>
+        <li>Колено: без глубоких выпадов</li>
+        <li>Дома гантели до 20 кг</li>
+      </ul>
+    </m.div>
   );
 }
 
