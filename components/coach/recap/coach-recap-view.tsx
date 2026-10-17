@@ -3,10 +3,15 @@ import { SignalBadge } from "@/components/coach/signal-badge";
 import { plural } from "@/lib/format";
 import { planPct, type CoachRecapRow, type CoachRecapTotals, type RecapProgression } from "@/lib/coach/recap";
 import type { CoachRecapView } from "@/lib/coach/recap-queries";
+import { cn } from "@/lib/utils";
 
-function Tile({ id, label, value, hint }: { id: string; label: string; value: string; hint?: string }) {
+function Tile({ id, label, value, hint, accent }: { id: string; label: string; value: string; hint?: string; accent?: boolean }) {
   return (
-    <div data-testid={id} className="min-w-0 rounded-xl border bg-card p-3">
+    <div
+      data-testid={id}
+      data-accent={accent ? "" : undefined}
+      className={cn("min-w-0 rounded-xl border bg-card p-3", accent && "border-streak/40 bg-streak/10 text-streak")}
+    >
       <p className="truncate text-xs text-muted-foreground">{label}</p>
       <p className="text-2xl font-bold tabular-nums">{value}</p>
       {hint ? <p className="truncate text-xs text-muted-foreground">{hint}</p> : null}
@@ -29,8 +34,8 @@ function Tiles({ totals }: { totals: CoachRecapTotals }) {
       <Tile id="coach-recap-workouts" label="Тренировок" value={String(totals.workouts)} />
       <Tile id="coach-recap-records" label="Рекордов" value={String(totals.records)} />
       <Tile id="coach-recap-ups" label="Повышений веса" value={String(totals.ups)} />
-      <Tile id="coach-recap-attention" label="Требуют внимания" value={String(totals.attention)} />
-      <Tile id="coach-recap-unanswered" label="Без ответа" value={String(totals.unanswered)} />
+      <Tile id="coach-recap-attention" label="Требуют внимания" value={String(totals.attention)} accent={totals.attention > 0} />
+      <Tile id="coach-recap-unanswered" label="Без ответа" value={String(totals.unanswered)} accent={totals.unanswered > 0} />
     </div>
   );
 }
@@ -73,13 +78,13 @@ function ClientCard({ clientId, name, row }: { clientId: string; name: string; r
         <p className="text-muted-foreground">{prog.ending ? "заканчивается" : "следующая — разгрузка"}</p>
       ) : null}
       {row.records.count > 0 ? (
-        <p>
+        <p className="break-words">
           🏆 Рекорды: {row.records.names.join(", ")}
           {row.records.count > row.records.names.length ? ` и ещё ${row.records.count - row.records.names.length}` : ""}
         </p>
       ) : null}
       {row.progression.items.length > 0 ? (
-        <p>
+        <p className="break-words">
           {row.progression.items.map(progressionLine).join(", ")}
           {row.progression.more > 0 ? ` и ещё ${row.progression.more}` : ""}
         </p>
