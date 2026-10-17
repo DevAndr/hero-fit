@@ -395,3 +395,35 @@ test("respects and kudos: both exports list them, the author's account deletion 
   expect(await respectCount(workoutId)).toBe(0);
   expect((await exportOf(friend.page)).data).toMatchObject({ respectsGiven: [], kudosGiven: [] });
 });
+
+test("coach's own exercise: a friend's respect for the client's record survives the coach's deletion", async ({ browser }) => {
+  const coach = await player(browser, "Тренер");
+  const client = await player(browser, "Клиент");
+  const friend = await player(browser, "Друг");
+  const cNick = nickOf(client.login, "Кл");
+  await makeFriends(client.login, cNick, friend.login, nickOf(friend.login, "Др"));
+  const name = `Тренерское ${randomUUID().slice(0, 6)}`;
+  const ex = await ownExercise(coach.login, name);
+  const { workoutId, exerciseIds } = await seedRecordWorkout(client.login, [{ exercise: name, value: 100 }], { exerciseOwner: coach.login });
+  expect(exerciseIds[name]).toBe(ex);
+  const fid = await idOf(friend.login);
+  await withDb((db) => db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, ex, fid]));
+
+  await deleteAccount(coach.page, PASSWORD);
+  await expect(coach.page).toHaveURL(/deleted=1/);
+  expect(await respectCount(workoutId)).toBe(1);
+
+  // В ленте друга счётчик на месте, кнопка снимает и ставит респект без ошибки
+  await friend.page.goto("/friends");
+  const card = friend.page.getByRole("article", { name: `${cNick}: Рекордная` });
+  const pressed = card.getByRole("button", { name: `Убрать респект у ${cNick} за ${name}` });
+  await expect(pressed).toHaveAttribute("aria-pressed", "true");
+  await expect(pressed).toHaveText("1");
+  await pressed.click();
+  await expect.poll(() => respectCount(workoutId)).toBe(0);
+  await friend.page.reload();
+  await card.getByRole("button", { name: `Дать респект ${cNick} за ${name}` }).click();
+  await expect(card.getByRole("button", { name: `Убрать респект у ${cNick} за ${name}` })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => respectCount(workoutId)).toBe(1);
+  await expect(friend.page.getByText("Рекорд не найден")).toHaveCount(0);
+});

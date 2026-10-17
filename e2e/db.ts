@@ -1329,10 +1329,12 @@ export async function setUserTimeZone(login: string, timeZone: string) {
 export async function seedRecordWorkout(
   login: string,
   records: { exercise: string; type?: string; value: number }[],
-  o: { name?: string } = {},
+  /** exerciseOwner — логин владельца своих упражнений (по умолчанию автор тренировки, например тренер клиента). */
+  o: { name?: string; exerciseOwner?: string } = {},
 ) {
   return withDb(async (db) => {
     const uid = await userId(db, login);
+    const ownerId = o.exerciseOwner ? await userId(db, o.exerciseOwner) : uid;
     const finished = new Date();
     const started = new Date(finished.getTime() - 3600 * 1000);
     const workoutId = randomUUID();
@@ -1344,12 +1346,14 @@ export async function seedRecordWorkout(
     const exerciseIds: Record<string, string> = {};
     const metaRecords: object[] = [];
     for (const [i, r] of records.entries()) {
-      let id = (await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [r.exercise])).rows[0]?.id;
+      let id = (
+        await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and ("userId" is null or "userId" = $2) order by "userId" nulls first`, [r.exercise, ownerId])
+      ).rows[0]?.id;
       if (!id) {
         id = randomUUID();
         await db.query(
           `insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") values ($1, $2, $3, ARRAY['CHEST']::"MuscleGroup"[], now())`,
-          [id, uid, r.exercise],
+          [id, ownerId, r.exercise],
         );
       }
       exerciseIds[r.exercise] = id;
