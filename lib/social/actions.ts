@@ -217,6 +217,8 @@ export async function toggleRespectAction(workoutId: string, exerciseId: string)
     try {
       await db.recordRespect.create({ data: { workoutId, exerciseId, userId: user.id } });
     } catch (e) {
+      // упражнения уже нет (тренировку или упражнение удалили, пока лента была открыта)
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") return { ok: false, error: "Рекорд не найден" };
       // двойной клик или две вкладки — уже поставлено: уведомление не повторяем
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
       created = false;

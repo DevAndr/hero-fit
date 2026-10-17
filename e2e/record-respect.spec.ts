@@ -89,7 +89,7 @@ test("own record has no button; a workout without records has none; hidden weigh
     const own = page.getByRole("article", { name: `${a}: С рекордом` });
     await expect(own).toContainText(`${BENCH}: макс. вес 100 кг`);
     await expect(own.getByRole("button", { name: /респект/ })).toHaveCount(0);
-    await expect(own.getByTitle(/^fan\d_\w+ и fan\d_\w+$/)).toContainText("Респектов: 2");
+    await expect(own.getByTitle(/^Респект: fan\d_\w+ и fan\d_\w+$/)).toContainText("Респектов: 2");
 
     // Друг: кнопка и счётчик 2; запись без рекордов — без кнопок
     await pageF.goto("/friends");

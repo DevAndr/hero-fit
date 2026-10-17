@@ -73,7 +73,7 @@ function RespectButton({ entry, group }: { entry: FeedEntry; group: FeedRecordGr
       aria-busy={pending}
       aria-disabled={pending}
       className={cn("shrink-0", pending && "opacity-60")}
-      aria-label={respect.byMe ? `Убрать респект у ${entry.nickname} за ${group.exerciseName}` : `Дать респект ${entry.nickname} за ${group.exerciseName}`}
+      aria-label={`${respect.byMe ? `Убрать респект у ${entry.nickname} за ${group.exerciseName}` : `Дать респект ${entry.nickname} за ${group.exerciseName}`}${respect.count ? `, респектов: ${respect.count}` : ""}`}
       title={label || undefined}
       onClick={() => {
         // Двойной клик не должен поставить и тут же снять
@@ -84,6 +84,9 @@ function RespectButton({ entry, group }: { entry: FeedEntry; group: FeedRecordGr
             setRespect(!respect.byMe);
             const result = await toggleRespectAction(entry.id, group.exerciseId);
             if (!result.ok) toast.error(result.error);
+          } catch {
+            // сбой сети или сервера — оптимистичное состояние откатится само, страница не падает
+            toast.error("Не получилось, попробуй ещё раз");
           } finally {
             busy.current = false;
           }
@@ -220,7 +223,10 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
               ) : Icon ? (
                 <Icon className={cn("mt-0.5 size-4 shrink-0", className)} aria-hidden />
               ) : null}
-              <span className="min-w-0 flex-1 break-words">{text}</span>
+              <span className="min-w-0 flex-1 break-words">
+                {group ? <span className="sr-only">Рекорд: </span> : null}
+                {text}
+              </span>
               {group && !compact ? <RespectButton entry={entry} group={group} /> : null}
             </li>
           ))}

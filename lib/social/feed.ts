@@ -162,9 +162,10 @@ export function groupRecords(
   return [...groups.values()];
 }
 
-/** «Вы, Маша и ещё 1» — кто выразил респект за рекорд. */
+/** «Респект: Вы, Маша и ещё 1» — подсказка: кто выразил респект за рекорд. */
 export function respectLabel(r: RespectInfo) {
-  return kudosLabel(r);
+  const names = kudosLabel(r);
+  return names ? `Респект: ${names}` : "";
 }
 
 /** Текст уведомления владельцу: ники — последние сверху, показываем два. */

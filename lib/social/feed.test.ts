@@ -212,9 +212,9 @@ describe("groupRecords", () => {
 });
 
 describe("respectLabel", () => {
-  it("пусто, и «Вы, Маша и ещё 1»", () => {
+  it("пусто, и «Респект: Вы, Маша и ещё 1»", () => {
     expect(respectLabel({ count: 0, byMe: false, names: [] })).toBe("");
-    expect(respectLabel({ count: 3, byMe: true, names: ["Маша", "Борис"] })).toBe("Вы, Маша и ещё 1");
+    expect(respectLabel({ count: 3, byMe: true, names: ["Маша", "Борис"] })).toBe("Респект: Вы, Маша и ещё 1");
   });
 });
 
