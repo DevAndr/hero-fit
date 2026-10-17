@@ -17,16 +17,18 @@ type Prefs = {
   notifySocial: boolean;
   notifyPlan: boolean;
   notifyRecap: boolean;
+  notifyCoachRecap: boolean;
   notifyGoal: boolean;
   planReminderMin: number;
 };
 type Toggle = Exclude<keyof Prefs, "planReminderMin">;
 
-const PREFS: { key: Toggle; label: string; description: string }[] = [
+const PREFS: { key: Toggle; label: string; description: string; coachOnly?: boolean }[] = [
   { key: "notifyRest", label: "Таймер отдыха", description: "Сигнал об окончании отдыха, даже при заблокированном экране" },
   { key: "notifyStreak", label: "Не потеряй streak", description: "Когда тренировок не хватает, чтобы засчитать неделю (с пятницы)" },
   { key: "notifyPlan", label: "Тренировка по плану", description: "Напоминание перед тренировкой из календаря" },
   { key: "notifyRecap", label: "Итоги недели — в понедельник утром", description: "Место в лиге, прирост и лучший подход за прошлую неделю" },
+  { key: "notifyCoachRecap", label: "Итоги недели клиентов — в понедельник утром", description: "Сводка по всем клиентам за прошлую неделю", coachOnly: true },
   { key: "notifyGoal", label: "Цели — выполнение и сроки", description: "Цель достигнута, неделя до срока, срок вышел" },
   { key: "notifyAchievements", label: "Новые ачивки", description: "Push, когда получена ачивка" },
   { key: "notifySocial", label: "Друзья", description: "Заявки в друзья и их принятие" },
@@ -101,7 +103,7 @@ export function PushDeviceCard({ devices }: { devices: number }) {
   );
 }
 
-export function NotificationPrefs({ initial }: { initial: Prefs }) {
+export function NotificationPrefs({ initial, isCoach }: { initial: Prefs; isCoach: boolean }) {
   const [prefs, setPrefs] = useState(initial);
   const [, startTransition] = useTransition();
 
@@ -121,7 +123,7 @@ export function NotificationPrefs({ initial }: { initial: Prefs }) {
   return (
     <section aria-label="Что присылать" className="space-y-4 rounded-xl border bg-card p-4">
       <h2 className="font-bold">Что присылать</h2>
-      {PREFS.map(({ key, label, description }) => (
+      {PREFS.filter((p) => isCoach || !p.coachOnly).map(({ key, label, description }) => (
         <Field key={key} orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor={`pref-${key}`}>{label}</FieldLabel>

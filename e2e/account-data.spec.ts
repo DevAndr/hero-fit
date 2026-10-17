@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import {
   addFlagUser,
+  coachRecapCounts,
+  linkCoach,
+  mondayWeeksAgo,
+  seedCoachRecap,
   errorEventUsers,
   clubAdminLogin,
   clubOf,
@@ -330,4 +334,29 @@ test("coach program: the coach and then the client delete their accounts", async
   await deleteAccount(client.page, PASSWORD);
   await expect(client.page).toHaveURL(/deleted=1/);
   expect(await userExists(client.login)).toBe(false);
+});
+
+test("coach weekly recap: both exports, and the client's account deletion leaves the coach's snapshot", async ({ browser }) => {
+  const coach = await player(browser, "Тренер");
+  const client = await player(browser, "Клиент");
+  await linkCoach(coach.login, client.login);
+  await seedCoachRecap(coach.login, client.login, mondayWeeksAgo(1));
+
+  const exportOf = async (page: Page) => {
+    await page.goto("/settings");
+    const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+    return JSON.parse(await readFile((await json.path())!, "utf8"));
+  };
+  const coachData = await exportOf(coach.page);
+  expect(coachData.coachRecaps[0].week).toBe(mondayWeeksAgo(1));
+  expect(coachData.coachRecaps[0].totals.clients).toBe(1);
+  expect(coachData.coachRecaps[0].clients[0].client).toBe(nickOf(client.login, "Кл"));
+  const clientData = await exportOf(client.page);
+  expect(clientData.coachRecapsAboutMe[0].coach).toBe(nickOf(coach.login, "Тр"));
+  expect(clientData.coachRecapsAboutMe[0].week).toBe(mondayWeeksAgo(1));
+
+  const clientId = await idOf(client.login);
+  await deleteAccount(client.page, PASSWORD);
+  await expect(client.page).toHaveURL(/deleted=1/);
+  expect(await coachRecapCounts(coach.login, clientId)).toEqual({ client: 0, recaps: 1 });
 });

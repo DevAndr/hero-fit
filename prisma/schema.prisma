@@ -199,6 +199,8 @@ model User {
   coachSignalsDay    String?
   /// неделя (пн), за которую уже ушёл push «Новая неделя — новый старт»
   recapNudgeWeek     String?
+  /// итоги недели клиентов (тренеру): push и колокольчик
+  notifyCoachRecap   Boolean   @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -251,6 +253,8 @@ model User {
   raidRewards         RaidReward[]
   coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
+  coachRecaps         CoachWeeklyRecap[]
+  coachRecapRows      CoachRecapClient[]
   coachProfile        CoachProfile?
   kudos               Kudos[]
   goals               Goal[]
@@ -934,6 +938,40 @@ model CoachSignal {
   client User @relation("CoachSignalClient", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([coachId, clientId])
+}
+
+/// Итоги недели тренера: общие цифры (без персональных данных клиентов).
+model CoachWeeklyRecap {
+  id        String    @id @default(cuid())
+  coachId   String
+  /// понедельник "YYYY-MM-DD" в поясе тренера
+  week      String
+  /// CoachRecapTotals с version
+  data      Json
+  createdAt DateTime  @default(now())
+  /// push отправлен
+  pushedAt  DateTime?
+  /// тренер открыл
+  seenAt    DateTime?
+
+  coach   User               @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  clients CoachRecapClient[]
+
+  @@unique([coachId, week])
+}
+
+/// Строка клиента в итогах недели тренера.
+model CoachRecapClient {
+  recapId  String
+  clientId String
+  /// CoachRecapRow с version
+  data     Json
+
+  recap  CoachWeeklyRecap @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  client User             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([recapId, clientId])
+  @@index([clientId])
 }
 
 /// Группа клиентов тренера — метка для фильтра и быстрого выбора; клиент может быть в нескольких

@@ -55,6 +55,8 @@ const raw = (): ExportRaw => ({
   club: null,
   coachComments: [],
   coachNotesAboutMe: [{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo", coachId: "u_coach" }],
+  coachRecapsAboutMe: [{ week: "2026-10-05", coach: "Coach_Demo", data: { version: 1, workouts: 3 } }],
+  coachRecaps: [{ week: "2026-10-05", totals: { version: 1, clients: 1 }, clients: [{ client: "Петя", data: { version: 1, workouts: 3 }, clientId: "u_client" }] }],
   clientNotes: [{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя", clientId: "u_client" }],
   programs: [
     {
@@ -172,5 +174,13 @@ describe("export — whoop", () => {
   });
   it("не подключён — null", () => {
     expect(buildExport(raw(), new Date()).whoop).toBeNull();
+  });
+});
+
+describe("export — coach weekly recaps", () => {
+  it("снимки обо мне и мои снимки — неделя, ник и данные, без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
+    expect(o.coachRecapsAboutMe).toEqual([{ week: "2026-10-05", coach: "Coach_Demo", data: { version: 1, workouts: 3 } }]);
+    expect(o.coachRecaps).toEqual([{ week: "2026-10-05", totals: { version: 1, clients: 1 }, clients: [{ client: "Петя", data: { version: 1, workouts: 3 } }] }]);
   });
 });

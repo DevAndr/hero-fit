@@ -164,6 +164,32 @@ export function ProgramWeeks({ className }: { className?: string }) {
   );
 }
 
+/** Итоги недели клиентов: три общие цифры. */
+export function WeekRecap({ className }: { className?: string }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  const tiles = [
+    { value: "12 из 15", label: "тренировались", tone: "" },
+    { value: "9", label: "рекордов", tone: "" },
+    { value: "2", label: "требуют внимания", tone: "border-streak/40 bg-streak/10 text-streak" },
+  ];
+  return (
+    <div ref={ref} aria-hidden className={cn("grid grid-cols-3 gap-1.5 text-center text-xs", className)}>
+      {tiles.map((t, i) => (
+        <m.div
+          key={t.label}
+          className={cn("rounded-lg border bg-card px-1.5 py-2", t.tone)}
+          initial={{ opacity: 0, y: 10 }}
+          animate={seen ? { opacity: 1, y: 0 } : undefined}
+          transition={{ duration: 0.45, delay: 0.15 + i * 0.12, ease: EASE }}
+        >
+          <p className="text-sm font-bold tabular-nums">{t.value}</p>
+          <p className="text-[10px] text-muted-foreground">{t.label}</p>
+        </m.div>
+      ))}
+    </div>
+  );
+}
+
 /** Личная заметка тренера о клиенте. */
 export function ClientNote({ className }: { className?: string }) {
   const [ref, seen] = useSeen<HTMLDivElement>();

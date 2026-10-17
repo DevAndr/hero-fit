@@ -72,11 +72,11 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: eight features, header link, CTA opens coach sign-up", async ({ page }) => {
+test("coaches block: nine features, header link, CTA opens coach sign-up", async ({ page }) => {
   await page.goto("/");
   const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
-  await expect(block.getByRole("listitem")).toHaveCount(8);
-  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Тренировки в календарь", "Программы на несколько недель", "Задания и прогрессия", "Комментарии к тренировкам", "Заметки о клиенте", "Своя страница тренера"]) {
+  await expect(block.getByRole("listitem")).toHaveCount(9);
+  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Итоги недели", "Тренировки в календарь", "Программы на несколько недель", "Задания и прогрессия", "Комментарии к тренировкам", "Заметки о клиенте", "Своя страница тренера"]) {
     await expect(block.getByRole("heading", { name: title })).toBeVisible();
   }
   await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();

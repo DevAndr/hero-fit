@@ -6,7 +6,7 @@ import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, C
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
-import { AssignedWeek, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard } from "@/components/marketing/coach-infographics";
+import { AssignedWeek, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
@@ -193,6 +193,11 @@ const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[]
     title: "Клиенты в одном списке",
     text: "Кто тренировался сегодня, кто пропадает, кому пора увеличить вес — видно сразу. По каждому — тренировки с подходами, статистика и карта мышц.",
     visual: <ClientRows />,
+  },
+  {
+    title: "Итоги недели",
+    text: "Каждый понедельник — сводка по всем клиентам: кто тренировался, рекорды, кому нужно внимание.",
+    visual: <WeekRecap />,
   },
   {
     title: "Тренировки в календарь",

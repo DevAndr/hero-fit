@@ -184,13 +184,15 @@ export function mondayWeeksAgo(n: number, now = new Date()) {
 /**
  * Тренировки недели weekStart (в поясе e2e) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
  * day: 0 = пн … 6 = вс, time — местное «HH:MM» начала-конца не важно: тренировка длится 60 мин и заканчивается в time.
+ * records — названия упражнений с рекордом в meta, ups — повышения веса тренером (meta.progression). Возвращает id тренировок и их упражнений (по порядку).
  */
 export async function seedRecapWeek(
   login: string,
   weekStart: string,
-  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number }[],
+  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number; records?: string[]; ups?: { from: number; to: number }[] }[],
 ) {
-  await withDb(async (db) => {
+  return withDb(async (db) => {
+    const ids: { workoutId: string; workoutExerciseId: string }[] = [];
     const uid = await userId(db, login);
     await db.query(`update "User" set "timeZone" = $2 where id = $1`, [uid, E2E_TZ]);
     for (const [i, w] of workouts.entries()) {
@@ -218,13 +220,18 @@ export async function seedRecapWeek(
       }
       const meta = {
         xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: w.xp, recordsXp: 0, achievementsXp: 0,
-        records: [], achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+        records: (w.records ?? []).map((exerciseName) => ({ exerciseId: rows[0].id, exerciseName, type: "MAX_WEIGHT", value: w.weight, previous: w.weight - 5 })),
+        achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+        // Прогрессия тренера (как у finishWorkout): повышение веса упражнения тренировки
+        ...(w.ups ? { progression: w.ups.map((u) => ({ exercise: w.exercise, kind: "up", from: u.from, to: u.to, fails: 0, bodyweight: false })) } : {}),
       };
       await db.query(
         `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
         [randomUUID(), uid, w.xp, workoutId, JSON.stringify(meta), finished],
       );
+      ids.push({ workoutId, workoutExerciseId: weId });
     }
+    return ids;
   });
 }
 
@@ -1234,4 +1241,83 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
     );
     return rows[0]?.v ?? null;
   });
+}
+
+/**
+ * Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка.
+ * Снимок недели уже есть (его мог построить фоновый воркер — в понедельник после 09:00) — перезаписывается
+ * как новый: data, не отправлен и не просмотрен, строки клиентов — только эта.
+ */
+export async function seedCoachRecap(coachLogin: string, clientLogin: string, week: string) {
+  return withDb(async (db) => {
+    const totals = { version: 1, clients: 1, trained: 1, plan: null, prevPlanPct: null, workouts: 1, records: 0, ups: 0, attention: 0, unanswered: 0 };
+    const row = {
+      version: 1,
+      isNew: false,
+      plan: null,
+      workouts: 1,
+      prevWorkouts: 0,
+      records: { count: 0, names: [] },
+      progression: { items: [], more: 0, ups: 0 },
+      program: null,
+      signals: [],
+      unanswered: 0,
+    };
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "CoachWeeklyRecap" (id, "coachId", week, data) values ($1, $2, $3, $4)
+       on conflict ("coachId", week) do update set data = excluded.data, "pushedAt" = null, "seenAt" = null, "createdAt" = now()
+       returning id`,
+      [randomUUID(), await userId(db, coachLogin), week, JSON.stringify(totals)],
+    );
+    const id = rows[0].id;
+    await db.query(`delete from "CoachRecapClient" where "recapId" = $1`, [id]);
+    await db.query(`insert into "CoachRecapClient" ("recapId", "clientId", data) values ($1, $2, $3)`, [id, await userId(db, clientLogin), JSON.stringify(row)]);
+    return id;
+  });
+}
+
+/** Сколько строк клиента (по id) в снимках тренеров и сколько снимков у тренера. */
+export async function coachRecapCounts(coachLogin: string, clientId: string) {
+  return withDb(async (db) => {
+    const client = (await db.query(`select count(*)::int as n from "CoachRecapClient" where "clientId" = $1`, [clientId])).rows[0].n as number;
+    const recaps = (await db.query(`select count(*)::int as n from "CoachWeeklyRecap" where "coachId" = $1`, [await userId(db, coachLogin)])).rows[0].n as number;
+    return { client, recaps };
+  });
+}
+
+/** Уведомления «Итоги недели клиентов» тренеру (тип COACH) по порядку. */
+export async function coachRecapNotifications(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string; url: string }>(
+      `select title, body, url from "Notification" where "userId" = $1 and type = 'COACH' and url like '/coach/recap/%' order by "createdAt"`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Снимки итогов недели тренера: неделя, отправлен ли push, просмотрен ли. */
+export async function coachRecapRows(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ week: string; pushedAt: Date | null; seenAt: Date | null }>(
+      `select week, "pushedAt", "seenAt" from "CoachWeeklyRecap" where "coachId" = $1 order by week`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}
+
+/** Комментарий тренера к тренировке клиента (workoutExerciseId — к упражнению, иначе общий). */
+export async function coachCommentOn(coachLogin: string, clientLogin: string, workoutId: string, workoutExerciseId?: string) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "CoachComment" (id, "coachId", "clientId", "workoutId", "workoutExerciseId", text, "updatedAt") values ($1, $2, $3, $4, $5, 'Хорошо', now())`,
+      [randomUUID(), await userId(db, coachLogin), await userId(db, clientLogin), workoutId, workoutExerciseId ?? null],
+    );
+  });
+}
+
+/** Пояс пользователя — любой IANA (например, клиент западнее тренера). */
+export async function setUserTimeZone(login: string, timeZone: string) {
+  await withDb((db) => db.query(`update "User" set "timeZone" = $2 where login = $1`, [login, timeZone]));
 }

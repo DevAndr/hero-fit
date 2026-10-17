@@ -43,6 +43,7 @@ const settingsSchema = z
     notifySocial: z.boolean(),
     notifyPlan: z.boolean(),
     notifyRecap: z.boolean(),
+    notifyCoachRecap: z.boolean(),
     notifyGoal: z.boolean(),
     planReminderMin: z.union(PLAN_REMINDER_LEADS.map((m) => z.literal(m))),
   })
