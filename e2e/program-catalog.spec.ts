@@ -7,6 +7,7 @@ import {
   coachTemplate,
   enableCoach,
   linkCoach,
+  makeAdmin,
   notificationTitles,
   programSeriesAfterToday,
   programSeriesToday,
@@ -24,6 +25,10 @@ import { registerUser, runTick } from "./helpers";
 
 // Каталог программ тренеров — под глобальным флагом program_catalog: сценарии по очереди, только desktop
 test.describe.configure({ mode: "serial" });
+// Каталог постраничный (20), а база e2e копит программы прошлых прогонов — они вытесняют новые с первой страницы
+test.beforeAll(async ({}, info) => {
+  if (info.project.name === "desktop") await withDb((db) => db.query(`update "CoachProgram" set "publishedAt" = null where "publishedAt" is not null`));
+});
 test.beforeEach(async ({}, info) => {
   test.skip(info.project.name !== "desktop", "глобальный флаг — один проект");
   await setFlag("program_catalog", { enabled: true, percent: 100 });
@@ -338,5 +343,63 @@ test("the author deletes the program — the running one keeps its label, weight
     await expect(squat).toContainText(`программа «${p.name}»: 3 подхода · 100 кг (неделя 1/8)`);
   } finally {
     await user.context.close();
+  }
+});
+
+test("an admin hides a program with a reason", async ({ page, browser }) => {
+  test.slow();
+  const p = await publishedProgram(page);
+  const user = await athlete(browser);
+  const adminContext = await browser.newContext();
+  try {
+    const adminPage = await adminContext.newPage();
+    const admin = await registerUser(adminPage, "Админ");
+    await makeAdmin(admin.login);
+
+    await adminPage.goto("/admin/programs");
+    const row = adminPage.getByRole("listitem", { name: p.name });
+    await expect(row).toContainText(p.nick);
+    await expect(row).toContainText("занимаются 0");
+    await expect(row).toContainText("В каталоге");
+
+    // Причина обязательна
+    await row.getByRole("button", { name: "Снять" }).click();
+    const dialog = adminPage.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Снять" }).click();
+    await expect(dialog.getByText("Укажите причину")).toBeVisible();
+    await dialog.getByLabel("Причина").fill("Опасная схема нагрузки");
+    await dialog.getByRole("button", { name: "Снять" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(row).toContainText("Снята");
+
+    // Автор получил уведомление
+    expect(await coachNotifications(p.coach.login)).toEqual([
+      { title: `Программа «${p.name}» снята из каталога: Опасная схема нагрузки`, url: "/coach/programs" },
+    ]);
+
+    // Пользователю — нет в каталоге и 404
+    await user.page.goto("/programs");
+    await expect(user.page.getByRole("listitem", { name: p.name })).toHaveCount(0);
+    expect((await user.page.goto(`/programs/${p.id}`))?.status()).toBe(404);
+
+    // В редакторе — пометка, переключатель недоступен
+    await page.goto("/coach/programs");
+    await page.getByRole("button", { name: `Изменить «${p.name}»` }).click();
+    const editor = page.getByRole("dialog");
+    await expect(editor).toContainText("Снята администратором: Опасная схема нагрузки");
+    await expect(editor.getByRole("switch", { name: "Опубликовать в каталоге" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+
+    // Вернуть — снова в каталоге, без нового уведомления
+    await adminPage.reload();
+    await adminPage.getByRole("listitem", { name: p.name }).getByRole("button", { name: "Вернуть" }).click();
+    await expect(adminPage.getByRole("listitem", { name: p.name })).toContainText("В каталоге");
+    // Каталог постраничный, а база e2e копит программы прошлых прогонов — проверяем страницу программы
+    expect((await user.page.goto(`/programs/${p.id}`))?.status()).toBe(200);
+    await expect(user.page.getByRole("button", { name: "Начать программу" })).toBeEnabled();
+    expect(await coachNotifications(p.coach.login)).toHaveLength(1);
+  } finally {
+    await user.context.close();
+    await adminContext.close();
   }
 });

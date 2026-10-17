@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { NotificationType } from "@/generated/prisma/enums";
+import { requireAdmin } from "@/lib/auth/admin";
 import { requireUser } from "@/lib/auth/dal";
 import { requireCoach } from "@/lib/coach/access";
 import { assignProgramSchema } from "@/lib/coach/program";
@@ -9,6 +11,7 @@ import { createAssignment, endAssignment } from "@/lib/coach/program-assign";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { addDays, weekdayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { notify } from "@/lib/notifications/service";
 import { getLastPerformance } from "@/lib/workouts/queries";
 import { CATALOG_OFF, catalogAllowed } from "./access";
 import { copyTemplates } from "./copy";
@@ -158,4 +161,51 @@ export async function endOwnProgramAction(): Promise<Result> {
   revalidatePath("/calendar");
   revalidatePath("/programs");
   return { ok: true };
+}
+
+const HIDE_REASON_MAX = 200;
+const hideReasonSchema = z.string().trim().min(1, "Укажите причину").max(HIDE_REASON_MAX, `Причина — не больше ${HIDE_REASON_MAX} символов`);
+
+/** Админ снимает опубликованную программу из каталога с причиной; автору — уведомление. Идущие запуски не трогаем. */
+export async function hideProgramAction(programId: string, reason: string): Promise<Result> {
+  await requireAdmin();
+  const parsed = hideReasonSchema.safeParse(reason);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Укажите причину" };
+  const done = await db.$transaction(async (tx) => {
+    const { count } = await tx.coachProgram.updateMany({
+      where: { id: String(programId), publishedAt: { not: null }, hiddenAt: null },
+      data: { hiddenAt: new Date(), hiddenReason: parsed.data },
+    });
+    if (count === 0) return false;
+    const program = await tx.coachProgram.findUniqueOrThrow({ where: { id: String(programId) }, select: { name: true, coachId: true } });
+    await notify(
+      tx,
+      program.coachId,
+      { type: NotificationType.COACH, title: `Программа «${program.name}» снята из каталога: ${parsed.data}`, body: "Исправьте программу или напишите в поддержку", url: "/coach/programs" },
+      { push: true },
+    );
+    return true;
+  });
+  if (!done) return { ok: false, error: "Программа не найдена или уже снята" };
+  revalidateCatalog(programId);
+  return { ok: true };
+}
+
+/** Админ возвращает снятую программу в каталог (автору без уведомления). */
+export async function unhideProgramAction(programId: string): Promise<Result> {
+  await requireAdmin();
+  const { count } = await db.coachProgram.updateMany({
+    where: { id: String(programId), hiddenAt: { not: null } },
+    data: { hiddenAt: null, hiddenReason: null },
+  });
+  if (count === 0) return { ok: false, error: "Программа не найдена или не снята" };
+  revalidateCatalog(programId);
+  return { ok: true };
+}
+
+function revalidateCatalog(programId: string) {
+  revalidatePath("/admin/programs");
+  revalidatePath("/coach/programs");
+  revalidatePath("/programs");
+  revalidatePath(`/programs/${programId}`);
 }

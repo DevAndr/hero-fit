@@ -168,3 +168,35 @@ export async function startableProgram(client: Prisma.TransactionClient, id: str
     },
   });
 }
+
+export type AdminProgram = {
+  id: string;
+  name: string;
+  author: string;
+  participants: number;
+  publishedAt: string;
+  hidden: boolean;
+  hiddenReason: string | null;
+};
+
+const ADMIN_LIST_LIMIT = 200;
+
+/** Для админки: опубликованные программы, включая снятые, свежие сверху. */
+export async function listForAdmin(): Promise<AdminProgram[]> {
+  const rows = await db.coachProgram.findMany({
+    where: { publishedAt: { not: null } },
+    orderBy: { publishedAt: "desc" },
+    take: ADMIN_LIST_LIMIT,
+    select: { id: true, name: true, publishedAt: true, hiddenAt: true, hiddenReason: true, coach: { select: { nickname: true, login: true } } },
+  });
+  const counts = await participants(rows.map((r) => r.id));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    author: r.coach.nickname ?? r.coach.login,
+    participants: counts.get(r.id) ?? 0,
+    publishedAt: (r.publishedAt as Date).toISOString(),
+    hidden: r.hiddenAt !== null,
+    hiddenReason: r.hiddenReason,
+  }));
+}
