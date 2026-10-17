@@ -12,7 +12,7 @@ const row = (o: Partial<ClubFeedRow> = {}): ClubFeedRow => ({
   ...o,
 });
 
-const weightRecord = { records: [{ exerciseName: "Жим", type: "MAX_WEIGHT" as const, value: 80 }] };
+const weightRecord = { records: [{ exerciseId: "bench", exerciseName: "Жим", type: "MAX_WEIGHT" as const, value: 80 }] };
 
 describe("toClubEvents", () => {
   it("только события: ачивки без login:*, уровень; весовые рекорды скрыты при hideWeights", () => {
@@ -27,8 +27,8 @@ describe("toClubEvents", () => {
           levelBefore: 2,
           levelAfter: 3,
           records: [
-            { exerciseName: "Жим", type: "MAX_WEIGHT", value: 80 },
-            { exerciseName: "Жим", type: "MAX_REPS", value: 12 },
+            { exerciseId: "bench", exerciseName: "Жим", type: "MAX_WEIGHT", value: 80 },
+            { exerciseId: "bench", exerciseName: "Жим", type: "MAX_REPS", value: 12 },
           ],
         },
       }),

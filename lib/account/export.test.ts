@@ -58,6 +58,10 @@ const raw = (): ExportRaw => ({
   coachRecapsAboutMe: [{ week: "2026-10-05", coach: "Coach_Demo", data: { version: 1, workouts: 3 } }],
   coachRecaps: [{ week: "2026-10-05", totals: { version: 1, clients: 1 }, clients: [{ client: "Петя", data: { version: 1, workouts: 3 }, clientId: "u_client" }] }],
   clientNotes: [{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя", clientId: "u_client" }],
+  respectsGiven: [{ workoutDate: new Date("2026-10-10T10:00:00Z"), exercise: "Жим лёжа", to: "Маша", id: "rr_secret", workoutId: "w_secret" }],
+  respectsReceived: [{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null, id: "rr_secret2" }],
+  kudosGiven: [{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша", id: "k_secret" }],
+  kudosReceived: [{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя", id: "k_secret2" }],
   programs: [
     {
       name: "Сила",
@@ -133,6 +137,18 @@ describe("export — coach notes", () => {
     const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
     expect(o.coachNotesAboutMe).toEqual([{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo" }]);
     expect(o.clientNotes).toEqual([{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя" }]);
+  });
+});
+
+describe("export — respects and kudos", () => {
+  it("респекты и 👊 — дата тренировки, упражнение и ник, без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toEqual(expect.arrayContaining(["respectsGiven", "respectsReceived", "kudosGiven", "kudosReceived"]));
+    expect(o.respectsGiven).toEqual([{ workoutDate: new Date("2026-10-10T10:00:00Z"), exercise: "Жим лёжа", to: "Маша" }]);
+    expect(o.respectsReceived).toEqual([{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null }]);
+    expect(o.kudosGiven).toEqual([{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша" }]);
+    expect(o.kudosReceived).toEqual([{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя" }]);
+    expect(JSON.stringify(o)).not.toMatch(/rr_secret|k_secret|w_secret/);
   });
 });
 

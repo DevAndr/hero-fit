@@ -1321,3 +1321,86 @@ export async function coachCommentOn(coachLogin: string, clientLogin: string, wo
 export async function setUserTimeZone(login: string, timeZone: string) {
   await withDb((db) => db.query(`update "User" set "timeZone" = $2 where login = $1`, [login, timeZone]));
 }
+
+/**
+ * Завершённая тренировка с рекордами в meta (форма FinishMeta, с exerciseId) — для «Респекта за рекорд».
+ * Упражнения — встроенные по названию; нет такого — создаётся своё упражнение пользователя (длинные названия).
+ */
+export async function seedRecordWorkout(
+  login: string,
+  records: { exercise: string; type?: string; value: number }[],
+  /** exerciseOwner — логин владельца своих упражнений (по умолчанию автор тренировки, например тренер клиента). */
+  o: { name?: string; exerciseOwner?: string } = {},
+) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const ownerId = o.exerciseOwner ? await userId(db, o.exerciseOwner) : uid;
+    const finished = new Date();
+    const started = new Date(finished.getTime() - 3600 * 1000);
+    const workoutId = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 1000, 5, 50, $4, $5)`,
+      [workoutId, uid, o.name ?? "Рекордная", started, finished],
+    );
+    const exerciseIds: Record<string, string> = {};
+    const metaRecords: object[] = [];
+    for (const [i, r] of records.entries()) {
+      let id = (
+        await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and ("userId" is null or "userId" = $2) order by "userId" nulls first`, [r.exercise, ownerId])
+      ).rows[0]?.id;
+      if (!id) {
+        id = randomUUID();
+        await db.query(
+          `insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") values ($1, $2, $3, ARRAY['CHEST']::"MuscleGroup"[], now())`,
+          [id, ownerId, r.exercise],
+        );
+      }
+      exerciseIds[r.exercise] = id;
+      const weId = randomUUID();
+      await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, $4, 90)`, [weId, workoutId, id, i]);
+      await db.query(
+        `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, 0, $3, 5, false, $4)`,
+        [randomUUID(), weId, r.value, finished],
+      );
+      metaRecords.push({ exerciseId: id, exerciseName: r.exercise, type: r.type ?? "MAX_WEIGHT", value: r.value, previous: r.value - 5 });
+    }
+    const meta = {
+      xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: 50, recordsXp: 0, achievementsXp: 0,
+      records: metaRecords, achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: 1,
+    };
+    await db.query(
+      `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, 50, 'WORKOUT_COMPLETED', $3, $4, $5)`,
+      [randomUUID(), uid, workoutId, JSON.stringify(meta), finished],
+    );
+    return { workoutId, exerciseIds };
+  });
+}
+
+/** n фиктивных пользователей ставят респект на рекорд (минуя UI). */
+export async function seedRespects(workoutId: string, exerciseId: string, n: number) {
+  await withDb(async (db) => {
+    for (let i = 0; i < n; i++) {
+      const uid = randomUUID();
+      const login = `e2e_resp_${uid.slice(0, 12)}`;
+      await db.query(`insert into "User" (id, login, email, "passwordHash", nickname, "nicknameKey", "updatedAt") values ($1, $2, $3, 'x', $4, $4, now())`, [
+        uid,
+        login,
+        `${login}@test.local`,
+        `fan${i}_${uid.slice(0, 6)}`,
+      ]);
+      await db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, exerciseId, uid]);
+    }
+  });
+}
+
+/** Число респектов на рекорды тренировки. */
+export async function respectCount(workoutId: string, exerciseId?: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ c: number }>(
+      `select count(*)::int c from "RecordRespect" where "workoutId" = $1 and ($2::text is null or "exerciseId" = $2)`,
+      [workoutId, exerciseId ?? null],
+    );
+    return rows[0].c;
+  });
+}

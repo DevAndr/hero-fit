@@ -6,8 +6,11 @@ import { Prisma } from "@/generated/prisma/client";
 import { FriendshipStatus, NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { quietly } from "@/lib/achievements/quietly";
 import { notify } from "@/lib/notifications/service";
 import { nicknameKey, nicknameSchema, normalizeFriendCode } from "@/lib/social/league";
+import { recordExercise, respectNotice } from "@/lib/social/feed";
 import { canSeeWorkout, getFeed, getGuildFeed } from "@/lib/social/queries";
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -182,7 +185,73 @@ async function notifyKudos(workoutId: string, ownerId: string, friend: boolean) 
   const url = `${friend ? "/friends" : "/guild"}#w-${workoutId}`;
 
   const unread = await db.notification.findFirst({
-    where: { userId: ownerId, type: NotificationType.SOCIAL, url, readAt: null },
+    where: { userId: ownerId, type: NotificationType.SOCIAL, url, title, readAt: null },
+    select: { id: true },
+  });
+  if (unread) {
+    await db.notification.update({ where: { id: unread.id }, data: { title, body, createdAt: new Date() } });
+  } else {
+    await notify(db, ownerId, { type: NotificationType.SOCIAL, title, body, url }, { push: owner.notifySocial && names.length === 1 });
+  }
+}
+
+/**
+ * 🏆 Респект за рекорд упражнения тренировки друга (повторное нажатие — убрать). Рекорд берётся из сводки завершения:
+ * подделанный exerciseId отсекается до записи. Уведомление автору группируется так же, как у 👊.
+ */
+export async function toggleRespectAction(workoutId: string, exerciseId: string): Promise<Result> {
+  const user = await requireUser();
+  const workout = await canSeeWorkout(user.id, workoutId);
+  if (!workout) return { ok: false, error: "Тренировка недоступна" };
+  if (workout.userId === user.id) return { ok: false, error: "Свой рекорд отметить нельзя" };
+
+  const event = await db.xpEvent.findFirst({
+    where: { workoutId, reason: "WORKOUT_COMPLETED" },
+    select: { meta: true },
+  });
+  if (recordExercise(event?.meta, exerciseId) === null) return { ok: false, error: "Рекорд не найден" };
+
+  const removed = await db.recordRespect.deleteMany({ where: { workoutId, exerciseId, userId: user.id } });
+  if (removed.count === 0) {
+    let created = true;
+    try {
+      await db.recordRespect.create({ data: { workoutId, exerciseId, userId: user.id } });
+    } catch (e) {
+      // упражнения уже нет (тренировку или упражнение удалили, пока лента была открыта)
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") return { ok: false, error: "Рекорд не найден" };
+      // двойной клик или две вкладки — уже поставлено: уведомление не повторяем
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+      created = false;
+    }
+    if (created) {
+      await notifyRespect(workoutId, exerciseId, workout.userId, workout.friend);
+      await quietly(() => evaluateAchievementsNow(workout.userId), null); // «Заметили» и выше — автору рекорда
+    }
+  }
+  revalidatePath("/friends");
+  revalidatePath("/guild");
+  return { ok: true };
+}
+
+/** Одно уведомление на (тренировка, упражнение): пока непрочитано — обновляем; push — только первый раз. */
+async function notifyRespect(workoutId: string, exerciseId: string, ownerId: string, friend: boolean) {
+  const [exercise, givers, owner, event] = await Promise.all([
+    db.exercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { name: true } }),
+    db.recordRespect.findMany({
+      where: { workoutId, exerciseId },
+      orderBy: { createdAt: "desc" },
+      select: { user: { select: { nickname: true } } },
+    }),
+    db.user.findUniqueOrThrow({ where: { id: ownerId }, select: { notifySocial: true } }),
+    db.xpEvent.findFirst({ where: { workoutId, reason: "WORKOUT_COMPLETED" }, select: { meta: true } }),
+  ]);
+  const names = givers.map((g) => g.user.nickname ?? "Атлет");
+  // Название — из сводки (на момент рекорда), как в ленте; упражнение могли переименовать
+  const { title, body } = respectNotice(recordExercise(event?.meta, exerciseId) ?? exercise.name, names);
+  const url = `${friend ? "/friends" : "/guild"}#w-${workoutId}`;
+
+  const unread = await db.notification.findFirst({
+    where: { userId: ownerId, type: NotificationType.SOCIAL, url, title, readAt: null },
     select: { id: true },
   });
   if (unread) {

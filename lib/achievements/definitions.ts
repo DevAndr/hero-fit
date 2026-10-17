@@ -95,6 +95,7 @@ export type AchievementStats = {
   raidMvps: number;
   /** Полученных сундуков заданий клуба (выполненные задания). */
   clubTaskRewards: number;
+  respectsReceived: number;
   /** Выполненные личные цели (Goal ACHIEVED). */
   goalsAchieved: number;
   /** Режим тренера включён (User.isCoach): без него тренерские ачивки не выдаются и не показываются целями. */
@@ -202,6 +203,7 @@ export const EMPTY_STATS: AchievementStats = {
   raidWins: 0,
   raidMvps: 0,
   clubTaskRewards: 0,
+  respectsReceived: 0,
   goalsAchieved: 0,
   coachMode: false,
   coach: EMPTY_COACH_STATS,
@@ -827,6 +829,20 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 1 ? "Командный игрок" : `Командный игрок ×${n}`,
           description: n === 1 ? "Выполнить задание клуба" : `Выполнить ${n} ${plural(n, "задание", "задания", "заданий")} клуба`,
           xpReward: 30 + n * 5,
+        }),
+    },
+
+    // Респекты за рекорды
+    {
+      fixed: [5, 25, 100],
+      value: s.respectsReceived,
+      def: (n) =>
+        def(n, {
+          code: `respect:${n}`,
+          category: "SOCIAL",
+          title: n === 5 ? "Заметили" : n === 25 ? "Уважаемый" : "Легенда зала",
+          description: `Получить ${n} ${plural(n, "респект", "респекта", "респектов")} за рекорды`,
+          xpReward: n === 5 ? 30 : n === 25 ? 60 : 120,
         }),
     },
 

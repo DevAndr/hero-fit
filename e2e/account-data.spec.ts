@@ -21,6 +21,8 @@ import {
   makeFriends,
   notificationTitles,
   recapLeagueNicks,
+  respectCount,
+  seedRecordWorkout,
   idOf,
   userExists,
   visitDays,
@@ -359,4 +361,69 @@ test("coach weekly recap: both exports, and the client's account deletion leaves
   await deleteAccount(client.page, PASSWORD);
   await expect(client.page).toHaveURL(/deleted=1/);
   expect(await coachRecapCounts(coach.login, clientId)).toEqual({ client: 0, recaps: 1 });
+});
+
+test("respects and kudos: both exports list them, the author's account deletion removes them", async ({ browser }) => {
+  const author = await player(browser, "Автор");
+  const friend = await player(browser, "Друг");
+  const [aNick, fNick] = [nickOf(author.login, "Ав"), nickOf(friend.login, "Др")];
+  await makeFriends(author.login, aNick, friend.login, fNick);
+  const { workoutId, exerciseIds } = await seedRecordWorkout(author.login, [{ exercise: "Жим штанги лёжа", value: 100 }]);
+  const exerciseId = exerciseIds["Жим штанги лёжа"];
+  await withDb(async (db) => {
+    const fid = (await db.query<{ id: string }>(`select id from "User" where login = $1`, [friend.login])).rows[0].id;
+    await db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, exerciseId, fid]);
+    await db.query(`insert into "Kudos" (id, "workoutId", "userId") values ($1, $2, $3)`, [randomUUID(), workoutId, fid]);
+  });
+
+  const exportOf = async (page: Page) => {
+    await page.goto("/settings");
+    const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+    const text = await readFile((await json.path())!, "utf8");
+    return { text, data: JSON.parse(text) };
+  };
+  const given = await exportOf(friend.page);
+  expect(given.data.respectsGiven).toEqual([expect.objectContaining({ exercise: "Жим штанги лёжа", to: aNick })]);
+  expect(given.data.kudosGiven).toEqual([expect.objectContaining({ to: aNick })]);
+  const received = await exportOf(author.page);
+  expect(received.data.respectsReceived).toEqual([expect.objectContaining({ exercise: "Жим штанги лёжа", from: fNick })]);
+  expect(received.data.kudosReceived).toEqual([expect.objectContaining({ from: fNick })]);
+  expect(received.text).not.toContain(workoutId);
+
+  await deleteAccount(author.page, PASSWORD);
+  await expect(author.page).toHaveURL(/deleted=1/);
+  expect(await respectCount(workoutId)).toBe(0);
+  expect((await exportOf(friend.page)).data).toMatchObject({ respectsGiven: [], kudosGiven: [] });
+});
+
+test("coach's own exercise: a friend's respect for the client's record survives the coach's deletion", async ({ browser }) => {
+  const coach = await player(browser, "Тренер");
+  const client = await player(browser, "Клиент");
+  const friend = await player(browser, "Друг");
+  const cNick = nickOf(client.login, "Кл");
+  await makeFriends(client.login, cNick, friend.login, nickOf(friend.login, "Др"));
+  const name = `Тренерское ${randomUUID().slice(0, 6)}`;
+  const ex = await ownExercise(coach.login, name);
+  const { workoutId, exerciseIds } = await seedRecordWorkout(client.login, [{ exercise: name, value: 100 }], { exerciseOwner: coach.login });
+  expect(exerciseIds[name]).toBe(ex);
+  const fid = await idOf(friend.login);
+  await withDb((db) => db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, ex, fid]));
+
+  await deleteAccount(coach.page, PASSWORD);
+  await expect(coach.page).toHaveURL(/deleted=1/);
+  expect(await respectCount(workoutId)).toBe(1);
+
+  // В ленте друга счётчик на месте, кнопка снимает и ставит респект без ошибки
+  await friend.page.goto("/friends");
+  const card = friend.page.getByRole("article", { name: `${cNick}: Рекордная` });
+  const pressed = card.getByRole("button", { name: `Убрать респект у ${cNick} за ${name}` });
+  await expect(pressed).toHaveAttribute("aria-pressed", "true");
+  await expect(pressed).toHaveText("1");
+  await pressed.click();
+  await expect.poll(() => respectCount(workoutId)).toBe(0);
+  await friend.page.reload();
+  await card.getByRole("button", { name: `Дать респект ${cNick} за ${name}` }).click();
+  await expect(card.getByRole("button", { name: `Убрать респект у ${cNick} за ${name}` })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => respectCount(workoutId)).toBe(1);
+  await expect(friend.page.getByText("Рекорд не найден")).toHaveCount(0);
 });

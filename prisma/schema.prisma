@@ -72,6 +72,7 @@ enum AchievementCategory {
   GOAL // выполненные личные цели (lib/goals)
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
   ENDURANCE // кардио и упражнения на время
+  SOCIAL // социальное: респекты за рекорды
 }
 
 enum NotificationType {
@@ -257,6 +258,7 @@ model User {
   coachRecapRows      CoachRecapClient[]
   coachProfile        CoachProfile?
   kudos               Kudos[]
+  recordRespects      RecordRespect[]
   goals               Goal[]
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
@@ -409,6 +411,7 @@ model Exercise {
   coachTargets      CoachTarget[]
   goals             Goal[]
   clubTasks         ClubTask[]
+  recordRespects    RecordRespect[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -492,6 +495,7 @@ model Workout {
   exercises    WorkoutExercise[]
   xpEvents     XpEvent[]
   kudos        Kudos[]
+  recordRespects RecordRespect[]
   comments     CoachComment[]
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
@@ -711,6 +715,22 @@ model Kudos {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workoutId, userId])
+}
+
+/// 🏆 от друга/согильдийца на рекорд в упражнении тренировки. Один на тройку «тренировка–упражнение–пользователь».
+model RecordRespect {
+  id         String   @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  userId     String // кто поставил
+  createdAt  DateTime @default(now())
+
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutId, exerciseId, userId])
+  @@index([exerciseId])
 }
 
 // ───────────────────────────── Streak ─────────────────────────────
