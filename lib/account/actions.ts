@@ -12,6 +12,7 @@ import { minutesLeft } from "@/lib/auth/throttle-rules";
 import { verifyAccessToken, verifyRefreshToken } from "@/lib/auth/tokens";
 import { deleteAccount } from "@/lib/account/delete";
 import { db } from "@/lib/db";
+import { revokeAccess } from "@/lib/whoop/client";
 
 type Refusal = { ok: false; error: string; field?: "password" | "confirm" };
 
@@ -40,6 +41,9 @@ export async function deleteAccountAction(input: { password?: string; confirm?: 
   const access = await verifyAccessToken(store.get(ACCESS_COOKIE)?.value);
   const refresh = await verifyRefreshToken(store.get(REFRESH_COOKIE)?.value);
   const embedded = await sessionEmbedded(access?.sessionId ?? refresh?.sessionId);
+
+  // Отзыв доступа WHOOP — до транзакции (HTTP внутри неё нельзя); ошибки глотаются, строки уйдут каскадом
+  await revokeAccess(user.id);
 
   // Каскады по многим таблицам и чужие итоги недели — дольше умолчания в 5 с (как у завершения тренировки)
   await db.$transaction((tx) => deleteAccount(tx, user.id), { timeout: 30_000 });

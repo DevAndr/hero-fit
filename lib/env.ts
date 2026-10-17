@@ -36,10 +36,23 @@ const schema = z.object({
   TELEGRAM_API_URL: z.url().default("https://api.telegram.org"),
   /** on — локальная разработка: обновления через getUpdates вместо webhook. */
   TELEGRAM_POLLING: z.enum(["on", "off"]).default("off"),
+  /** WHOOP (developer.whoop.com): без client id интеграция выключена. Ключ — 32 байта base64 для шифрования токенов. */
+  WHOOP_CLIENT_ID: z.string().optional(),
+  WHOOP_CLIENT_SECRET: z.string().optional(),
+  WHOOP_TOKEN_KEY: z.string().optional(),
+  WHOOP_API_URL: z.url().default("https://api.prod.whoop.com"),
 }).refine((e) => !e.TELEGRAM_BOT_TOKEN || (e.TELEGRAM_WEBHOOK_SECRET?.length ?? 0) >= 32, {
   path: ["TELEGRAM_WEBHOOK_SECRET"],
   message: "TELEGRAM_WEBHOOK_SECRET обязателен при TELEGRAM_BOT_TOKEN (32+ символа)",
-});
+}).refine(
+  (e) =>
+    !e.WHOOP_CLIENT_ID ||
+    (!!e.WHOOP_CLIENT_SECRET && Buffer.from(e.WHOOP_TOKEN_KEY ?? "", "base64").length === 32),
+  {
+    path: ["WHOOP_TOKEN_KEY"],
+    message: "WHOOP_TOKEN_KEY обязателен при WHOOP_CLIENT_ID (32 байта base64)",
+  },
+);
 
 const parsed = schema.safeParse(process.env);
 

@@ -78,6 +78,24 @@ Settings → CI/CD → Variables (Visibility — Masked, где можно; Prot
 URL `https://<домен>/tg`. Без этого ссылки тренера `t.me/<бот>?startapp=join_<код>` не откроют приложение.
 Проверка: в Telegram — кнопка «Открыть» у бота → экран «Привет, …!» или сразу дашборд (если Telegram уже подключён).
 
+## WHOOP (необязательно)
+
+Браслет WHOOP: пульс и нагрузка в сводке тренировки (флаг `whoop`, данные о здоровье — по отдельному согласию).
+
+1. В кабинете [developer.whoop.com](https://developer.whoop.com): приложение со scopes `read:workout`, `read:profile`, `offline`;
+   Redirect URL — `https://<домен>/api/whoop/callback`, Webhook URL — `https://<домен>/api/whoop/webhook` (модель v2);
+   ссылка на политику конфиденциальности — `https://<домен>/privacy`. До одобрения приложения WHOOP подключить
+   можно не больше 10 пользователей — включать флаг по списку.
+2. В `/opt/hero-fit/.env`: `WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET` и `WHOOP_TOKEN_KEY`
+   (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`), затем Run pipeline на `main`
+   (как для Telegram-бота). **`WHOOP_TOKEN_KEY` не менять** — им зашифрованы токены, с другим ключом все подключения
+   придётся переподключать.
+   Проверка: `curl -X POST https://<домен>/api/whoop/webhook` → `401` (WHOOP включён; `404` — `.env` не подхвачен или старый образ).
+3. До включения — обновить уведомление в Роскомнадзор об обработке ПДн: добавляется специальная категория «состояние здоровья»
+   (пульс из WHOOP).
+4. `/admin/flags` → `whoop` → добавить логины в список (не процент, пока действует лимит 10 пользователей). Проверка:
+   `/settings` → «Браслеты и часы» → «Подключить WHOOP».
+
 ## На сервере
 
 ```sh

@@ -1,0 +1,449 @@
+import { createHmac, randomUUID } from "node:crypto";
+import type { APIRequestContext } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import type { WhoopApiWorkout } from "../lib/whoop/types";
+import {
+  addFlagUser,
+  expireWhoopToken,
+  latestWorkout,
+  resetWhoopSync,
+  seedWorkouts,
+  whoopNeedsReauth,
+  whoopUserIdOf,
+  whoopWorkoutCount,
+} from "./db";
+import { PASSWORD, registerUser } from "./helpers";
+import { WHOOP_FAKE_URL } from "./whoop-server";
+
+// У фейкового WHOOP глобальный /__control/reuse-next — параллельные тесты перехватили бы его
+test.describe.configure({ mode: "serial" });
+test.skip(({ isMobile }) => isMobile, "фейковый WHOOP общий — только desktop");
+
+/** Активность WHOOP в форме API v2; без `SCORED` — без `score`. */
+function whoopActivity(
+  id: string,
+  start: Date,
+  end: Date,
+  o: { state?: string; avgHr?: number; maxHr?: number; strain?: number; kJ?: number } = {},
+): WhoopApiWorkout {
+  const state = o.state ?? "SCORED";
+  return {
+    id,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    sport_name: "weightlifting",
+    score_state: state,
+    ...(state === "SCORED"
+      ? {
+          score: {
+            strain: o.strain ?? 9.4,
+            average_heart_rate: o.avgHr ?? 121,
+            max_heart_rate: o.maxHr ?? 164,
+            kilojoule: o.kJ ?? 1250,
+            percent_recorded: 100,
+            zone_durations: {
+              zone_zero_milli: 60_000,
+              zone_one_milli: 600_000,
+              zone_two_milli: 900_000,
+              zone_three_milli: 600_000,
+              zone_four_milli: 120_000,
+              zone_five_milli: 0,
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+/** user_id для заранее подготовленного аккаунта WHOOP — вне диапазона счётчика фейка (он от Date.now()). */
+const presetWhoopUser = () => 9_000_000_000_000_000 + Math.floor(Math.random() * 1e12);
+
+async function control(path: string, init?: RequestInit) {
+  const res = await fetch(`${WHOOP_FAKE_URL}/__control/${path}`, init);
+  expect(res.ok).toBe(true);
+  return res;
+}
+
+const reuseNext = (user: string | number) => control(`reuse-next?user=${user}`, { method: "POST" });
+const putWorkouts = (user: number, list: WhoopApiWorkout[]) =>
+  control(`workouts?user=${user}`, { method: "PUT", body: JSON.stringify(list), headers: { "content-type": "application/json" } });
+const setExpiresIn = (seconds: number) => control(`expires?seconds=${seconds}`, { method: "POST" });
+const setApiDelay = (ms: number) => control(`api-delay?ms=${ms}`, { method: "POST" });
+const isRevoked = async (user: string | number) => ((await (await control(`revoked?user=${user}`)).json()) as { revoked: boolean }).revoked;
+
+async function flaggedUser(page: Page) {
+  const user = await registerUser(page);
+  await addFlagUser("whoop", user.login);
+  return user;
+}
+
+/** /devices → «Подключить WHOOP» → согласие → «Продолжить» (OAuth фейка сразу возвращает обратно). */
+async function connectWhoop(page: Page) {
+  if (!page.url().endsWith("/devices")) await page.goto("/devices");
+  await page.getByRole("button", { name: "Подключить WHOOP" }).click();
+  const dialog = page.getByRole("dialog");
+  const go = dialog.getByRole("link", { name: "Продолжить" });
+  await expect(go).toBeDisabled();
+  await dialog.getByRole("checkbox", { name: "Согласен на обработку данных о здоровье" }).click();
+  await expect(go).toBeEnabled();
+  await go.click();
+}
+
+const card = (page: Page) => page.getByRole("region", { name: "WHOOP" });
+
+test("подключение по согласию", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+
+  // Без галочки в диалоге маршрут не пускает
+  expect((await page.request.get("/api/whoop/connect", { maxRedirects: 0 })).status()).toBe(400);
+
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: /Браслеты и часы/ })).toContainText("Не подключены");
+  await page.getByRole("link", { name: /Браслеты и часы/ }).click();
+  await expect(page).toHaveURL(/\/devices$/);
+  await expect(page.getByRole("heading", { name: "Браслеты и часы" })).toBeVisible();
+  await expect(card(page)).toContainText("Не подключён");
+
+  await page.getByRole("button", { name: "Подключить WHOOP" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("только вы");
+  await expect(dialog.getByRole("link", { name: /политик/i })).toHaveAttribute("href", "/privacy");
+  await page.keyboard.press("Escape");
+
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect(page.getByText("WHOOP подключён", { exact: true })).toBeVisible();
+  await expect(card(page).getByText(/^Подключён с /)).toBeVisible();
+  expect(await whoopUserIdOf(login)).not.toBeNull();
+
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: /Браслеты и часы/ })).toContainText("WHOOP подключён");
+});
+
+test("без флага карточки нет", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Браслеты и часы/ })).toHaveCount(0);
+  expect((await page.goto("/devices"))?.status()).toBe(404);
+  expect((await page.request.get("/api/whoop/connect?consent=1", { maxRedirects: 0 })).status()).toBe(404);
+});
+
+test("чужой аккаунт WHOOP", async ({ page }) => {
+  const first = await flaggedUser(page);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  const whoopId = await whoopUserIdOf(first.login);
+  expect(whoopId).not.toBeNull();
+
+  await page.context().clearCookies();
+  const second = await flaggedUser(page);
+  await reuseNext(whoopId!);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=taken$/);
+  await expect(page.getByText("Этот аккаунт WHOOP уже подключён к другому профилю")).toBeVisible();
+  await expect(card(page)).toContainText("Не подключён");
+  expect(await whoopUserIdOf(second.login)).toBeNull();
+  expect(await whoopUserIdOf(first.login)).toBe(whoopId);
+  // Попытка второго не отозвала доступ первого (отзыв в WHOOP снимает все токены аккаунта)
+  expect(await isRevoked(whoopId!)).toBe(false);
+
+  // Токены первого живы: отключение обновляет его токен (expires_in: 1) и отзывает доступ от его имени —
+  // с отозванными токенами refresh не прошёл бы и отзыва не было бы
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("Логин или email").fill(first.login);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Войти" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
+  await page.goto("/devices");
+  await card(page).getByRole("button", { name: "Отключить WHOOP" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Отключить" }).click();
+  await expect(card(page)).toContainText("Не подключён");
+  expect(await isRevoked(whoopId!)).toBe(true);
+});
+
+test("callback с чужим state — ошибка, подключения нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  // Настоящий state в cookie (как после «Продолжить»), но в callback пришёл другой
+  expect((await page.request.get("/api/whoop/connect?consent=1", { maxRedirects: 0 })).status()).toBe(307);
+  await page.goto("/api/whoop/callback?code=x&state=bad");
+  await expect(page).toHaveURL(/\/devices\?whoop=error$/);
+  await expect(page.getByText("Не удалось подключить WHOOP")).toBeVisible();
+  await expect(card(page)).toContainText("Не подключён");
+  expect(await whoopUserIdOf(login)).toBeNull();
+});
+
+test("отключение удаляет данные", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  await putWorkouts(whoopId, [
+    whoopActivity(randomUUID(), new Date(now - 2 * 86_400_000), new Date(now - 2 * 86_400_000 + 3_600_000)),
+    whoopActivity(randomUUID(), new Date(now - 86_400_000), new Date(now - 86_400_000 + 3_600_000)),
+  ]);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  expect(await whoopUserIdOf(login)).toBe(String(whoopId));
+  // История грузится в after() — дождаться, чтобы загрузка не дописала строки после отключения
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(2);
+
+  await card(page).getByRole("button", { name: "Отключить WHOOP" }).click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toContainText("Данные WHOOP в Hero Fit удалятся");
+  await confirm.getByRole("button", { name: "Отключить" }).click();
+  await expect(card(page)).toContainText("Не подключён");
+  expect(await whoopWorkoutCount(login)).toBe(0);
+  expect(await whoopUserIdOf(login)).toBeNull();
+  expect(await isRevoked(whoopId)).toBe(true);
+});
+
+test("история за 30 дней", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+
+  // 26 активностей — больше одной страницы (25): совпадающая с тренировкой — самая старая, т. е. на второй странице
+  const whoopId = presetWhoopUser();
+  const later = Array.from({ length: 25 }, (_, i) => {
+    const start = new Date(w.finishedAt.getTime() + (i + 1) * 10 * 60_000);
+    return whoopActivity(randomUUID(), start, new Date(start.getTime() + 5 * 60_000));
+  });
+  await putWorkouts(whoopId, [whoopActivity(randomUUID(), w.startedAt, w.finishedAt), ...later]);
+  await reuseNext(whoopId);
+
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(26);
+});
+
+/** Подключить WHOOP с заранее заданными активностями и дождаться загрузки истории (она идёт в after()). */
+async function connectWith(page: Page, login: string, list: WhoopApiWorkout[]) {
+  const whoopId = presetWhoopUser();
+  await putWorkouts(whoopId, list);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(list.length);
+  return whoopId;
+}
+
+const tile = (page: Page, name: string) => card(page).getByRole("group", { name, exact: true });
+
+test("пульс в старой сводке", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  await connectWith(page, login, [whoopActivity(randomUUID(), w.startedAt, w.finishedAt, { avgHr: 140, maxHr: 172, strain: 12.3, kJ: 1500 })]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(tile(page, "Средний пульс")).toContainText("140");
+  await expect(tile(page, "Макс. пульс")).toContainText("172");
+  await expect(tile(page, "Strain")).toContainText("12,3");
+  await expect(tile(page, "Ккал")).toContainText("359");
+  const zones = card(page).getByRole("table");
+  await expect(zones).toBeAttached();
+  await expect(zones).toContainText("Зона 2");
+  await expect(zones).toContainText("15 мин");
+  await expect(card(page)).not.toContainText("активностям WHOOP");
+});
+
+test("обработка → Обновить", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 1, { finishedAt: [new Date(Date.now() - 3_600_000)] });
+  const w = await latestWorkout(login);
+  const activityId = randomUUID();
+  const whoopId = await connectWith(page, login, [whoopActivity(activityId, w.startedAt, w.finishedAt, { state: "PENDING_SCORE" })]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("WHOOP ещё обрабатывает тренировку");
+
+  await putWorkouts(whoopId, [whoopActivity(activityId, w.startedAt, w.finishedAt, { avgHr: 133 })]);
+  await resetWhoopSync(login);
+  await card(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(tile(page, "Средний пульс")).toContainText("133");
+
+  // Сразу ещё раз — ограничение по времени, а не «переподключите»
+  await card(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(card(page)).toContainText("Обновить можно через минуту");
+  await expect(card(page)).not.toContainText("Переподключите WHOOP");
+  await expect(tile(page, "Средний пульс")).toContainText("133");
+});
+
+test("WHOOP не записал активность", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  await connectWith(page, login, []);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("WHOOP не записал активность в это время");
+  await expect(card(page)).toContainText("можно запускать активность в WHOOP вручную");
+});
+
+test("тренировка старше загруженной истории — карточки нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 1, { finishedAt: [new Date(Date.now() - 40 * 86_400_000)] });
+  const w = await latestWorkout(login);
+  await connectWith(page, login, []);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(page.getByText("Жим штанги лёжа").first()).toBeVisible();
+  await expect(card(page)).toHaveCount(0);
+});
+
+test("две активности в одной тренировке", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  const mid = new Date((w.startedAt.getTime() + w.finishedAt.getTime()) / 2);
+  await connectWith(page, login, [
+    whoopActivity(randomUUID(), w.startedAt, mid, { maxHr: 160 }),
+    whoopActivity(randomUUID(), mid, w.finishedAt, { maxHr: 175 }),
+  ]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("по 2 активностям WHOOP");
+  await expect(tile(page, "Макс. пульс")).toContainText("175");
+});
+
+/** Подписанный вебхук WHOOP; `sign: false` — с неверной подписью. */
+async function sendWhoopWebhook(request: APIRequestContext, body: object, sign = true) {
+  const raw = JSON.stringify(body);
+  const ts = String(Date.now());
+  const signature = sign ? createHmac("sha256", "e2e-whoop-secret").update(ts + raw).digest("base64") : "AAAA";
+  return request.post("/api/whoop/webhook", {
+    data: raw,
+    headers: { "content-type": "application/json", "x-whoop-signature": signature, "x-whoop-signature-timestamp": ts },
+  });
+}
+
+test("вебхук добавляет, обновляет и удаляет активность", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 1, { finishedAt: [new Date(Date.now() - 3_600_000)] });
+  const w = await latestWorkout(login);
+  const whoopId = await connectWith(page, login, []);
+  const activityId = randomUUID();
+  await putWorkouts(whoopId, [whoopActivity(activityId, w.startedAt, w.finishedAt, { avgHr: 128 })]);
+
+  const event = { user_id: whoopId, id: activityId, type: "workout.updated", trace_id: randomUUID() };
+  expect((await sendWhoopWebhook(page.request, event)).status()).toBe(204);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+  await page.goto(`/workouts/${w.id}`);
+  await expect(tile(page, "Средний пульс")).toContainText("128");
+
+  // Повтор того же вебхука не плодит строки
+  expect((await sendWhoopWebhook(page.request, event)).status()).toBe(204);
+  await page.waitForTimeout(1500);
+  expect(await whoopWorkoutCount(login)).toBe(1);
+
+  expect((await sendWhoopWebhook(page.request, { ...event, type: "workout.deleted" })).status()).toBe(204);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(0);
+});
+
+// Refresh ротируется: без блокировки два одновременных refresh сожгли бы подключение (второй получил бы 400 → needsReauth).
+// Пауза API фейка — токен проверяется после того, как соседний запрос уже ротировал его: при expires_in 1 первый получает 401,
+// и повтор не должен заново ротировать токен, с которым сейчас идёт второй (иначе оба упрутся в 401 и одна строка пропадёт)
+for (const expiresIn of [3600, 1]) {
+  test(`одновременные вебхуки при истёкшем токене (expires_in ${expiresIn})`, async ({ page }) => {
+    const { login } = await flaggedUser(page);
+    await setExpiresIn(expiresIn);
+    try {
+      const whoopId = await connectWith(page, login, []);
+      const now = Date.now();
+      const a = whoopActivity(randomUUID(), new Date(now - 7_200_000), new Date(now - 6_000_000));
+      const b = whoopActivity(randomUUID(), new Date(now - 3_600_000), new Date(now - 2_400_000));
+      await putWorkouts(whoopId, [a, b]);
+      await expireWhoopToken(login);
+      await setApiDelay(700);
+
+      const results = await Promise.all(
+        [a, b].map((x) => sendWhoopWebhook(page.request, { user_id: whoopId, id: x.id, type: "workout.updated", trace_id: randomUUID() })),
+      );
+      expect(results.map((r) => r.status())).toEqual([204, 204]);
+      await expect.poll(() => whoopWorkoutCount(login)).toBe(2);
+      expect(await whoopNeedsReauth(login)).toBe(false);
+    } finally {
+      await setApiDelay(0);
+      await setExpiresIn(1);
+    }
+  });
+}
+
+test("вебхук: неверная подпись и чужой user_id", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const activityId = randomUUID();
+  await putWorkouts(whoopId, [whoopActivity(activityId, new Date(Date.now() - 7_200_000), new Date(Date.now() - 3_600_000))]);
+
+  const event = { user_id: whoopId, id: activityId, type: "workout.updated", trace_id: randomUUID() };
+  expect((await sendWhoopWebhook(page.request, event, false)).status()).toBe(401);
+  expect((await page.request.post("/api/whoop/webhook", { data: JSON.stringify(event) })).status()).toBe(401);
+
+  const unknown = await sendWhoopWebhook(page.request, { ...event, user_id: presetWhoopUser() });
+  expect(unknown.status()).toBe(204);
+  await page.waitForTimeout(1500);
+  expect(await whoopWorkoutCount(login)).toBe(0);
+
+  // Подписанный, но не JSON — 204
+  const raw = "not json";
+  const ts = String(Date.now());
+  const res = await page.request.post("/api/whoop/webhook", {
+    data: raw,
+    headers: { "x-whoop-signature": createHmac("sha256", "e2e-whoop-secret").update(ts + raw).digest("base64"), "x-whoop-signature-timestamp": ts },
+  });
+  expect(res.status()).toBe(204);
+});
+
+test("«Мои данные»: выгрузка с согласием и активностью, без токенов", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  await putWorkouts(whoopId, [whoopActivity(randomUUID(), new Date(now - 86_400_000), new Date(now - 86_400_000 + 3_600_000))]);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+
+  const res = await page.request.get("/account/export/json");
+  expect(res.status()).toBe(200);
+  const text = await res.text();
+  expect(text).not.toMatch(/accessToken|refreshToken/);
+  const data = JSON.parse(text);
+  expect(data.whoop.whoopUserId).toBe(String(whoopId));
+  expect(typeof data.whoop.consentAt).toBe("string");
+  expect(typeof data.whoop.connectedAt).toBe("string");
+  expect(data.whoop.workouts).toHaveLength(1);
+  expect(data.whoop.workouts[0]).toMatchObject({ sportName: "weightlifting", avgHr: 121, maxHr: 164 });
+  expect(data.whoop.workouts[0].userId).toBeUndefined();
+});
+
+test("«Мои данные»: без подключения whoop — null", async ({ page }) => {
+  await flaggedUser(page);
+  const data = await (await page.request.get("/account/export/json")).json();
+  expect(data.whoop).toBeNull();
+});
+
+test("удаление аккаунта отзывает доступ WHOOP и стирает активности", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  await putWorkouts(whoopId, [whoopActivity(randomUUID(), new Date(now - 86_400_000), new Date(now - 86_400_000 + 3_600_000))]);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+  expect(await isRevoked(whoopId)).toBe(false);
+
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Удаление аккаунта" }).getByRole("button", { name: "Удалить аккаунт" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Удалить аккаунт?" });
+  await dialog.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
+  await expect(page).toHaveURL(/\/\?deleted=1$/);
+
+  expect(await whoopWorkoutCount(login)).toBe(0);
+  expect(await whoopUserIdOf(login)).toBeNull();
+  expect(await isRevoked(whoopId)).toBe(true);
+});

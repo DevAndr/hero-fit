@@ -4,6 +4,7 @@ import { CERT_PATH, ensureCerts } from "./e2e/certs";
 import { TELEGRAM_FAKE_URL } from "./e2e/telegram-server";
 import { prepareTestDatabase, testDatabaseUrl } from "./e2e/test-db";
 import { E2E_TZ } from "./e2e/tz";
+import { WHOOP_FAKE_URL } from "./e2e/whoop-server";
 
 ensureCerts();
 
@@ -65,9 +66,12 @@ export default defineConfig({
       // APP_URL — локальный: иначе из .env подтянется боевой домен (canonical, индексация)
       env: { NODE_EXTRA_CA_CERTS: CERT_PATH, DATABASE_URL: TEST_DATABASE_URL, E2E_TEST_CLOCK: "1", E2E_ERROR_ROUTE: "1", GOBLIN_SET_CHANCE: "1", DAILY_CHEST_AUTOOPEN: "off", ONBOARDING_TOUR: "off", FLAGS_CACHE_MS: "0", ADMIN_LOGINS: "e2e_flag_admin", APP_URL: `http://localhost:${PORT}`,
         // Telegram-бот ходит в фейковый Bot API (e2e/telegram-server.ts)
-        TELEGRAM_BOT_TOKEN: "e2e-token", TELEGRAM_BOT_USERNAME: "hero_fit_e2e_bot", TELEGRAM_WEBHOOK_SECRET: "e2e-telegram-secret-0123456789abcdef", TELEGRAM_API_URL: TELEGRAM_FAKE_URL, TELEGRAM_POLLING: "off" },
+        TELEGRAM_BOT_TOKEN: "e2e-token", TELEGRAM_BOT_USERNAME: "hero_fit_e2e_bot", TELEGRAM_WEBHOOK_SECRET: "e2e-telegram-secret-0123456789abcdef", TELEGRAM_API_URL: TELEGRAM_FAKE_URL, TELEGRAM_POLLING: "off",
+        // WHOOP: фейковый API и OAuth (e2e/whoop-server.ts), ключ — не боевой
+        WHOOP_CLIENT_ID: "e2e-whoop-client", WHOOP_CLIENT_SECRET: "e2e-whoop-secret", WHOOP_TOKEN_KEY: Buffer.alloc(32, 1).toString("base64"), WHOOP_API_URL: WHOOP_FAKE_URL },
       timeout: 60_000,
     },
     { command: "npx tsx e2e/telegram-server.ts", url: `${TELEGRAM_FAKE_URL}/health`, reuseExistingServer: false, timeout: 30_000 },
+    { command: "npx tsx e2e/whoop-server.ts", url: `${WHOOP_FAKE_URL}/health`, reuseExistingServer: false, timeout: 30_000 },
   ],
 });

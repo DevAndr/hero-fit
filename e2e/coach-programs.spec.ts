@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { coachTargetFull, coachTemplate, enableCoach, idOf, linkCoach, shiftProgramStart, withDb } from "./db";
+import { coachTargetFull, coachTemplate, enableCoach, idOf, linkCoach, programSeriesToday, shiftProgramStart, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // Программы тренера на несколько недель; два контекста — --workers=8
@@ -149,6 +149,49 @@ test("the coach deletes the program's template: the client still trains, the coa
     expect(await coachTargetFull(client.login, SQUAT)).toBeUndefined();
     await assign("Запас");
     await expect(page.getByRole("region", { name: "Программа" })).toContainText("Неделя 1 из 8");
+  } finally {
+    await client.context.close();
+  }
+});
+
+test("early end keeps today's workout; a new program the same day takes the day without a duplicate", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  await enableCoach(coach.login, nickOf(coach.login, "Coach"));
+  await coachTemplate(coach.login, TEMPLATE);
+  const client = await another(browser);
+  await linkCoach(coach.login, client.login);
+  const url = `/coach/clients/${await idOf(client.login)}?tab=plan`;
+  const assign = async () => {
+    await page.goto(url);
+    await page.getByRole("button", { name: "Назначить программу" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("combobox", { name: "Старт" }).click();
+    await page.getByRole("option", { name: /с этой недели/ }).click();
+    await dialog.getByRole("button", { name: "Дальше" }).click();
+    await dialog.getByLabel(`База, ${SQUAT} (${TEMPLATE})`).fill("100");
+    await dialog.getByRole("button", { name: "Назначить", exact: true }).click();
+    await expect(dialog).toBeHidden();
+  };
+  try {
+    // Каждый день недели — сегодня в программе точно есть тренировка
+    await page.goto("/coach/programs");
+    await page.getByRole("button", { name: "Новая программа" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Название").fill("Каждый день");
+    for (const day of ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]) await dialog.getByRole("button", { name: day, exact: true }).click();
+    await dialog.getByRole("button", { name: "Сохранить" }).click();
+    await expect(dialog).toBeHidden();
+
+    await assign();
+    expect(await programSeriesToday(client.login)).toBe(1);
+
+    await page.getByRole("region", { name: "Программа" }).getByRole("button", { name: "Завершить досрочно" }).click();
+    await expect(page.getByText("Программа завершена")).toBeVisible();
+    expect(await programSeriesToday(client.login)).toBe(1);
+
+    await assign();
+    expect(await programSeriesToday(client.login)).toBe(1);
   } finally {
     await client.context.close();
   }
