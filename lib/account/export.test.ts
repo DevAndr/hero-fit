@@ -160,12 +160,14 @@ describe("export — whoop", () => {
   it("без токенов на любом уровне", () => {
     const r = raw();
     r.whoop = {
+      whoopUserId: "123",
       connectedAt: new Date("2026-10-01T00:00:00Z"),
       consentAt: new Date("2026-10-01T00:00:00Z"),
       workouts: [{ id: "w1", sportName: "weightlifting", avgHr: 120 }],
     };
     const o = buildExport(r, new Date("2026-10-17T00:00:00Z"));
     expect(o.whoop?.workouts).toHaveLength(1);
+    expect(o.whoop?.whoopUserId).toBe("123");
     expect(JSON.stringify(o)).not.toMatch(/accessToken|refreshToken/);
   });
   it("не подключён — null", () => {

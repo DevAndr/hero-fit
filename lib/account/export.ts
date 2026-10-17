@@ -53,7 +53,7 @@ export type ExportRaw = {
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   notifications: unknown[];
   /** WHOOP: null без подключения. Токены не выбираются вовсе; активности — без userId. */
-  whoop: { connectedAt: Date; consentAt: Date; workouts: unknown[] } | null;
+  whoop: { whoopUserId: string; connectedAt: Date; consentAt: Date; workouts: unknown[] } | null;
   shop: {
     coins: number;
     items: { code: string; acquiredAt: Date }[];
