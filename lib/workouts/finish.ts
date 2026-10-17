@@ -52,6 +52,8 @@ export type FinishMeta = {
   progressionSource?: "own";
   /** Неделя программы тренера на несколько недель («Неделя 3/8»): вес ведёт программа, прогрессии нет. */
   program?: string;
+  /** Программа из каталога (её название): блок сводки — «Программа «…»» вместо «План тренера». */
+  programName?: string;
   /** Босс недели этой тренировки: урон, оставшееся HP до/после, победа этой тренировкой. */
   boss?: {
     week: string;
@@ -365,6 +367,7 @@ export async function finishWorkout(
       ...(coinTotal > 0 ? { coins: { total: coinTotal, items: coinItems } } : {}),
       ...(progression.items.length ? { progression: progression.items } : {}),
       ...(progression.program ? { program: progression.program } : {}),
+      ...(progression.programName ? { programName: progression.programName } : {}),
       ...(ownProgression.length ? { progression: ownProgression, progressionSource: "own" as const } : {}),
     };
 

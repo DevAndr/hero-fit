@@ -45,7 +45,8 @@ test("coach builds a program, assigns it; the client gets week weights, a deload
   try {
     // Библиотека: программа на пн, 8 недель, +2,5 %, разгрузка каждая 4-я −10 % (значения по умолчанию)
     await page.goto("/coach");
-    await page.getByRole("link", { name: "Программы" }).click();
+    // В main: при включённом флаге каталога (соседний spec) в меню есть своя ссылка «Программы»
+    await page.getByRole("main").getByRole("link", { name: "Программы" }).click();
     await page.getByRole("button", { name: "Новая программа" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Название").fill("Сила 8");

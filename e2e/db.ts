@@ -1429,3 +1429,65 @@ export async function seedCoachProgram(
     return id;
   });
 }
+
+/** Свои шаблоны пользователя: id, название, группа (program). */
+export async function templatesOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; name: string; program: string | null }>(
+      `select id, name, program from "WorkoutTemplate" where "userId" = $1 order by "createdAt"`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Упражнения шаблона по порядку: «название sets×reps». */
+export async function templateExerciseLines(templateId: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ line: string }>(
+      `select e.name || ' ' || t."targetSets" || '×' || coalesce(t."targetReps"::text, '-') as line
+       from "TemplateExercise" t join "Exercise" e on e.id = t."exerciseId" where t."templateId" = $1 order by t."order"`,
+      [templateId],
+    );
+    return rows.map((r) => r.line);
+  });
+}
+
+/** Активные назначения программ пользователя (новые сверху). */
+export async function activeAssignments(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; coachId: string | null; catalogProgramId: string | null }>(
+      `select name, "coachId", "catalogProgramId" from "ProgramAssignment" where "clientId" = $1 and "endedAt" is null order by "createdAt" desc`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Активное назначение программы тренером (минуя UI): с понедельника этой недели, 8 недель, без серий. */
+export async function seedCoachAssignment(coachLogin: string, clientLogin: string, name: string) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "ProgramAssignment" (id, "clientId", "coachId", name, "startDate", weeks, "stepKind", "stepValue", "deloadEvery", "deloadPct")
+       values ($1, $2, $3, $4, $5, 8, 'PERCENT', 2.5, 4, 10)`,
+      [randomUUID(), await userId(db, clientLogin), await userId(db, coachLogin), name, mondayWeeksAgo(0)],
+    );
+  });
+}
+
+/** Снять программу с публикации / вернуть (минуя UI). */
+export async function setProgramPublished(programId: string, published: boolean) {
+  await withDb((db) => db.query(`update "CoachProgram" set "publishedAt" = $2 where id = $1`, [programId, published ? new Date() : null]));
+}
+
+/** Серии программ пользователя, у которых есть вхождения после сегодня (в поясе e2e). */
+export async function programSeriesAfterToday(login: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query(
+      `select count(*)::int as n from "PlanSeries"
+       where "userId" = $1 and "programAssignmentId" is not null and ("endDate" is null or "endDate" > to_char((now() at time zone $2)::date, 'YYYY-MM-DD'))`,
+      [await userId(db, login), E2E_TZ],
+    );
+    return rows[0].n as number;
+  });
+}

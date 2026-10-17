@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canPublish, catalogRuleText, daysPerWeek, PUBLISH_BLOCK_TEXT, startBlock } from "./rules";
+import { canPublish, catalogRuleText, catalogSourceLabel, daysPerWeek, PUBLISH_BLOCK_TEXT, startBlock } from "./rules";
 
 describe("catalogRuleText", () => {
   it("процент без разгрузки", () => {
@@ -36,4 +36,11 @@ describe("startBlock", () => {
   it("назначил тренер", () => expect(startBlock({ coachId: "c", catalogProgramId: null })).toBe("coach"));
   it("каталожное", () => expect(startBlock({ coachId: null, catalogProgramId: "p" })).toBe("replace"));
   it("тренер удалён", () => expect(startBlock({ coachId: null, catalogProgramId: null })).toBe("replace"));
+});
+
+describe("catalogSourceLabel", () => {
+  it("название программы и неделя в скобках", () => {
+    expect(catalogSourceLabel("Сила", "Неделя 3/8")).toBe("программа «Сила» (неделя 3/8)");
+    expect(catalogSourceLabel("Сила", "Разгрузка · неделя 4/8")).toBe("программа «Сила» (разгрузка · неделя 4/8)");
+  });
 });

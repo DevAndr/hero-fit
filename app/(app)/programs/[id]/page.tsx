@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/app-shell";
 import { AuthorLink } from "@/components/catalog/catalog-card";
 import { ProgramWeek } from "@/components/catalog/program-week";
+import { StartProgramButton } from "@/components/catalog/start-program-dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { requireCatalog } from "@/lib/catalog/access";
-import { getCatalogProgram } from "@/lib/catalog/queries";
+import { activePrograms, getCatalogProgram } from "@/lib/catalog/queries";
+import { COACH_PROGRAM_RUNNING, startBlock } from "@/lib/catalog/rules";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Программа" };
@@ -16,8 +20,10 @@ const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 
 export default async function CatalogProgramPage({ params }: PageProps<"/programs/[id]">) {
   const user = await requireCatalog();
   const { id } = await params;
-  const program = await getCatalogProgram(id, user.id);
+  const today = dayKey(new Date(), safeTimeZone(user.timeZone));
+  const [program, [active]] = await Promise.all([getCatalogProgram(id, user.id), activePrograms(db, user.id, today)]);
   if (!program) notFound();
+  const block = startBlock(active ?? null);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -34,6 +40,15 @@ export default async function CatalogProgramPage({ params }: PageProps<"/program
         Автор: <AuthorLink author={program.author} /> · занимаются {program.participants}
       </p>
       {program.description ? <p className="whitespace-pre-line text-sm">{program.description}</p> : null}
+      {program.available ? (
+        <StartProgramButton
+          programId={program.id}
+          rule={program.rule}
+          today={today}
+          activeName={block === "replace" ? active.name : null}
+          blocked={block === "coach" ? COACH_PROGRAM_RUNNING : null}
+        />
+      ) : null}
       <section aria-labelledby="week-title" className="space-y-2">
         <h2 id="week-title" className="font-semibold">
           Неделя тренировок

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarClock, Check, Pencil, Play, Repeat, Trash2, UserRound } from "lucide-react";
+import { CalendarClock, Check, ListChecks, Pencil, Play, Repeat, Trash2, UserRound } from "lucide-react";
 import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { toast } from "sonner";
 import type { CalendarEvent } from "@/components/calendar/calendar-view";
@@ -90,6 +90,12 @@ function CardBody({
           <li className="flex items-center gap-2">
             <UserRound className="size-4 text-muted-foreground" />
             {`от тренера · ${event.coachName}${event.program ? ` · ${event.program}` : ""}`}
+          </li>
+        ) : event.program ? (
+          // Программа из каталога: «программа «Сила» (неделя 3/8)»
+          <li className="flex items-center gap-2">
+            <ListChecks className="size-4 text-muted-foreground" />
+            {event.program}
           </li>
         ) : null}
         <li className="flex items-center gap-2">

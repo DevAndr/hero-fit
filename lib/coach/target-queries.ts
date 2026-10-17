@@ -8,14 +8,19 @@ import { addDays } from "@/lib/plans/expand";
 import { getLastPerformance } from "@/lib/workouts/queries";
 
 /**
- * Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента.
- * Только упражнения, которые сейчас в шаблоне: задание по убранному не читается (и не даёт пометку).
+ * Задания клиента по шаблону (ключ — exerciseId); пусто, если шаблон не активного тренера клиента и не из
+ * программы каталога. Только упражнения, которые сейчас в шаблоне: задание по убранному не читается (и не даёт пометку).
+ * Программа из каталога — веса недели от баз (своих заданий у копии нет), source — название программы.
  */
-export async function getTemplateTargets(clientId: string, templateId: string, day?: string): Promise<Map<string, Target & { program?: string }>> {
+export async function getTemplateTargets(clientId: string, templateId: string, day?: string): Promise<Map<string, Target & { program?: string; source?: string }>> {
+  // Программа на несколько недель: вес недели поверх задания (день — дата вхождения или «сегодня» клиента)
+  const program = await programForTemplate(clientId, templateId, day);
+  if (program.catalog !== null) {
+    const source = program.catalog;
+    return new Map([...(program.overlay?.(new Map()) ?? new Map())].map(([id, t]) => [id, { ...t, source }]));
+  }
   const link = await db.coachLink.findFirst({ where: { clientId, endedAt: null }, select: { coachId: true } });
   if (!link) return new Map();
-  // Программа тренера на несколько недель: вес недели поверх задания (день — дата вхождения или «сегодня» клиента)
-  const program = await programForTemplate(clientId, templateId, day);
   const rows = await db.coachTarget.findMany({
     where: { clientId, templateId, template: { userId: link.coachId }, exercise: { templateExercises: { some: { templateId } } } },
     select: { exerciseId: true, sets: true, reps: true, weight: true },

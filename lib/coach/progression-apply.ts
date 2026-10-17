@@ -27,13 +27,16 @@ export async function applyProgression(
   tx: Prisma.TransactionClient,
   userId: string,
   workout: FinishedWorkout,
-): Promise<{ items: ProgressionItem[]; coachId: string | null; program?: string }> {
+): Promise<{ items: ProgressionItem[]; coachId: string | null; program?: string; programName?: string }> {
   if (!workout.templateId) return { items: [], coachId: null };
+  // Программа из каталога по копии шаблона: вес ведёт она, в сводке — её неделя
+  const catalog = await activeProgramWeek(tx, userId, null, workout.templateId);
+  if (catalog) return { items: [], coachId: null, program: catalog.label, programName: catalog.name };
   const link = await tx.coachLink.findFirst({ where: { clientId: userId, endedAt: null }, select: { coachId: true } });
   if (!link) return { items: [], coachId: null };
   // Программа тренера на несколько недель ведёт вес сама: автопрогрессия по её шаблонам не действует
   const program = await activeProgramWeek(tx, userId, link.coachId, workout.templateId);
-  if (program) return { items: [], coachId: link.coachId, program };
+  if (program) return { items: [], coachId: link.coachId, program: program.label };
   const template = await tx.workoutTemplate.findFirst({
     where: { id: workout.templateId, userId: link.coachId },
     select: {
@@ -87,14 +90,17 @@ export async function applyProgression(
   return { items, coachId: link.coachId };
 }
 
-/** Метка недели активной программы тренера по шаблону («Неделя 3/8») или null — нет программы или недели. */
-async function activeProgramWeek(tx: Prisma.TransactionClient, clientId: string, coachId: string, templateId: string) {
+/**
+ * Метка недели активной программы по шаблону («Неделя 3/8») и её название или null — нет программы или недели.
+ * coachId = null — программа из каталога (без тренера, с catalogProgramId).
+ */
+async function activeProgramWeek(tx: Prisma.TransactionClient, clientId: string, coachId: string | null, templateId: string) {
   const a = await tx.programAssignment.findFirst({
-    where: { clientId, coachId, endedAt: null, series: { some: { templateId } } },
+    where: { clientId, coachId, endedAt: null, series: { some: { templateId } }, ...(coachId ? {} : { catalogProgramId: { not: null } }) },
     orderBy: { createdAt: "desc" },
-    select: { startDate: true, weeks: true, deloadEvery: true, client: { select: { timeZone: true } } },
+    select: { name: true, startDate: true, weeks: true, deloadEvery: true, client: { select: { timeZone: true } } },
   });
   if (!a) return null;
   const week = programWeekIndex(a.startDate, dayKey(new Date(), safeTimeZone(a.client.timeZone)));
-  return week !== null && week <= a.weeks ? programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery)) : null;
+  return week !== null && week <= a.weeks ? { label: programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery)), name: a.name } : null;
 }

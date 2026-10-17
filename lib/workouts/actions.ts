@@ -53,8 +53,8 @@ async function fromTemplate(userId: string, id: string, day?: string): Promise<{
   if (!template) return null;
   const [last, targets] = await Promise.all([
     getLastPerformance(userId, template.exercises.map((e) => e.exerciseId)),
-    // Свой шаблон — цели своей прогрессии; шаблон тренера — его задания
-    template.userId === userId ? ownTargets(template.exercises) : getTemplateTargets(userId, template.id, day),
+    // Свой шаблон — цели своей прогрессии (копия из каталога с идущей программой — веса недели); шаблон тренера — его задания
+    getTemplateTargets(userId, template.id, day).then((t) => (template.userId === userId && !t.size ? ownTargets(template.exercises) : t)),
   ]);
   return {
     name: template.name,

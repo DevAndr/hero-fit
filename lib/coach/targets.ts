@@ -36,8 +36,9 @@ const kg = (w: number) => `${w.toLocaleString("ru-RU", { maximumFractionDigits: 
 
 /**
  * «от тренера: 4 × 8 · 60 кг»; своим весом — отягощение «+10 кг». Пустые поля и вес 0 пропускаются, нечего показать — null.
+ * Программа из каталога (source) — «программа «Сила»: 4 × 8 · 60 кг (неделя 3/8)».
  */
-export function formatTarget(t: Target & { program?: string }, { bodyweight = false }: { bodyweight?: boolean } = {}): string | null {
+export function formatTarget(t: Target & { program?: string; source?: string }, { bodyweight = false }: { bodyweight?: boolean } = {}): string | null {
   if (isEmptyTarget(t)) return null;
   const volume =
     t.sets !== null && t.reps !== null
@@ -50,7 +51,8 @@ export function formatTarget(t: Target & { program?: string }, { bodyweight = fa
   const parts = [volume, t.weight ? `${bodyweight ? "+" : ""}${kg(t.weight)}` : null].filter(Boolean);
   // Программа тренера — неделя в скобках: «(неделя 3/8)», «(разгрузка · неделя 4/8)»
   const week = t.program ? ` (${t.program[0].toLowerCase()}${t.program.slice(1)})` : "";
-  return parts.length ? `от тренера: ${parts.join(" · ")}${week}` : null;
+  const from = t.source ? `программа «${t.source}»` : "от тренера";
+  return parts.length ? `${from}: ${parts.join(" · ")}${week}` : null;
 }
 
 export const targetSchema = z.object({

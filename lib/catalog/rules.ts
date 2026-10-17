@@ -45,3 +45,11 @@ export function startBlock(
   if (!active) return null;
   return active.coachId ? "coach" : "replace";
 }
+
+export const PROGRAM_UNAVAILABLE = "Программа недоступна";
+export const COACH_PROGRAM_RUNNING = "Сейчас идёт программа от тренера";
+/** Ошибка-сигнал запуска: идёт своя/каталожная программа — клиент спрашивает «Заменить программу «…»?». */
+export const NEEDS_REPLACE = "replace";
+
+/** Подпись источника программы из каталога по метке недели: «программа «Сила» (неделя 3/8)». */
+export const catalogSourceLabel = (name: string, week: string) => `программа «${name}» (${week[0].toLowerCase()}${week.slice(1)})`;

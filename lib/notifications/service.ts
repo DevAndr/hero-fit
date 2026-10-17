@@ -235,7 +235,7 @@ export async function runNotificationTick(now = new Date()) {
     console.error("[coach-recap] шаг итогов недели тренера упал", e);
   }
   try {
-    // Программы тренера: «заканчивается через неделю» — тренеру, один раз
+    // Программы: «заканчивается через неделю» — тренеру (из каталога — самому пользователю), один раз
     reminders += await processProgramReminders(now);
   } catch (e) {
     console.error("[coach-programs] шаг напоминаний упал", e);

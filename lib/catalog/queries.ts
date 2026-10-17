@@ -1,5 +1,6 @@
 import "server-only";
-import { programPreview, type ProgramRule } from "@/lib/coach/program";
+import { programEndDay, programPreview, type ProgramRule } from "@/lib/coach/program";
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { CATALOG_PAGE, catalogRuleText, daysPerWeek } from "./rules";
 
@@ -84,7 +85,10 @@ export type CatalogProgram = CatalogItem & {
   description: string;
   days: { weekday: number; title: string; exercises: { name: string; sets: number; reps: string }[] }[];
   preview: ReturnType<typeof programPreview>;
+  rule: ProgramRule;
   isAuthor: boolean;
+  /** Видна в каталоге (опубликована, не снята) — можно начать. */
+  available: boolean;
 };
 
 /** Страница программы; неопубликованную и снятую видит только автор. */
@@ -126,6 +130,41 @@ export async function getCatalogProgram(id: string, viewerId: string): Promise<C
       exercises: d.template.exercises.map((e) => ({ name: e.exercise.name, sets: e.targetSets, reps: e.targetReps === null ? "—" : String(e.targetReps) })),
     })),
     preview: programPreview(rule, { weight: 100, fromWeek: 1 }),
+    rule,
     isAuthor,
+    available: visible,
   };
+}
+
+export type ActiveProgram = { id: string; name: string; coachId: string | null; catalogProgramId: string | null; startDate: string; weeks: number };
+
+/**
+ * Активные назначения пользователя (не закрыты и срок не кончился, день — в его поясе); первым — от тренера,
+ * затем новые. Для «Начать» (startBlock) и блока «Завершить программу».
+ */
+export async function activePrograms(client: Prisma.TransactionClient, userId: string, today: string): Promise<ActiveProgram[]> {
+  const rows = await client.programAssignment.findMany({
+    where: { clientId: userId, endedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, coachId: true, catalogProgramId: true, startDate: true, weeks: true },
+  });
+  return rows.filter((a) => programEndDay(a.startDate, a.weeks) >= today).toSorted((a, b) => Number(b.coachId !== null) - Number(a.coachId !== null));
+}
+
+/** Программа, доступная для запуска: опубликована, не снята, автор — тренер с ником. */
+export async function startableProgram(client: Prisma.TransactionClient, id: string) {
+  return client.coachProgram.findFirst({
+    where: { id, publishedAt: { not: null }, hiddenAt: null, coach: { isCoach: true, nickname: { not: null } } },
+    select: {
+      id: true,
+      name: true,
+      weeks: true,
+      stepKind: true,
+      stepValue: true,
+      deloadEvery: true,
+      deloadPct: true,
+      coachId: true,
+      days: { orderBy: { weekday: "asc" }, select: { weekday: true, templateId: true, time: true, durationMin: true } },
+    },
+  });
 }
