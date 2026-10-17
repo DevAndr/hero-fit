@@ -13,6 +13,7 @@ import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 import { processWeeklyRecaps } from "@/lib/recap/tick";
 import { processCoachSignals } from "@/lib/coach/signals-tick";
+import { processCoachRecaps } from "@/lib/coach/recap-tick";
 import { processProgramReminders } from "@/lib/coach/program-tick";
 import { processRaidReminders } from "@/lib/raid/tick";
 import { processGoals } from "@/lib/goals/tick";
@@ -226,7 +227,15 @@ export async function runNotificationTick(now = new Date()) {
     console.error("[coach-signals] шаг сигналов упал", e);
   }
   try {
-    // Программы тренера: «заканчивается через неделю» — тренеру, один раз
+    // Итоги недели клиентов тренеру: снимок и push в понедельник с 09:00 по времени тренера
+    const coachRecaps = await processCoachRecaps(now);
+    reminders += coachRecaps;
+    if (coachRecaps) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[coach-recap] шаг итогов недели тренера упал", e);
+  }
+  try {
+    // Программы: «заканчивается через неделю» — тренеру (из каталога — самому пользователю), один раз
     reminders += await processProgramReminders(now);
   } catch (e) {
     console.error("[coach-programs] шаг напоминаний упал", e);

@@ -65,33 +65,54 @@ type Program = {
   days: { weekday: number; templateId: string; templateName: string; time: string; durationMin: number }[];
 };
 
+type Base = { templateId: string; exerciseId: string; weight: number };
+
 /**
- * Назначить программу клиенту (в транзакции; строка клиента уже под FOR UPDATE): прежнее активное назначение
- * закрывается с записью весов, создаётся снимок, базы и серии с понедельника старта на N недель, уведомление.
+ * Создать назначение (в транзакции; строка пользователя уже под FOR UPDATE): прежнее активное закрывается с записью
+ * весов, создаётся снимок правила, базы (только силовые упражнения шаблонов templateOwnerId) и серии с понедельника
+ * старта на N недель. Без уведомления. coachId = null и catalogProgramId — запуск из каталога: ставится
+ * постоянный fromCatalog (catalogProgramId обнулится, если автор удалит программу).
  */
-export async function assignProgram(
+export async function createAssignment(
   tx: Tx,
-  coachId: string,
-  clientId: string,
-  program: Program,
-  input: { startDate: string; bases: { templateId: string; exerciseId: string; weight: number }[] },
+  input: {
+    userId: string;
+    coachId: string | null;
+    catalogProgramId: string | null;
+    programId: string | null;
+    name: string;
+    rule: ProgramRule;
+    days: Program["days"];
+    startDate: string;
+    bases: Base[];
+    templateOwnerId: string;
+  },
   today: string,
-) {
-  const active = await tx.programAssignment.findMany({ where: { clientId, endedAt: null }, select: { id: true } });
+): Promise<string> {
+  const { userId, coachId, rule } = input;
+  const active = await tx.programAssignment.findMany({ where: { clientId: userId, endedAt: null }, select: { id: true } });
   for (const a of active) await endAssignment(tx, a.id, today, { writeTargets: true });
   // Сегодняшние тренировки программы, завершённой досрочно сегодня же, уступают день новой — без дубля в календаре
-  const keptToday = { userId: clientId, endDate: today, programAssignment: { endedAt: { not: null } } };
+  const keptToday = { userId, endDate: today, programAssignment: { endedAt: { not: null } } };
   await tx.planSeries.deleteMany({ where: { ...keptToday, startDate: today } });
   await tx.planSeries.updateMany({ where: keptToday, data: { endDate: addDays(today, -1) } });
 
-  const { rule } = program;
   const assignment = await tx.programAssignment.create({
-    data: { clientId, coachId, programId: program.id, name: program.name, startDate: input.startDate, ...rule },
+    data: {
+      clientId: userId,
+      coachId,
+      programId: input.programId,
+      catalogProgramId: input.catalogProgramId,
+      fromCatalog: input.coachId === null && input.catalogProgramId !== null,
+      name: input.name,
+      startDate: input.startDate,
+      ...rule,
+    },
     select: { id: true },
   });
   // Базы — только силовые упражнения шаблонов программы (не любой id)
   const pairs = await tx.templateExercise.findMany({
-    where: { templateId: { in: program.days.map((d) => d.templateId) }, template: { userId: coachId }, exercise: { kind: "REPS" } },
+    where: { templateId: { in: input.days.map((d) => d.templateId) }, template: { userId: input.templateOwnerId }, exercise: { kind: "REPS" } },
     select: { templateId: true, exerciseId: true },
   });
   const allowed = new Set(pairs.map((p) => `${p.templateId}:${p.exerciseId}`));
@@ -99,10 +120,10 @@ export async function assignProgram(
   if (bases.length) await tx.programBase.createMany({ data: bases.map((b) => ({ ...b, assignmentId: assignment.id })), skipDuplicates: true });
 
   const endDate = programEndDay(input.startDate, rule.weeks);
-  const starts = seriesStarts(input.startDate, program.days.map((d) => d.weekday), today);
+  const starts = seriesStarts(input.startDate, input.days.map((d) => d.weekday), today);
   await tx.planSeries.createMany({
-    data: program.days.map((d, i) => ({
-      userId: clientId,
+    data: input.days.map((d, i) => ({
+      userId,
       coachId,
       programAssignmentId: assignment.id,
       templateId: d.templateId,
@@ -114,7 +135,44 @@ export async function assignProgram(
       endDate,
     })),
   });
-  const first = starts.map((s) => s.startDate).toSorted()[0] ?? input.startDate;
+  return assignment.id;
+}
+
+/** Первый день серий программы (для ссылки в календарь). */
+export function firstProgramDay(startDate: string, weekdays: number[], today: string) {
+  return seriesStarts(startDate, weekdays, today).map((s) => s.startDate).toSorted()[0] ?? startDate;
+}
+
+/**
+ * Назначить программу клиенту (в транзакции; строка клиента уже под FOR UPDATE): прежнее активное назначение
+ * закрывается с записью весов, создаётся снимок, базы и серии с понедельника старта на N недель, уведомление.
+ */
+export async function assignProgram(
+  tx: Tx,
+  coachId: string,
+  clientId: string,
+  program: Program,
+  input: { startDate: string; bases: Base[] },
+  today: string,
+) {
+  const { rule } = program;
+  const id = await createAssignment(
+    tx,
+    {
+      userId: clientId,
+      coachId,
+      catalogProgramId: null,
+      programId: program.id,
+      name: program.name,
+      rule,
+      days: program.days,
+      startDate: input.startDate,
+      bases: input.bases,
+      templateOwnerId: coachId,
+    },
+    today,
+  );
+  const first = firstProgramDay(input.startDate, program.days.map((d) => d.weekday), today);
   await notify(
     tx,
     clientId,
@@ -126,5 +184,5 @@ export async function assignProgram(
     },
     { push: true },
   );
-  return assignment.id;
+  return id;
 }

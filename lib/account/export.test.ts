@@ -55,7 +55,13 @@ const raw = (): ExportRaw => ({
   club: null,
   coachComments: [],
   coachNotesAboutMe: [{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo", coachId: "u_coach" }],
+  coachRecapsAboutMe: [{ week: "2026-10-05", coach: "Coach_Demo", data: { version: 1, workouts: 3 } }],
+  coachRecaps: [{ week: "2026-10-05", totals: { version: 1, clients: 1 }, clients: [{ client: "Петя", data: { version: 1, workouts: 3 }, clientId: "u_client" }] }],
   clientNotes: [{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя", clientId: "u_client" }],
+  respectsGiven: [{ workoutDate: new Date("2026-10-10T10:00:00Z"), exercise: "Жим лёжа", to: "Маша", id: "rr_secret", workoutId: "w_secret" }],
+  respectsReceived: [{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null, id: "rr_secret2" }],
+  kudosGiven: [{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша", id: "k_secret" }],
+  kudosReceived: [{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя", id: "k_secret2" }],
   programs: [
     {
       name: "Сила",
@@ -66,11 +72,16 @@ const raw = (): ExportRaw => ({
       deloadEvery: 4,
       deloadPct: 10,
       endedAt: null,
+      fromCatalog: false,
+      catalogProgram: null,
       id: "pa_secret",
       bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1, assignmentId: "pa_secret" }],
     },
   ],
   coachPrograms: [{ name: "Сила", weeks: 8, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, id: "cp_secret", days: [{ weekday: 0, template: "Жим", time: "18:00", id: "d_secret" }] }],
+  publishedPrograms: [
+    { name: "Сила", description: "Три дня в неделю", publishedAt: new Date("2026-10-17T00:00:00Z"), hiddenAt: null, participants: 4, id: "cp_secret", coachId: "u_coach", hiddenReason: "secret-reason" },
+  ],
   notifications: [],
   whoop: null,
   shop: {
@@ -134,6 +145,18 @@ describe("export — coach notes", () => {
   });
 });
 
+describe("export — respects and kudos", () => {
+  it("респекты и 👊 — дата тренировки, упражнение и ник, без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toEqual(expect.arrayContaining(["respectsGiven", "respectsReceived", "kudosGiven", "kudosReceived"]));
+    expect(o.respectsGiven).toEqual([{ workoutDate: new Date("2026-10-10T10:00:00Z"), exercise: "Жим лёжа", to: "Маша" }]);
+    expect(o.respectsReceived).toEqual([{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null }]);
+    expect(o.kudosGiven).toEqual([{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша" }]);
+    expect(o.kudosReceived).toEqual([{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя" }]);
+    expect(JSON.stringify(o)).not.toMatch(/rr_secret|k_secret|w_secret/);
+  });
+});
+
 describe("export — coach programs", () => {
   it("программы клиента и библиотека тренера — без id", () => {
     const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
@@ -144,12 +167,35 @@ describe("export — coach programs", () => {
         weeks: 8,
         rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 },
         ended: false,
+        fromCatalog: false,
+        catalogProgram: null,
         bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1 }],
       },
     ]);
     expect(o.coachPrograms).toEqual([
       { name: "Сила", weeks: 8, rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 }, days: [{ weekday: 0, template: "Жим", time: "18:00" }] },
     ]);
+  });
+});
+
+describe("export — program catalog", () => {
+  it("запуск из каталога: название и ник автора, без id; программа удалена — null", () => {
+    const r = raw();
+    r.programs[0].fromCatalog = true;
+    r.programs[0].catalogProgram = { name: "Сила", author: "Coach_Demo", id: "cp_secret", coachId: "u_coach" };
+    const o = buildExport(r, new Date("2026-10-17T00:00:00Z"));
+    expect(o.programs[0].fromCatalog).toBe(true);
+    expect(o.programs[0].catalogProgram).toEqual({ name: "Сила", author: "Coach_Demo" });
+    r.programs[0].catalogProgram = null;
+    expect(buildExport(r, new Date("2026-10-17T00:00:00Z")).programs[0]).toMatchObject({ fromCatalog: true, catalogProgram: null });
+  });
+  it("тренеру: опубликованные программы с числом занимающихся, без id и причины снятия", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("publishedPrograms");
+    expect(o.publishedPrograms).toEqual([
+      { name: "Сила", description: "Три дня в неделю", publishedAt: new Date("2026-10-17T00:00:00Z"), hiddenAt: null, participants: 4 },
+    ]);
+    expect(JSON.stringify(o)).not.toContain("secret-reason");
   });
 });
 
@@ -172,5 +218,13 @@ describe("export — whoop", () => {
   });
   it("не подключён — null", () => {
     expect(buildExport(raw(), new Date()).whoop).toBeNull();
+  });
+});
+
+describe("export — coach weekly recaps", () => {
+  it("снимки обо мне и мои снимки — неделя, ник и данные, без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
+    expect(o.coachRecapsAboutMe).toEqual([{ week: "2026-10-05", coach: "Coach_Demo", data: { version: 1, workouts: 3 } }]);
+    expect(o.coachRecaps).toEqual([{ week: "2026-10-05", totals: { version: 1, clients: 1 }, clients: [{ client: "Петя", data: { version: 1, workouts: 3 } }] }]);
   });
 });

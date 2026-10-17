@@ -184,13 +184,15 @@ export function mondayWeeksAgo(n: number, now = new Date()) {
 /**
  * Тренировки недели weekStart (в поясе e2e) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
  * day: 0 = пн … 6 = вс, time — местное «HH:MM» начала-конца не важно: тренировка длится 60 мин и заканчивается в time.
+ * records — названия упражнений с рекордом в meta, ups — повышения веса тренером (meta.progression). Возвращает id тренировок и их упражнений (по порядку).
  */
 export async function seedRecapWeek(
   login: string,
   weekStart: string,
-  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number }[],
+  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number; records?: string[]; ups?: { from: number; to: number }[] }[],
 ) {
-  await withDb(async (db) => {
+  return withDb(async (db) => {
+    const ids: { workoutId: string; workoutExerciseId: string }[] = [];
     const uid = await userId(db, login);
     await db.query(`update "User" set "timeZone" = $2 where id = $1`, [uid, E2E_TZ]);
     for (const [i, w] of workouts.entries()) {
@@ -218,13 +220,18 @@ export async function seedRecapWeek(
       }
       const meta = {
         xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: w.xp, recordsXp: 0, achievementsXp: 0,
-        records: [], achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+        records: (w.records ?? []).map((exerciseName) => ({ exerciseId: rows[0].id, exerciseName, type: "MAX_WEIGHT", value: w.weight, previous: w.weight - 5 })),
+        achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+        // Прогрессия тренера (как у finishWorkout): повышение веса упражнения тренировки
+        ...(w.ups ? { progression: w.ups.map((u) => ({ exercise: w.exercise, kind: "up", from: u.from, to: u.to, fails: 0, bodyweight: false })) } : {}),
       };
       await db.query(
         `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
         [randomUUID(), uid, w.xp, workoutId, JSON.stringify(meta), finished],
       );
+      ids.push({ workoutId, workoutExerciseId: weId });
     }
+    return ids;
   });
 }
 
@@ -1233,5 +1240,254 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
       [login],
     );
     return rows[0]?.v ?? null;
+  });
+}
+
+/**
+ * Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка.
+ * Снимок недели уже есть (его мог построить фоновый воркер — в понедельник после 09:00) — перезаписывается
+ * как новый: data, не отправлен и не просмотрен, строки клиентов — только эта.
+ */
+export async function seedCoachRecap(coachLogin: string, clientLogin: string, week: string) {
+  return withDb(async (db) => {
+    const totals = { version: 1, clients: 1, trained: 1, plan: null, prevPlanPct: null, workouts: 1, records: 0, ups: 0, attention: 0, unanswered: 0 };
+    const row = {
+      version: 1,
+      isNew: false,
+      plan: null,
+      workouts: 1,
+      prevWorkouts: 0,
+      records: { count: 0, names: [] },
+      progression: { items: [], more: 0, ups: 0 },
+      program: null,
+      signals: [],
+      unanswered: 0,
+    };
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "CoachWeeklyRecap" (id, "coachId", week, data) values ($1, $2, $3, $4)
+       on conflict ("coachId", week) do update set data = excluded.data, "pushedAt" = null, "seenAt" = null, "createdAt" = now()
+       returning id`,
+      [randomUUID(), await userId(db, coachLogin), week, JSON.stringify(totals)],
+    );
+    const id = rows[0].id;
+    await db.query(`delete from "CoachRecapClient" where "recapId" = $1`, [id]);
+    await db.query(`insert into "CoachRecapClient" ("recapId", "clientId", data) values ($1, $2, $3)`, [id, await userId(db, clientLogin), JSON.stringify(row)]);
+    return id;
+  });
+}
+
+/** Сколько строк клиента (по id) в снимках тренеров и сколько снимков у тренера. */
+export async function coachRecapCounts(coachLogin: string, clientId: string) {
+  return withDb(async (db) => {
+    const client = (await db.query(`select count(*)::int as n from "CoachRecapClient" where "clientId" = $1`, [clientId])).rows[0].n as number;
+    const recaps = (await db.query(`select count(*)::int as n from "CoachWeeklyRecap" where "coachId" = $1`, [await userId(db, coachLogin)])).rows[0].n as number;
+    return { client, recaps };
+  });
+}
+
+/** Уведомления «Итоги недели клиентов» тренеру (тип COACH) по порядку. */
+export async function coachRecapNotifications(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string; url: string }>(
+      `select title, body, url from "Notification" where "userId" = $1 and type = 'COACH' and url like '/coach/recap/%' order by "createdAt"`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Снимки итогов недели тренера: неделя, отправлен ли push, просмотрен ли. */
+export async function coachRecapRows(coachLogin: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ week: string; pushedAt: Date | null; seenAt: Date | null }>(
+      `select week, "pushedAt", "seenAt" from "CoachWeeklyRecap" where "coachId" = $1 order by week`,
+      [await userId(db, coachLogin)],
+    );
+    return rows;
+  });
+}
+
+/** Комментарий тренера к тренировке клиента (workoutExerciseId — к упражнению, иначе общий). */
+export async function coachCommentOn(coachLogin: string, clientLogin: string, workoutId: string, workoutExerciseId?: string) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "CoachComment" (id, "coachId", "clientId", "workoutId", "workoutExerciseId", text, "updatedAt") values ($1, $2, $3, $4, $5, 'Хорошо', now())`,
+      [randomUUID(), await userId(db, coachLogin), await userId(db, clientLogin), workoutId, workoutExerciseId ?? null],
+    );
+  });
+}
+
+/** Пояс пользователя — любой IANA (например, клиент западнее тренера). */
+export async function setUserTimeZone(login: string, timeZone: string) {
+  await withDb((db) => db.query(`update "User" set "timeZone" = $2 where login = $1`, [login, timeZone]));
+}
+
+/**
+ * Завершённая тренировка с рекордами в meta (форма FinishMeta, с exerciseId) — для «Респекта за рекорд».
+ * Упражнения — встроенные по названию; нет такого — создаётся своё упражнение пользователя (длинные названия).
+ */
+export async function seedRecordWorkout(
+  login: string,
+  records: { exercise: string; type?: string; value: number }[],
+  /** exerciseOwner — логин владельца своих упражнений (по умолчанию автор тренировки, например тренер клиента). */
+  o: { name?: string; exerciseOwner?: string } = {},
+) {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const ownerId = o.exerciseOwner ? await userId(db, o.exerciseOwner) : uid;
+    const finished = new Date();
+    const started = new Date(finished.getTime() - 3600 * 1000);
+    const workoutId = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, $3, 'COMPLETED', $4, $5, 3600, 1000, 5, 50, $4, $5)`,
+      [workoutId, uid, o.name ?? "Рекордная", started, finished],
+    );
+    const exerciseIds: Record<string, string> = {};
+    const metaRecords: object[] = [];
+    for (const [i, r] of records.entries()) {
+      let id = (
+        await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and ("userId" is null or "userId" = $2) order by "userId" nulls first`, [r.exercise, ownerId])
+      ).rows[0]?.id;
+      if (!id) {
+        id = randomUUID();
+        await db.query(
+          `insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") values ($1, $2, $3, ARRAY['CHEST']::"MuscleGroup"[], now())`,
+          [id, ownerId, r.exercise],
+        );
+      }
+      exerciseIds[r.exercise] = id;
+      const weId = randomUUID();
+      await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, $4, 90)`, [weId, workoutId, id, i]);
+      await db.query(
+        `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "isWarmup", "completedAt") values ($1, $2, 0, $3, 5, false, $4)`,
+        [randomUUID(), weId, r.value, finished],
+      );
+      metaRecords.push({ exerciseId: id, exerciseName: r.exercise, type: r.type ?? "MAX_WEIGHT", value: r.value, previous: r.value - 5 });
+    }
+    const meta = {
+      xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: 50, recordsXp: 0, achievementsXp: 0,
+      records: metaRecords, achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: 1,
+    };
+    await db.query(
+      `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, 50, 'WORKOUT_COMPLETED', $3, $4, $5)`,
+      [randomUUID(), uid, workoutId, JSON.stringify(meta), finished],
+    );
+    return { workoutId, exerciseIds };
+  });
+}
+
+/** n фиктивных пользователей ставят респект на рекорд (минуя UI). */
+export async function seedRespects(workoutId: string, exerciseId: string, n: number) {
+  await withDb(async (db) => {
+    for (let i = 0; i < n; i++) {
+      const uid = randomUUID();
+      const login = `e2e_resp_${uid.slice(0, 12)}`;
+      await db.query(`insert into "User" (id, login, email, "passwordHash", nickname, "nicknameKey", "updatedAt") values ($1, $2, $3, 'x', $4, $4, now())`, [
+        uid,
+        login,
+        `${login}@test.local`,
+        `fan${i}_${uid.slice(0, 6)}`,
+      ]);
+      await db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, exerciseId, uid]);
+    }
+  });
+}
+
+/** Число респектов на рекорды тренировки. */
+export async function respectCount(workoutId: string, exerciseId?: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ c: number }>(
+      `select count(*)::int c from "RecordRespect" where "workoutId" = $1 and ($2::text is null or "exerciseId" = $2)`,
+      [workoutId, exerciseId ?? null],
+    );
+    return rows[0].c;
+  });
+}
+
+/** Программа тренера в библиотеке (минуя UI): неделя из одного дня на шаблон; publish — сразу в каталоге. Возвращает id. */
+export async function seedCoachProgram(
+  coachLogin: string,
+  templateId: string,
+  o: { name: string; weeks?: number; weekdays?: number[]; stepValue?: number; publish?: boolean; description?: string },
+): Promise<string> {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "CoachProgram" (id, "coachId", name, weeks, "stepKind", "stepValue", "deloadEvery", "deloadPct", "publishedAt", "catalogDescription", "updatedAt")
+       values ($1, $2, $3, $4, 'PERCENT', $5, 4, 10, $6, $7, now())`,
+      [id, await userId(db, coachLogin), o.name, o.weeks ?? 8, o.stepValue ?? 2.5, o.publish ? new Date() : null, o.description ?? null],
+    );
+    for (const weekday of o.weekdays ?? [0]) {
+      await db.query(`insert into "CoachProgramDay" (id, "programId", weekday, "templateId", time, "durationMin") values ($1, $2, $3, $4, '18:00', 60)`, [
+        randomUUID(),
+        id,
+        weekday,
+        templateId,
+      ]);
+    }
+    return id;
+  });
+}
+
+/** Свои шаблоны пользователя: id, название, группа (program). */
+export async function templatesOf(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; name: string; program: string | null }>(
+      `select id, name, program from "WorkoutTemplate" where "userId" = $1 order by "createdAt"`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Упражнения шаблона по порядку: «название sets×reps». */
+export async function templateExerciseLines(templateId: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ line: string }>(
+      `select e.name || ' ' || t."targetSets" || '×' || coalesce(t."targetReps"::text, '-') as line
+       from "TemplateExercise" t join "Exercise" e on e.id = t."exerciseId" where t."templateId" = $1 order by t."order"`,
+      [templateId],
+    );
+    return rows.map((r) => r.line);
+  });
+}
+
+/** Активные назначения программ пользователя (новые сверху). */
+export async function activeAssignments(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; coachId: string | null; catalogProgramId: string | null }>(
+      `select name, "coachId", "catalogProgramId" from "ProgramAssignment" where "clientId" = $1 and "endedAt" is null order by "createdAt" desc`,
+      [await userId(db, login)],
+    );
+    return rows;
+  });
+}
+
+/** Активное назначение программы тренером (минуя UI): с понедельника этой недели, 8 недель, без серий. */
+export async function seedCoachAssignment(coachLogin: string, clientLogin: string, name: string) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "ProgramAssignment" (id, "clientId", "coachId", name, "startDate", weeks, "stepKind", "stepValue", "deloadEvery", "deloadPct")
+       values ($1, $2, $3, $4, $5, 8, 'PERCENT', 2.5, 4, 10)`,
+      [randomUUID(), await userId(db, clientLogin), await userId(db, coachLogin), name, mondayWeeksAgo(0)],
+    );
+  });
+}
+
+/** Снять программу с публикации / вернуть (минуя UI). */
+export async function setProgramPublished(programId: string, published: boolean) {
+  await withDb((db) => db.query(`update "CoachProgram" set "publishedAt" = $2 where id = $1`, [programId, published ? new Date() : null]));
+}
+
+/** Серии программ пользователя, у которых есть вхождения после сегодня (в поясе e2e). */
+export async function programSeriesAfterToday(login: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query(
+      `select count(*)::int as n from "PlanSeries"
+       where "userId" = $1 and "programAssignmentId" is not null and ("endDate" is null or "endDate" > to_char((now() at time zone $2)::date, 'YYYY-MM-DD'))`,
+      [await userId(db, login), E2E_TZ],
+    );
+    return rows[0].n as number;
   });
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarRange, Globe, Users } from "lucide-react";
+import { BarChart3, CalendarRange, Globe, Users } from "lucide-react";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
 import { programBadges } from "@/lib/coach/program-queries";
@@ -8,6 +8,7 @@ import { AssignManyButton } from "@/components/coach/assign-many";
 import { ClientList } from "@/components/coach/client-list";
 import { GroupFilter } from "@/components/coach/group-filter";
 import { GroupsButton } from "@/components/coach/groups-dialog";
+import { RecapAnnounce } from "@/components/coach/recap/recap-announce";
 import { InviteCard } from "@/components/coach/invite-card";
 import { buttonVariants } from "@/components/ui/button";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
@@ -19,6 +20,7 @@ import { sortClients } from "@/lib/coach/clients";
 import { getCoachGroups } from "@/lib/coach/group-queries";
 import { inGroup } from "@/lib/coach/groups";
 import { ensureCoachCode, getCoachClients } from "@/lib/coach/queries";
+import { unseenCoachRecap } from "@/lib/coach/recap-queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -37,15 +39,16 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
   // Тостер layout рендерится параллельно и мог их не увидеть — показываем здесь (тосты не задваиваются по id).
   const granted = await quietly(() => evaluateAchievementsNow(coach.id), { achievements: [], xp: 0, coins: [] });
   const unseen = granted.achievements.length ? await getUnseenAchievements(coach.id) : [];
-  const [code, clients, templates, groups] = await Promise.all([
+  const tz = safeTimeZone(coach.timeZone);
+  const [code, clients, templates, groups, recap] = await Promise.all([
     ensureCoachCode(coach.id),
     getCoachClients(coach.id, now),
     db.workoutTemplate.findMany({ where: { userId: coach.id }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getCoachGroups(coach.id),
+    unseenCoachRecap(coach.id, tz, now),
   ]);
   const sorted = sortClients(clients);
   const programs = await programBadges(coach.id, clients, now);
-  const tz = safeTimeZone(coach.timeZone);
   const picker = clientPickLabels(sorted.map((c) => ({ id: c.id, name: c.name, linkedDay: dayKey(c.linkedAt, tz) })));
   // Нет такой группы (удалена, чужая) — все клиенты
   const active = groups.find((g) => g.id === query.group) ?? null;
@@ -65,6 +68,10 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
               <CalendarRange />
               Программы
             </Link>
+            <Link href="/coach/recap" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <BarChart3 />
+              Итоги недели
+            </Link>
             <Link href="/coach/page" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Globe />
               Публичная страница
@@ -72,6 +79,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
           </>
         }
       />
+      {recap ? <RecapAnnounce week={recap.week} totals={recap.totals} /> : null}
       {/* Группы правятся и без клиентов: иначе оставшийся фильтр «Утро (0)» не убрать */}
       {clients.length || groups.length ? (
         <div className="flex flex-wrap gap-2">

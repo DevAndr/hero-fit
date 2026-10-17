@@ -3,6 +3,8 @@ import { applyProgramToTargets, isDeloadWeek, programEndDay, programLabel, progr
 import { endAssignment, ruleOfAssignment } from "@/lib/coach/program-assign";
 import type { Target } from "@/lib/coach/targets";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { participants } from "@/lib/catalog/queries";
+import { catalogSourceLabel } from "@/lib/catalog/rules";
 import { db } from "@/lib/db";
 
 export type ProgramView = {
@@ -10,6 +12,10 @@ export type ProgramView = {
   name: string;
   rule: ProgramRule;
   days: { weekday: number; templateId: string; templateName: string; time: string; durationMin: number }[];
+  /** Каталог программ: опубликована ли, описание, снятие администратором. */
+  catalog: { published: boolean; description: string; hiddenReason: string | null; hidden: boolean };
+  /** Активных запусков из каталога (всегда 0 без публикации). */
+  participants: number;
 };
 
 const ruleOf = (p: { weeks: number; stepKind: "PERCENT" | "KG"; stepValue: number; deloadEvery: number | null; deloadPct: number }): ProgramRule => ({
@@ -27,10 +33,13 @@ export async function getCoachPrograms(coachId: string): Promise<ProgramView[]> 
     orderBy: { createdAt: "desc" },
     include: { days: { orderBy: { weekday: "asc" }, include: { template: { select: { name: true } } } } },
   });
+  const counts = await participants(rows.map((p) => p.id));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
     rule: ruleOf(p),
+    catalog: { published: p.publishedAt !== null, description: p.catalogDescription ?? "", hiddenReason: p.hiddenReason, hidden: p.hiddenAt !== null },
+    participants: counts.get(p.id) ?? 0,
     days: p.days.map((d) => ({ weekday: d.weekday, templateId: d.templateId, templateName: d.template.name, time: d.time, durationMin: d.durationMin })),
   }));
 }
@@ -57,49 +66,57 @@ export async function getActiveAssignment(clientId: string, today: string, coach
 export type ActiveAssignment = NonNullable<Awaited<ReturnType<typeof getActiveAssignment>>>;
 
 /**
- * Программа поверх заданий клиента по шаблону (getTemplateTargets): у назначения есть тренер; программа
- * активна, шаблон — в её сериях, день в пределах недель. Кончился срок — ленивое окончание: вес последней обычной
- * недели переходит в задания (один раз, условно по endedAt).
+ * Программа поверх заданий клиента по шаблону (getTemplateTargets): у назначения есть тренер или оно запущено
+ * из каталога (catalog — название программы); программа активна, шаблон — в её сериях, день в пределах недель.
+ * Кончился срок — ленивое окончание: вес последней обычной недели переходит в задания (один раз, условно по endedAt).
  */
 export async function programForTemplate(
   clientId: string,
   templateId: string,
   day: string | undefined,
-): Promise<{ ended: boolean; overlay: ((targets: Map<string, Target>) => Map<string, Target & { program?: string }>) | null }> {
+): Promise<{ ended: boolean; catalog: string | null; overlay: ((targets: Map<string, Target>) => Map<string, Target & { program?: string }>) | null }> {
   const assignment = await db.programAssignment.findFirst({
     where: { clientId, endedAt: null, series: { some: { templateId } } },
     orderBy: { createdAt: "desc" },
     include: { bases: { where: { templateId } }, client: { select: { timeZone: true } } },
   });
-  if (!assignment?.coachId) return { ended: false, overlay: null };
+  const catalog = assignment && !assignment.coachId && assignment.fromCatalog ? assignment.name : null;
+  if (!assignment || (!assignment.coachId && catalog === null)) return { ended: false, catalog: null, overlay: null };
   const today = day ?? dayKey(new Date(), safeTimeZone(assignment.client.timeZone));
   const week = programWeekIndex(assignment.startDate, today);
   const rule = ruleOfAssignment(assignment);
   if (week !== null && week > rule.weeks) {
     await db.$transaction((tx) => endAssignment(tx, assignment.id, today, { writeTargets: true, lastWeek: rule.weeks }));
-    return { ended: true, overlay: null };
+    return { ended: true, catalog, overlay: null };
   }
-  if (week === null || !assignment.bases.length) return { ended: false, overlay: null };
+  if (week === null || !assignment.bases.length) return { ended: false, catalog, overlay: null };
   const rows = await db.templateExercise.findMany({ where: { templateId }, select: { exerciseId: true, targetSets: true } });
   const templateSets = new Map(rows.map((r) => [r.exerciseId, r.targetSets]));
-  return { ended: false, overlay: (targets) => applyProgramToTargets(targets, templateSets, assignment.bases, rule, week) };
+  return { ended: false, catalog, overlay: (targets) => applyProgramToTargets(targets, templateSets, assignment.bases, rule, week) };
 }
 
-/** Метки недель программы для вхождений календаря: (seriesId, дата) → «Неделя 3/8» / «Разгрузка · неделя 4/8». */
+/**
+ * Метки недель программы для вхождений календаря: (seriesId, дата) → «Неделя 3/8» / «Разгрузка · неделя 4/8»;
+ * программа из каталога — с названием: «программа «Сила» (неделя 3/8)».
+ */
 export async function programWeekLabels(seriesIds: (string | null)[]): Promise<(seriesId: string | null, date: string) => string | null> {
   const ids = [...new Set(seriesIds.filter((id): id is string => id !== null))];
   const rows = ids.length
     ? await db.planSeries.findMany({
         where: { id: { in: ids }, programAssignmentId: { not: null } },
-        select: { id: true, programAssignment: { select: { startDate: true, weeks: true, deloadEvery: true, coachId: true } } },
+        select: { id: true, programAssignment: { select: { name: true, startDate: true, weeks: true, deloadEvery: true, coachId: true, fromCatalog: true } } },
       })
     : [];
-  const bySeries = new Map(rows.flatMap((r) => (r.programAssignment?.coachId ? [[r.id, r.programAssignment] as const] : [])));
+  const bySeries = new Map(
+    rows.flatMap((r) => (r.programAssignment && (r.programAssignment.coachId || r.programAssignment.fromCatalog) ? [[r.id, r.programAssignment] as const] : [])),
+  );
   return (seriesId, date) => {
     const a = seriesId ? bySeries.get(seriesId) : undefined;
     if (!a) return null;
     const week = programWeekIndex(a.startDate, date);
-    return week !== null && week <= a.weeks ? programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery)) : null;
+    if (week === null || week > a.weeks) return null;
+    const label = programLabel(week, a.weeks, isDeloadWeek(week, a.deloadEvery));
+    return a.coachId ? label : catalogSourceLabel(a.name, label);
   };
 }
 

@@ -109,8 +109,10 @@ export async function deleteAccount(tx: Tx, userId: string): Promise<void> {
 
 /**
  * Мои упражнения в чужих данных (клиент тренировался по шаблону тренера, добавил его упражнение в свой шаблон):
- * каждому такому пользователю — своя архивная копия упражнения, его тренировки, шаблоны, рекорды, цели, ачивки и
- * задания тренера переводятся на неё. Иначе удаление упадёт на Restrict, а Cascade унёс бы чужие рекорды и цели.
+ * каждому такому пользователю — своя архивная копия упражнения, его тренировки, шаблоны, рекорды, цели, ачивки,
+ * задания тренера и респекты за его рекорды переводятся на неё, а в сводках его тренировок (`meta.records`) id
+ * упражнения переписывается — иначе группа рекорда в ленте не сойдётся с респектами. Без переноса удаление упадёт на
+ * Restrict, а Cascade унёс бы чужие рекорды, цели и респекты.
  */
 async function rehomeExercises(tx: Tx, userId: string) {
   const pairs = await tx.$queryRaw<{ exerciseId: string; ownerId: string }[]>`
@@ -124,6 +126,8 @@ async function rehomeExercises(tx: Tx, userId: string) {
       UNION SELECT "exerciseId", "userId" FROM "Goal" WHERE "exerciseId" IN (SELECT id FROM mine)
       UNION SELECT "exerciseId", "userId" FROM "UserAchievement" WHERE "exerciseId" IN (SELECT id FROM mine)
       UNION SELECT "exerciseId", "clientId" FROM "CoachTarget" WHERE "exerciseId" IN (SELECT id FROM mine)
+      UNION SELECT rr."exerciseId", w."userId" FROM "RecordRespect" rr JOIN "Workout" w ON w.id = rr."workoutId"
+        WHERE rr."exerciseId" IN (SELECT id FROM mine)
     ) refs
     WHERE "ownerId" <> ${userId}`;
   for (const { exerciseId: from, ownerId } of pairs) {
@@ -140,5 +144,14 @@ async function rehomeExercises(tx: Tx, userId: string) {
     await tx.goal.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
     await tx.userAchievement.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
     await tx.coachTarget.updateMany({ where: { clientId: ownerId, exerciseId: from }, data: { exerciseId: to } });
+    // Респекты за рекорды его тренировок (от кого угодно) — на копию; рекорды в сводках — тоже, порядок сохраняется
+    await tx.$executeRaw`UPDATE "RecordRespect" rr SET "exerciseId" = ${to} FROM "Workout" w
+      WHERE w.id = rr."workoutId" AND w."userId" = ${ownerId} AND rr."exerciseId" = ${from}`;
+    await tx.$executeRaw`UPDATE "XpEvent" x SET meta = jsonb_set(x.meta, '{records}', (
+        SELECT jsonb_agg(CASE WHEN r->>'exerciseId' = ${from} THEN jsonb_set(r, '{exerciseId}', to_jsonb(${to}::text)) ELSE r END ORDER BY i)
+        FROM jsonb_array_elements(x.meta->'records') WITH ORDINALITY AS e(r, i)))
+      WHERE x."userId" = ${ownerId} AND x.reason IN ('WORKOUT_COMPLETED', 'PERSONAL_RECORD')
+        AND jsonb_typeof(x.meta->'records') = 'array'
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements(x.meta->'records') r WHERE r->>'exerciseId' = ${from})`;
   }
 }

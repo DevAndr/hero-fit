@@ -310,6 +310,20 @@ describe("boss hunter", () => {
   });
 });
 
+describe("respect ladder", () => {
+  it("respect ladder: 4 → none, 5 → respect:5 «Заметили», 25 → +respect:25, 100 → +respect:100; category SOCIAL; описания и XP", () => {
+    expect(codesOf("respect", { respectsReceived: 4 })).toEqual([]);
+    expect(codesOf("respect", { respectsReceived: 5 })).toEqual(["respect:5"]);
+    expect(codesOf("respect", { respectsReceived: 25 })).toEqual(["respect:5", "respect:25"]);
+    expect(codesOf("respect", { respectsReceived: 100 })).toEqual(["respect:5", "respect:25", "respect:100"]);
+    const earned = earnedAchievements({ ...empty, respectsReceived: 100 });
+    const by = (code: string) => earned.find((a) => a.code === code);
+    expect(by("respect:5")).toMatchObject({ category: "SOCIAL", title: "Заметили", xpReward: 30, description: "Получить 5 респектов за рекорды" });
+    expect(by("respect:25")).toMatchObject({ category: "SOCIAL", title: "Уважаемый", xpReward: 60, description: "Получить 25 респектов за рекорды" });
+    expect(by("respect:100")).toMatchObject({ category: "SOCIAL", title: "Легенда зала", xpReward: 120, description: "Получить 100 респектов за рекорды" });
+  });
+});
+
 describe("raids", () => {
   it("лестница побед в рейдах: 1, 5, 10, 25", () => {
     expect(codesOf("clubtask", { clubTaskRewards: 5 })).toEqual(["clubtask:1", "clubtask:5"]);

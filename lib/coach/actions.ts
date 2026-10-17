@@ -25,6 +25,8 @@ async function dropAssignments(tx: Tx, coachId: string, clientId: string) {
   await tx.coachTarget.deleteMany({ where: { clientId, template: { userId: coachId } } });
   await tx.coachGroupMember.deleteMany({ where: { clientId, group: { coachId } } });
   await tx.coachNote.deleteMany({ where: { coachId, clientId } });
+  // Строки клиента в итогах недели тренера; общие цифры снимка остаются (без персональных данных)
+  await tx.coachRecapClient.deleteMany({ where: { clientId, recap: { coachId } } });
   // Программа пары закрывается (серии уже удалены выше, веса в задания не пишутся — задания тоже удалены)
   await tx.programAssignment.updateMany({ where: { coachId, clientId, endedAt: null }, data: { endedAt: new Date() } });
   // Сигналы пары закрываются: при повторной связи появятся заново и уведомят снова

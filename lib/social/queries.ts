@@ -262,7 +262,21 @@ async function feedPage(userId: string, ids: string[], cursor: string | null, li
                WHERE k."workoutId" = w.id AND k."userId" <> ${userId}
                ORDER BY k."createdAt" DESC LIMIT 2
              ) z
-           ) AS "kudosNames"
+           ) AS "kudosNames",
+           (
+             SELECT json_agg(json_build_object('exerciseId', g."exerciseId", 'count', g.cnt, 'byMe', g."byMe", 'names', g.names))
+             FROM (
+               SELECT rr."exerciseId", COUNT(*)::int AS cnt, bool_or(rr."userId" = ${userId}) AS "byMe",
+                      (
+                        SELECT array_agg(z.nickname) FROM (
+                          SELECT ru.nickname FROM "RecordRespect" r2 JOIN "User" ru ON ru.id = r2."userId"
+                          WHERE r2."workoutId" = w.id AND r2."exerciseId" = rr."exerciseId" AND r2."userId" <> ${userId}
+                          ORDER BY r2."createdAt" DESC LIMIT 2
+                        ) z
+                      ) AS names
+               FROM "RecordRespect" rr WHERE rr."workoutId" = w.id GROUP BY rr."exerciseId"
+             ) g
+           ) AS respects
     FROM "Workout" w
     JOIN "User" u ON u.id = w."userId"
     LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'

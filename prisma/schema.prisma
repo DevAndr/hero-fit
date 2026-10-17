@@ -72,6 +72,7 @@ enum AchievementCategory {
   GOAL // выполненные личные цели (lib/goals)
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
   ENDURANCE // кардио и упражнения на время
+  SOCIAL // социальное: респекты за рекорды
 }
 
 enum NotificationType {
@@ -199,6 +200,8 @@ model User {
   coachSignalsDay    String?
   /// неделя (пн), за которую уже ушёл push «Новая неделя — новый старт»
   recapNudgeWeek     String?
+  /// итоги недели клиентов (тренеру): push и колокольчик
+  notifyCoachRecap   Boolean   @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -251,8 +254,11 @@ model User {
   raidRewards         RaidReward[]
   coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
   clientSignals       CoachSignal[]        @relation("CoachSignalClient")
+  coachRecaps         CoachWeeklyRecap[]
+  coachRecapRows      CoachRecapClient[]
   coachProfile        CoachProfile?
   kudos               Kudos[]
+  recordRespects      RecordRespect[]
   goals               Goal[]
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
@@ -405,6 +411,7 @@ model Exercise {
   coachTargets      CoachTarget[]
   goals             Goal[]
   clubTasks         ClubTask[]
+  recordRespects    RecordRespect[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -488,6 +495,7 @@ model Workout {
   exercises    WorkoutExercise[]
   xpEvents     XpEvent[]
   kudos        Kudos[]
+  recordRespects RecordRespect[]
   comments     CoachComment[]
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
@@ -707,6 +715,22 @@ model Kudos {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workoutId, userId])
+}
+
+/// 🏆 от друга/согильдийца на рекорд в упражнении тренировки. Один на тройку «тренировка–упражнение–пользователь».
+model RecordRespect {
+  id         String   @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  userId     String // кто поставил
+  createdAt  DateTime @default(now())
+
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutId, exerciseId, userId])
+  @@index([exerciseId])
 }
 
 // ───────────────────────────── Streak ─────────────────────────────
@@ -934,6 +958,40 @@ model CoachSignal {
   client User @relation("CoachSignalClient", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([coachId, clientId])
+}
+
+/// Итоги недели тренера: общие цифры (без персональных данных клиентов).
+model CoachWeeklyRecap {
+  id        String    @id @default(cuid())
+  coachId   String
+  /// понедельник "YYYY-MM-DD" в поясе тренера
+  week      String
+  /// CoachRecapTotals с version
+  data      Json
+  createdAt DateTime  @default(now())
+  /// push отправлен
+  pushedAt  DateTime?
+  /// тренер открыл
+  seenAt    DateTime?
+
+  coach   User               @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  clients CoachRecapClient[]
+
+  @@unique([coachId, week])
+}
+
+/// Строка клиента в итогах недели тренера.
+model CoachRecapClient {
+  recapId  String
+  clientId String
+  /// CoachRecapRow с version
+  data     Json
+
+  recap  CoachWeeklyRecap @relation(fields: [recapId], references: [id], onDelete: Cascade)
+  client User             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([recapId, clientId])
+  @@index([clientId])
 }
 
 /// Группа клиентов тренера — метка для фильтра и быстрого выбора; клиент может быть в нескольких
@@ -1371,7 +1429,14 @@ model CoachProgram {
   days        CoachProgramDay[]
   assignments ProgramAssignment[]
 
+  publishedAt        DateTime?
+  catalogDescription String?
+  hiddenAt           DateTime?
+  hiddenReason       String?
+  catalogAssignments ProgramAssignment[] @relation("CatalogProgram")
+
   @@index([coachId])
+  @@index([publishedAt])
 }
 
 model CoachProgramDay {
@@ -1410,15 +1475,21 @@ model ProgramAssignment {
   /// тренеру отправлено «заканчивается через неделю»
   remindedAt  DateTime?
   createdAt   DateTime    @default(now())
+  /// запущена из каталога (самостоятельно, coachId = null); null — назначил тренер
+  catalogProgramId String?
+  /// запущена из каталога — постоянный признак (catalogProgramId обнуляется, если автор удалил программу)
+  fromCatalog      Boolean  @default(false)
 
   client  User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
   coach   User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
   program CoachProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  catalogProgram CoachProgram? @relation("CatalogProgram", fields: [catalogProgramId], references: [id], onDelete: SetNull)
   bases   ProgramBase[]
   series  PlanSeries[]
 
   @@index([clientId, endedAt])
   @@index([coachId, endedAt])
+  @@index([catalogProgramId, endedAt])
 }
 
 /// Базовый вес упражнения шаблона в назначении; fromWeek — с какой недели действует («Изменить базу»).

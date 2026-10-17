@@ -19,6 +19,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { selectOnFocus } from "@/components/ui/select-on-focus";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useFlag } from "@/components/flags/flags-provider";
+import { publishProgramAction } from "@/lib/catalog/actions";
+import { CATALOG_DESCRIPTION_MAX } from "@/lib/catalog/rules";
 import { deleteProgramAction, saveProgramAction } from "@/lib/coach/program-actions";
 import { programPreview, type ProgramRule } from "@/lib/coach/program";
 import type { ProgramView } from "@/lib/coach/program-queries";
@@ -54,7 +59,13 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
   const [deloadEvery, setDeloadEvery] = useState(String(program?.rule.deloadEvery ?? 4));
   const [deloadPct, setDeloadPct] = useState(String(program?.rule.deloadPct ?? 10));
   const [days, setDays] = useState<Day[]>(program?.days.map(({ weekday, templateId, time }) => ({ weekday, templateId, time })) ?? []);
+  const [publish, setPublish] = useState(program?.catalog.published ?? false);
+  const [description, setDescription] = useState(program?.catalog.description ?? "");
   const [pending, startTransition] = useTransition();
+  const catalogOn = useFlag("program_catalog");
+  // Публикация нужна уже существующей программе: у новой ещё нет id
+  const catalog = catalogOn && program !== null;
+  const hidden = program?.catalog.hidden ?? false;
 
   const rule: ProgramRule = {
     weeks: Math.min(16, Math.max(2, Math.round(num(weeks)) || 2)),
@@ -85,6 +96,14 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
       if (!result.ok) {
         toast.error(result.error);
         return;
+      }
+      const catalogChanged = catalog && !hidden && (publish !== program.catalog.published || description.trim() !== program.catalog.description);
+      if (catalogChanged) {
+        const published = await publishProgramAction(program.id, { publish, description });
+        if (!published.ok) {
+          toast.error(published.error);
+          return;
+        }
       }
       toast.success(program ? "Программа сохранена" : "Программа создана");
       onClose();
@@ -171,6 +190,38 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
             </div>
           ))}
         </fieldset>
+        {catalog ? (
+          <fieldset className="grid gap-2 rounded-lg border p-3">
+            <legend className="px-1 text-sm font-medium">Каталог программ</legend>
+            {hidden ? (
+              <p className="text-sm text-destructive">Снята администратором{program?.catalog.hiddenReason ? `: ${program.catalog.hiddenReason}` : ""}</p>
+            ) : null}
+            <Label htmlFor="program-publish" className="flex items-center gap-2 font-normal">
+              <Switch id="program-publish" checked={publish} disabled={hidden} onCheckedChange={setPublish} />
+              Опубликовать в каталоге
+            </Label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="program-catalog-description">Описание для каталога</Label>
+              <Textarea
+                id="program-catalog-description"
+                value={description}
+                disabled={hidden}
+                rows={3}
+                maxLength={CATALOG_DESCRIPTION_MAX}
+                placeholder="Для кого, цель, инвентарь"
+                onChange={(e) => setDescription(e.target.value)}
+              />
+              <p className="flex justify-between text-xs text-muted-foreground">
+                <span>Для кого, цель, инвентарь</span>
+                <span className="tabular-nums">
+                  {description.length} / {CATALOG_DESCRIPTION_MAX}
+                </span>
+              </p>
+            </div>
+          </fieldset>
+        ) : catalogOn ? (
+          <p className="text-sm text-muted-foreground">Сохраните программу, чтобы опубликовать её в каталоге</p>
+        ) : null}
         <div className="grid gap-1.5">
           <p className="text-sm font-medium">Вес по неделям при базе 100 кг</p>
           <ProgramPreview rule={rule} />
@@ -192,6 +243,7 @@ export function ProgramLibrary({ programs, templates }: { programs: ProgramView[
   const [editing, setEditing] = useState<ProgramView | "new" | null>(null);
   const [removing, setRemoving] = useState<ProgramView | null>(null);
   const [pending, startTransition] = useTransition();
+  const catalogOn = useFlag("program_catalog");
 
   const remove = (p: ProgramView) =>
     startTransition(async () => {
@@ -218,6 +270,10 @@ export function ProgramLibrary({ programs, templates }: { programs: ProgramView[
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h2 className="font-semibold">{p.name}</h2>
+                  {catalogOn && p.catalog.published && !p.catalog.hidden ? (
+                    <p className="text-xs font-medium text-primary">В каталоге · занимаются {p.participants}</p>
+                  ) : null}
+                  {catalogOn && p.catalog.hidden ? <p className="text-xs font-medium text-destructive">Снята администратором</p> : null}
                   <p className="text-xs text-muted-foreground">
                     {p.rule.weeks} нед. · +{p.rule.stepValue.toLocaleString("ru-RU")} {p.rule.stepKind === "PERCENT" ? "%" : "кг"} в неделю
                     {p.rule.deloadEvery ? ` · разгрузка каждая ${p.rule.deloadEvery}-я −${p.rule.deloadPct} %` : ""}

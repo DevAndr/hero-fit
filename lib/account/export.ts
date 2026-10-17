@@ -47,10 +47,20 @@ export type ExportRaw = {
   coachComments: unknown[];
   /** Заметки тренеров обо мне и мои заметки о клиентах — с лишними полями (id) на входе: в выгрузку — текст, дата, ник. */
   coachNotesAboutMe: ({ text: string; updatedAt: Date; coach: string | null } & Record<string, unknown>)[];
+  /** Итоги недели тренера: строка обо мне (я клиент) и мои снимки (я тренер) — ник вместо id. */
+  coachRecapsAboutMe: ({ week: string; coach: string | null; data: unknown } & Record<string, unknown>)[];
+  coachRecaps: ({ week: string; totals: unknown; clients: ({ client: string | null; data: unknown } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   clientNotes: ({ text: string; updatedAt: Date; client: string | null } & Record<string, unknown>)[];
+  /** Респекты 🏆 и кудосы 👊: дата тренировки (finishedAt), упражнение (у респекта) и ник — на входе могут быть id. */
+  respectsGiven: ({ workoutDate: Dated; exercise: string; to: string | null } & Record<string, unknown>)[];
+  respectsReceived: ({ workoutDate: Dated; exercise: string; from: string | null } & Record<string, unknown>)[];
+  kudosGiven: ({ workoutDate: Dated; to: string | null } & Record<string, unknown>)[];
+  kudosReceived: ({ workoutDate: Dated; from: string | null } & Record<string, unknown>)[];
   /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
-  programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
+  programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; fromCatalog: boolean; catalogProgram: ({ name: string; author: string | null } & Record<string, unknown>) | null; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
+  /** Опубликованные в каталоге программы тренера: число занимающихся — без людей; id и причина снятия сюда не идут. */
+  publishedPrograms: ({ name: string; description: string | null; publishedAt: Date; hiddenAt: Dated; participants: number } & Record<string, unknown>)[];
   notifications: unknown[];
   /** WHOOP: null без подключения. Токены не выбираются вовсе; активности — без userId. */
   whoop: { whoopUserId: string; connectedAt: Date; consentAt: Date; workouts: unknown[] } | null;
@@ -84,8 +94,15 @@ export const EXPORT_SECTIONS = [
   "coachComments",
   "coachNotesAboutMe",
   "clientNotes",
+  "coachRecapsAboutMe",
+  "coachRecaps",
+  "respectsGiven",
+  "respectsReceived",
+  "kudosGiven",
+  "kudosReceived",
   "programs",
   "coachPrograms",
+  "publishedPrograms",
   "notifications",
   "shop",
   "whoop",
@@ -161,12 +178,24 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     coachComments: raw.coachComments,
     coachNotesAboutMe: raw.coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach })),
     clientNotes: raw.clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client })),
+    coachRecapsAboutMe: raw.coachRecapsAboutMe.map((r) => ({ week: r.week, coach: r.coach, data: r.data })),
+    coachRecaps: raw.coachRecaps.map((r) => ({
+      week: r.week,
+      totals: r.totals,
+      clients: r.clients.map((c) => ({ client: c.client, data: c.data })),
+    })),
+    respectsGiven: raw.respectsGiven.map((r) => ({ workoutDate: r.workoutDate, exercise: r.exercise, to: r.to })),
+    respectsReceived: raw.respectsReceived.map((r) => ({ workoutDate: r.workoutDate, exercise: r.exercise, from: r.from })),
+    kudosGiven: raw.kudosGiven.map((k) => ({ workoutDate: k.workoutDate, to: k.to })),
+    kudosReceived: raw.kudosReceived.map((k) => ({ workoutDate: k.workoutDate, from: k.from })),
     programs: raw.programs.map((p) => ({
       name: p.name,
       startDate: p.startDate,
       weeks: p.weeks,
       rule: ruleOf(p),
       ended: p.endedAt !== null,
+      fromCatalog: p.fromCatalog,
+      catalogProgram: p.catalogProgram ? { name: p.catalogProgram.name, author: p.catalogProgram.author } : null,
       bases: p.bases.map((b) => ({ template: b.template, exercise: b.exercise, weight: b.weight, fromWeek: b.fromWeek })),
     })),
     coachPrograms: raw.coachPrograms.map((p) => ({
@@ -175,6 +204,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
       rule: ruleOf(p),
       days: p.days.map((d) => ({ weekday: d.weekday, template: d.template, time: d.time })),
     })),
+    publishedPrograms: raw.publishedPrograms.map((p) => ({ name: p.name, description: p.description, publishedAt: p.publishedAt, hiddenAt: p.hiddenAt, participants: p.participants })),
     notifications: raw.notifications,
     shop: {
       coins: raw.shop.coins,

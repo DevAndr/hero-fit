@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { CLUB_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, SHOP_NAV_ITEM } from "@/components/app/nav";
+import { CLUB_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, PROGRAMS_NAV_ITEM, SHOP_NAV_ITEM } from "@/components/app/nav";
 import { useFlag } from "@/components/flags/flags-provider";
 
 function useIsActive() {
@@ -15,8 +15,10 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
   const isActive = useIsActive();
   const clubs = useFlag("clubs");
   const shop = useFlag("shop");
-  type Item = (typeof NAV_ITEMS)[number] | typeof CLUB_NAV_ITEM | typeof COACH_NAV_ITEM | typeof SHOP_NAV_ITEM;
+  const catalog = useFlag("program_catalog");
+  type Item = (typeof NAV_ITEMS)[number] | typeof CLUB_NAV_ITEM | typeof COACH_NAV_ITEM | typeof SHOP_NAV_ITEM | typeof PROGRAMS_NAV_ITEM;
   const base: Item[] = NAV_ITEMS.flatMap((item): Item[] => {
+    if (item.href === "/templates" && catalog) return [item, PROGRAMS_NAV_ITEM];
     if (item.href === "/achievements" && shop) return [item, SHOP_NAV_ITEM];
     if (item.href === "/guild" && clubs) return [item, CLUB_NAV_ITEM];
     return [item];

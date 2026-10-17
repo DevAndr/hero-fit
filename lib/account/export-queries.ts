@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { participants } from "@/lib/catalog/queries";
 import type { CsvSet } from "@/lib/account/csv";
 import type { ExportRaw } from "@/lib/account/export";
 
@@ -31,8 +32,15 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coachComments,
     coachNotesAboutMe,
     clientNotes,
+    recapsAboutMe,
+    coachRecaps,
+    respectsGiven,
+    respectsReceived,
+    kudosGiven,
+    kudosReceived,
     programs,
     coachPrograms,
+    publishedPrograms,
     notifications,
     userItems,
     coinTx,
@@ -98,8 +106,39 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.coachComment.findMany({ where: { clientId: userId }, orderBy: { createdAt: "asc" }, select: { text: true, createdAt: true, coach: person } }),
     db.coachNote.findMany({ where: { clientId: userId }, orderBy: { updatedAt: "asc" }, select: { text: true, updatedAt: true, coach: person } }),
     db.coachNote.findMany({ where: { coachId: userId }, orderBy: { updatedAt: "asc" }, select: { text: true, updatedAt: true, client: person } }),
-    db.programAssignment.findMany({ where: { clientId: userId }, orderBy: { createdAt: "asc" }, include: { bases: true } }),
+    db.coachRecapClient.findMany({
+      where: { clientId: userId },
+      orderBy: { recap: { week: "asc" } },
+      select: { data: true, recap: { select: { week: true, coach: person } } },
+    }),
+    db.coachWeeklyRecap.findMany({
+      where: { coachId: userId },
+      orderBy: { week: "asc" },
+      select: { week: true, data: true, clients: { select: { data: true, client: person }, orderBy: { clientId: "asc" } } },
+    }),
+    db.recordRespect.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: { exercise: { select: { name: true } }, workout: { select: { finishedAt: true, user: person } } },
+    }),
+    db.recordRespect.findMany({
+      where: { workout: { userId } },
+      orderBy: { createdAt: "asc" },
+      select: { exercise: { select: { name: true } }, workout: { select: { finishedAt: true } }, user: person },
+    }),
+    db.kudos.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { workout: { select: { finishedAt: true, user: person } } } }),
+    db.kudos.findMany({ where: { workout: { userId } }, orderBy: { createdAt: "asc" }, select: { workout: { select: { finishedAt: true } }, user: person } }),
+    db.programAssignment.findMany({
+      where: { clientId: userId },
+      orderBy: { createdAt: "asc" },
+      include: { bases: true, catalogProgram: { select: { name: true, coach: person } } },
+    }),
     db.coachProgram.findMany({ where: { coachId: userId }, orderBy: { createdAt: "asc" }, include: { days: { orderBy: { weekday: "asc" }, include: { template: { select: { name: true } } } } } }),
+    db.coachProgram.findMany({
+      where: { coachId: userId, publishedAt: { not: null } },
+      orderBy: { publishedAt: "asc" },
+      select: { id: true, name: true, catalogDescription: true, publishedAt: true, hiddenAt: true },
+    }),
     db.notification.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { type: true, title: true, body: true, createdAt: true } }),
     db.userItem.findMany({ where: { userId }, orderBy: { acquiredAt: "asc" }, select: { code: true, acquiredAt: true } }),
     db.coinTx.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { amount: true, reason: true, createdAt: true } }),
@@ -111,6 +150,8 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
       select: { id: true, start: true, end: true, sportName: true, scoreState: true, strain: true, avgHr: true, maxHr: true, kilojoule: true, zonesMs: true, updatedAt: true },
     }),
   ]);
+
+  const counts = await participants(publishedPrograms.map((p) => p.id));
 
   return {
     user,
@@ -138,9 +179,20 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     clients: clientLinks.map((l) => ({ nickname: l.client.nickname, since: l.createdAt, until: l.endedAt })),
     coachComments: coachComments.map((c) => ({ text: c.text, createdAt: c.createdAt, coach: c.coach?.nickname ?? null })),
     coachNotesAboutMe: coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach.nickname })),
+    coachRecapsAboutMe: recapsAboutMe.map((r) => ({ week: r.recap.week, coach: r.recap.coach?.nickname ?? null, data: r.data })),
+    coachRecaps: coachRecaps.map((r) => ({
+      week: r.week,
+      totals: r.data,
+      clients: r.clients.map((c) => ({ client: c.client?.nickname ?? null, data: c.data })),
+    })),
+    respectsGiven: respectsGiven.map((r) => ({ workoutDate: r.workout.finishedAt, exercise: r.exercise.name, to: r.workout.user.nickname })),
+    respectsReceived: respectsReceived.map((r) => ({ workoutDate: r.workout.finishedAt, exercise: r.exercise.name, from: r.user.nickname })),
+    kudosGiven: kudosGiven.map((k) => ({ workoutDate: k.workout.finishedAt, to: k.workout.user.nickname })),
+    kudosReceived: kudosReceived.map((k) => ({ workoutDate: k.workout.finishedAt, from: k.user.nickname })),
     clientNotes: clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client.nickname })),
-    programs: await programsWithNames(programs),
+    programs: (await programsWithNames(programs)).map(({ catalogProgram, ...p }) => ({ ...p, catalogProgram: catalogProgram ? { name: catalogProgram.name, author: catalogProgram.coach.nickname } : null })),
     coachPrograms: coachPrograms.map((p) => ({ ...p, days: p.days.map((d) => ({ weekday: d.weekday, template: d.template.name, time: d.time })) })),
+    publishedPrograms: publishedPrograms.map((p) => ({ name: p.name, description: p.catalogDescription, publishedAt: p.publishedAt!, hiddenAt: p.hiddenAt, participants: counts.get(p.id) ?? 0 })),
     notifications,
     shop: { coins: user.coins, items: userItems, coinHistory: coinTx },
     whoop: whoopConnection ? { whoopUserId: whoopConnection.whoopUserId, connectedAt: whoopConnection.createdAt, consentAt: whoopConnection.consentAt, workouts: whoopWorkouts } : null,

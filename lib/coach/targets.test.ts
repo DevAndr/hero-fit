@@ -106,4 +106,8 @@ describe("formatTarget — программа тренера", () => {
     expect(formatTarget({ sets: 4, reps: 8, weight: 105, program: "Неделя 3/8" })).toBe("от тренера: 4 × 8 · 105 кг (неделя 3/8)");
     expect(formatTarget({ sets: 3, reps: 8, weight: 95, program: "Разгрузка · неделя 4/8" })).toBe("от тренера: 3 × 8 · 95 кг (разгрузка · неделя 4/8)");
   });
+
+  it("программа из каталога — источник по названию", () => {
+    expect(formatTarget({ sets: 3, reps: null, weight: 100, program: "Неделя 1/8", source: "Сила" })).toBe("программа «Сила»: 3 подхода · 100 кг (неделя 1/8)");
+  });
 });
