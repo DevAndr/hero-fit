@@ -1214,3 +1214,24 @@ export async function resetWhoopSync(login: string): Promise<void> {
     await db.query(`update "WhoopConnection" c set "lastSyncAt" = null from "User" u where u.id = c."userId" and u.login = $1`, [login]);
   });
 }
+
+/** Состарить access-токен WHOOP: следующий запрос приложения пойдёт через refresh. */
+export async function expireWhoopToken(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(
+      `update "WhoopConnection" c set "expiresAt" = now() - interval '1 hour' from "User" u where u.id = c."userId" and u.login = $1`,
+      [login],
+    );
+  });
+}
+
+/** Флаг «нужно переподключить WHOOP»; null — не подключён. */
+export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ v: boolean }>(
+      `select c."needsReauth" as v from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.v ?? null;
+  });
+}

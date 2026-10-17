@@ -5,12 +5,14 @@ import type { WhoopApiWorkout } from "../lib/whoop/types";
 /**
  * Фейковый WHOOP для e2e — третий webServer в playwright.config.ts (порт 3125, HTTP); `WHOOP_API_URL` сервера — сюда.
  * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code`; POST /oauth/oauth2/token — коды и refresh-ротация
- * (старые refresh и access недействительны сразу, `expires_in` всегда 1 — каждый запрос приложения идёт через refresh).
+ * (старые refresh и access недействительны сразу; `expires_in` по умолчанию 1 — каждый запрос приложения идёт через refresh).
  * API (под /developer): GET /v2/user/profile/basic, GET /v2/activity/workout (пересечение с [start, end), по убыванию
  * start, limit, nextToken = смещение), GET /v2/activity/workout/:id, DELETE /v2/user/access (как настоящий —
  * пессимистично: отзывает все токены этого user_id). Неверный access → 401.
  * Служебные: POST /__control/reuse-next?user= (следующая авторизация — этот user_id; глобально, поэтому спека serial),
- * PUT /__control/workouts?user= (тело — массив активностей, заменяет), GET /__control/revoked?user=, GET /health.
+ * PUT /__control/workouts?user= (тело — массив активностей, заменяет), GET /__control/revoked?user=,
+ * POST /__control/expires?seconds=N (`expires_in` новых токенов; глобально), POST /__control/api-delay?ms=N (пауза API
+ * перед проверкой токена — чтобы соседний запрос успел ротировать токен; глобально), GET /health.
  */
 export const WHOOP_FAKE_PORT = 3125;
 export const WHOOP_FAKE_URL = `http://localhost:${WHOOP_FAKE_PORT}`;
@@ -24,13 +26,15 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
   const refreshTokens = new Map<string, { user: number; access: string }>();
   const workouts = new Map<number, WhoopApiWorkout[]>();
   const revoked = new Set<number>();
+  let expiresIn = 1;
+  let apiDelayMs = 0;
 
   const issue = (user: number) => {
     const access = `acc-${randomUUID()}`;
     const refresh = `ref-${randomUUID()}`;
     accessTokens.set(access, { user, refresh });
     refreshTokens.set(refresh, { user, access });
-    return { access_token: access, refresh_token: refresh, expires_in: 1, scope: "read:workout read:profile offline", token_type: "bearer" };
+    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope: "read:workout read:profile offline", token_type: "bearer" };
   };
 
   const readBody = (req: IncomingMessage) =>
@@ -54,6 +58,18 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     // --- служебные ---
     if (req.method === "POST" && path === "/__control/reuse-next") {
       reuseNext = userParam();
+      return json(200, { ok: true });
+    }
+    if (req.method === "POST" && path === "/__control/expires") {
+      const seconds = Number(url.searchParams.get("seconds"));
+      if (!Number.isFinite(seconds) || seconds <= 0) return json(400, { error: "seconds" });
+      expiresIn = seconds;
+      return json(200, { ok: true });
+    }
+    if (req.method === "POST" && path === "/__control/api-delay") {
+      const ms = Number(url.searchParams.get("ms"));
+      if (!Number.isFinite(ms) || ms < 0) return json(400, { error: "ms" });
+      apiDelayMs = ms;
       return json(200, { ok: true });
     }
     if (req.method === "PUT" && path === "/__control/workouts") {
@@ -95,6 +111,7 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
 
     // --- API ---
     if (!path.startsWith("/developer/v2/")) return json(404, { error: "not found" });
+    if (apiDelayMs > 0) await new Promise((r) => setTimeout(r, apiDelayMs));
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1] ?? "";
     const token = accessTokens.get(bearer);
     if (!token) return json(401, { error: "unauthorized" });

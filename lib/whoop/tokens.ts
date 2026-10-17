@@ -104,7 +104,8 @@ class RefreshRejected extends Error {}
  * refresh падает), поэтому без блокировки два запроса сожгли бы подключение.
  *
  * `rejected` (для повтора на 401 в `lib/whoop/client.ts`) — access-токен, на который WHOOP ответил 401:
- * обновить принудительно, если в БД всё ещё он; если другой запрос уже обновил — вернуть новый без refresh.
+ * обновить принудительно, если в БД всё ещё он; если другой запрос уже обновил — вернуть новый без refresh
+ * (независимо от запаса 60 с).
  */
 export async function getAccessToken(userId: string, rejected?: string): Promise<string> {
   const { clientId, clientSecret, key } = credentials();
@@ -124,7 +125,9 @@ export async function getAccessToken(userId: string, rejected?: string): Promise
 
         const current = decryptToken(conn.accessToken, key);
         const fresh = conn.expiresAt.getTime() - Date.now() > EXPIRY_MARGIN_MS;
-        if (fresh && current !== rejected) return current;
+        // После 401: другой запрос уже ротировал токен — берём его, даже если ему осталось < 60 с. Повторный refresh
+        // сжёг бы токен, с которым тот запрос сейчас идёт в WHOOP, и запросы бесконечно ротировали бы друг друга
+        if (rejected !== undefined ? current !== rejected : fresh) return current;
 
         let next: WhoopTokenSet;
         try {
