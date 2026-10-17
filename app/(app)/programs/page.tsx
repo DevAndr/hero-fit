@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireCatalog } from "@/lib/catalog/access";
 import { listCatalog } from "@/lib/catalog/queries";
 
-export const metadata: Metadata = { title: "Программы" };
+export const metadata: Metadata = { title: "Каталог программ" };
 
 const FILTERS = [
   { label: "Любые", value: null },
@@ -37,7 +37,7 @@ export default async function ProgramsPage({ searchParams }: PageProps<"/program
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader title="Программы" description="Циклы от тренеров: вес растёт по неделям, с разгрузками" />
+      <PageHeader title="Каталог программ" description="Циклы от тренеров: вес растёт по неделям, с разгрузками" />
       <nav aria-label="Дней в неделю" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link

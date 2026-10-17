@@ -89,6 +89,8 @@ export type CatalogProgram = CatalogItem & {
   isAuthor: boolean;
   /** Видна в каталоге (опубликована, не снята) — можно начать. */
   available: boolean;
+  /** Для автора: почему программы нет в каталоге (null — видна). */
+  authorStatus: "unpublished" | "hidden" | "invisible" | null;
 };
 
 /** Страница программы; неопубликованную и снятую видит только автор. */
@@ -133,6 +135,7 @@ export async function getCatalogProgram(id: string, viewerId: string): Promise<C
     rule,
     isAuthor,
     available: visible,
+    authorStatus: !isAuthor || visible ? null : p.hiddenAt !== null ? "hidden" : p.publishedAt === null ? "unpublished" : "invisible",
   };
 }
 

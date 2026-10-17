@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/app/app-shell";
 import { AuthorLink } from "@/components/catalog/catalog-card";
 import { ProgramWeek } from "@/components/catalog/program-week";
 import { StartProgramButton } from "@/components/catalog/start-program-dialog";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { requireCatalog } from "@/lib/catalog/access";
 import { activePrograms, getCatalogProgram } from "@/lib/catalog/queries";
@@ -14,6 +15,9 @@ import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Программа" };
+
+/** Значок для автора: почему программы нет в каталоге. */
+const AUTHOR_STATUS = { unpublished: "Не опубликована", hidden: "Снята администратором", invisible: "Не видна в каталоге" } as const;
 
 const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} кг`;
 
@@ -36,6 +40,9 @@ export default async function CatalogProgramPage({ params }: PageProps<"/program
           </Link>
         }
       />
+      {program.authorStatus ? (
+        <Badge variant={program.authorStatus === "hidden" ? "destructive" : "secondary"}>{AUTHOR_STATUS[program.authorStatus]}</Badge>
+      ) : null}
       <p className="text-sm text-muted-foreground">
         Автор: <AuthorLink author={program.author} /> · занимаются {program.participants}
       </p>

@@ -25,4 +25,4 @@ export const CLUB_NAV_ITEM = { href: "/clubs", label: "Клуб", icon: Building
 export const COACH_NAV_ITEM = { href: "/coach", label: "Клиенты", icon: ClipboardCheck, mobile: false } as const;
 
 /** Каталог программ (флаг `program_catalog`): в боковом меню после «Шаблонов», на телефоне — в меню профиля. */
-export const PROGRAMS_NAV_ITEM = { href: "/programs", label: "Программы", icon: LibraryBig, mobile: false } as const;
+export const PROGRAMS_NAV_ITEM = { href: "/programs", label: "Каталог программ", icon: LibraryBig, mobile: false } as const;

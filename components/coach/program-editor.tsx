@@ -219,6 +219,8 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
               </p>
             </div>
           </fieldset>
+        ) : catalogOn ? (
+          <p className="text-sm text-muted-foreground">Сохраните программу, чтобы опубликовать её в каталоге</p>
         ) : null}
         <div className="grid gap-1.5">
           <p className="text-sm font-medium">Вес по неделям при базе 100 кг</p>

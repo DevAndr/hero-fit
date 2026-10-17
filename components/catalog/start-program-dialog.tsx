@@ -80,7 +80,9 @@ export function StartProgramButton({
       });
       if (!result.ok) {
         if (result.error === NEEDS_REPLACE) {
+          // Базы уже в состоянии — подтверждение запустит с ними; после «Отмена» диалог снова с шага 1 (базы перечитаются)
           setOpen(false);
+          setStep(1);
           setConfirm(true);
         } else toast.error(result.error);
         return;

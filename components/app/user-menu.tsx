@@ -146,7 +146,7 @@ export function UserMenu({
         {catalog ? (
           <DropdownMenuItem render={<Link href="/programs" />}>
             <LibraryBig />
-            Программы
+            Каталог программ
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem render={<Link href="/goals" />}>
