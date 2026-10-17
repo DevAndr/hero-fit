@@ -84,8 +84,8 @@ model WhoopWorkout {
 
 ## Подключение
 
-1. `/settings` → карточка «WHOOP» (`components/settings/whoop-card.tsx`), видна при флаге `whoop` и заданном
-   `WHOOP_CLIENT_ID`. Состояния: не подключён / подключён (с даты, «Отключить») / нужно переподключить.
+1. Страница `/devices` «Браслеты и часы» (`app/(app)/devices/page.tsx`, карточка `components/devices/whoop-card.tsx`), доступна при флаге `whoop` и заданном
+   `WHOOP_CLIENT_ID`. Состояния: не подключён / подключён (с даты, «Отключить») / нужно переподключить. Без флага `/devices` — 404. Пункта в меню нет: в `/settings` — строка-ссылка «Браслеты и часы» со статусом («WHOOP подключён» / «Не подключены»), из сводки — ссылка при «Переподключите WHOOP». Push-устройства и Telegram остаются в `/settings`.
 2. «Подключить WHOOP» → диалог согласия. Текст: какие данные (тренировки WHOOP: время, вид спорта, средний и
    максимальный пульс, strain, ккал, время в пульсовых зонах), зачем (показ в сводке тренировки), кто видит (только
    вы), срок (пока WHOOP подключён), как отозвать (кнопка «Отключить WHOOP» — данные удаляются), ссылка на `/privacy`.
@@ -93,11 +93,11 @@ model WhoopWorkout {
 3. `GET /api/whoop/connect?consent=1` (только с входом): случайный `state` (32 hex) → httpOnly cookie `hf_whoop_state`
    (10 мин, `SameSite=Lax`, путь `/api/whoop`) → редирект на авторизацию WHOOP с `redirect_uri =
    ${APP_URL}/api/whoop/callback`.
-4. `GET /api/whoop/callback`: `state` совпал с cookie (иначе → `/settings?whoop=error`); `error=access_denied` →
-   `/settings?whoop=denied`; обмен `code` на токены → `GET /v2/user/profile/basic` за `user_id` → upsert
+4. `GET /api/whoop/callback`: `state` совпал с cookie (иначе → `/devices?whoop=error`); `error=access_denied` →
+   `/devices?whoop=denied`; обмен `code` на токены → `GET /v2/user/profile/basic` за `user_id` → upsert
    `WhoopConnection` (`consentAt = now`, `needsReauth = false`). Тот же `whoopUserId` у другого нашего пользователя →
-   `/settings?whoop=taken`, токен отзывается. Затем `after()` — загрузка истории за 30 дней, редирект
-   `/settings?whoop=connected`.
+   `/devices?whoop=taken`, токен отзывается. Затем `after()` — загрузка истории за 30 дней, редирект
+   `/devices?whoop=connected`.
 5. Флаг выключен или нет `WHOOP_CLIENT_ID` → маршруты отвечают 404.
 
 ### Токены
@@ -156,7 +156,7 @@ model WhoopWorkout {
 - **Нет совпадения:** тренировка закончилась < 48 ч назад — «Пока нет данных WHOOP» + «Обновить» (и одна автоматическая
   догрузка при открытии); позже — «WHOOP не записал активность в это время. Автоопределение срабатывает не всегда —
   можно запускать активность в WHOOP вручную».
-- **Нужно переподключить:** «Переподключите WHOOP» со ссылкой в `/settings`.
+- **Нужно переподключить:** «Переподключите WHOOP» со ссылкой на `/devices`.
 - «Обновить» при ограничении — «Обновить можно через минуту»; при недоступности — «WHOOP не отвечает, попробуйте позже».
 
 ## «Мои данные», удаление, тексты

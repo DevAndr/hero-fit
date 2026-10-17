@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Владелец подключает WHOOP в `/settings` по отдельному согласию и видит в сводке своей тренировки средний/макс. пульс, strain, ккал и зоны из совпавшей по времени активности WHOOP.
+**Goal:** Владелец подключает WHOOP на странице `/devices` («Браслеты и часы») по отдельному согласию и видит в сводке своей тренировки средний/макс. пульс, strain, ккал и зоны из совпавшей по времени активности WHOOP.
 
 **Architecture:** Модуль `lib/whoop/*`: чистые функции (шифрование, подпись, перевод ответа, сопоставление) + серверные (клиент API с токенами под advisory lock, синхронизация). Маршруты `app/api/whoop/{connect,callback,webhook}`. Активности WHOOP хранятся урезанными строками `WhoopWorkout`; связь с `Workout` не хранится — сопоставление при показе. Всё под флагом `whoop` (по списку пользователей).
 
@@ -28,7 +28,7 @@
 
 1. **Ротация refresh-токена при гонке** — автодогрузка карточки и «Обновить» одновременно: второй refresh не должен разлогинить WHOOP. Фейковый сервер выдаёт `expires_in: 1` и инвалидирует старый refresh → каждый вызов идёт через refresh; e2e (Задание 5) жмёт «Обновить» сразу после автодогрузки и ждёт данных, а не «Переподключите WHOOP».
 2. **История больше 25 активностей** — пагинация `next_token`. e2e (Задание 4): 26 активностей, совпадающая — самая старая.
-3. **Тот же аккаунт WHOOP у второй нашей учётки** → `/settings?whoop=taken`, у первой подключение не тронуто. e2e (Задание 4) — фейковый сервер по cookie-подсказке отдаёт тот же `user_id`.
+3. **Тот же аккаунт WHOOP у второй нашей учётки** → `/devices?whoop=taken`, у первой подключение не тронуто. e2e (Задание 4) — фейковый сервер по cookie-подсказке отдаёт тот же `user_id`.
 4. **Вебхук для неизвестного/отключённого `user_id` и повтор события** → 204, строк не добавилось / одна строка. e2e (Задание 6).
 5. **Тренировка без `startedAt`/`finishedAt` или не `COMPLETED`** → карточки нет, `matchWhoop` не вызывается. Unit (Задание 2) — `matchWhoop` с пустым интервалом → `null`.
 
@@ -122,18 +122,18 @@
 - [ ] **Step 2:** `npm run typecheck && npm run lint` → чисто.
 - [ ] **Step 3: Commit** — `feat(whoop): API client with token refresh lock and sync`.
 
-### Task 4: Подключение и отключение в `/settings` + фейковый WHOOP
+### Task 4: Страница «Браслеты и часы» (`/devices`): подключение и отключение + фейковый WHOOP
 
 **Files:**
-- Create: `e2e/whoop-server.ts`, `app/api/whoop/connect/route.ts`, `app/api/whoop/callback/route.ts`, `lib/whoop/actions.ts`, `lib/whoop/queries.ts`, `components/settings/whoop-card.tsx`, `e2e/whoop.spec.ts`
-- Modify: `app/(app)/settings/page.tsx`, `playwright.config.ts` (третий `webServer` + `WHOOP_FAKE_URL`), `e2e/db.ts`
+- Create: `e2e/whoop-server.ts`, `app/api/whoop/connect/route.ts`, `app/api/whoop/callback/route.ts`, `lib/whoop/actions.ts`, `lib/whoop/queries.ts`, `app/(app)/devices/page.tsx`, `components/devices/whoop-card.tsx`, `e2e/whoop.spec.ts`
+- Modify: `app/(app)/settings/page.tsx` (строка-ссылка), `playwright.config.ts` (третий `webServer` + `WHOOP_FAKE_URL`), `e2e/db.ts`
 
 **Interfaces:**
 - Consumes: Task 3 (`exchangeCode`, `fetchProfileUserId`, `revokeAccess`, `syncRange`), Task 1 (`encryptToken`, `whoopConfigured`, `oauthUrl`, `redirectUri`, `WHOOP_SCOPES`)
 - Produces:
   - `getWhoopStatus(userId: string): Promise<{ connected: false } | { connected: true; since: Date; needsReauth: boolean }>` (`lib/whoop/queries.ts`)
   - `whoopAvailable(userId: string): Promise<boolean>` — `whoopConfigured() && isEnabled("whoop", userId)`
-  - `disconnectWhoopAction(): Promise<void>` (`lib/whoop/actions.ts`, `"use server"`, `requireUser`) — `revokeAccess`, затем транзакция `whoopWorkout.deleteMany` + `whoopConnection.deleteMany`, `revalidatePath("/settings")`
+  - `disconnectWhoopAction(): Promise<void>` (`lib/whoop/actions.ts`, `"use server"`, `requireUser`) — `revokeAccess`, затем транзакция `whoopWorkout.deleteMany` + `whoopConnection.deleteMany`, `revalidatePath("/devices")`
   - Фейковый сервер (порт 3125, `WHOOP_FAKE_URL = "http://localhost:3125"`, запуск `npx tsx e2e/whoop-server.ts`, как `telegram-server.ts`):
     - `GET /oauth/oauth2/auth` → 302 на `redirect_uri?code=<uuid>&state=<state>`; для Review Focus 3: если перед этим вызван `POST /__control/reuse-next?user=<id>`, следующий код привязывается к этому `user_id`, иначе — новый `user_id` (счётчик с 1000)
     - `POST /oauth/oauth2/token` (form): `authorization_code` → токены; `refresh_token` → новые, старый refresh и access инвалидируются, неизвестный refresh → 400; всегда `expires_in: 1`
@@ -143,13 +143,13 @@
 
 - [ ] **Step 1: Фейковый сервер** и строка в `webServer` (`url: \`${WHOOP_FAKE_URL}/health\``).
 - [ ] **Step 2: e2e-тесты подключения** (`whoop.spec.ts`, `test.describe.configure({ mode: "serial" })` не нужен — флаг по списку через `addFlagUser("whoop", login)`; только desktop: `test.skip(({ isMobile }) => isMobile)`):
-  - «подключение по согласию»: `/settings` → «Подключить WHOOP» → в диалоге «Продолжить» недоступна до галочки «Согласен на обработку данных о здоровье» → после галочки — URL `/settings?whoop=connected`, карточка «Подключён»; `whoopUserIdOf(login)` не `null`;
-  - «без флага карточки нет» — пользователь без `addFlagUser` не видит «WHOOP» в `/settings`, `GET /api/whoop/connect` → 404;
-  - «чужой аккаунт WHOOP» (Review Focus 3): первый подключил; `reuse-next` с его `whoopUserId`; второй подключает → `/settings?whoop=taken`, у второго `whoopUserIdOf` = `null`, у первого — прежний;
+  - «подключение по согласию»: `/settings` → ссылка «Браслеты и часы» → `/devices` → «Подключить WHOOP» → в диалоге «Продолжить» недоступна до галочки «Согласен на обработку данных о здоровье» → после галочки — URL `/devices?whoop=connected`, карточка «Подключён»; `whoopUserIdOf(login)` не `null`;
+  - «без флага карточки нет» — пользователь без `addFlagUser` не видит ссылку «Браслеты и часы» в `/settings`, `/devices` и `GET /api/whoop/connect` → 404;
+  - «чужой аккаунт WHOOP» (Review Focus 3): первый подключил; `reuse-next` с его `whoopUserId`; второй подключает → `/devices?whoop=taken`, у второго `whoopUserIdOf` = `null`, у первого — прежний;
   - «отключение удаляет данные»: подключить → «Отключить WHOOP» → подтвердить → карточка «Не подключён», `whoopWorkoutCount = 0`, `/__control/revoked` → `true`.
 - [ ] **Step 3:** `npm run build && npx playwright test whoop --project=desktop` → FAIL.
 - [ ] **Step 4: Маршруты.** `connect`: `requireUser` (без входа — редирект на `/login`), `whoopAvailable` иначе 404, `consent=1` обязателен (иначе 400), `state = randomBytes(16).toString("hex")` → cookie `hf_whoop_state` (`httpOnly`, `sameSite: "lax"`, `path: "/api/whoop"`, `maxAge: 600`, `secure` в production) и `hf_whoop_consent` = ISO-время согласия (те же атрибуты) → 302 на `oauthUrl("auth")` с `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`. `callback`: проверки и ветки — как в спеке («Подключение», п. 4); `consentAt` — из `hf_whoop_consent`; обе cookie стереть; история — `after(() => syncRange(user.id, now − 30 дн, now).catch(...))`; при `taken` — сначала сохранить токен во временную переменную и вызвать отзыв напрямую по нему (не через `revokeAccess(userId)`, у которого нет строки).
-- [ ] **Step 5: Карточка `/settings`** (`WhoopCard`, рядом с `TelegramCard`, видна при `whoopAvailable`): состояния и диалог согласия — тексты из спеки; кнопка «Продолжить» — `<a href="/api/whoop/connect?consent=1">` с видом кнопки (`buttonVariants`), недоступна без галочки; отключение — диалог подтверждения «Отключить WHOOP? Данные WHOOP в Hero Fit удалятся». Тосты по `?whoop=connected|denied|taken|error`: «WHOOP подключён», «Подключение отменено», «Этот аккаунт WHOOP уже подключён к другому профилю», «Не удалось подключить WHOOP».
+- [ ] **Step 5: Страница `/devices`** (`PageHeader` «Браслеты и часы», `metadata.title` то же; `whoopAvailable` иначе `notFound()`; без пункта меню) с `WhoopCard` (статус, «Подключён с <дата>», «Последняя синхронизация» по `lastSyncAt`); в `/settings` рядом с `TelegramCard` — строка-ссылка «Браслеты и часы» со статусом «WHOOP подключён» / «Не подключены» (только при `whoopAvailable`). В карточке: состояния и диалог согласия — тексты из спеки; кнопка «Продолжить» — `<a href="/api/whoop/connect?consent=1">` с видом кнопки (`buttonVariants`), недоступна без галочки; отключение — диалог подтверждения «Отключить WHOOP? Данные WHOOP в Hero Fit удалятся». Тосты по `?whoop=connected|denied|taken|error`: «WHOOP подключён», «Подключение отменено», «Этот аккаунт WHOOP уже подключён к другому профилю», «Не удалось подключить WHOOP».
 - [ ] **Step 6: История > 25** (Review Focus 2): тест «история за 30 дней»: `seedWorkouts` → `latestWorkout`; `PUT /__control/workouts` с 26 активностями, где совпадающая с тренировкой — самая старая, остальные — позже, не пересекаются → подключить → `whoopWorkoutCount` = 26 (`expect.poll`, история в `after()`).
 - [ ] **Step 7:** `npm run build && npx playwright test whoop --project=desktop` → PASS.
 - [ ] **Step 8: Commit** — `feat(whoop): connect with consent, disconnect, fake WHOOP for e2e`.
