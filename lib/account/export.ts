@@ -47,6 +47,9 @@ export type ExportRaw = {
   coachComments: unknown[];
   /** Заметки тренеров обо мне и мои заметки о клиентах — с лишними полями (id) на входе: в выгрузку — текст, дата, ник. */
   coachNotesAboutMe: ({ text: string; updatedAt: Date; coach: string | null } & Record<string, unknown>)[];
+  /** Итоги недели тренера: строка обо мне (я клиент) и мои снимки (я тренер) — ник вместо id. */
+  coachRecapsAboutMe: ({ week: string; coach: string | null; data: unknown } & Record<string, unknown>)[];
+  coachRecaps: ({ week: string; totals: unknown; clients: ({ client: string | null; data: unknown } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   clientNotes: ({ text: string; updatedAt: Date; client: string | null } & Record<string, unknown>)[];
   /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
   programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
@@ -84,6 +87,8 @@ export const EXPORT_SECTIONS = [
   "coachComments",
   "coachNotesAboutMe",
   "clientNotes",
+  "coachRecapsAboutMe",
+  "coachRecaps",
   "programs",
   "coachPrograms",
   "notifications",
@@ -161,6 +166,12 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     coachComments: raw.coachComments,
     coachNotesAboutMe: raw.coachNotesAboutMe.map((n) => ({ text: n.text, updatedAt: n.updatedAt, coach: n.coach })),
     clientNotes: raw.clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client })),
+    coachRecapsAboutMe: raw.coachRecapsAboutMe.map((r) => ({ week: r.week, coach: r.coach, data: r.data })),
+    coachRecaps: raw.coachRecaps.map((r) => ({
+      week: r.week,
+      totals: r.totals,
+      clients: r.clients.map((c) => ({ client: c.client, data: c.data })),
+    })),
     programs: raw.programs.map((p) => ({
       name: p.name,
       startDate: p.startDate,

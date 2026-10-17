@@ -1235,3 +1235,35 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
     return rows[0]?.v ?? null;
   });
 }
+
+/** Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка. */
+export async function seedCoachRecap(coachLogin: string, clientLogin: string, week: string) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    const totals = { version: 1, clients: 1, trained: 1, plan: null, prevPlanPct: null, workouts: 1, records: 0, ups: 0, attention: 0, unanswered: 0 };
+    const row = {
+      version: 1,
+      isNew: false,
+      plan: null,
+      workouts: 1,
+      prevWorkouts: 0,
+      records: { count: 0, names: [] },
+      progression: { items: [], more: 0, ups: 0 },
+      program: null,
+      signals: [],
+      unanswered: 0,
+    };
+    await db.query(`insert into "CoachWeeklyRecap" (id, "coachId", week, data) values ($1, $2, $3, $4)`, [id, await userId(db, coachLogin), week, JSON.stringify(totals)]);
+    await db.query(`insert into "CoachRecapClient" ("recapId", "clientId", data) values ($1, $2, $3)`, [id, await userId(db, clientLogin), JSON.stringify(row)]);
+    return id;
+  });
+}
+
+/** Сколько строк клиента (по id) в снимках тренеров и сколько снимков у тренера. */
+export async function coachRecapCounts(coachLogin: string, clientId: string) {
+  return withDb(async (db) => {
+    const client = (await db.query(`select count(*)::int as n from "CoachRecapClient" where "clientId" = $1`, [clientId])).rows[0].n as number;
+    const recaps = (await db.query(`select count(*)::int as n from "CoachWeeklyRecap" where "coachId" = $1`, [await userId(db, coachLogin)])).rows[0].n as number;
+    return { client, recaps };
+  });
+}
