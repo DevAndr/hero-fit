@@ -92,11 +92,11 @@ export async function applyProgression(
 
 /**
  * Метка недели активной программы по шаблону («Неделя 3/8») и её название или null — нет программы или недели.
- * coachId = null — программа из каталога (без тренера, с catalogProgramId).
+ * coachId = null — программа из каталога (без тренера, fromCatalog).
  */
 async function activeProgramWeek(tx: Prisma.TransactionClient, clientId: string, coachId: string | null, templateId: string) {
   const a = await tx.programAssignment.findFirst({
-    where: { clientId, coachId, endedAt: null, series: { some: { templateId } }, ...(coachId ? {} : { catalogProgramId: { not: null } }) },
+    where: { clientId, coachId, endedAt: null, series: { some: { templateId } }, ...(coachId ? {} : { fromCatalog: true }) },
     orderBy: { createdAt: "desc" },
     select: { name: true, startDate: true, weeks: true, deloadEvery: true, client: { select: { timeZone: true } } },
   });

@@ -19,7 +19,7 @@ export async function processProgramReminders(now = new Date()): Promise<number>
   const rows = await db.programAssignment.findMany({
     where: { endedAt: null },
     orderBy: { startDate: "asc" },
-    select: { id: true, coachId: true, catalogProgramId: true, clientId: true, name: true, startDate: true, weeks: true, remindedAt: true, client: { select: { nickname: true, name: true, timeZone: true } } },
+    select: { id: true, coachId: true, fromCatalog: true, clientId: true, name: true, startDate: true, weeks: true, remindedAt: true, client: { select: { nickname: true, name: true, timeZone: true } } },
     take: 500,
   });
   const deadline = Date.now() + TICK_BUDGET_MS;
@@ -34,7 +34,7 @@ export async function processProgramReminders(now = new Date()): Promise<number>
       continue;
     }
     // Тренер удалён (нет ни тренера, ни программы каталога) — напоминать некому
-    const catalog = !on && a.catalogProgramId !== null;
+    const catalog = !on && a.fromCatalog;
     if ((!on && !catalog) || !shouldRemindProgramEnd(endDay, today, a.remindedAt)) continue;
     const { count } = await db.programAssignment.updateMany({ where: { id: a.id, remindedAt: null }, data: { remindedAt: now } });
     if (!count) continue;

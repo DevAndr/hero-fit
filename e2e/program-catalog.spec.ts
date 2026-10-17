@@ -310,3 +310,33 @@ test("ending the own program removes future sessions and keeps today's", async (
     await user.context.close();
   }
 });
+
+test("the author deletes the program — the running one keeps its label, weights and the end button", async ({ page, browser }) => {
+  test.slow();
+  const p = await publishedProgram(page, { weekdays: [0, 1, 2, 3, 4, 5, 6] });
+  const user = await athlete(browser);
+  try {
+    const dialog = await openStart(user.page, p.id, "this");
+    await dialog.getByLabel(`База, ${SQUAT} (${p.template})`).fill("100");
+    await dialog.getByRole("button", { name: "Начать", exact: true }).click();
+    await expect(user.page.getByText("Программа начата")).toBeVisible();
+
+    // Автор удалил программу из библиотеки: ссылка на каталог обнулилась, признак запуска из каталога остался
+    await withDb((db) => db.query(`delete from "CoachProgram" where id = $1`, [p.id]));
+    expect(await activeAssignments(user.login)).toEqual([{ name: p.name, coachId: null, catalogProgramId: null }]);
+
+    await user.page.goto("/calendar");
+    const block = user.page.getByRole("region", { name: "Программа" });
+    await expect(block).toContainText(`«${p.name}»`);
+    await expect(block.getByRole("button", { name: "Завершить программу" })).toBeVisible();
+    await expect(user.page.getByRole("button", { name: new RegExp(`^${p.template}, .*, программа «${p.name}» \\(неделя 1/8\\)$`) })).not.toHaveCount(0);
+
+    await user.page.goto("/training");
+    await user.page.getByRole("button", { name: new RegExp(`По плану: ${p.template}`) }).click();
+    const squat = user.page.getByRole("region", { name: SQUAT });
+    await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("100");
+    await expect(squat).toContainText(`программа «${p.name}»: 3 подхода · 100 кг (неделя 1/8)`);
+  } finally {
+    await user.context.close();
+  }
+});

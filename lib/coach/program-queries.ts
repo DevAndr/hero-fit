@@ -80,7 +80,7 @@ export async function programForTemplate(
     orderBy: { createdAt: "desc" },
     include: { bases: { where: { templateId } }, client: { select: { timeZone: true } } },
   });
-  const catalog = assignment && !assignment.coachId && assignment.catalogProgramId ? assignment.name : null;
+  const catalog = assignment && !assignment.coachId && assignment.fromCatalog ? assignment.name : null;
   if (!assignment || (!assignment.coachId && catalog === null)) return { ended: false, catalog: null, overlay: null };
   const today = day ?? dayKey(new Date(), safeTimeZone(assignment.client.timeZone));
   const week = programWeekIndex(assignment.startDate, today);
@@ -104,11 +104,11 @@ export async function programWeekLabels(seriesIds: (string | null)[]): Promise<(
   const rows = ids.length
     ? await db.planSeries.findMany({
         where: { id: { in: ids }, programAssignmentId: { not: null } },
-        select: { id: true, programAssignment: { select: { name: true, startDate: true, weeks: true, deloadEvery: true, coachId: true, catalogProgramId: true } } },
+        select: { id: true, programAssignment: { select: { name: true, startDate: true, weeks: true, deloadEvery: true, coachId: true, fromCatalog: true } } },
       })
     : [];
   const bySeries = new Map(
-    rows.flatMap((r) => (r.programAssignment && (r.programAssignment.coachId || r.programAssignment.catalogProgramId) ? [[r.id, r.programAssignment] as const] : [])),
+    rows.flatMap((r) => (r.programAssignment && (r.programAssignment.coachId || r.programAssignment.fromCatalog) ? [[r.id, r.programAssignment] as const] : [])),
   );
   return (seriesId, date) => {
     const a = seriesId ? bySeries.get(seriesId) : undefined;

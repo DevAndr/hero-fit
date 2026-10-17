@@ -70,7 +70,8 @@ type Base = { templateId: string; exerciseId: string; weight: number };
 /**
  * Создать назначение (в транзакции; строка пользователя уже под FOR UPDATE): прежнее активное закрывается с записью
  * весов, создаётся снимок правила, базы (только силовые упражнения шаблонов templateOwnerId) и серии с понедельника
- * старта на N недель. Без уведомления. coachId = null и catalogProgramId — запуск из каталога.
+ * старта на N недель. Без уведомления. coachId = null и catalogProgramId — запуск из каталога: ставится
+ * постоянный fromCatalog (catalogProgramId обнулится, если автор удалит программу).
  */
 export async function createAssignment(
   tx: Tx,
@@ -102,6 +103,7 @@ export async function createAssignment(
       coachId,
       programId: input.programId,
       catalogProgramId: input.catalogProgramId,
+      fromCatalog: input.coachId === null && input.catalogProgramId !== null,
       name: input.name,
       startDate: input.startDate,
       ...rule,

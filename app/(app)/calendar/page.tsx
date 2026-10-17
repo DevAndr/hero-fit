@@ -39,7 +39,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     listTemplates(user.id),
     activeCoachOf(user.id),
     // Своя программа из каталога — «Завершить программу» (только с флагом каталога)
-    catalogAllowed(user.id).then((on) => (on ? activePrograms(db, user.id, today) : [])).then((rows) => rows.find((a) => !a.coachId && a.catalogProgramId)),
+    catalogAllowed(user.id).then((on) => (on ? activePrograms(db, user.id, today) : [])).then((rows) => rows.find((a) => !a.coachId && a.fromCatalog)),
   ]);
   // Назначения есть только от активного тренера — разрыв связи их удаляет
   const coachName = coach ? clientDisplayName(coach) : null;

@@ -136,7 +136,7 @@ export async function getCatalogProgram(id: string, viewerId: string): Promise<C
   };
 }
 
-export type ActiveProgram = { id: string; name: string; coachId: string | null; catalogProgramId: string | null; startDate: string; weeks: number };
+export type ActiveProgram = { id: string; name: string; coachId: string | null; catalogProgramId: string | null; fromCatalog: boolean; startDate: string; weeks: number };
 
 /**
  * Активные назначения пользователя (не закрыты и срок не кончился, день — в его поясе); первым — от тренера,
@@ -146,7 +146,7 @@ export async function activePrograms(client: Prisma.TransactionClient, userId: s
   const rows = await client.programAssignment.findMany({
     where: { clientId: userId, endedAt: null },
     orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, coachId: true, catalogProgramId: true, startDate: true, weeks: true },
+    select: { id: true, name: true, coachId: true, catalogProgramId: true, fromCatalog: true, startDate: true, weeks: true },
   });
   return rows.filter((a) => programEndDay(a.startDate, a.weeks) >= today).toSorted((a, b) => Number(b.coachId !== null) - Number(a.coachId !== null));
 }

@@ -87,7 +87,7 @@ const startSchema = z.object({
 });
 
 /**
- * Запустить программу из каталога: шаблоны дней копируются пользователю, назначение — без тренера (catalogProgramId).
+ * Запустить программу из каталога: шаблоны дней копируются пользователю, назначение — без тренера (fromCatalog, catalogProgramId).
  * Идёт программа от тренера — запрет; своя/каталожная — только с replace (иначе ошибка NEEDS_REPLACE). Две вкладки
  * не оставят двух активных — строка пользователя под FOR UPDATE, проверки — после блокировки.
  */
@@ -152,7 +152,7 @@ export async function endOwnProgramAction(): Promise<Result> {
   const user = await requireUser();
   if (!(await catalogAllowed(user.id))) return { ok: false, error: CATALOG_OFF };
   const today = todayOf(user.timeZone);
-  const active = (await activePrograms(db, user.id, today)).find((a) => a.coachId === null && a.catalogProgramId !== null);
+  const active = (await activePrograms(db, user.id, today)).find((a) => a.coachId === null && a.fromCatalog);
   if (!active) return { ok: false, error: "Программа не найдена" };
   await db.$transaction((tx) => endAssignment(tx, active.id, today, { writeTargets: true, keepToday: true }));
   revalidatePath("/calendar");

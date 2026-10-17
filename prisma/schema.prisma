@@ -1477,6 +1477,8 @@ model ProgramAssignment {
   createdAt   DateTime    @default(now())
   /// запущена из каталога (самостоятельно, coachId = null); null — назначил тренер
   catalogProgramId String?
+  /// запущена из каталога — постоянный признак (catalogProgramId обнуляется, если автор удалил программу)
+  fromCatalog      Boolean  @default(false)
 
   client  User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
   coach   User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
