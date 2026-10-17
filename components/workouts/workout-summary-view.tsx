@@ -69,6 +69,7 @@ export function WorkoutSummaryView({
   exerciseHref,
   renderComment,
   feedback,
+  wearable,
   goalChests = [],
   goblinOpened = true,
   supersets = false,
@@ -86,6 +87,8 @@ export function WorkoutSummaryView({
   renderComment?: (workoutExerciseId: string | null) => ReactNode;
   /** Оценка тренировки: форма у владельца, блок «Оценка клиента» у тренера. */
   feedback?: ReactNode;
+  /** Данные браслета (WHOOP) — только у владельца; выводятся перед оценкой. */
+  wearable?: ReactNode;
   /** Цели этой тренировки с ещё не открытым сундуком. */
   goalChests?: string[];
   /** Сундук Золотого гоблина этой тренировки уже открыт (нет гоблина — не важно). */
@@ -238,6 +241,7 @@ export function WorkoutSummaryView({
         ) : null}
       </div>
 
+      {wearable ? <div className="mt-4">{wearable}</div> : null}
       {feedback ? <div className="mt-4">{feedback}</div> : null}
 
       {meta?.program ? (

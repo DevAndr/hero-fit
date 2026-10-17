@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
 import { ShareStoryButton } from "@/components/workouts/share-story-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
+import { WhoopCard } from "@/components/workouts/whoop-card";
 import { WorkoutFeedback } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
@@ -19,6 +20,7 @@ import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { differsFromTemplate } from "@/lib/templates/from-workout";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
+import { getWhoopCard, whoopAvailable } from "@/lib/whoop/queries";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
 
@@ -41,6 +43,8 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const comments = await getWorkoutComments(workout.id);
   if (comments.length) await markCommentsRead(user.id, workout.id);
   const byExercise = new Map(comments.map((c) => [c.workoutExerciseId, c]));
+  // Пульс и strain из WHOOP — только владельцу (страница и так только его), при флаге и подключении
+  const whoopCard = (await whoopAvailable(user.id)) ? await getWhoopCard(user.id, workout) : null;
 
   return (
     <WorkoutSummaryView
@@ -53,6 +57,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       supersets={await isEnabled("workout_formats", user.id)}
       goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
+      wearable={whoopCard ? <WhoopCard workoutId={workout.id} initial={whoopCard} /> : null}
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) => {
         const comment = byExercise.get(workoutExerciseId);

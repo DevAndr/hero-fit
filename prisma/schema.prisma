@@ -121,6 +121,8 @@ model User {
   nickColorCode     String?
   themeCode         String?
   coinTxs           CoinTx[]
+  whoopConnection   WhoopConnection?
+  whoopWorkouts     WhoopWorkout[]
   items             UserItem[]
   /// умный помощник (флаг smart_coach): выключается в /settings
   assistantEnabled  Boolean   @default(true)
@@ -1430,4 +1432,35 @@ model ProgramBase {
   assignment ProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
   @@id([assignmentId, templateId, exerciseId])
+}
+
+model WhoopConnection {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whoopUserId  String   @unique // user_id WHOOP (int64 строкой) — поиск по вебхуку
+  accessToken  String // AES-256-GCM, lib/whoop/crypto.ts
+  refreshToken String // AES-256-GCM
+  expiresAt    DateTime
+  consentAt    DateTime // время согласия на обработку данных о здоровье
+  needsReauth  Boolean  @default(false) // refresh отклонён — нужно переподключить
+  lastSyncAt   DateTime? // ограничение «Обновить» — раз в 60 с
+  createdAt    DateTime @default(now())
+}
+
+model WhoopWorkout {
+  id         String   @id // UUID активности WHOOP
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  start      DateTime
+  end        DateTime
+  sportName  String
+  scoreState String // SCORED | PENDING_SCORE | UNSCORABLE
+  strain     Float?
+  avgHr      Int?
+  maxHr      Int?
+  kilojoule  Float?
+  zonesMs    Int[] // 6 значений: зоны 0…5, мс
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, start])
 }

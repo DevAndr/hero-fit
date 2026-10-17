@@ -1172,3 +1172,66 @@ export async function programSeriesToday(clientLogin: string): Promise<number> {
     return rows[0].n as number;
   });
 }
+
+/** `whoopUserId` подключения WHOOP; null — не подключён. */
+export async function whoopUserIdOf(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(
+      `select c."whoopUserId" as id from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.id ?? null;
+  });
+}
+
+/** Сколько активностей WHOOP сохранено у пользователя. */
+export async function whoopWorkoutCount(login: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(
+      `select count(*)::int as n from "WhoopWorkout" w join "User" u on u.id = w."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0].n;
+  });
+}
+
+/** Последняя завершённая тренировка пользователя. */
+export async function latestWorkout(login: string): Promise<{ id: string; startedAt: Date; finishedAt: Date }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; startedAt: Date; finishedAt: Date }>(
+      // колонки без зоны хранят UTC — читаем как timestamptz, иначе pg сдвинет на пояс процесса
+      `select w.id, w."startedAt" at time zone 'UTC' as "startedAt", w."finishedAt" at time zone 'UTC' as "finishedAt" from "Workout" w join "User" u on u.id = w."userId"
+       where u.login = $1 and w.status = 'COMPLETED' order by w."finishedAt" desc limit 1`,
+      [login],
+    );
+    return rows[0];
+  });
+}
+
+/** Сбросить отметку последней синхронизации WHOOP — снять ограничение «Обновить» раз в минуту. */
+export async function resetWhoopSync(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set "lastSyncAt" = null from "User" u where u.id = c."userId" and u.login = $1`, [login]);
+  });
+}
+
+/** Состарить access-токен WHOOP: следующий запрос приложения пойдёт через refresh. */
+export async function expireWhoopToken(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(
+      `update "WhoopConnection" c set "expiresAt" = now() - interval '1 hour' from "User" u where u.id = c."userId" and u.login = $1`,
+      [login],
+    );
+  });
+}
+
+/** Флаг «нужно переподключить WHOOP»; null — не подключён. */
+export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ v: boolean }>(
+      `select c."needsReauth" as v from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.v ?? null;
+  });
+}

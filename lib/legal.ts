@@ -4,5 +4,5 @@ export const LEGAL = {
   operator: "Носенко Илья Борисович",
   contactEmail: "privacy@hero-fit.ru",
   /** Дата текущей редакции политики, «ДД.ММ.ГГГГ». */
-  privacyUpdated: "09.10.2026",
+  privacyUpdated: "17.10.2026",
 };

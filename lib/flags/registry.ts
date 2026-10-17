@@ -28,6 +28,10 @@ export const FLAGS = {
     description: "Форматы тренировки: суперсеты и круговые (дальше — кардио)",
     expires: "2027-04-30",
   },
+  whoop: {
+    description: "WHOOP: пульс и strain из браслета в сводке тренировки",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;
