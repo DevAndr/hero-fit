@@ -150,10 +150,12 @@ export async function startCatalogProgramAction(
   return { ok: true };
 }
 
-/** Завершить свою программу из каталога досрочно: будущие тренировки убираются, сегодняшняя остаётся. */
+/**
+ * Завершить свою программу из каталога досрочно: будущие тренировки убираются, сегодняшняя остаётся.
+ * Без проверки флага: выключенный каталог не должен запирать пользователя в идущей программе.
+ */
 export async function endOwnProgramAction(): Promise<Result> {
   const user = await requireUser();
-  if (!(await catalogAllowed(user.id))) return { ok: false, error: CATALOG_OFF };
   const today = todayOf(user.timeZone);
   const active = (await activePrograms(db, user.id, today)).find((a) => a.coachId === null && a.fromCatalog);
   if (!active) return { ok: false, error: "Программа не найдена" };

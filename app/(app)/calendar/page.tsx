@@ -4,7 +4,7 @@ import { CalendarView, type CalendarEvent } from "@/components/calendar/calendar
 import { OwnProgram } from "@/components/catalog/own-program";
 import { requireUser } from "@/lib/auth/dal";
 import { catalogAllowed } from "@/lib/catalog/access";
-import { activePrograms } from "@/lib/catalog/queries";
+import { activePrograms, startableProgram } from "@/lib/catalog/queries";
 import { programWeekIndex } from "@/lib/coach/program";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
@@ -34,13 +34,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const date = params.date && planDateSchema.safeParse(params.date).success ? params.date : today;
   const range = viewRange(view, date);
 
-  const [calendar, templates, coach, own] = await Promise.all([
+  const [calendar, templates, coach, own, catalogOn] = await Promise.all([
     getCalendar(user.id, range.from, range.to, tz, now),
     listTemplates(user.id),
     activeCoachOf(user.id),
-    // Своя программа из каталога — «Завершить программу» (только с флагом каталога)
-    catalogAllowed(user.id).then((on) => (on ? activePrograms(db, user.id, today) : [])).then((rows) => rows.find((a) => !a.coachId && a.fromCatalog)),
+    // Своя программа из каталога — «Завершить программу» и без флага каталога: выйти из идущей можно всегда
+    activePrograms(db, user.id, today).then((rows) => rows.find((a) => !a.coachId && a.fromCatalog)),
+    catalogAllowed(user.id),
   ]);
+  // Ссылка на страницу программы — только с флагом и пока программа есть в каталоге
+  const ownHref =
+    own && catalogOn && own.catalogProgramId && (await startableProgram(db, own.catalogProgramId)) ? `/programs/${own.catalogProgramId}` : null;
   // Назначения есть только от активного тренера — разрыв связи их удаляет
   const coachName = coach ? clientDisplayName(coach) : null;
   const programOf = await programWeekLabels(calendar.occurrences.map((o) => o.seriesId));
@@ -84,7 +88,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader title="Календарь" description="Планируйте тренировки — как в обычном календаре" />
-      {own ? <OwnProgram name={own.name} status={ownWeek !== null && ownWeek >= 1 ? `неделя ${ownWeek} из ${own.weeks}` : `старт ${startLabel.format(new Date(`${own.startDate}T12:00:00Z`))}`} /> : null}
+      {own ? <OwnProgram name={own.name} href={ownHref} status={ownWeek !== null && ownWeek >= 1 ? `неделя ${ownWeek} из ${own.weeks}` : `старт ${startLabel.format(new Date(`${own.startDate}T12:00:00Z`))}`} /> : null}
       <CalendarView
         view={view}
         date={date}

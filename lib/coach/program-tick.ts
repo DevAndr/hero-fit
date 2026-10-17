@@ -42,7 +42,7 @@ export async function processProgramReminders(now = new Date()): Promise<number>
       db,
       catalog ? a.clientId : a.coachId!,
       catalog
-        ? { type: NotificationType.PLAN, title: `Программа «${a.name}» заканчивается через неделю`, body: "Пора выбрать, что дальше", url: "/programs" }
+        ? { type: NotificationType.PLAN, title: `Программа «${a.name}» заканчивается через неделю`, body: "Пора выбрать, что дальше", url: "/calendar" }
         : {
             type: NotificationType.COACH,
             title: `Программа ${clientDisplayName(a.client)} заканчивается через неделю`,
