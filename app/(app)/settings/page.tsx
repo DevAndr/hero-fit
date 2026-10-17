@@ -69,7 +69,7 @@ export default async function SettingsPage() {
         </Link>
       )}
       {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
-      <NotificationPrefs initial={prefs} />
+      <NotificationPrefs initial={prefs} isCoach={user.isCoach} />
       <RestartTourButton />
       <MyDataCard />
       <DeleteAccount hasPassword={hasPassword} preview={deletionPreview(deletion)} />
