@@ -6,13 +6,12 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { reportError } from "@/lib/errors/report";
 import { fetchProfileUserId } from "@/lib/whoop/client";
+import { WHOOP_HISTORY_MS } from "@/lib/whoop/card";
 import { encryptToken } from "@/lib/whoop/crypto";
 import { CONSENT_COOKIE, oauthCookieOptions, STATE_COOKIE, type WhoopNotice } from "@/lib/whoop/oauth";
 import { whoopAvailable } from "@/lib/whoop/queries";
 import { syncRange } from "@/lib/whoop/sync";
-import { exchangeCode, type WhoopTokenSet } from "@/lib/whoop/tokens";
-
-const HISTORY_MS = 30 * 24 * 3600 * 1000;
+import { exchangeCode, WhoopUnavailableError, type WhoopTokenSet } from "@/lib/whoop/tokens";
 
 /** Редирект на /devices с итогом; одноразовые cookie OAuth стираются в любом случае. */
 function back(notice: WhoopNotice) {
@@ -26,6 +25,16 @@ function sameState(a: string, b: string) {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/**
+ * Описание ошибки для мониторинга без данных о здоровье: только имя (message/stack ошибок Prisma содержат значения
+ * полей — пульс, ккал), у WhoopUnavailableError — ещё HTTP-статус из сообщения вида "whoop 503".
+ */
+function safeErrorLabel(e: unknown): string {
+  if (!(e instanceof Error)) return "unknown";
+  const status = e instanceof WhoopUnavailableError ? /^whoop (\d{3})$/.exec(e.message)?.[1] : undefined;
+  return status ? `${e.name} ${status}` : e.name;
 }
 
 /**
@@ -87,13 +96,13 @@ export async function GET(req: NextRequest) {
   after(async () => {
     const now = new Date();
     try {
-      await syncRange(userId, new Date(now.getTime() - HISTORY_MS), now);
+      await syncRange(userId, new Date(now.getTime() - WHOOP_HISTORY_MS), now);
       await db.whoopConnection.updateMany({ where: { userId }, data: { lastSyncAt: new Date() } });
     } catch (e) {
       await reportError({
         source: "SERVER",
-        message: `whoop history: ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`,
-        stack: e instanceof Error ? (e.stack ?? null) : null,
+        message: `whoop history: ${safeErrorLabel(e)}`,
+        stack: null,
         path: "/api/whoop/callback",
         version: process.env.APP_VERSION ?? null,
         userAgent: null,

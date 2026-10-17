@@ -33,14 +33,16 @@ export async function POST(req: Request) {
   }
   if (type !== "workout.updated" && type !== "workout.deleted") return noContent();
 
-  const conn = await db.whoopConnection.findUnique({ where: { whoopUserId: String(user_id) }, select: { userId: true } });
+  const whoopUserId = String(user_id);
+  const conn = await db.whoopConnection.findUnique({ where: { whoopUserId }, select: { userId: true } });
   if (!conn) return noContent();
 
   after(async () => {
     try {
-      if (type === "workout.updated") await syncOne(conn.userId, id);
+      if (type === "workout.updated") await syncOne(conn.userId, whoopUserId, id);
       else await removeOne(conn.userId, id);
     } catch (e) {
+      // Только имя ошибки: message ошибки Prisma может содержать пульс/ккал (данные о здоровье)
       console.error("[whoop] webhook", type, (e as Error).name);
     }
   });

@@ -26,7 +26,7 @@ const full: WhoopApiWorkout = {
 
 describe("toWhoopWorkout", () => {
   it("полный ответ", () => {
-    const r = toWhoopWorkout(full);
+    const r = toWhoopWorkout(full)!;
     expect(r.avgHr).toBe(140);
     expect(r.maxHr).toBe(172);
     expect(r.strain).toBe(12.3);
@@ -37,12 +37,12 @@ describe("toWhoopWorkout", () => {
   });
 
   it("отсутствующая зона — 0", () => {
-    const r = toWhoopWorkout({ ...full, score: { ...full.score!, zone_durations: { zone_two_milli: 9 } } });
+    const r = toWhoopWorkout({ ...full, score: { ...full.score!, zone_durations: { zone_two_milli: 9 } } })!;
     expect(r.zonesMs).toEqual([0, 0, 9, 0, 0, 0]);
   });
 
   it("без score — null и пустые зоны", () => {
-    const r = toWhoopWorkout({ ...full, score: undefined, score_state: "PENDING_SCORE" });
+    const r = toWhoopWorkout({ ...full, score: undefined, score_state: "PENDING_SCORE" })!;
     expect(r.scoreState).toBe("PENDING_SCORE");
     expect(r.strain).toBeNull();
     expect(r.avgHr).toBeNull();
@@ -50,6 +50,33 @@ describe("toWhoopWorkout", () => {
   });
 
   it("неизвестный score_state — UNSCORABLE", () => {
-    expect(toWhoopWorkout({ ...full, score_state: "WEIRD" }).scoreState).toBe("UNSCORABLE");
+    expect(toWhoopWorkout({ ...full, score_state: "WEIRD" })!.scoreState).toBe("UNSCORABLE");
+  });
+
+  it("дробный пульс и зоны — округлены", () => {
+    const r = toWhoopWorkout({
+      ...full,
+      score: { ...full.score!, average_heart_rate: 140.6, max_heart_rate: 171.4, zone_durations: { zone_one_milli: 1.7 } },
+    })!;
+    expect(r.avgHr).toBe(141);
+    expect(r.maxHr).toBe(171);
+    expect(r.zonesMs).toEqual([0, 2, 0, 0, 0, 0]);
+  });
+
+  it("строка или NaN вместо числа — null", () => {
+    const bad = { ...full.score!, average_heart_rate: "140", strain: Number.NaN, kilojoule: Infinity } as unknown as WhoopApiWorkout["score"];
+    const r = toWhoopWorkout({ ...full, score: bad })!;
+    expect(r.avgHr).toBeNull();
+    expect(r.strain).toBeNull();
+    expect(r.kilojoule).toBeNull();
+    expect(r.maxHr).toBe(172);
+  });
+
+  it("битая запись — null", () => {
+    expect(toWhoopWorkout({ ...full, end: "not a date" })).toBeNull();
+    expect(toWhoopWorkout({ ...full, start: undefined } as unknown as WhoopApiWorkout)).toBeNull();
+    expect(toWhoopWorkout({ ...full, id: "" })).toBeNull();
+    expect(toWhoopWorkout({ ...full, id: 5 } as unknown as WhoopApiWorkout)).toBeNull();
+    expect(toWhoopWorkout(null as unknown as WhoopApiWorkout)).toBeNull();
   });
 });

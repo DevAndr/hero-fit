@@ -59,8 +59,9 @@ export async function refreshWhoopAction(workoutId: string): Promise<WhoopRefres
     );
   } catch (e) {
     if (e instanceof WhoopReauthError) return { status: "reauth" };
-    if (e instanceof WhoopUnavailableError) return { status: "unavailable" };
-    throw e;
+    // Наружу (onRequestError → мониторинг) не пробрасываем: message ошибки Prisma может содержать пульс/ккал
+    if (!(e instanceof WhoopUnavailableError)) console.error("[whoop] refresh", (e as Error).name);
+    return { status: "unavailable" };
   }
 
   const card = await getWhoopCard(user.id, workout);
