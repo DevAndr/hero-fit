@@ -45,7 +45,8 @@ export function TodayPlan({
 }) {
   const [first] = today;
   const shown = [first, missedYesterday, next].find((p) => p);
-  const fromCoach = coachName && shown?.coachId ? `от тренера · ${coachName}${shown.program ? ` · ${shown.program}` : ""}` : null;
+  // Без тренера метка программы — только у программы из каталога («программа «Сила» (неделя 3/8)»)
+  const fromCoach = coachName && shown?.coachId ? `от тренера · ${coachName}${shown.program ? ` · ${shown.program}` : ""}` : !shown?.coachId ? (shown?.program ?? null) : null;
   let text: string;
   let action: React.ReactNode;
   if (first) {

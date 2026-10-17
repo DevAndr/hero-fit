@@ -28,8 +28,15 @@ export async function saveTemplateAction(id: string | null, input: TemplateInput
   const { name, description, exercises } = parsed.data;
 
   const ids = [...new Set(exercises.map((e) => e.exerciseId))];
-  const allowed = await db.exercise.count({ where: { id: { in: ids }, OR: [{ userId: null }, { userId: user.id }] } });
-  if (allowed !== ids.length) return { ok: false, error: "Неизвестное упражнение" };
+  // Встроенные и свои; при правке — ещё упражнения, которые уже стоят в этом шаблоне (копия программы из каталога
+  // ссылается на свои упражнения автора). Новых чужих id не пропускаем.
+  const kept = id
+    ? await db.templateExercise.findMany({ where: { templateId: id, template: { userId: user.id } }, select: { exerciseId: true } })
+    : [];
+  const keptIds = new Set(kept.map((e) => e.exerciseId));
+  const checked = ids.filter((e) => !keptIds.has(e));
+  const allowed = checked.length ? await db.exercise.count({ where: { id: { in: checked }, OR: [{ userId: null }, { userId: user.id }] } }) : 0;
+  if (allowed !== checked.length) return { ok: false, error: "Неизвестное упражнение" };
 
   const items = normalizeGroups(exercises).map(({ group, ...e }, order) => ({ ...e, order, supersetGroup: group }));
 

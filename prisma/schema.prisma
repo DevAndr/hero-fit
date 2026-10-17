@@ -1429,7 +1429,14 @@ model CoachProgram {
   days        CoachProgramDay[]
   assignments ProgramAssignment[]
 
+  publishedAt        DateTime?
+  catalogDescription String?
+  hiddenAt           DateTime?
+  hiddenReason       String?
+  catalogAssignments ProgramAssignment[] @relation("CatalogProgram")
+
   @@index([coachId])
+  @@index([publishedAt])
 }
 
 model CoachProgramDay {
@@ -1468,15 +1475,21 @@ model ProgramAssignment {
   /// тренеру отправлено «заканчивается через неделю»
   remindedAt  DateTime?
   createdAt   DateTime    @default(now())
+  /// запущена из каталога (самостоятельно, coachId = null); null — назначил тренер
+  catalogProgramId String?
+  /// запущена из каталога — постоянный признак (catalogProgramId обнуляется, если автор удалил программу)
+  fromCatalog      Boolean  @default(false)
 
   client  User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
   coach   User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
   program CoachProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  catalogProgram CoachProgram? @relation("CatalogProgram", fields: [catalogProgramId], references: [id], onDelete: SetNull)
   bases   ProgramBase[]
   series  PlanSeries[]
 
   @@index([clientId, endedAt])
   @@index([coachId, endedAt])
+  @@index([catalogProgramId, endedAt])
 }
 
 /// Базовый вес упражнения шаблона в назначении; fromWeek — с какой недели действует («Изменить базу»).

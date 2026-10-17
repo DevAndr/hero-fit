@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageHeader } from "@/components/app/app-shell";
 import { CohortTable } from "@/components/admin/cohort-table";
 import { FeatureUsage } from "@/components/admin/feature-usage";
@@ -7,6 +8,8 @@ import { MetricsCharts } from "@/components/admin/metrics-charts";
 import { parseRange } from "@/lib/admin/metrics";
 import { getCohorts, getDailySeries, getFeatureUsage, getOverview } from "@/lib/admin/metrics-queries";
 import { requireAdmin } from "@/lib/auth/admin";
+import { catalogAllowed } from "@/lib/catalog/access";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Метрики" };
 
@@ -14,15 +17,21 @@ export const metadata: Metadata = { title: "Метрики" };
 export default async function AdminMetricsPage({ searchParams }: PageProps<"/admin">) {
   const me = await requireAdmin();
   const range = parseRange((await searchParams).range);
-  const [overview, series, cohorts, usage] = await Promise.all([
+  const [overview, series, cohorts, usage, catalogOn] = await Promise.all([
     getOverview(me.timeZone),
     getDailySeries(me.timeZone, range),
     getCohorts(me.timeZone),
     getFeatureUsage(),
+    catalogAllowed(me.id),
   ]);
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader title="Метрики" description={`Рост, активность и удержание. Дни — в поясе ${me.timeZone}.`} />
+      {catalogOn ? (
+        <Link href="/admin/programs" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          Программы каталога
+        </Link>
+      ) : null}
       <MetricTiles overview={overview} />
       <MetricsCharts series={series} range={range} />
       <CohortTable rows={cohorts} />

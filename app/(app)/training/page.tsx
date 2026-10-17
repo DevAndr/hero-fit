@@ -41,15 +41,18 @@ export default async function TrainingPage() {
 
   const exercises = await listExercises(user.id);
   const ids = [...new Set([...exercises.map((e) => e.id), ...workout.exercises.map((e) => e.exercise.id)])];
+  const occurrenceOf = workout.planKey ? getOccurrence(user.id, workout.planKey) : Promise.resolve(null);
   const [last, allHints, occurrence, recovery, boss, targets, own] = await Promise.all([
     getLastPerformance(user.id, ids),
     getProgressionHints(user.id, ids),
-    workout.planKey ? getOccurrence(user.id, workout.planKey) : null,
+    occurrenceOf,
     getMuscleRecovery(user.id),
     // Урон этой тренировки досчитывает редактор
     getBossView(user.id, safeTimeZone(user.timeZone), new Date(), workout.id),
-    // Пометка «от тренера» — текущие задания активного тренера по шаблону тренировки
-    workout.templateId ? getTemplateTargets(user.id, workout.templateId) : new Map<string, Target & { program?: string }>(),
+    // Пометка «от тренера» / «программа «…»» — задания и неделя программы по шаблону (неделя — по дате вхождения плана, как при старте)
+    workout.templateId
+      ? occurrenceOf.then((o) => getTemplateTargets(user.id, workout.templateId!, o?.occurrence.date))
+      : new Map<string, Target & { program?: string }>(),
     // Своя прогрессия по шаблону тренировки — вес растёт сам, подсказка «Пора увеличить вес» лишняя
     workout.templateId ? getOwnTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
   ]);

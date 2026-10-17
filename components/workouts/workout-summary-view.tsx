@@ -245,8 +245,8 @@ export function WorkoutSummaryView({
       {feedback ? <div className="mt-4">{feedback}</div> : null}
 
       {meta?.program ? (
-        <section aria-label="План тренера" className="mt-4 rounded-xl border p-4">
-          <h2 className="font-bold">План тренера</h2>
+        <section aria-label={meta.programName ? "Программа" : "План тренера"} className="mt-4 rounded-xl border p-4">
+          <h2 className="font-bold">{meta.programName ? `Программа «${meta.programName}»` : "План тренера"}</h2>
           <p className="mt-2 text-sm">Программа: {meta.program[0].toLowerCase() + meta.program.slice(1)}</p>
         </section>
       ) : null}
