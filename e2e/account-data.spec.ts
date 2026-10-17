@@ -21,6 +21,8 @@ import {
   makeFriends,
   notificationTitles,
   recapLeagueNicks,
+  respectCount,
+  seedRecordWorkout,
   idOf,
   userExists,
   visitDays,
@@ -359,4 +361,37 @@ test("coach weekly recap: both exports, and the client's account deletion leaves
   await deleteAccount(client.page, PASSWORD);
   await expect(client.page).toHaveURL(/deleted=1/);
   expect(await coachRecapCounts(coach.login, clientId)).toEqual({ client: 0, recaps: 1 });
+});
+
+test("respects and kudos: both exports list them, the author's account deletion removes them", async ({ browser }) => {
+  const author = await player(browser, "Автор");
+  const friend = await player(browser, "Друг");
+  const [aNick, fNick] = [nickOf(author.login, "Ав"), nickOf(friend.login, "Др")];
+  await makeFriends(author.login, aNick, friend.login, fNick);
+  const { workoutId, exerciseIds } = await seedRecordWorkout(author.login, [{ exercise: "Жим штанги лёжа", value: 100 }]);
+  const exerciseId = exerciseIds["Жим штанги лёжа"];
+  await withDb(async (db) => {
+    const fid = (await db.query<{ id: string }>(`select id from "User" where login = $1`, [friend.login])).rows[0].id;
+    await db.query(`insert into "RecordRespect" (id, "workoutId", "exerciseId", "userId") values ($1, $2, $3, $4)`, [randomUUID(), workoutId, exerciseId, fid]);
+    await db.query(`insert into "Kudos" (id, "workoutId", "userId") values ($1, $2, $3)`, [randomUUID(), workoutId, fid]);
+  });
+
+  const exportOf = async (page: Page) => {
+    await page.goto("/settings");
+    const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+    const text = await readFile((await json.path())!, "utf8");
+    return { text, data: JSON.parse(text) };
+  };
+  const given = await exportOf(friend.page);
+  expect(given.data.respectsGiven).toEqual([expect.objectContaining({ exercise: "Жим штанги лёжа", to: aNick })]);
+  expect(given.data.kudosGiven).toEqual([expect.objectContaining({ to: aNick })]);
+  const received = await exportOf(author.page);
+  expect(received.data.respectsReceived).toEqual([expect.objectContaining({ exercise: "Жим штанги лёжа", from: fNick })]);
+  expect(received.data.kudosReceived).toEqual([expect.objectContaining({ from: fNick })]);
+  expect(received.text).not.toContain(workoutId);
+
+  await deleteAccount(author.page, PASSWORD);
+  await expect(author.page).toHaveURL(/deleted=1/);
+  expect(await respectCount(workoutId)).toBe(0);
+  expect((await exportOf(friend.page)).data).toMatchObject({ respectsGiven: [], kudosGiven: [] });
 });

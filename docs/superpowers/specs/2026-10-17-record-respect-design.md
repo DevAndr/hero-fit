@@ -50,7 +50,7 @@ model RecordRespect {
 ## Лента
 
 - `FeedEntry.records` группируется по упражнению: `respects: { exerciseId, exerciseName, records: {type, value}[], respect: { count, byMe, names } }[]` — чистая функция в `lib/social/feed.ts` (`groupRecords`), порядок — как первое появление в `meta.records`.
-- Запрос ленты (`lib/social/queries.ts`, общий `feedPage` для `/friends` и `/guild`) добавляет агрегат респектов по `(workoutId, exerciseId)`: число, «мой», до 3 ников (как `kudosNames`).
+- Запрос ленты (`lib/social/queries.ts`, общий `feedPage` для `/friends` и `/guild`) добавляет агрегат респектов по `(workoutId, exerciseId)`: число, «мой», до 2 ников (без смотрящего) (как `kudosNames`).
 - Строка в `ActivityFeed`: «🏆 Жим лёжа: 1RM 105, макс. вес 100» (тексты типов — `RECORD_LABEL`) + кнопка справа: иконка `Trophy`, счётчик (пусто при 0), `aria-pressed`, `aria-label` «Дать респект <ник> за <упражнение>» / «Убрать респект у <ник> за <упражнение>», `title` — `kudosLabel`-подобная подпись «Респект: Маша, Борис и ещё 1». Оптимистичное обновление (`useOptimistic`), при ошибке — откат и toast.
 - На своей записи кнопки нет, но счётчик и подпись видны (если > 0).
 - Строки «Рекорд — …» в списке событий записи заменяются сгруппированными строками (не дублируются).

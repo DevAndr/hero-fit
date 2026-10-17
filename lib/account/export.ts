@@ -51,6 +51,11 @@ export type ExportRaw = {
   coachRecapsAboutMe: ({ week: string; coach: string | null; data: unknown } & Record<string, unknown>)[];
   coachRecaps: ({ week: string; totals: unknown; clients: ({ client: string | null; data: unknown } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   clientNotes: ({ text: string; updatedAt: Date; client: string | null } & Record<string, unknown>)[];
+  /** Респекты 🏆 и кудосы 👊: дата тренировки (finishedAt), упражнение (у респекта) и ник — на входе могут быть id. */
+  respectsGiven: ({ workoutDate: Dated; exercise: string; to: string | null } & Record<string, unknown>)[];
+  respectsReceived: ({ workoutDate: Dated; exercise: string; from: string | null } & Record<string, unknown>)[];
+  kudosGiven: ({ workoutDate: Dated; to: string | null } & Record<string, unknown>)[];
+  kudosReceived: ({ workoutDate: Dated; from: string | null } & Record<string, unknown>)[];
   /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
   programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
@@ -89,6 +94,10 @@ export const EXPORT_SECTIONS = [
   "clientNotes",
   "coachRecapsAboutMe",
   "coachRecaps",
+  "respectsGiven",
+  "respectsReceived",
+  "kudosGiven",
+  "kudosReceived",
   "programs",
   "coachPrograms",
   "notifications",
@@ -172,6 +181,10 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
       totals: r.totals,
       clients: r.clients.map((c) => ({ client: c.client, data: c.data })),
     })),
+    respectsGiven: raw.respectsGiven.map((r) => ({ workoutDate: r.workoutDate, exercise: r.exercise, to: r.to })),
+    respectsReceived: raw.respectsReceived.map((r) => ({ workoutDate: r.workoutDate, exercise: r.exercise, from: r.from })),
+    kudosGiven: raw.kudosGiven.map((k) => ({ workoutDate: k.workoutDate, to: k.to })),
+    kudosReceived: raw.kudosReceived.map((k) => ({ workoutDate: k.workoutDate, from: k.from })),
     programs: raw.programs.map((p) => ({
       name: p.name,
       startDate: p.startDate,
