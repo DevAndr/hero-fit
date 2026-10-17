@@ -72,7 +72,7 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: eight features, header link, CTA opens coach sign-up", async ({ page }) => {
+test("coaches block: nine features, header link, CTA opens coach sign-up", async ({ page }) => {
   await page.goto("/");
   const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
   await expect(block.getByRole("listitem")).toHaveCount(9);

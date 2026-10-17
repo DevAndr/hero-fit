@@ -184,12 +184,12 @@ export function mondayWeeksAgo(n: number, now = new Date()) {
 /**
  * Тренировки недели weekStart (в поясе e2e) с подходами и XpEvent WORKOUT_COMPLETED (meta — как у finishWorkout).
  * day: 0 = пн … 6 = вс, time — местное «HH:MM» начала-конца не важно: тренировка длится 60 мин и заканчивается в time.
- * records — названия упражнений с рекордом в meta. Возвращает id тренировок и их упражнений (по порядку).
+ * records — названия упражнений с рекордом в meta, ups — повышения веса тренером (meta.progression). Возвращает id тренировок и их упражнений (по порядку).
  */
 export async function seedRecapWeek(
   login: string,
   weekStart: string,
-  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number; records?: string[] }[],
+  workouts: { day: number; time: string; exercise: string; weight: number; reps: number; sets: number; xp: number; records?: string[]; ups?: { from: number; to: number }[] }[],
 ) {
   return withDb(async (db) => {
     const ids: { workoutId: string; workoutExerciseId: string }[] = [];
@@ -222,6 +222,8 @@ export async function seedRecapWeek(
         xpBefore: 0, levelBefore: 1, levelAfter: 1, workoutXp: w.xp, recordsXp: 0, achievementsXp: 0,
         records: (w.records ?? []).map((exerciseName) => ({ exerciseId: rows[0].id, exerciseName, type: "MAX_WEIGHT", value: w.weight, previous: w.weight - 5 })),
         achievements: [], streak: 1, streakExtended: false, streakReset: false, usedFreezes: 0, weekCount: i + 1,
+        // Прогрессия тренера (как у finishWorkout): повышение веса упражнения тренировки
+        ...(w.ups ? { progression: w.ups.map((u) => ({ exercise: w.exercise, kind: "up", from: u.from, to: u.to, fails: 0, bodyweight: false })) } : {}),
       };
       await db.query(
         `insert into "XpEvent" (id, "userId", amount, reason, "workoutId", meta, "createdAt") values ($1, $2, $3, 'WORKOUT_COMPLETED', $4, $5, $6)`,
@@ -1241,10 +1243,13 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
   });
 }
 
-/** Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка. */
+/**
+ * Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка.
+ * Снимок недели уже есть (его мог построить фоновый воркер — в понедельник после 09:00) — перезаписывается
+ * как новый: data, не отправлен и не просмотрен, строки клиентов — только эта.
+ */
 export async function seedCoachRecap(coachLogin: string, clientLogin: string, week: string) {
   return withDb(async (db) => {
-    const id = randomUUID();
     const totals = { version: 1, clients: 1, trained: 1, plan: null, prevPlanPct: null, workouts: 1, records: 0, ups: 0, attention: 0, unanswered: 0 };
     const row = {
       version: 1,
@@ -1258,7 +1263,14 @@ export async function seedCoachRecap(coachLogin: string, clientLogin: string, we
       signals: [],
       unanswered: 0,
     };
-    await db.query(`insert into "CoachWeeklyRecap" (id, "coachId", week, data) values ($1, $2, $3, $4)`, [id, await userId(db, coachLogin), week, JSON.stringify(totals)]);
+    const { rows } = await db.query<{ id: string }>(
+      `insert into "CoachWeeklyRecap" (id, "coachId", week, data) values ($1, $2, $3, $4)
+       on conflict ("coachId", week) do update set data = excluded.data, "pushedAt" = null, "seenAt" = null, "createdAt" = now()
+       returning id`,
+      [randomUUID(), await userId(db, coachLogin), week, JSON.stringify(totals)],
+    );
+    const id = rows[0].id;
+    await db.query(`delete from "CoachRecapClient" where "recapId" = $1`, [id]);
     await db.query(`insert into "CoachRecapClient" ("recapId", "clientId", data) values ($1, $2, $3)`, [id, await userId(db, clientLogin), JSON.stringify(row)]);
     return id;
   });

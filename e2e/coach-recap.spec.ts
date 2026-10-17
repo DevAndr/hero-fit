@@ -1,8 +1,10 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import {
+  coachAssignOnce,
   coachCommentOn,
   coachRecapNotifications,
   coachRecapRows,
+  coachTemplate,
   createUserRow,
   enableCoach,
   idOf,
@@ -32,7 +34,7 @@ const nickOf = (login: string, prefix: string) => `${prefix}_${login.replace(/^e
 const tzName = (offset: number) => (offset === 0 ? "UTC" : `Etc/GMT${offset > 0 ? "-" : "+"}${Math.abs(offset)}`);
 const isoOffset = (offset: number) => `${offset < 0 ? "-" : "+"}${String(Math.abs(offset)).padStart(2, "0")}:00`;
 
-const press = (o: { day: number; time?: string; records?: string[] }) => ({
+const press = (o: { day: number; time?: string; records?: string[]; ups?: { from: number; to: number }[] }) => ({
   day: o.day,
   time: o.time ?? "19:00",
   exercise: "Жим штанги лёжа",
@@ -41,6 +43,7 @@ const press = (o: { day: number; time?: string; records?: string[] }) => ({
   sets: 3,
   xp: 80,
   records: o.records,
+  ups: o.ups,
 });
 
 /** Тренер в поясе e2e (тик считает неделю по поясу тренера). */
@@ -76,16 +79,30 @@ test.describe("ticks with the test clock", () => {
     const week = mondayWeeksAgo(10);
     const tick = mondayWeeksAgo(9);
     const coach = await coachUser(page);
-    // По имени A выше B; без тренировок B должен оказаться выше A
+    const templateId = await coachTemplate(coach.login, "Грудь");
+    // По имени порядок был бы Ann, Bob, Zoe; ждём Bob (сигналы) → Zoe (без тренировок) → Ann (рекорд и повышение)
     const a = await clientRow("Ann");
     const b = await clientRow("Zoe");
+    const c = await clientRow("Bob");
     await linkBefore(coach.login, a.login, week);
     // B подключился в четверг недели: «новый» и ещё не «пропал» (сигнала нет) — выше A только из-за пустой недели
     await linkCoach(coach.login, b.login, localAt(week, "12:00", 3));
+    await linkBefore(coach.login, c.login, week);
+
+    // Назначения тренера, сделанные заранее: у A — ср (выполнено) и пт (пропуск), у C — вт и чт (оба пропущены → сигнал)
+    const assigned = localAt(week, "00:00", -1);
+    const day = (n: number) => new Date(Date.parse(`${week}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+    await coachAssignOnce(coach.login, a.login, templateId, "Грудь", day(2), "18:00", assigned);
+    await coachAssignOnce(coach.login, a.login, templateId, "Грудь", day(4), "18:00", assigned);
+    await coachAssignOnce(coach.login, c.login, templateId, "Грудь", day(1), "18:00", assigned);
+    await coachAssignOnce(coach.login, c.login, templateId, "Грудь", day(3), "18:00", assigned);
 
     // Клиент A западнее тренера: тренировка в пн 00:30 по поясу тренера у него — ещё воскресенье этой недели
     const west = Math.min(3, E2E_TZ_OFFSET + 12);
-    const [first] = await seedRecapWeek(a.login, week, [press({ day: 2, records: ["Жим штанги лёжа"] }), press({ day: 7, time: "00:30" })]);
+    const [first] = await seedRecapWeek(a.login, week, [
+      press({ day: 2, records: ["Жим штанги лёжа"], ups: [{ from: 100, to: 105 }] }),
+      press({ day: 7, time: "00:30" }),
+    ]);
     await setUserTimeZone(a.login, tzName(E2E_TZ_OFFSET - west));
     // Комментарий к упражнению — тоже ответ: без ответа остаётся одна тренировка из двух
     await coachCommentOn(coach.login, a.login, first.workoutId, first.workoutExerciseId);
@@ -104,42 +121,43 @@ test.describe("ticks with the test clock", () => {
     const sent = await sentFor();
     expect(sent).toHaveLength(1);
     expect(sent[0].title).toBe("Итоги недели клиентов 📋");
-    expect(sent[0].body).toBe("Неделя клиентов: 1 из 2 тренировались. 1 рекорд");
+    expect(sent[0].body).toBe("Неделя клиентов: 1 из 3 тренировались, план 25%. 1 требует внимания");
 
     await page.goto(url);
-    await expect(page.getByTestId("coach-recap-trained")).toContainText("1 из 2");
+    await expect(page.getByTestId("coach-recap-trained")).toContainText("1 из 3");
+    await expect(tile(page, "coach-recap-plan")).toHaveText("25%");
     await expect(tile(page, "coach-recap-workouts")).toHaveText("2");
     await expect(tile(page, "coach-recap-records")).toHaveText("1");
+    await expect(tile(page, "coach-recap-ups")).toHaveText("1");
     await expect(tile(page, "coach-recap-unanswered")).toHaveText("1");
-    await expect(tile(page, "coach-recap-attention")).toHaveText("0");
+    await expect(tile(page, "coach-recap-attention")).toHaveText("1");
+    // Не ноль — плитка выделена; у остальных выделения нет
+    await expect(page.getByTestId("coach-recap-attention")).toHaveAttribute("data-accent", "");
+    await expect(page.getByTestId("coach-recap-unanswered")).toHaveAttribute("data-accent", "");
+    await expect(page.getByTestId("coach-recap-workouts")).not.toHaveAttribute("data-accent");
 
     const cards = recapCard(page).getByRole("listitem");
-    await expect(cards).toHaveCount(2);
-    await expect(cards.nth(0)).toHaveAttribute("aria-label", b.nick);
-    await expect(cards.nth(1)).toHaveAttribute("aria-label", a.nick);
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(0)).toHaveAttribute("aria-label", c.nick);
+    await expect(cards.nth(1)).toHaveAttribute("aria-label", b.nick);
+    await expect(cards.nth(2)).toHaveAttribute("aria-label", a.nick);
+
+    const cardC = recapCard(page).getByRole("listitem", { name: c.nick });
+    await expect(cardC.getByTestId("client-signal").first()).toHaveText("Пропуски плана");
+    await expect(cardC).toContainText("План 0/2 · 0 тренировок");
+    const cardB = recapCard(page).getByRole("listitem", { name: b.nick });
+    await expect(cardB).toContainText("новый");
+    await expect(cardB).toContainText("0 тренировок");
+    await expect(cardB.getByTestId("client-signal")).toHaveCount(0);
     const cardA = recapCard(page).getByRole("listitem", { name: a.nick });
-    await expect(cardA).toContainText("2 тренировки");
+    await expect(cardA).toContainText("План 1/2 · 2 тренировки (+2)");
     await expect(cardA).toContainText("🏆 Рекорды: Жим штанги лёжа");
+    await expect(cardA).toContainText("↑ Жим штанги лёжа +5 кг");
     await expect(cardA).toContainText("💬 1 без ответа");
     await expect(cardA).not.toContainText("новый");
-    await expect(recapCard(page).getByRole("listitem", { name: b.nick })).toContainText("новый");
-    await expect(recapCard(page).getByRole("listitem", { name: b.nick })).toContainText("0 тренировок");
 
     await cardA.getByRole("link", { name: a.nick }).click();
     await expect(page).toHaveURL(new RegExp(`/coach/clients/${await idOf(a.login)}$`));
-
-    // Анонс на /coach — только про прошлую неделю (по настоящим часам) и до просмотра
-    const lastWeek = mondayWeeksAgo(1);
-    await seedCoachRecap(coach.login, a.login, lastWeek);
-    await page.goto("/coach");
-    const announce = page.getByRole("region", { name: "Итоги недели готовы" });
-    await expect(announce).toContainText("Тренировались 1 из 1");
-    await announce.getByRole("link", { name: "Смотреть" }).click();
-    await expect(page).toHaveURL(new RegExp(`/coach/recap/${lastWeek}$`));
-    await expect(page.getByTestId("coach-recap-trained")).toBeVisible();
-    await page.goto("/coach");
-    await expect(page.getByRole("heading", { name: "Клиенты" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Итоги недели готовы" })).toHaveCount(0);
   });
 
   test("the page creates the recap before the tick; the tick after viewing sends no push", async ({ page, request }) => {
@@ -160,7 +178,8 @@ test.describe("ticks with the test clock", () => {
     expect((await coachRecapNotifications(coach.login)).filter((n) => n.url === `/coach/recap/${week}`)).toHaveLength(0);
     expect((await coachRecapRows(coach.login)).find((r) => r.week === week)?.pushedAt).toBeNull();
 
-    await page.goto("/coach/recap");
+    // Номер страницы нецелый — первая страница, а не ошибка
+    await page.goto("/coach/recap?page=1.7");
     await page.getByRole("link", { name: /1 из 1/ }).click();
     await expect(page).toHaveURL(new RegExp(`/coach/recap/${week}$`));
   });
@@ -195,6 +214,9 @@ test.describe("ticks with the test clock", () => {
     expect(await coachRecapRows(coach.login)).toEqual([]);
     await page.goto("/coach/recap");
     await expect(page.getByText("Итоги появятся в понедельник после первой недели с клиентами.")).toBeVisible();
+    // Неделя без клиентов — страницы нет (а не «итоги ещё собираются»)
+    await page.goto(`/coach/recap/${mondayWeeksAgo(2)}`);
+    await expect(page.getByText("This page could not be found")).toBeVisible();
   });
 
   test("the tick waits until the week ends for a client far to the west", async ({ page, request }) => {
@@ -263,6 +285,26 @@ test("unlinking removes the client from old recaps; totals stay", async ({ page,
   } finally {
     await leaver.context.close();
   }
+});
+
+// Анонс — про прошлую неделю по настоящим часам. Клиент подключён сейчас: фоновый воркер (в понедельник после 09:00)
+// не построит этому тренеру настоящий снимок прошлой недели — засеянный снимок не перепишется и не задвоится.
+test("the announce on /coach shows until the recap is viewed", async ({ page }) => {
+  const lastWeek = mondayWeeksAgo(1);
+  const coach = await coachUser(page);
+  const client = await clientRow("Ana");
+  await linkCoach(coach.login, client.login);
+  await seedCoachRecap(coach.login, client.login, lastWeek);
+
+  await page.goto("/coach");
+  const announce = page.getByRole("region", { name: "Итоги недели готовы" });
+  await expect(announce).toContainText("Тренировались 1 из 1");
+  await announce.getByRole("link", { name: "Смотреть" }).click();
+  await expect(page).toHaveURL(new RegExp(`/coach/recap/${lastWeek}$`));
+  await expect(page.getByTestId("coach-recap-trained")).toBeVisible();
+  await page.goto("/coach");
+  await expect(page.getByRole("heading", { name: "Клиенты" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Итоги недели готовы" })).toHaveCount(0);
 });
 
 test("mobile: no horizontal scroll", async ({ page, isMobile }) => {
