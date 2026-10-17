@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import type { APIRequestContext } from "@playwright/test";
 import { expect, test, type Page } from "@playwright/test";
 import type { WhoopApiWorkout } from "../lib/whoop/types";
 import { addFlagUser, latestWorkout, resetWhoopSync, seedWorkouts, whoopUserIdOf, whoopWorkoutCount } from "./db";
@@ -272,4 +273,63 @@ test("две активности в одной тренировке", async ({ 
   await page.goto(`/workouts/${w.id}`);
   await expect(card(page)).toContainText("по 2 активностям WHOOP");
   await expect(tile(page, "Макс. пульс")).toContainText("175");
+});
+
+/** Подписанный вебхук WHOOP; `sign: false` — с неверной подписью. */
+async function sendWhoopWebhook(request: APIRequestContext, body: object, sign = true) {
+  const raw = JSON.stringify(body);
+  const ts = String(Date.now());
+  const signature = sign ? createHmac("sha256", "e2e-whoop-secret").update(ts + raw).digest("base64") : "AAAA";
+  return request.post("/api/whoop/webhook", {
+    data: raw,
+    headers: { "content-type": "application/json", "x-whoop-signature": signature, "x-whoop-signature-timestamp": ts },
+  });
+}
+
+test("вебхук добавляет, обновляет и удаляет активность", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 1, { finishedAt: [new Date(Date.now() - 3_600_000)] });
+  const w = await latestWorkout(login);
+  const whoopId = await connectWith(page, login, []);
+  const activityId = randomUUID();
+  await putWorkouts(whoopId, [whoopActivity(activityId, w.startedAt, w.finishedAt, { avgHr: 128 })]);
+
+  const event = { user_id: whoopId, id: activityId, type: "workout.updated", trace_id: randomUUID() };
+  expect((await sendWhoopWebhook(page.request, event)).status()).toBe(204);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+  await page.goto(`/workouts/${w.id}`);
+  await expect(tile(page, "Средний пульс")).toContainText("128");
+
+  // Повтор того же вебхука не плодит строки
+  expect((await sendWhoopWebhook(page.request, event)).status()).toBe(204);
+  await page.waitForTimeout(1500);
+  expect(await whoopWorkoutCount(login)).toBe(1);
+
+  expect((await sendWhoopWebhook(page.request, { ...event, type: "workout.deleted" })).status()).toBe(204);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(0);
+});
+
+test("вебхук: неверная подпись и чужой user_id", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const activityId = randomUUID();
+  await putWorkouts(whoopId, [whoopActivity(activityId, new Date(Date.now() - 7_200_000), new Date(Date.now() - 3_600_000))]);
+
+  const event = { user_id: whoopId, id: activityId, type: "workout.updated", trace_id: randomUUID() };
+  expect((await sendWhoopWebhook(page.request, event, false)).status()).toBe(401);
+  expect((await page.request.post("/api/whoop/webhook", { data: JSON.stringify(event) })).status()).toBe(401);
+
+  const unknown = await sendWhoopWebhook(page.request, { ...event, user_id: presetWhoopUser() });
+  expect(unknown.status()).toBe(204);
+  await page.waitForTimeout(1500);
+  expect(await whoopWorkoutCount(login)).toBe(0);
+
+  // Подписанный, но не JSON — 204
+  const raw = "not json";
+  const ts = String(Date.now());
+  const res = await page.request.post("/api/whoop/webhook", {
+    data: raw,
+    headers: { "x-whoop-signature": createHmac("sha256", "e2e-whoop-secret").update(ts + raw).digest("base64"), "x-whoop-signature-timestamp": ts },
+  });
+  expect(res.status()).toBe(204);
 });
