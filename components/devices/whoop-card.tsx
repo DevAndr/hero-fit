@@ -32,8 +32,13 @@ const NOTICE_TEXT: Record<WhoopNotice, { text: string; ok: boolean }> = {
   error: { text: "Не удалось подключить WHOOP", ok: false },
 };
 
-/** Подключение WHOOP: состояния «не подключён» / «подключён» / «нужно переподключить», согласие и отключение. */
-export function WhoopCard({ status, notice }: { status: WhoopCardStatus; notice: WhoopNotice | null }) {
+const BROWSER_ONLY = "Подключение WHOOP доступно в браузере";
+
+/**
+ * Подключение WHOOP: состояния «не подключён» / «подключён» / «нужно переподключить», согласие и отключение.
+ * `embedded` (Telegram Mini App) — вместо подключения подсказка про браузер: OAuth во webview не пройти; отключить можно.
+ */
+export function WhoopCard({ status, notice, embedded = false }: { status: WhoopCardStatus; notice: WhoopNotice | null; embedded?: boolean }) {
   const [consentOpen, setConsentOpen] = useState(false);
   const shown = useRef(false);
 
@@ -58,10 +63,14 @@ export function WhoopCard({ status, notice }: { status: WhoopCardStatus; notice:
           <p className="text-sm text-muted-foreground">
             Средний и максимальный пульс, strain и калории из WHOOP появятся в сводке тренировки.
           </p>
-          <Button onClick={() => setConsentOpen(true)}>
-            <Link2 />
-            Подключить WHOOP
-          </Button>
+          {embedded ? (
+            <p className="text-sm font-medium">{BROWSER_ONLY}</p>
+          ) : (
+            <Button onClick={() => setConsentOpen(true)}>
+              <Link2 />
+              Подключить WHOOP
+            </Button>
+          )}
         </>
       ) : (
         <>
@@ -75,7 +84,8 @@ export function WhoopCard({ status, notice }: { status: WhoopCardStatus; notice:
           )}
           <p className="text-sm text-muted-foreground">Последняя синхронизация: {status.lastSync ?? "ещё не было"}</p>
           <div className="flex flex-wrap gap-2">
-            {status.needsReauth ? (
+            {status.needsReauth && embedded ? <p className="w-full text-sm font-medium">{BROWSER_ONLY}</p> : null}
+            {status.needsReauth && !embedded ? (
               <Button onClick={() => setConsentOpen(true)}>
                 <Link2 />
                 Переподключить WHOOP
@@ -178,7 +188,12 @@ function DisconnectButton() {
               disabled={pending}
               onClick={() =>
                 start(async () => {
-                  await disconnectWhoopAction();
+                  try {
+                    await disconnectWhoopAction();
+                  } catch {
+                    toast.error("Не удалось отключить WHOOP, попробуйте ещё раз");
+                    return;
+                  }
                   setOpen(false);
                   toast.success("WHOOP отключён");
                 })

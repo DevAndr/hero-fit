@@ -59,7 +59,8 @@ export default async function SettingsPage() {
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
       {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}
       {telegram.enabled ? <TelegramCard status={telegram} /> : null}
-      {whoop === null ? null : (
+      {/* Во webview Telegram OAuth WHOOP не пройти (cookie state и уход на чужой домен) — подключение только в браузере */}
+      {whoop === null || user.embedded ? null : (
         <Link href="/devices" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
           <Watch className="size-4 shrink-0 text-primary" />
           <span className="font-bold">Браслеты и часы</span>

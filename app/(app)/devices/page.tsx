@@ -33,7 +33,7 @@ export default async function DevicesPage({ searchParams }: PageProps<"/devices"
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title="Браслеты и часы" description="Пульс и нагрузка с браслета — в сводке тренировки" />
-      <WhoopCard status={card} notice={notice} />
+      <WhoopCard status={card} notice={notice} embedded={user.embedded} />
     </div>
   );
 }
