@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardState } from "./card";
+import { cardState, outsideHistory, WHOOP_HISTORY_MS } from "./card";
 import type { WhoopSummary } from "./match";
 
 const H = 3_600_000;
@@ -21,5 +21,23 @@ describe("cardState", () => {
   it("нет совпадения: до 48 ч — ждём, позже — не записал", () => {
     expect(cardState(null, finishedAt, at(47), false)).toEqual({ kind: "waiting" });
     expect(cardState(null, finishedAt, at(49), false)).toEqual({ kind: "none" });
+  });
+});
+
+describe("outsideHistory", () => {
+  const connectedAt = new Date("2026-10-10T10:00:00Z");
+  const daysBefore = (d: number) => new Date(connectedAt.getTime() - d * 24 * H);
+
+  it("история грузится за 30 дней", () => {
+    expect(WHOOP_HISTORY_MS).toBe(30 * 24 * H);
+  });
+
+  it("тренировка старше загруженной истории без активностей — карточки нет", () => {
+    expect(outsideHistory(daysBefore(40), connectedAt, 0)).toBe(true);
+  });
+
+  it("в пределах истории или есть активности — карточка есть", () => {
+    expect(outsideHistory(daysBefore(29), connectedAt, 0)).toBe(false);
+    expect(outsideHistory(daysBefore(40), connectedAt, 1)).toBe(false);
   });
 });
