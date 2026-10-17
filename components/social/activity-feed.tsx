@@ -9,7 +9,7 @@ import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Shield, Swords, Target
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { weeksText } from "@/lib/progress/streak-copy";
-import { countsText, kudosLabel, type FeedEntry } from "@/lib/social/feed";
+import { countsText, kudosLabel, type FeedEntry, type FeedRecordGroup } from "@/lib/social/feed";
 import { loadFeedPageAction, toggleKudosAction } from "@/lib/social/actions";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,9 @@ export function ago(iso: string) {
 
 const RECORD_LABEL = { ONE_RM: "1RM", MAX_WEIGHT: "макс. вес", MAX_REPS: "повторы", MAX_DURATION: "время", MAX_DISTANCE: "дистанция", BEST_PACE: "темп" } as const;
 
-export function recordText(r: FeedEntry["records"][number]) {
+type RecordLine = { exerciseName: string; type: FeedRecordGroup["records"][number]["type"]; value: number | null };
+
+export function recordText(r: RecordLine) {
   if (r.value === null) return `${r.exerciseName}: ${RECORD_LABEL[r.type]}`;
   if (isTimedRecord(r.type)) return `${r.exerciseName}: ${RECORD_LABEL[r.type]} ${formatRecord(r.type, r.value)}`;
   return `${r.exerciseName}: ${r.type === "MAX_REPS" ? `${r.value} повт.` : `${fmt(r.value)} кг`}`;
@@ -80,7 +82,7 @@ function KudosButton({ entry }: { entry: FeedEntry }) {
 
 export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact?: boolean }) {
   const highlights = [
-    ...entry.records.map((r) => ({ icon: Medal, text: `Рекорд — ${recordText(r)}`, className: "text-xp" })),
+    ...entry.respects.flatMap((g) => g.records.map((r) => ({ exerciseName: g.exerciseName, ...r }))).map((r) => ({ icon: Medal, text: `Рекорд — ${recordText(r)}`, className: "text-xp" })),
     ...entry.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
     ...entry.goals.map((t) => ({ icon: Target, text: `Цель: ${t}`, className: "text-xp" })),
     ...(entry.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${entry.levelUp}`, className: "text-primary" }] : []),

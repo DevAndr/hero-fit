@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { decodeCursor, encodeCursor, countsText, kudosLabel, streakMilestone, toFeedEntry, type FeedRow } from "./feed";
+import {
+  decodeCursor,
+  encodeCursor,
+  countsText,
+  groupRecords,
+  kudosLabel,
+  recordExercise,
+  respectLabel,
+  respectNotice,
+  streakMilestone,
+  toFeedEntry,
+  type FeedRow,
+} from "./feed";
 
 const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
   id: "w1",
@@ -21,8 +33,8 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
   ],
   meta: {
     records: [
-      { exerciseName: "Жим лёжа", type: "MAX_WEIGHT", value: 100 },
-      { exerciseName: "Отжимания на брусьях", type: "MAX_REPS", value: 20 },
+      { exerciseId: "bench", exerciseName: "Жим лёжа", type: "MAX_WEIGHT", value: 100 },
+      { exerciseId: "dips", exerciseName: "Отжимания на брусьях", type: "MAX_REPS", value: 20 },
     ],
     achievements: [
       { code: "lift:bench:100", title: "Клуб сотки: жим лёжа" },
@@ -37,6 +49,7 @@ const row = (patch: Partial<FeedRow> = {}): FeedRow => ({
   kudos: 0,
   byMe: false,
   kudosNames: null,
+  respects: null,
   ...patch,
 });
 
@@ -50,16 +63,21 @@ describe("toFeedEntry", () => {
       { name: "Жим стоя", top: 50 },
     ]);
     expect(e.achievements).toEqual(["Клуб сотки: жим лёжа"]);
-    expect(e.records[0]).toEqual({ exerciseName: "Жим лёжа", type: "MAX_WEIGHT", value: 100 });
+    expect(e.respects[0]).toEqual({
+      exerciseId: "bench",
+      exerciseName: "Жим лёжа",
+      records: [{ type: "MAX_WEIGHT", value: 100 }],
+      respect: { count: 0, byMe: false, names: [] },
+    });
   });
 
   it("hideWeights: viewers get no volume, exercise weights or weight PR values; reps PR stays", () => {
-    const e = toFeedEntry(row({ hideWeights: true }), "viewer");
+    const e = toFeedEntry(row({ hideWeights: true, respects: [{ exerciseId: "bench", count: 1, byMe: true, names: ["Борис"] }] }), "viewer");
     expect(e.volume).toBeNull();
     expect(e.exercises.every((x) => x.top === null)).toBe(true);
-    expect(e.records).toEqual([
-      { exerciseName: "Жим лёжа", type: "MAX_WEIGHT", value: null },
-      { exerciseName: "Отжимания на брусьях", type: "MAX_REPS", value: 20 },
+    expect(e.respects.map((g) => [g.exerciseId, g.records, g.respect])).toEqual([
+      ["bench", [{ type: "MAX_WEIGHT", value: null }], { count: 1, byMe: true, names: ["Борис"] }],
+      ["dips", [{ type: "MAX_REPS", value: 20 }], { count: 0, byMe: false, names: [] }],
     ]);
     // Длительность и количество — видны
     expect(e).toMatchObject({ durationSec: 3120, sets: 15, reps: 120 });
@@ -69,7 +87,7 @@ describe("toFeedEntry", () => {
 
   it("works for history without a finish summary (seeded / old workouts)", () => {
     const e = toFeedEntry(row({ meta: null, exercises: null, durationSec: null }), "viewer");
-    expect(e).toMatchObject({ records: [], achievements: [], levelUp: null, streakMilestone: null, exercises: [], durationSec: 0 });
+    expect(e).toMatchObject({ respects: [], achievements: [], levelUp: null, streakMilestone: null, exercises: [], durationSec: 0 });
   });
 });
 
@@ -166,5 +184,54 @@ describe("countsText", () => {
   it("без повторов (кардио и на время) — только подходы", () => {
     expect(countsText({ sets: 15, reps: 120 })).toBe("подходов: 15 · повторов: 120");
     expect(countsText({ sets: 2, reps: 0 })).toBe("подходов: 2");
+  });
+});
+
+const rec = (exerciseId: string, exerciseName: string, type: "ONE_RM" | "MAX_WEIGHT", value: number) => ({ exerciseId, exerciseName, type, value });
+
+describe("groupRecords", () => {
+  it("типы одного упражнения — одна группа, порядок первого появления", () => {
+    const groups = groupRecords(
+      [rec("bench", "Жим", "ONE_RM", 105), rec("squat", "Присед", "MAX_WEIGHT", 140), rec("bench", "Жим", "MAX_WEIGHT", 100)],
+      null,
+    );
+    expect(groups.map((g) => [g.exerciseId, g.records.map((r) => r.type)])).toEqual([
+      ["bench", ["ONE_RM", "MAX_WEIGHT"]],
+      ["squat", ["MAX_WEIGHT"]],
+    ]);
+  });
+
+  it("респект — только своему упражнению", () => {
+    const groups = groupRecords(
+      [rec("bench", "Жим", "ONE_RM", 105), rec("squat", "Присед", "MAX_WEIGHT", 140)],
+      [{ exerciseId: "bench", count: 2, byMe: true, names: ["Маша"] }],
+    );
+    expect(groups[0].respect).toEqual({ count: 2, byMe: true, names: ["Маша"] });
+    expect(groups[1].respect).toEqual({ count: 0, byMe: false, names: [] });
+  });
+});
+
+describe("respectLabel", () => {
+  it("пусто, и «Вы, Маша и ещё 1»", () => {
+    expect(respectLabel({ count: 0, byMe: false, names: [] })).toBe("");
+    expect(respectLabel({ count: 3, byMe: true, names: ["Маша", "Борис"] })).toBe("Вы, Маша и ещё 1");
+  });
+});
+
+describe("recordExercise", () => {
+  const meta = { records: [{ exerciseId: "bench", exerciseName: "Жим лёжа", type: "MAX_WEIGHT", value: 100 }], weekCount: 1 };
+  it("название упражнения, если рекорд в meta есть; иначе null", () => {
+    expect(recordExercise(meta, "bench")).toBe("Жим лёжа");
+    expect(recordExercise(meta, "forged")).toBeNull();
+    expect(recordExercise(null, "bench")).toBeNull();
+    expect(recordExercise({ records: "x" }, "bench")).toBeNull();
+  });
+});
+
+describe("respectNotice", () => {
+  it("заголовок и ники: первые два, остальные — «и ещё N»", () => {
+    expect(respectNotice("Жим лёжа", ["Маша"])).toEqual({ title: "🏆 Респект за рекорд: Жим лёжа", body: "Маша" });
+    expect(respectNotice("Жим лёжа", ["Маша", "Борис", "Глеб"]).body).toBe("Маша, Борис и ещё 1");
+    expect(respectNotice("Жим лёжа", ["Маша", "Борис"]).body).toBe("Маша, Борис");
   });
 });

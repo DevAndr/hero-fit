@@ -4,6 +4,7 @@ import { raidBossName } from "@/lib/raid/rules";
 import { STREAK_WEEK_STEP, STREAK_WEEK_THRESHOLDS } from "@/lib/progress/weekly-streak";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { titleLabel } from "@/lib/titles/catalog";
+import { isFinishMeta } from "@/lib/recap/meta";
 import type { FinishGoals } from "@/lib/goals/rules";
 import type { FinishClubTask } from "@/lib/club/tasks-apply";
 
@@ -25,7 +26,7 @@ export type FeedRow = {
   totalReps: number;
   exercises: { name: string; top: number | null }[] | null;
   meta: {
-    records?: { exerciseName: string; type: RecordType; value: number }[];
+    records?: { exerciseId: string; exerciseName: string; type: RecordType; value: number }[];
     achievements?: { code: string; title: string }[];
     levelBefore?: number;
     levelAfter?: number;
@@ -42,6 +43,18 @@ export type FeedRow = {
   kudos: number;
   byMe: boolean;
   kudosNames: string[] | null;
+  /** Респекты 🏆 по упражнениям с рекордом этой тренировки (только те, где они есть); не загружены — null. */
+  respects: { exerciseId: string; count: number; byMe: boolean; names: string[] | null }[] | null;
+};
+
+export type RespectInfo = { count: number; byMe: boolean; names: string[] };
+
+/** Рекорды одного упражнения тренировки и респекты на них. */
+export type FeedRecordGroup = {
+  exerciseId: string;
+  exerciseName: string;
+  records: { type: RecordType; value: number | null }[];
+  respect: RespectInfo;
 };
 
 /** То, что уходит в браузер. Скрытые веса вырезаются на сервере — клиент их не получает. */
@@ -61,7 +74,7 @@ export type FeedEntry = {
   reps: number;
   exercises: { name: string; top: number | null }[];
   moreExercises: number;
-  records: { exerciseName: string; type: RecordType; value: number | null }[];
+  respects: FeedRecordGroup[];
   achievements: string[];
   levelUp: number | null;
   streakMilestone: number | null;
@@ -107,11 +120,15 @@ export function toFeedEntry(row: FeedRow, viewerId: string, cosmetics?: Cosmetic
     reps: row.totalReps,
     exercises: exercises.slice(0, FEED_EXERCISES).map((e) => ({ name: e.name, top: hide || !e.top ? null : e.top })),
     moreExercises: Math.max(0, exercises.length - FEED_EXERCISES),
-    records: (meta.records ?? []).map((r) => ({
-      exerciseName: r.exerciseName,
-      type: r.type,
-      value: hide && WEIGHT_RECORDS.includes(r.type) ? null : r.value,
-    })),
+    respects: groupRecords(
+      (meta.records ?? []).map((r) => ({
+        exerciseId: r.exerciseId,
+        exerciseName: r.exerciseName,
+        type: r.type,
+        value: hide && WEIGHT_RECORDS.includes(r.type) ? null : r.value,
+      })),
+      row.respects,
+    ),
     achievements: (meta.achievements ?? []).filter((a) => !QUIET_ACHIEVEMENTS.test(a.code)).map((a) => a.title),
     levelUp: meta.levelAfter && meta.levelBefore && meta.levelAfter > meta.levelBefore ? meta.levelAfter : null,
     streakMilestone: streakMilestone(row.meta),
@@ -122,8 +139,49 @@ export function toFeedEntry(row: FeedRow, viewerId: string, cosmetics?: Cosmetic
   };
 }
 
+/** Группирует рекорды по упражнению (порядок первого появления) и подкладывает респекты. */
+export function groupRecords(
+  records: { exerciseId: string; exerciseName: string; type: RecordType; value: number | null }[],
+  respects: FeedRow["respects"],
+): FeedRecordGroup[] {
+  const groups = new Map<string, FeedRecordGroup>();
+  for (const r of records) {
+    let group = groups.get(r.exerciseId);
+    if (!group) {
+      const found = respects?.find((x) => x.exerciseId === r.exerciseId);
+      group = {
+        exerciseId: r.exerciseId,
+        exerciseName: r.exerciseName,
+        records: [],
+        respect: found ? { count: found.count, byMe: found.byMe, names: found.names ?? [] } : { count: 0, byMe: false, names: [] },
+      };
+      groups.set(r.exerciseId, group);
+    }
+    group.records.push({ type: r.type, value: r.value });
+  }
+  return [...groups.values()];
+}
+
+/** «Вы, Маша и ещё 1» — кто выразил респект за рекорд. */
+export function respectLabel(r: RespectInfo) {
+  return kudosLabel(r);
+}
+
+/** Текст уведомления владельцу: ники — последние сверху, показываем два. */
+export function respectNotice(exerciseName: string, names: string[]) {
+  const shown = names.slice(0, 2).join(", ");
+  const rest = names.length - 2;
+  return { title: `🏆 Респект за рекорд: ${exerciseName}`, body: rest > 0 ? `${shown} и ещё ${rest}` : shown };
+}
+
+/** Название упражнения, если в сводке завершения есть рекорд с этим exerciseId (защита от подделанного id). */
+export function recordExercise(meta: unknown, exerciseId: string): string | null {
+  if (!isFinishMeta(meta)) return null;
+  return meta.records.find((r) => r.exerciseId === exerciseId)?.exerciseName ?? null;
+}
+
 /** «Вы, Маша и ещё 2» — кто поддержал тренировку. */
-export function kudosLabel({ count, byMe, names }: FeedEntry["kudos"]) {
+export function kudosLabel({ count, byMe, names }: { count: number; byMe: boolean; names: string[] }) {
   if (count === 0) return "";
   const shown = [...(byMe ? ["Вы"] : []), ...names].slice(0, 2);
   const rest = count - shown.length;
