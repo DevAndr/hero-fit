@@ -101,22 +101,25 @@ const CLIENTS_CHUNK = 5;
 
 const isUniqueViolation = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
+/** Итог попытки создать снимок: создан; уже есть (гонка тика и страницы); нет клиентов в ту неделю; неделя ещё идёт у клиента западнее. */
+export type CoachRecapCreate = "created" | "exists" | "no-clients" | "not-ready";
+
 /**
  * Снимок итогов недели week тренера (без проверки окна — для тика). Клиенты — активные связи, созданные до конца
  * недели (в поясе тренера). Нет клиентов, неделя ещё не кончилась у кого-то из клиентов (пояс западнее)
- * или снимок уже есть (гонка тика и страницы) — false.
+ * или снимок уже есть (гонка тика и страницы) — не создаёт и возвращает причину.
  */
-export async function createCoachRecap(coachId: string, week: string, coachTz: string, now = new Date()): Promise<boolean> {
+export async function createCoachRecap(coachId: string, week: string, coachTz: string, now = new Date()): Promise<CoachRecapCreate> {
   const { start: weekStart, end: weekEnd } = bounds(week, coachTz);
   const links = await db.coachLink.findMany({
     where: { coachId, endedAt: null, createdAt: { lt: weekEnd } },
     select: { createdAt: true, client: { select: { id: true, timeZone: true } } },
   });
-  if (!links.length) return false;
+  if (!links.length) return "no-clients";
   const clients = links.map(({ createdAt, client }) => ({ clientId: client.id, createdAt, tz: safeTimeZone(client.timeZone) }));
   // Неделя ещё идёт у клиента западнее тренера — снимок рано (он не меняется); тик проверит снова дёшево
   const readyAt = recapReadyAt(week, clients.map((c) => c.tz));
-  if (readyAt && now < readyAt) return false;
+  if (readyAt && now < readyAt) return "not-ready";
 
   // Чанками: сотни клиентов разом заняли бы весь пул соединений
   const inputs: ClientRecapInput[] = [];
@@ -136,9 +139,9 @@ export async function createCoachRecap(coachId: string, week: string, coachTz: s
       const recap = await tx.coachWeeklyRecap.create({ data: { coachId, week, data: totals }, select: { id: true } });
       await tx.coachRecapClient.createMany({ data: rows.map((r) => ({ recapId: recap.id, clientId: r.clientId, data: r.row })) });
     });
-    return true;
+    return "created";
   } catch (e) {
-    if (isUniqueViolation(e)) return false;
+    if (isUniqueViolation(e)) return "exists";
     throw e;
   }
 }
@@ -161,12 +164,22 @@ export async function getCoachRecap(coachId: string, week: string): Promise<Coac
   return { id: recap.id, week: recap.week, totals: recap.data, seenAt: recap.seenAt, rows: sortRecapRows(rows) };
 }
 
-/** Снимок недели; если его нет, неделя закончилась и не старше RECAP_LAZY_WEEKS — создаёт на лету, без push. */
-export async function getOrCreateCoachRecap(coachId: string, week: string, coachTz: string, now = new Date()): Promise<CoachRecapView | null> {
+/**
+ * Снимок недели; если его нет, неделя закончилась и не старше RECAP_LAZY_WEEKS — создаёт на лету, без push.
+ * Снимка нет — `pending`: true, если он ещё появится (неделя не кончилась у клиента западнее), false — не будет (нет клиентов).
+ */
+export async function getOrCreateCoachRecap(
+  coachId: string,
+  week: string,
+  coachTz: string,
+  now = new Date(),
+): Promise<{ recap: CoachRecapView | null; pending: boolean }> {
   const existing = await getCoachRecap(coachId, week);
-  if (existing || isRecapWeek(week, now, coachTz) !== "ok") return existing;
-  await createCoachRecap(coachId, week, coachTz, now);
-  return getCoachRecap(coachId, week);
+  if (existing || isRecapWeek(week, now, coachTz) !== "ok") return { recap: existing, pending: false };
+  const result = await createCoachRecap(coachId, week, coachTz, now);
+  if (result === "no-clients") return { recap: null, pending: false };
+  const recap = await getCoachRecap(coachId, week);
+  return { recap, pending: !recap && result === "not-ready" };
 }
 
 export const COACH_RECAPS_PAGE = 20;

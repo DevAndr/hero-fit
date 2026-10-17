@@ -24,9 +24,11 @@ export default async function CoachRecapPage({ params }: PageProps<"/coach/recap
   const check = isRecapWeek(week, new Date(), timeZone);
   if (check === "invalid") notFound();
   if (check === "not-ended") redirect("/coach/recap");
-  const recap = check === "ok" ? await getOrCreateCoachRecap(coach.id, week, timeZone) : await getCoachRecap(coach.id, week);
-  // Старая неделя без снимка — нет страницы; свежая без снимка — итоги ещё собираются (у клиентов западнее неделя не кончилась)
-  if (!recap && check !== "ok") notFound();
+  const { recap, pending } =
+    check === "ok" ? await getOrCreateCoachRecap(coach.id, week, timeZone) : { recap: await getCoachRecap(coach.id, week), pending: false };
+  // Без снимка страница есть, только пока итоги собираются (у клиентов западнее неделя не кончилась);
+  // старая неделя или неделя без клиентов — нет страницы
+  if (!recap && !pending) notFound();
 
   const [nav, first] = await Promise.all([
     adjacentCoachRecaps(coach.id, week),
