@@ -5,6 +5,7 @@ import { deletionPreview } from "@/lib/account/rules";
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ChevronRight, Watch } from "lucide-react";
 import { buildLabel } from "@/lib/changelog/version";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
@@ -25,12 +26,13 @@ import { clientDisplayName } from "@/lib/coach/clients";
 import { getNotificationSettings } from "@/lib/notifications/queries";
 import { getTelegramStatus } from "@/lib/telegram/queries";
 import { getTitleSettings } from "@/lib/titles/queries";
+import { getWhoopStatus, whoopAvailable } from "@/lib/whoop/queries";
 
 export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant, deletion] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant, deletion, whoop] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
@@ -39,6 +41,8 @@ export default async function SettingsPage() {
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } }).then((u) => u.passwordHash !== null),
     isEnabled("smart_coach", user.id),
     getDeletionInput(user.id),
+    // null — браслеты недоступны (флаг whoop / WHOOP не настроен), иначе — подключён ли WHOOP
+    whoopAvailable(user.id).then(async (ok) => (ok ? (await getWhoopStatus(user.id)).connected : null)),
   ]);
 
   return (
@@ -55,6 +59,14 @@ export default async function SettingsPage() {
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
       {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}
       {telegram.enabled ? <TelegramCard status={telegram} /> : null}
+      {whoop === null ? null : (
+        <Link href="/devices" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
+          <Watch className="size-4 shrink-0 text-primary" />
+          <span className="font-bold">Браслеты и часы</span>
+          <span className="ml-auto text-sm text-muted-foreground">{whoop ? "WHOOP подключён" : "Не подключены"}</span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+      )}
       {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
       <NotificationPrefs initial={prefs} />
       <RestartTourButton />
