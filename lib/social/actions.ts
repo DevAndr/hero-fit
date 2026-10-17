@@ -211,17 +211,18 @@ export async function toggleRespectAction(workoutId: string, exerciseId: string)
 
   const removed = await db.recordRespect.deleteMany({ where: { workoutId, exerciseId, userId: user.id } });
   if (removed.count === 0) {
+    let created = true;
     try {
       await db.recordRespect.create({ data: { workoutId, exerciseId, userId: user.id } });
     } catch (e) {
-      // двойной клик — уже поставлено
+      // двойной клик или две вкладки — уже поставлено: уведомление не повторяем
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+      created = false;
     }
-    await notifyRespect(workoutId, exerciseId, workout.userId, workout.friend);
+    if (created) await notifyRespect(workoutId, exerciseId, workout.userId, workout.friend);
   }
   revalidatePath("/friends");
   revalidatePath("/guild");
-  revalidatePath("/dashboard");
   return { ok: true };
 }
 

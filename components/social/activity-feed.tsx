@@ -59,17 +59,20 @@ function RespectButton({ entry, group }: { entry: FeedEntry; group: FeedRecordGr
     return respect.count > 0 ? (
       <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground" title={label}>
         <Trophy className="size-3.5 text-primary" aria-hidden />
-        {respect.count}
+        <span aria-hidden>{respect.count}</span>
+        <span className="sr-only">Респектов: {respect.count}</span>
       </span>
     ) : null;
   }
 
   return (
     <Button
-      className="shrink-0"
       variant={respect.byMe ? "default" : "outline"}
       size="sm"
       aria-pressed={respect.byMe}
+      aria-busy={pending}
+      aria-disabled={pending}
+      className={cn("shrink-0", pending && "opacity-60")}
       aria-label={respect.byMe ? `Убрать респект у ${entry.nickname} за ${group.exerciseName}` : `Дать респект ${entry.nickname} за ${group.exerciseName}`}
       title={label || undefined}
       onClick={() => {
@@ -218,7 +221,7 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
                 <Icon className={cn("mt-0.5 size-4 shrink-0", className)} aria-hidden />
               ) : null}
               <span className="min-w-0 flex-1 break-words">{text}</span>
-              {group ? <RespectButton entry={entry} group={group} /> : null}
+              {group && !compact ? <RespectButton entry={entry} group={group} /> : null}
             </li>
           ))}
           {compact && highlights.length > shownHighlights.length ? (

@@ -82,14 +82,14 @@ test("own record has no button; a workout without records has none; hidden weigh
     await makeFriends(author.login, a, friend.login, nick("Bravo", friend.login));
     const { workoutId, exerciseIds } = await seedRecordWorkout(author.login, [{ exercise: BENCH, value: 100 }], { name: "С рекордом" });
     await seedRecordWorkout(author.login, [], { name: "Без рекордов" });
-    await seedRespects(author.login, workoutId, exerciseIds[BENCH], 2);
+    await seedRespects(workoutId, exerciseIds[BENCH], 2);
 
     // Автор: свой рекорд — без кнопки, но с числом
     await page.goto("/friends");
     const own = page.getByRole("article", { name: `${a}: С рекордом` });
     await expect(own).toContainText(`${BENCH}: макс. вес 100 кг`);
     await expect(own.getByRole("button", { name: /респект/ })).toHaveCount(0);
-    await expect(own.getByTitle(/\S/).filter({ hasText: "2" })).toBeVisible();
+    await expect(own.getByTitle(/^fan\d_\w+ и fan\d_\w+$/)).toContainText("Респектов: 2");
 
     // Друг: кнопка и счётчик 2; запись без рекордов — без кнопок
     await pageF.goto("/friends");
@@ -98,9 +98,15 @@ test("own record has no button; a workout without records has none; hidden weigh
     await expect(pageF.getByRole("article", { name: `${a}: Без рекордов` })).toBeVisible();
     await expect(pageF.getByRole("article", { name: `${a}: Без рекордов` }).getByRole("button", { name: /респект/ })).toHaveCount(0);
 
+    // Дашборд: «Друзья недавно» — рекорды без кнопок респекта (вне цикла)
+    await pageF.goto("/dashboard");
+    const recent = pageF.getByRole("region", { name: "Друзья недавно" });
+    await expect(recent.getByRole("article").first()).toBeVisible();
+    await expect(recent.getByRole("button", { name: /респект/ })).toHaveCount(0);
+
     // Скрытые веса: значения не показаны, кнопка есть
     await setPrivacy(author.login, { hideWeights: true });
-    await pageF.reload();
+    await pageF.goto("/friends");
     await expect(card).toContainText(`${BENCH}: макс. вес`);
     await expect(card).not.toContainText("100 кг");
     await expect(card.getByRole("button", { name: `Дать респект ${a} за ${BENCH}` })).toBeVisible();

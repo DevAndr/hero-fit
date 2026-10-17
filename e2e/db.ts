@@ -1374,9 +1374,8 @@ export async function seedRecordWorkout(
 }
 
 /** n фиктивных пользователей ставят респект на рекорд (минуя UI). */
-export async function seedRespects(ownerLogin: string, workoutId: string, exerciseId: string, n: number) {
+export async function seedRespects(workoutId: string, exerciseId: string, n: number) {
   await withDb(async (db) => {
-    void ownerLogin;
     for (let i = 0; i < n; i++) {
       const uid = randomUUID();
       const login = `e2e_resp_${uid.slice(0, 12)}`;
