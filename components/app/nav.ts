@@ -1,4 +1,4 @@
-import { Building2, Store, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, ListChecks, Shield, Swords, Target, Trophy, Users } from "lucide-react";
+import { Building2, Store, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, LibraryBig, ListChecks, Shield, Swords, Target, Trophy, Users } from "lucide-react";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Кабинет", icon: LayoutDashboard, mobile: true },
@@ -23,3 +23,6 @@ export const CLUB_NAV_ITEM = { href: "/clubs", label: "Клуб", icon: Building
 
 /** Режим тренера: в боковом меню после остальных, на телефоне — в меню профиля. */
 export const COACH_NAV_ITEM = { href: "/coach", label: "Клиенты", icon: ClipboardCheck, mobile: false } as const;
+
+/** Каталог программ (флаг `program_catalog`): в боковом меню после «Шаблонов», на телефоне — в меню профиля. */
+export const PROGRAMS_NAV_ITEM = { href: "/programs", label: "Программы", icon: LibraryBig, mobile: false } as const;

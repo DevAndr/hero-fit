@@ -3,6 +3,7 @@ import { applyProgramToTargets, isDeloadWeek, programEndDay, programLabel, progr
 import { endAssignment, ruleOfAssignment } from "@/lib/coach/program-assign";
 import type { Target } from "@/lib/coach/targets";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { participants } from "@/lib/catalog/queries";
 import { db } from "@/lib/db";
 
 export type ProgramView = {
@@ -10,6 +11,10 @@ export type ProgramView = {
   name: string;
   rule: ProgramRule;
   days: { weekday: number; templateId: string; templateName: string; time: string; durationMin: number }[];
+  /** Каталог программ: опубликована ли, описание, снятие администратором. */
+  catalog: { published: boolean; description: string; hiddenReason: string | null; hidden: boolean };
+  /** Активных запусков из каталога (всегда 0 без публикации). */
+  participants: number;
 };
 
 const ruleOf = (p: { weeks: number; stepKind: "PERCENT" | "KG"; stepValue: number; deloadEvery: number | null; deloadPct: number }): ProgramRule => ({
@@ -27,10 +32,13 @@ export async function getCoachPrograms(coachId: string): Promise<ProgramView[]> 
     orderBy: { createdAt: "desc" },
     include: { days: { orderBy: { weekday: "asc" }, include: { template: { select: { name: true } } } } },
   });
+  const counts = await participants(rows.map((p) => p.id));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
     rule: ruleOf(p),
+    catalog: { published: p.publishedAt !== null, description: p.catalogDescription ?? "", hiddenReason: p.hiddenReason, hidden: p.hiddenAt !== null },
+    participants: counts.get(p.id) ?? 0,
     days: p.days.map((d) => ({ weekday: d.weekday, templateId: d.templateId, templateName: d.template.name, time: d.time, durationMin: d.durationMin })),
   }));
 }

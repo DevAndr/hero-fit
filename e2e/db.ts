@@ -1404,3 +1404,28 @@ export async function respectCount(workoutId: string, exerciseId?: string) {
     return rows[0].c;
   });
 }
+
+/** Программа тренера в библиотеке (минуя UI): неделя из одного дня на шаблон; publish — сразу в каталоге. Возвращает id. */
+export async function seedCoachProgram(
+  coachLogin: string,
+  templateId: string,
+  o: { name: string; weeks?: number; weekdays?: number[]; stepValue?: number; publish?: boolean; description?: string },
+): Promise<string> {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "CoachProgram" (id, "coachId", name, weeks, "stepKind", "stepValue", "deloadEvery", "deloadPct", "publishedAt", "catalogDescription", "updatedAt")
+       values ($1, $2, $3, $4, 'PERCENT', $5, 4, 10, $6, $7, now())`,
+      [id, await userId(db, coachLogin), o.name, o.weeks ?? 8, o.stepValue ?? 2.5, o.publish ? new Date() : null, o.description ?? null],
+    );
+    for (const weekday of o.weekdays ?? [0]) {
+      await db.query(`insert into "CoachProgramDay" (id, "programId", weekday, "templateId", time, "durationMin") values ($1, $2, $3, $4, '18:00', 60)`, [
+        randomUUID(),
+        id,
+        weekday,
+        templateId,
+      ]);
+    }
+    return id;
+  });
+}
