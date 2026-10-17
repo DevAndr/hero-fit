@@ -16,6 +16,7 @@ import {
   seedCoachAssignment,
   seedCoachProgram,
   setFlag,
+  setNickname,
   setProgramPublished,
   shiftProgramStart,
   templateExerciseLines,
@@ -99,6 +100,8 @@ test("my data: the author exports published programs, the user exports the launc
   test.slow();
   const p = await publishedProgram(page, { weekdays: [0, 1, 2, 3, 4, 5, 6] });
   const user = await athlete(browser);
+  const userNick = nickOf(user.login, "Athl");
+  await setNickname(user.login, userNick);
   try {
     await startProgram(user.page, p.id);
 
@@ -111,12 +114,13 @@ test("my data: the author exports published programs, the user exports the launc
     expect(author.publishedPrograms).toEqual([expect.objectContaining({ name: p.name, description: "Описание", hiddenAt: null, participants: 1 })]);
     // Ни ников, ни данных занимающихся — только число
     expect(JSON.stringify(author)).not.toContain(user.login);
+    expect(JSON.stringify(author)).not.toContain(userNick);
   } finally {
     await user.context.close();
   }
 });
 
-test("my data: the author deletes the account — the user's program goes on, its copied template with the author's exercise starts a workout", async ({ page, browser }) => {
+test("my data: the author deletes the account — the user's program goes on, the copied template keeps the author's exercise, the workout starts without it", async ({ page, browser }) => {
   test.slow();
   const coach = await registerUser(page, "Тренер");
   const nick = nickOf(coach.login, "Coach");
@@ -144,7 +148,56 @@ test("my data: the author deletes the account — the user's program goes on, it
     await user.page.goto("/training");
     await user.page.getByRole("button", { name: new RegExp(`По плану: ${template}`) }).click();
     await expect(user.page.getByRole("region", { name: SQUAT })).toBeVisible();
+    await expect(user.page.getByRole("region", { name: own })).toHaveCount(0);
     await expect(user.page.getByRole("button", { name: "Начать", exact: true })).toBeVisible();
+  } finally {
+    await user.context.close();
+  }
+});
+
+test("a user edits the copied template with the author's exercise; a foreign exercise is still rejected", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  const nick = nickOf(coach.login, "Coach");
+  await enableCoach(coach.login, nick);
+  const name = `Сила ${nick}`;
+  const template = `Ноги ${nick}`;
+  const own = `Свой присед ${nick}`;
+  const templateId = await coachTemplate(coach.login, template, own);
+  const programId = await seedCoachProgram(coach.login, templateId, { name, weekdays: [0, 1, 2, 3, 4, 5, 6], publish: true, description: "Описание" });
+  const user = await athlete(browser);
+  try {
+    await startProgram(user.page, programId, "this");
+    const copy = (await templatesOf(user.login)).find((t) => t.name === template)!;
+
+    // Переименование и порядок: упражнение автора уже стоит в копии — сохраняется
+    await user.page.goto(`/templates/${copy.id}`);
+    await user.page.getByLabel("Название").fill(`${template} мой`);
+    await user.page.getByRole("region", { name: own }).getByRole("button", { name: "Выше" }).click();
+    await user.page.getByRole("button", { name: "Сохранить шаблон" }).click();
+    await expect(user.page.getByText("Шаблон сохранён")).toBeVisible();
+    expect(await templateExerciseLines(copy.id)).toEqual([`${SQUAT} 3×10`, `${own} 3×10`, "Жим ногами 3×10"]);
+    expect((await templatesOf(user.login)).find((t) => t.id === copy.id)?.name).toBe(`${template} мой`);
+
+    // Подмена id на чужое упражнение, которого в шаблоне не было, — по-прежнему ошибка
+    const [squatId, foreignId] = await withDb(async (db) => {
+      const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where "userId" is null and name = $1`, [SQUAT]);
+      // Своё упражнение автора, которого нет в программе
+      const { rows: other } = await db.query<{ id: string }>(
+        `insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") values (gen_random_uuid()::text, (select id from "User" where login = $1), $2, '{LEGS}', now()) returning id`,
+        [coach.login, `Чужое ${nick}`],
+      );
+      return [rows[0].id, other[0].id];
+    });
+    await user.page.goto(`/templates/${copy.id}`);
+    await user.page.route(`**/templates/${copy.id}`, async (route) => {
+      const body = route.request().postData();
+      if (route.request().method() !== "POST" || !body?.includes(squatId)) return route.continue();
+      await route.continue({ postData: body.replaceAll(squatId, foreignId) });
+    });
+    await user.page.getByRole("button", { name: "Сохранить шаблон" }).click();
+    await expect(user.page.getByText("Неизвестное упражнение")).toBeVisible();
+    expect(await templateExerciseLines(copy.id)).toEqual([`${SQUAT} 3×10`, `${own} 3×10`, "Жим ногами 3×10"]);
   } finally {
     await user.context.close();
   }
@@ -157,9 +210,18 @@ test("a coach publishes a program and a user sees it in the catalog", async ({ p
   await coachProfile(coach.login, { about: "Тренер", publish: true });
   const name = `Сила ${nick}`;
   const templateId = await coachTemplate(coach.login, `Ноги ${nick}`);
-  await seedCoachProgram(coach.login, templateId, { name, weekdays: [0, 2, 4] });
+  const programId = await seedCoachProgram(coach.login, templateId, { name, weekdays: [0, 2, 4] });
+
+  // Автор видит свою неопубликованную программу со значком
+  await page.goto(`/programs/${programId}`);
+  await expect(page.getByText("Не опубликована")).toBeVisible();
 
   await page.goto("/coach/programs");
+  // Новая программа: публикация — после сохранения
+  await page.getByRole("button", { name: "Новая программа" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Сохраните программу, чтобы опубликовать её в каталоге");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
   const item = page.getByRole("listitem", { name });
   await expect(item).not.toContainText("В каталоге");
   await item.getByRole("button", { name: `Изменить «${name}»` }).click();
@@ -180,7 +242,7 @@ test("a coach publishes a program and a user sees it in the catalog", async ({ p
     const userPage = await user.newPage();
     await registerUser(userPage, "Атлет");
     await userPage.goto("/dashboard");
-    await userPage.getByRole("link", { name: "Программы" }).first().click();
+    await userPage.getByRole("link", { name: "Каталог программ" }).first().click();
     await expect(userPage).toHaveURL(/\/programs$/);
     const card = userPage.getByRole("listitem", { name });
     await expect(card).toContainText("+2,5 % в неделю · разгрузка каждую 4-ю неделю");
@@ -224,7 +286,7 @@ test("without the flag the catalog is hidden", async ({ page }) => {
   expect((await page.goto(`/programs/${programId}`))?.status()).toBe(404);
   expect((await page.goto("/admin/programs"))?.status()).toBe(404);
   await page.goto("/dashboard");
-  await expect(page.getByRole("link", { name: "Программы" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Каталог программ" })).toHaveCount(0);
 
   await page.goto("/coach/programs");
   await expect(page.getByRole("listitem", { name })).not.toContainText("В каталоге");
@@ -256,7 +318,7 @@ test("a user starts a program next week with bases", async ({ page, browser, req
     await user.page.getByRole("dialog").getByRole("button", { name: "Начать" }).click();
     const squat = user.page.getByRole("region", { name: SQUAT });
     await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("100");
-    await expect(squat).toContainText(`программа «${p.name}»: 3 подхода · 100 кг (неделя 1/8)`);
+    await expect(squat).toContainText(`программа «${p.name}»: 3 × 10 · 100 кг (неделя 1/8)`);
 
     await user.page.goto(`/programs/${p.id}`);
     await expect(user.page.getByText("занимаются 1")).toBeVisible();
@@ -271,6 +333,15 @@ test("a user starts a program next week with bases", async ({ page, browser, req
     await shiftProgramStart(user.login, 8);
     await runTick(request);
     expect(await notificationTitles(user.login)).toContain(`Программа «${p.name}» заканчивается через неделю`);
+    // Ссылка — в календарь: страница каталога без флага — 404
+    const urls = await withDb(async (db) => {
+      const { rows } = await db.query<{ url: string }>(
+        `select n.url from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 and n.title like '%заканчивается через неделю'`,
+        [user.login],
+      );
+      return rows.map((r) => r.url);
+    });
+    expect(urls).toEqual(["/calendar"]);
     expect((await coachNotifications(p.coach.login)).map((n) => n.title).join("\n")).not.toContain("заканчивается");
   } finally {
     await user.context.close();
@@ -373,6 +444,7 @@ test("ending the own program removes future sessions and keeps today's", async (
     const block = user.page.getByRole("region", { name: "Программа" });
     await expect(block).toContainText(`«${p.name}»`);
     await expect(block).toContainText("неделя 1 из 8");
+    await expect(block.getByRole("link", { name: "страница программы" })).toHaveAttribute("href", `/programs/${p.id}`);
     await block.getByRole("button", { name: "Завершить программу" }).click();
     await user.page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
     await expect(user.page.getByText("Программа завершена")).toBeVisible();
@@ -383,6 +455,30 @@ test("ending the own program removes future sessions and keeps today's", async (
     expect(await activeAssignments(user.login)).toEqual([]);
     await user.page.goto(`/programs/${p.id}`);
     await expect(user.page.getByText("занимаются 0")).toBeVisible();
+  } finally {
+    await user.context.close();
+  }
+});
+
+test("the flag is turned off while a catalog program runs — the user can still end it", async ({ page, browser }) => {
+  test.slow();
+  const p = await publishedProgram(page, { weekdays: [0, 1, 2, 3, 4, 5, 6] });
+  const user = await athlete(browser);
+  try {
+    await startProgram(user.page, p.id, "this");
+    await setFlag("program_catalog", { enabled: false });
+
+    await user.page.goto("/calendar");
+    const block = user.page.getByRole("region", { name: "Программа" });
+    await expect(block).toContainText(`«${p.name}»`);
+    // Каталога нет — нет и ссылки на страницу программы
+    await expect(block.getByRole("link", { name: "страница программы" })).toHaveCount(0);
+    await block.getByRole("button", { name: "Завершить программу" }).click();
+    await user.page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+    await expect(user.page.getByText("Программа завершена")).toBeVisible();
+    await expect(user.page.getByRole("region", { name: "Программа" })).toHaveCount(0);
+    expect(await activeAssignments(user.login)).toEqual([]);
+    expect(await programSeriesAfterToday(user.login)).toBe(0);
   } finally {
     await user.context.close();
   }
@@ -406,13 +502,14 @@ test("the author deletes the program — the running one keeps its label, weight
     const block = user.page.getByRole("region", { name: "Программа" });
     await expect(block).toContainText(`«${p.name}»`);
     await expect(block.getByRole("button", { name: "Завершить программу" })).toBeVisible();
+    await expect(block.getByRole("link", { name: "страница программы" })).toHaveCount(0);
     await expect(user.page.getByRole("button", { name: new RegExp(`^${p.template}, .*, программа «${p.name}» \\(неделя 1/8\\)$`) })).not.toHaveCount(0);
 
     await user.page.goto("/training");
     await user.page.getByRole("button", { name: new RegExp(`По плану: ${p.template}`) }).click();
     const squat = user.page.getByRole("region", { name: SQUAT });
     await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("100");
-    await expect(squat).toContainText(`программа «${p.name}»: 3 подхода · 100 кг (неделя 1/8)`);
+    await expect(squat).toContainText(`программа «${p.name}»: 3 × 10 · 100 кг (неделя 1/8)`);
   } finally {
     await user.context.close();
   }
@@ -461,6 +558,9 @@ test("an admin hides a program with a reason", async ({ page, browser }) => {
     await expect(editor).toContainText("Снята администратором: Опасная схема нагрузки");
     await expect(editor.getByRole("switch", { name: "Опубликовать в каталоге" })).toBeDisabled();
     await page.keyboard.press("Escape");
+    // Страница программы у автора — со значком снятия
+    await page.goto(`/programs/${p.id}`);
+    await expect(page.getByText("Снята администратором")).toBeVisible();
 
     // Вернуть — снова в каталоге, без нового уведомления
     await adminPage.reload();
