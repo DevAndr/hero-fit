@@ -72,11 +72,16 @@ const raw = (): ExportRaw => ({
       deloadEvery: 4,
       deloadPct: 10,
       endedAt: null,
+      fromCatalog: false,
+      catalogProgram: null,
       id: "pa_secret",
       bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1, assignmentId: "pa_secret" }],
     },
   ],
   coachPrograms: [{ name: "Сила", weeks: 8, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, id: "cp_secret", days: [{ weekday: 0, template: "Жим", time: "18:00", id: "d_secret" }] }],
+  publishedPrograms: [
+    { name: "Сила", description: "Три дня в неделю", publishedAt: new Date("2026-10-17T00:00:00Z"), hiddenAt: null, participants: 4, id: "cp_secret", coachId: "u_coach", hiddenReason: "secret-reason" },
+  ],
   notifications: [],
   whoop: null,
   shop: {
@@ -162,12 +167,35 @@ describe("export — coach programs", () => {
         weeks: 8,
         rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 },
         ended: false,
+        fromCatalog: false,
+        catalogProgram: null,
         bases: [{ template: "Жим", exercise: "Жим штанги лёжа", weight: 100, fromWeek: 1 }],
       },
     ]);
     expect(o.coachPrograms).toEqual([
       { name: "Сила", weeks: 8, rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 }, days: [{ weekday: 0, template: "Жим", time: "18:00" }] },
     ]);
+  });
+});
+
+describe("export — program catalog", () => {
+  it("запуск из каталога: название и ник автора, без id; программа удалена — null", () => {
+    const r = raw();
+    r.programs[0].fromCatalog = true;
+    r.programs[0].catalogProgram = { name: "Сила", author: "Coach_Demo", id: "cp_secret", coachId: "u_coach" };
+    const o = buildExport(r, new Date("2026-10-17T00:00:00Z"));
+    expect(o.programs[0].fromCatalog).toBe(true);
+    expect(o.programs[0].catalogProgram).toEqual({ name: "Сила", author: "Coach_Demo" });
+    r.programs[0].catalogProgram = null;
+    expect(buildExport(r, new Date("2026-10-17T00:00:00Z")).programs[0]).toMatchObject({ fromCatalog: true, catalogProgram: null });
+  });
+  it("тренеру: опубликованные программы с числом занимающихся, без id и причины снятия", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("publishedPrograms");
+    expect(o.publishedPrograms).toEqual([
+      { name: "Сила", description: "Три дня в неделю", publishedAt: new Date("2026-10-17T00:00:00Z"), hiddenAt: null, participants: 4 },
+    ]);
+    expect(JSON.stringify(o)).not.toContain("secret-reason");
   });
 });
 

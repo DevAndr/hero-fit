@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import {
   activeAssignments,
@@ -21,7 +22,7 @@ import {
   templatesOf,
   withDb,
 } from "./db";
-import { registerUser, runTick } from "./helpers";
+import { PASSWORD, registerUser, runTick } from "./helpers";
 
 // Каталог программ тренеров — под глобальным флагом program_catalog: сценарии по очереди, только desktop
 test.describe.configure({ mode: "serial" });
@@ -77,6 +78,77 @@ async function startProgram(page: Page, programId: string, start: "this" | "next
   await expect(page.getByText("Программа начата")).toBeVisible();
   await expect(page).toHaveURL(/\/calendar\?date=/);
 }
+
+/** Выгрузка «Все данные (JSON)» из настроек. */
+async function exportJson(page: Page) {
+  await page.goto("/settings");
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  return JSON.parse(await readFile((await download.path())!, "utf8"));
+}
+
+async function deleteAccount(page: Page) {
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Удаление аккаунта" }).getByRole("button", { name: "Удалить аккаунт" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Удалить аккаунт?" });
+  await dialog.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
+  await expect(page).toHaveURL(/deleted=1/);
+}
+
+test("my data: the author exports published programs, the user exports the launch from the catalog", async ({ page, browser }) => {
+  test.slow();
+  const p = await publishedProgram(page, { weekdays: [0, 1, 2, 3, 4, 5, 6] });
+  const user = await athlete(browser);
+  try {
+    await startProgram(user.page, p.id);
+
+    const mine = await exportJson(user.page);
+    expect(mine.programs).toEqual([expect.objectContaining({ name: p.name, fromCatalog: true, catalogProgram: { name: p.name, author: p.nick } })]);
+    expect(JSON.stringify(mine)).not.toContain(p.id);
+    expect(mine.publishedPrograms).toEqual([]);
+
+    const author = await exportJson(page);
+    expect(author.publishedPrograms).toEqual([expect.objectContaining({ name: p.name, description: "Описание", hiddenAt: null, participants: 1 })]);
+    // Ни ников, ни данных занимающихся — только число
+    expect(JSON.stringify(author)).not.toContain(user.login);
+  } finally {
+    await user.context.close();
+  }
+});
+
+test("my data: the author deletes the account — the user's program goes on, its copied template with the author's exercise starts a workout", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  const nick = nickOf(coach.login, "Coach");
+  await enableCoach(coach.login, nick);
+  const name = `Сила ${nick}`;
+  const template = `Ноги ${nick}`;
+  const own = `Свой присед ${nick}`;
+  const templateId = await coachTemplate(coach.login, template, own);
+  const programId = await seedCoachProgram(coach.login, templateId, { name, weekdays: [0, 1, 2, 3, 4, 5, 6], publish: true, description: "Описание" });
+  const user = await athlete(browser);
+  try {
+    await startProgram(user.page, programId, "this");
+    await deleteAccount(page);
+
+    expect(await activeAssignments(user.login)).toEqual([{ name, coachId: null, catalogProgramId: null }]);
+    const mine = await exportJson(user.page);
+    expect(mine.programs).toEqual([expect.objectContaining({ name, fromCatalog: true, catalogProgram: null, ended: false })]);
+
+    // Копия шаблона открывается; упражнение автора переехало к пользователю архивной копией
+    const copy = (await templatesOf(user.login)).find((t) => t.name === template)!;
+    await user.page.goto(`/templates/${copy.id}`);
+    await expect(user.page.getByText(own).first()).toBeVisible();
+
+    // Тренировка по плану стартует; архивные упражнения при запуске из шаблона пропускаются (как и раньше)
+    await user.page.goto("/training");
+    await user.page.getByRole("button", { name: new RegExp(`По плану: ${template}`) }).click();
+    await expect(user.page.getByRole("region", { name: SQUAT })).toBeVisible();
+    await expect(user.page.getByRole("button", { name: "Начать", exact: true })).toBeVisible();
+  } finally {
+    await user.context.close();
+  }
+});
 
 test("a coach publishes a program and a user sees it in the catalog", async ({ page, browser }) => {
   const coach = await registerUser(page, "Тренер");
