@@ -3,7 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
+import type { WhoopCardState } from "./card";
 import { revokeAccess } from "./client";
+import { getWhoopCard, whoopAvailable } from "./queries";
+import { syncRange } from "./sync";
+import { WhoopReauthError, WhoopUnavailableError } from "./tokens";
+
+/** «Обновить» — не чаще раза в минуту на пользователя. */
+const REFRESH_THROTTLE_MS = 60_000;
+/** Запас вокруг тренировки при догрузке: активность WHOOP могла начаться раньше или кончиться позже. */
+const REFRESH_MARGIN_MS = 30 * 60_000;
+
+export type WhoopRefreshResult = { status: "ok"; card: WhoopCardState } | { status: "throttled" | "unavailable" | "reauth" };
 
 /** Отключить WHOOP: отзыв доступа в WHOOP (ошибки игнорируем), затем удаление всех данных WHOOP у нас. */
 export async function disconnectWhoopAction(): Promise<void> {
@@ -17,4 +28,41 @@ export async function disconnectWhoopAction(): Promise<void> {
   ]);
   revalidatePath("/devices");
   revalidatePath("/settings");
+}
+
+/** Догрузить активности WHOOP вокруг своей завершённой тренировки и вернуть карточку сводки. */
+export async function refreshWhoopAction(workoutId: string): Promise<WhoopRefreshResult> {
+  const user = await requireUser();
+  if (typeof workoutId !== "string" || !(await whoopAvailable(user.id))) return { status: "unavailable" };
+  const workout = await db.workout.findFirst({
+    where: { id: workoutId, userId: user.id, status: "COMPLETED" },
+    select: { startedAt: true, finishedAt: true, status: true },
+  });
+  if (!workout?.startedAt || !workout.finishedAt) return { status: "unavailable" };
+
+  const conn = await db.whoopConnection.findUnique({ where: { userId: user.id }, select: { needsReauth: true } });
+  if (!conn || conn.needsReauth) return { status: "reauth" };
+
+  // Условное обновление — атомарный троттлинг: из двух одновременных нажатий пройдёт одно
+  const now = new Date();
+  const { count } = await db.whoopConnection.updateMany({
+    where: { userId: user.id, OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: new Date(now.getTime() - REFRESH_THROTTLE_MS) } }] },
+    data: { lastSyncAt: now },
+  });
+  if (count === 0) return { status: "throttled" };
+
+  try {
+    await syncRange(
+      user.id,
+      new Date(workout.startedAt.getTime() - REFRESH_MARGIN_MS),
+      new Date(workout.finishedAt.getTime() + REFRESH_MARGIN_MS),
+    );
+  } catch (e) {
+    if (e instanceof WhoopReauthError) return { status: "reauth" };
+    if (e instanceof WhoopUnavailableError) return { status: "unavailable" };
+    throw e;
+  }
+
+  const card = await getWhoopCard(user.id, workout);
+  return card ? { status: "ok", card } : { status: "reauth" };
 }

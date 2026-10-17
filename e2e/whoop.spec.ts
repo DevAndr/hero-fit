@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import type { WhoopApiWorkout } from "../lib/whoop/types";
-import { addFlagUser, latestWorkout, seedWorkouts, whoopUserIdOf, whoopWorkoutCount } from "./db";
+import { addFlagUser, latestWorkout, resetWhoopSync, seedWorkouts, whoopUserIdOf, whoopWorkoutCount } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
 import { WHOOP_FAKE_URL } from "./whoop-server";
 
@@ -193,4 +193,83 @@ test("история за 30 дней", async ({ page }) => {
   await connectWhoop(page);
   await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
   await expect.poll(() => whoopWorkoutCount(login)).toBe(26);
+});
+
+/** Подключить WHOOP с заранее заданными активностями и дождаться загрузки истории (она идёт в after()). */
+async function connectWith(page: Page, login: string, list: WhoopApiWorkout[]) {
+  const whoopId = presetWhoopUser();
+  await putWorkouts(whoopId, list);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(list.length);
+  return whoopId;
+}
+
+const tile = (page: Page, name: string) => card(page).getByRole("group", { name, exact: true });
+
+test("пульс в старой сводке", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  await connectWith(page, login, [whoopActivity(randomUUID(), w.startedAt, w.finishedAt, { avgHr: 140, maxHr: 172, strain: 12.3, kJ: 1500 })]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(tile(page, "Средний пульс")).toContainText("140");
+  await expect(tile(page, "Макс. пульс")).toContainText("172");
+  await expect(tile(page, "Strain")).toContainText("12,3");
+  await expect(tile(page, "Ккал")).toContainText("359");
+  const zones = card(page).getByRole("table");
+  await expect(zones).toBeAttached();
+  await expect(zones).toContainText("Зона 2");
+  await expect(zones).toContainText("15 мин");
+  await expect(card(page)).not.toContainText("активностям WHOOP");
+});
+
+test("обработка → Обновить", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 1, { finishedAt: [new Date(Date.now() - 3_600_000)] });
+  const w = await latestWorkout(login);
+  const activityId = randomUUID();
+  const whoopId = await connectWith(page, login, [whoopActivity(activityId, w.startedAt, w.finishedAt, { state: "PENDING_SCORE" })]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("WHOOP ещё обрабатывает тренировку");
+
+  await putWorkouts(whoopId, [whoopActivity(activityId, w.startedAt, w.finishedAt, { avgHr: 133 })]);
+  await resetWhoopSync(login);
+  await card(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(tile(page, "Средний пульс")).toContainText("133");
+
+  // Сразу ещё раз — ограничение по времени, а не «переподключите»
+  await card(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(card(page)).toContainText("Обновить можно через минуту");
+  await expect(card(page)).not.toContainText("Переподключите WHOOP");
+  await expect(tile(page, "Средний пульс")).toContainText("133");
+});
+
+test("WHOOP не записал активность", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  await connectWith(page, login, []);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("WHOOP не записал активность в это время");
+  await expect(card(page)).toContainText("можно запускать активность в WHOOP вручную");
+});
+
+test("две активности в одной тренировке", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 3 }], 3);
+  const w = await latestWorkout(login);
+  const mid = new Date((w.startedAt.getTime() + w.finishedAt.getTime()) / 2);
+  await connectWith(page, login, [
+    whoopActivity(randomUUID(), w.startedAt, mid, { maxHr: 160 }),
+    whoopActivity(randomUUID(), mid, w.finishedAt, { maxHr: 175 }),
+  ]);
+
+  await page.goto(`/workouts/${w.id}`);
+  await expect(card(page)).toContainText("по 2 активностям WHOOP");
+  await expect(tile(page, "Макс. пульс")).toContainText("175");
 });

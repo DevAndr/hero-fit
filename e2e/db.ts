@@ -1207,3 +1207,10 @@ export async function latestWorkout(login: string): Promise<{ id: string; starte
     return rows[0];
   });
 }
+
+/** Сбросить отметку последней синхронизации WHOOP — снять ограничение «Обновить» раз в минуту. */
+export async function resetWhoopSync(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set "lastSyncAt" = null from "User" u where u.id = c."userId" and u.login = $1`, [login]);
+  });
+}
