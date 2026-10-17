@@ -8,6 +8,7 @@ import {
   buildTotals,
   isCoachRecapRow,
   isCoachRecapTotals,
+  recapReadyAt,
   sortRecapRows,
   type ClientRecapInput,
   type CoachRecapRow,
@@ -95,11 +96,15 @@ async function loadClientRecapInput(
   };
 }
 
+/** Сколько клиентов собирать параллельно. */
+const CLIENTS_CHUNK = 5;
+
 const isUniqueViolation = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
 /**
  * Снимок итогов недели week тренера (без проверки окна — для тика). Клиенты — активные связи, созданные до конца
- * недели (в поясе тренера). Нет клиентов — false; снимок уже есть (гонка тика и страницы) — false.
+ * недели (в поясе тренера). Нет клиентов, неделя ещё не кончилась у кого-то из клиентов (пояс западнее)
+ * или снимок уже есть (гонка тика и страницы) — false.
  */
 export async function createCoachRecap(coachId: string, week: string, coachTz: string, now = new Date()): Promise<boolean> {
   const { start: weekStart, end: weekEnd } = bounds(week, coachTz);
@@ -108,16 +113,19 @@ export async function createCoachRecap(coachId: string, week: string, coachTz: s
     select: { createdAt: true, client: { select: { id: true, timeZone: true } } },
   });
   if (!links.length) return false;
+  const clients = links.map(({ createdAt, client }) => ({ clientId: client.id, createdAt, tz: safeTimeZone(client.timeZone) }));
+  // Неделя ещё идёт у клиента западнее тренера — снимок рано (он не меняется); тик проверит снова дёшево
+  const readyAt = recapReadyAt(week, clients.map((c) => c.tz));
+  if (readyAt && now < readyAt) return false;
 
-  const [inputs, prevRecap] = await Promise.all([
-    Promise.all(
-      links.map(({ createdAt, client }) =>
-        loadClientRecapInput(coachId, { clientId: client.id, createdAt, tz: safeTimeZone(client.timeZone) }, week, weekStart, now),
-      ),
-    ),
-    db.coachWeeklyRecap.findUnique({ where: { coachId_week: { coachId, week: addWeeks(week, -1) } }, select: { data: true } }),
-  ]);
-  const rows = inputs.map((input, i) => ({ clientId: links[i].client.id, row: buildClientRow(input) }));
+  // Чанками: сотни клиентов разом заняли бы весь пул соединений
+  const inputs: ClientRecapInput[] = [];
+  for (let i = 0; i < clients.length; i += CLIENTS_CHUNK) {
+    const chunk = clients.slice(i, i + CLIENTS_CHUNK);
+    inputs.push(...(await Promise.all(chunk.map((c) => loadClientRecapInput(coachId, c, week, weekStart, now)))));
+  }
+  const prevRecap = await db.coachWeeklyRecap.findUnique({ where: { coachId_week: { coachId, week: addWeeks(week, -1) } }, select: { data: true } });
+  const rows = inputs.map((input, i) => ({ clientId: clients[i].clientId, row: buildClientRow(input) }));
   const totals = buildTotals(
     rows.map((r) => r.row),
     isCoachRecapTotals(prevRecap?.data) ? prevRecap.data : null,

@@ -2,6 +2,7 @@ import { plural } from "@/lib/format";
 import { isDeloadWeek, programWeekIndex } from "@/lib/coach/program";
 import type { SignalKind } from "@/lib/coach/signals";
 import type { FinishMeta } from "@/lib/workouts/finish";
+import { addWeeks, localMidnight } from "@/lib/progress/weekly-streak";
 
 /** Версия формата JSON в CoachWeeklyRecap.data и CoachRecapClient.data. */
 export const COACH_RECAP_VERSION = 1;
@@ -50,6 +51,16 @@ export type ClientRecapInput = {
 };
 
 const MAX_ITEMS = 3;
+
+/**
+ * Когда неделя week закончилась у всех клиентов: самый поздний «следующий понедельник 00:00» по их поясам
+ * (клиент западнее тренера ещё в воскресенье — снимок раньше потерял бы его тренировки).
+ */
+export function recapReadyAt(week: string, clientTzs: string[]): Date | null {
+  if (!clientTzs.length) return null;
+  const next = addWeeks(week, 1);
+  return new Date(Math.max(...clientTzs.map((tz) => localMidnight(next, tz).getTime())));
+}
 
 export const planPct = (plan: { done: number; total: number }) => Math.round((plan.done / plan.total) * 100);
 

@@ -5,6 +5,7 @@ import {
   isCoachRecapRow,
   isCoachRecapTotals,
   planPct,
+  recapReadyAt,
   recapPushBody,
   sortRecapRows,
   type ClientRecapInput,
@@ -139,5 +140,17 @@ describe("guards", () => {
     expect(isCoachRecapTotals({ version: 2 })).toBe(false);
     expect(isCoachRecapTotals(null)).toBe(false);
     expect(isCoachRecapTotals({ version: 1 })).toBe(true);
+  });
+});
+
+describe("recapReadyAt", () => {
+  it("граница — конец недели самого западного клиента", () => {
+    // Тренер UTC+3 (неделя кончается вс 21:00 UTC), клиенты UTC+3 и UTC−5 → пн 05:00 UTC
+    expect(recapReadyAt("2026-10-12", ["Etc/GMT-3", "Etc/GMT+5"])?.toISOString()).toBe("2026-10-19T05:00:00.000Z");
+    expect(recapReadyAt("2026-10-12", ["Etc/GMT-3"])?.toISOString()).toBe("2026-10-18T21:00:00.000Z");
+  });
+
+  it("без клиентов — null", () => {
+    expect(recapReadyAt("2026-10-12", [])).toBeNull();
   });
 });
