@@ -3,14 +3,14 @@
 import { formatRecord, isTimedRecord } from "@/lib/progress/records";
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowBigUpDash, Flame, HandFist, Loader2, Medal, Shield, Swords, Target, Timer, Trophy, Weight } from "lucide-react";
+import { ArrowBigUpDash, Flame, HandFist, Loader2, Shield, Swords, Target, Timer, Trophy, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { weeksText } from "@/lib/progress/streak-copy";
-import { countsText, kudosLabel, type FeedEntry, type FeedRecordGroup } from "@/lib/social/feed";
-import { loadFeedPageAction, toggleKudosAction } from "@/lib/social/actions";
+import { countsText, kudosLabel, respectLabel, type FeedEntry, type FeedRecordGroup } from "@/lib/social/feed";
+import { loadFeedPageAction, toggleKudosAction, toggleRespectAction } from "@/lib/social/actions";
 import { cn } from "@/lib/utils";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
@@ -37,6 +37,60 @@ export function recordText(r: RecordLine) {
   if (r.value === null) return `${r.exerciseName}: ${RECORD_LABEL[r.type]}`;
   if (isTimedRecord(r.type)) return `${r.exerciseName}: ${RECORD_LABEL[r.type]} ${formatRecord(r.type, r.value)}`;
   return `${r.exerciseName}: ${r.type === "MAX_REPS" ? `${r.value} повт.` : `${fmt(r.value)} кг`}`;
+}
+
+/** «макс. вес 100 кг, 1RM 116,7 кг» — рекорды одного упражнения; скрытые веса — только тип. */
+function groupText(g: FeedRecordGroup) {
+  const parts = g.records.map((r) => {
+    if (r.value === null) return RECORD_LABEL[r.type];
+    if (isTimedRecord(r.type)) return `${RECORD_LABEL[r.type]} ${formatRecord(r.type, r.value)}`;
+    return r.type === "MAX_REPS" ? `${RECORD_LABEL[r.type]} ${r.value} повт.` : `${RECORD_LABEL[r.type]} ${fmt(r.value)} кг`;
+  });
+  return `${g.exerciseName}: ${parts.join(", ")}`;
+}
+
+function RespectButton({ entry, group }: { entry: FeedEntry; group: FeedRecordGroup }) {
+  const [respect, setRespect] = useOptimistic(group.respect, (r, byMe: boolean) => ({ ...r, byMe, count: r.count + (byMe ? 1 : -1) }));
+  const [pending, startTransition] = useTransition();
+  const busy = useRef(false);
+  const label = respectLabel(respect);
+
+  if (entry.me) {
+    return respect.count > 0 ? (
+      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground" title={label}>
+        <Trophy className="size-3.5 text-primary" aria-hidden />
+        {respect.count}
+      </span>
+    ) : null;
+  }
+
+  return (
+    <Button
+      className="shrink-0"
+      variant={respect.byMe ? "default" : "outline"}
+      size="sm"
+      aria-pressed={respect.byMe}
+      aria-label={respect.byMe ? `Убрать респект у ${entry.nickname} за ${group.exerciseName}` : `Дать респект ${entry.nickname} за ${group.exerciseName}`}
+      title={label || undefined}
+      onClick={() => {
+        // Двойной клик не должен поставить и тут же снять
+        if (busy.current || pending) return;
+        busy.current = true;
+        startTransition(async () => {
+          try {
+            setRespect(!respect.byMe);
+            const result = await toggleRespectAction(entry.id, group.exerciseId);
+            if (!result.ok) toast.error(result.error);
+          } finally {
+            busy.current = false;
+          }
+        });
+      }}
+    >
+      <Trophy />
+      {respect.count || ""}
+    </Button>
+  );
 }
 
 function KudosButton({ entry }: { entry: FeedEntry }) {
@@ -81,8 +135,8 @@ function KudosButton({ entry }: { entry: FeedEntry }) {
 }
 
 export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact?: boolean }) {
-  const highlights = [
-    ...entry.respects.flatMap((g) => g.records.map((r) => ({ exerciseName: g.exerciseName, ...r }))).map((r) => ({ icon: Medal, text: `Рекорд — ${recordText(r)}`, className: "text-xp" })),
+  const highlights: { icon?: typeof Trophy; text: string; className?: string; group?: FeedRecordGroup }[] = [
+    ...entry.respects.map((g) => ({ text: groupText(g), group: g })),
     ...entry.achievements.map((t) => ({ icon: Trophy, text: t, className: "text-xp" })),
     ...entry.goals.map((t) => ({ icon: Target, text: `Цель: ${t}`, className: "text-xp" })),
     ...(entry.levelUp ? [{ icon: ArrowBigUpDash, text: `Новый уровень ${entry.levelUp}`, className: "text-primary" }] : []),
@@ -146,7 +200,7 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
       </p>
 
       {!compact && entry.exercises.length ? (
-        <p className="mt-2 text-sm text-muted-foreground" data-testid="feed-exercises">
+        <p className="mt-2 break-words text-sm text-muted-foreground" data-testid="feed-exercises">
           {entry.exercises.map((e) => (e.top ? `${e.name} ${fmt(e.top)} кг` : e.name)).join(" · ")}
           {entry.moreExercises ? ` · ещё ${entry.moreExercises}` : ""}
         </p>
@@ -154,10 +208,17 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
 
       {shownHighlights.length ? (
         <ul className="mt-3 space-y-1">
-          {shownHighlights.map(({ icon: Icon, text, className }, i) => (
+          {shownHighlights.map(({ icon: Icon, text, className, group }, i) => (
             <li key={i} className="flex items-start gap-2 text-sm">
-              <Icon className={cn("mt-0.5 size-4 shrink-0", className)} aria-hidden />
-              {text}
+              {group ? (
+                <span className="mt-0.5 size-4 shrink-0 text-center text-xs leading-4" aria-hidden>
+                  🏆
+                </span>
+              ) : Icon ? (
+                <Icon className={cn("mt-0.5 size-4 shrink-0", className)} aria-hidden />
+              ) : null}
+              <span className="min-w-0 flex-1 break-words">{text}</span>
+              {group ? <RespectButton entry={entry} group={group} /> : null}
             </li>
           ))}
           {compact && highlights.length > shownHighlights.length ? (
