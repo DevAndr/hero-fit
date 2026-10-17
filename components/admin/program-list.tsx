@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { hideProgramAction, unhideProgramAction } from "@/lib/catalog/actions";
 import type { AdminProgram } from "@/lib/catalog/queries";
+import { HIDE_REASON_MAX } from "@/lib/catalog/rules";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
@@ -70,14 +71,20 @@ function HideButton({ id }: { id: string }) {
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         Снять
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) setError(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Снять программу из каталога</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor={`hide-${id}`}>Причина</Label>
-            <Textarea id={`hide-${id}`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} />
+            <Textarea id={`hide-${id}`} value={reason} maxLength={HIDE_REASON_MAX} onChange={(e) => setReason(e.target.value)} />
             <p className="text-xs text-muted-foreground">Автор увидит её в уведомлении и в редакторе программы. Уже идущие запуски не прерываются.</p>
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}

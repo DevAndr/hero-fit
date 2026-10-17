@@ -16,7 +16,7 @@ import { getLastPerformance } from "@/lib/workouts/queries";
 import { CATALOG_OFF, catalogAllowed } from "./access";
 import { copyTemplates } from "./copy";
 import { activePrograms, startableProgram } from "./queries";
-import { CATALOG_DESCRIPTION_MAX, canPublish, COACH_PROGRAM_RUNNING, NEEDS_REPLACE, PROGRAM_UNAVAILABLE, PUBLISH_BLOCK_TEXT, startBlock } from "./rules";
+import { CATALOG_DESCRIPTION_MAX, canPublish, HIDE_REASON_MAX, COACH_PROGRAM_RUNNING, NEEDS_REPLACE, PROGRAM_UNAVAILABLE, PUBLISH_BLOCK_TEXT, startBlock } from "./rules";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -163,7 +163,6 @@ export async function endOwnProgramAction(): Promise<Result> {
   return { ok: true };
 }
 
-const HIDE_REASON_MAX = 200;
 const hideReasonSchema = z.string().trim().min(1, "Укажите причину").max(HIDE_REASON_MAX, `Причина — не больше ${HIDE_REASON_MAX} символов`);
 
 /** Админ снимает опубликованную программу из каталога с причиной; автору — уведомление. Идущие запуски не трогаем. */
@@ -181,7 +180,7 @@ export async function hideProgramAction(programId: string, reason: string): Prom
     await notify(
       tx,
       program.coachId,
-      { type: NotificationType.COACH, title: `Программа «${program.name}» снята из каталога: ${parsed.data}`, body: "Исправьте программу или напишите в поддержку", url: "/coach/programs" },
+      { type: NotificationType.COACH, title: `Программа «${program.name}» снята из каталога: ${parsed.data}`, body: "Откройте программу в редакторе, чтобы исправить её", url: "/coach/programs" },
       { push: true },
     );
     return true;

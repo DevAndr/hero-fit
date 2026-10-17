@@ -53,3 +53,4 @@ export const NEEDS_REPLACE = "replace";
 
 /** Подпись источника программы из каталога по метке недели: «программа «Сила» (неделя 3/8)». */
 export const catalogSourceLabel = (name: string, week: string) => `программа «${name}» (${week[0].toLowerCase()}${week.slice(1)})`;
+export const HIDE_REASON_MAX = 200;
