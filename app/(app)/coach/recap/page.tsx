@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Итоги недель клиент
 export default async function CoachRecapsPage({ searchParams }: PageProps<"/coach/recap">) {
   const coach = await requireCoach();
   const raw = (await searchParams).page;
-  const page = Math.max(1, Number(Array.isArray(raw) ? raw[0] : raw) || 1);
+  const page = Math.min(1000, Math.max(1, Number.parseInt(String(Array.isArray(raw) ? raw[0] : raw), 10) || 1));
   const { items, hasMore } = await listCoachRecaps(coach.id, page);
 
   return (
