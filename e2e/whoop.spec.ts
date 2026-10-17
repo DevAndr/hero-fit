@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import type { WhoopApiWorkout } from "../lib/whoop/types";
 import { addFlagUser, latestWorkout, seedWorkouts, whoopUserIdOf, whoopWorkoutCount } from "./db";
-import { registerUser } from "./helpers";
+import { PASSWORD, registerUser } from "./helpers";
 import { WHOOP_FAKE_URL } from "./whoop-server";
 
 // У фейкового WHOOP глобальный /__control/reuse-next — параллельные тесты перехватили бы его
@@ -133,6 +133,22 @@ test("чужой аккаунт WHOOP", async ({ page }) => {
   await expect(card(page)).toContainText("Не подключён");
   expect(await whoopUserIdOf(second.login)).toBeNull();
   expect(await whoopUserIdOf(first.login)).toBe(whoopId);
+  // Попытка второго не отозвала доступ первого (отзыв в WHOOP снимает все токены аккаунта)
+  expect(await isRevoked(whoopId!)).toBe(false);
+
+  // Токены первого живы: отключение обновляет его токен (expires_in: 1) и отзывает доступ от его имени —
+  // с отозванными токенами refresh не прошёл бы и отзыва не было бы
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("Логин или email").fill(first.login);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Войти" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
+  await page.goto("/devices");
+  await card(page).getByRole("button", { name: "Отключить WHOOP" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Отключить" }).click();
+  await expect(card(page)).toContainText("Не подключён");
+  expect(await isRevoked(whoopId!)).toBe(true);
 });
 
 test("отключение удаляет данные", async ({ page }) => {

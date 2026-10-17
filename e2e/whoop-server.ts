@@ -7,7 +7,8 @@ import type { WhoopApiWorkout } from "../lib/whoop/types";
  * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code`; POST /oauth/oauth2/token — коды и refresh-ротация
  * (старые refresh и access недействительны сразу, `expires_in` всегда 1 — каждый запрос приложения идёт через refresh).
  * API (под /developer): GET /v2/user/profile/basic, GET /v2/activity/workout (пересечение с [start, end), по убыванию
- * start, limit, nextToken = смещение), GET /v2/activity/workout/:id, DELETE /v2/user/access. Неверный access → 401.
+ * start, limit, nextToken = смещение), GET /v2/activity/workout/:id, DELETE /v2/user/access (как настоящий —
+ * пессимистично: отзывает все токены этого user_id). Неверный access → 401.
  * Служебные: POST /__control/reuse-next?user= (следующая авторизация — этот user_id; глобально, поэтому спека serial),
  * PUT /__control/workouts?user= (тело — массив активностей, заменяет), GET /__control/revoked?user=, GET /health.
  */
@@ -104,8 +105,8 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     }
     if (req.method === "DELETE" && api === "/v2/user/access") {
       revoked.add(token.user);
-      accessTokens.delete(bearer);
-      refreshTokens.delete(token.refresh);
+      for (const [t, v] of accessTokens) if (v.user === token.user) accessTokens.delete(t);
+      for (const [t, v] of refreshTokens) if (v.user === token.user) refreshTokens.delete(t);
       return json(204);
     }
     if (req.method === "GET" && api === "/v2/activity/workout") {

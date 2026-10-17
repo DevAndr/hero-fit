@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { reportError } from "@/lib/errors/report";
-import { fetchProfileUserId, revokeToken } from "@/lib/whoop/client";
+import { fetchProfileUserId } from "@/lib/whoop/client";
 import { encryptToken } from "@/lib/whoop/crypto";
 import { CONSENT_COOKIE, oauthCookieOptions, STATE_COOKIE, type WhoopNotice } from "@/lib/whoop/oauth";
 import { whoopAvailable } from "@/lib/whoop/queries";
@@ -30,7 +30,8 @@ function sameState(a: string, b: string) {
 
 /**
  * Возврат из авторизации WHOOP: проверка `state`, обмен кода, `user_id` из профиля, запись подключения
- * (токены — зашифрованы). Аккаунт WHOOP уже у другого нашего пользователя → `taken`, полученный токен отзывается.
+ * (токены — зашифрованы). Аккаунт WHOOP уже у другого нашего пользователя → `taken`, токены просто не сохраняются:
+ * отзыв (`DELETE /v2/user/access`) снял бы доступ ко всему аккаунту WHOOP и сломал подключение первого пользователя.
  * История за 30 дней грузится после ответа (`after`).
  */
 export async function GET(req: NextRequest) {
@@ -58,10 +59,7 @@ export async function GET(req: NextRequest) {
   }
 
   const owner = await db.whoopConnection.findUnique({ where: { whoopUserId }, select: { userId: true } });
-  if (owner && owner.userId !== user.id) {
-    await revokeToken(tokens.accessToken);
-    return back("taken");
-  }
+  if (owner && owner.userId !== user.id) return back("taken");
 
   const key = env.WHOOP_TOKEN_KEY!;
   const data = {
@@ -81,10 +79,7 @@ export async function GET(req: NextRequest) {
     ]);
   } catch (e) {
     // Тот же аккаунт WHOOP одновременно подключал другой пользователь — уникальность whoopUserId
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      await revokeToken(tokens.accessToken);
-      return back("taken");
-    }
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return back("taken");
     throw e;
   }
 

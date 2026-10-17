@@ -9,9 +9,11 @@ import { revokeAccess } from "./client";
 export async function disconnectWhoopAction(): Promise<void> {
   const user = await requireUser();
   await revokeAccess(user.id);
+  // Сначала подключение: удаление ждёт загрузку, держащую строку подключения (FOR SHARE в sync.ts), и после него
+  // активности удаляются уже вместе с только что записанными; новые записи без подключения не пройдут
   await db.$transaction([
-    db.whoopWorkout.deleteMany({ where: { userId: user.id } }),
     db.whoopConnection.deleteMany({ where: { userId: user.id } }),
+    db.whoopWorkout.deleteMany({ where: { userId: user.id } }),
   ]);
   revalidatePath("/devices");
   revalidatePath("/settings");
