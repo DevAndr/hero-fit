@@ -36,6 +36,8 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     notifications,
     userItems,
     coinTx,
+    whoopConnection,
+    whoopWorkouts,
   ] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.workout.findMany({
@@ -101,6 +103,13 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.notification.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { type: true, title: true, body: true, createdAt: true } }),
     db.userItem.findMany({ where: { userId }, orderBy: { acquiredAt: "asc" }, select: { code: true, acquiredAt: true } }),
     db.coinTx.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { amount: true, reason: true, createdAt: true } }),
+    // Токены не выбираем вовсе
+    db.whoopConnection.findUnique({ where: { userId }, select: { createdAt: true, consentAt: true } }),
+    db.whoopWorkout.findMany({
+      where: { userId },
+      orderBy: { start: "asc" },
+      select: { id: true, start: true, end: true, sportName: true, scoreState: true, strain: true, avgHr: true, maxHr: true, kilojoule: true, zonesMs: true, updatedAt: true },
+    }),
   ]);
 
   return {
@@ -134,6 +143,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coachPrograms: coachPrograms.map((p) => ({ ...p, days: p.days.map((d) => ({ weekday: d.weekday, template: d.template.name, time: d.time })) })),
     notifications,
     shop: { coins: user.coins, items: userItems, coinHistory: coinTx },
+    whoop: whoopConnection ? { connectedAt: whoopConnection.createdAt, consentAt: whoopConnection.consentAt, workouts: whoopWorkouts } : null,
   };
 }
 

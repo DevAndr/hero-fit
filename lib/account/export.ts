@@ -52,6 +52,8 @@ export type ExportRaw = {
   programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   notifications: unknown[];
+  /** WHOOP: null без подключения. Токены не выбираются вовсе; активности — без userId. */
+  whoop: { connectedAt: Date; consentAt: Date; workouts: unknown[] } | null;
   shop: {
     coins: number;
     items: { code: string; acquiredAt: Date }[];
@@ -86,6 +88,7 @@ export const EXPORT_SECTIONS = [
   "coachPrograms",
   "notifications",
   "shop",
+  "whoop",
 ] as const;
 
 const PROFILE_FIELDS = [
@@ -178,6 +181,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
       items: raw.shop.items.map((i) => ({ code: i.code, name: itemByCode(i.code)?.name ?? i.code, acquiredAt: i.acquiredAt })),
       coinHistory: raw.shop.coinHistory.map((c) => ({ amount: c.amount, reason: c.reason, createdAt: c.createdAt })),
     },
+    whoop: raw.whoop,
   };
 }
 

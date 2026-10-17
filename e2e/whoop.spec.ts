@@ -333,3 +333,54 @@ test("вебхук: неверная подпись и чужой user_id", asyn
   });
   expect(res.status()).toBe(204);
 });
+
+test("«Мои данные»: выгрузка с согласием и активностью, без токенов", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  await putWorkouts(whoopId, [whoopActivity(randomUUID(), new Date(now - 86_400_000), new Date(now - 86_400_000 + 3_600_000))]);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+
+  const res = await page.request.get("/account/export/json");
+  expect(res.status()).toBe(200);
+  const text = await res.text();
+  expect(text).not.toMatch(/accessToken|refreshToken/);
+  const data = JSON.parse(text);
+  expect(typeof data.whoop.consentAt).toBe("string");
+  expect(typeof data.whoop.connectedAt).toBe("string");
+  expect(data.whoop.workouts).toHaveLength(1);
+  expect(data.whoop.workouts[0]).toMatchObject({ sportName: "weightlifting", avgHr: 121, maxHr: 164 });
+  expect(data.whoop.workouts[0].userId).toBeUndefined();
+});
+
+test("«Мои данные»: без подключения whoop — null", async ({ page }) => {
+  await flaggedUser(page);
+  const data = await (await page.request.get("/account/export/json")).json();
+  expect(data.whoop).toBeNull();
+});
+
+test("удаление аккаунта отзывает доступ WHOOP и стирает активности", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  await putWorkouts(whoopId, [whoopActivity(randomUUID(), new Date(now - 86_400_000), new Date(now - 86_400_000 + 3_600_000))]);
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await expect.poll(() => whoopWorkoutCount(login)).toBe(1);
+  expect(await isRevoked(whoopId)).toBe(false);
+
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Удаление аккаунта" }).getByRole("button", { name: "Удалить аккаунт" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Удалить аккаунт?" });
+  await dialog.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
+  await expect(page).toHaveURL(/\/\?deleted=1$/);
+
+  expect(await whoopWorkoutCount(login)).toBe(0);
+  expect(await whoopUserIdOf(login)).toBeNull();
+  expect(await isRevoked(whoopId)).toBe(true);
+});

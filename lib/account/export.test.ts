@@ -72,6 +72,7 @@ const raw = (): ExportRaw => ({
   ],
   coachPrograms: [{ name: "Сила", weeks: 8, stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10, id: "cp_secret", days: [{ weekday: 0, template: "Жим", time: "18:00", id: "d_secret" }] }],
   notifications: [],
+  whoop: null,
   shop: {
     coins: 120,
     items: [
@@ -149,5 +150,25 @@ describe("export — coach programs", () => {
     expect(o.coachPrograms).toEqual([
       { name: "Сила", weeks: 8, rule: { stepKind: "PERCENT", stepValue: 2.5, deloadEvery: 4, deloadPct: 10 }, days: [{ weekday: 0, template: "Жим", time: "18:00" }] },
     ]);
+  });
+});
+
+describe("export — whoop", () => {
+  it("раздел whoop есть в списке", () => {
+    expect(EXPORT_SECTIONS).toContain("whoop");
+  });
+  it("без токенов на любом уровне", () => {
+    const r = raw();
+    r.whoop = {
+      connectedAt: new Date("2026-10-01T00:00:00Z"),
+      consentAt: new Date("2026-10-01T00:00:00Z"),
+      workouts: [{ id: "w1", sportName: "weightlifting", avgHr: 120 }],
+    };
+    const o = buildExport(r, new Date("2026-10-17T00:00:00Z"));
+    expect(o.whoop?.workouts).toHaveLength(1);
+    expect(JSON.stringify(o)).not.toMatch(/accessToken|refreshToken/);
+  });
+  it("не подключён — null", () => {
+    expect(buildExport(raw(), new Date()).whoop).toBeNull();
   });
 });
