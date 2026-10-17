@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { makeFriends, notificationTitles, notificationUrls, respectCount, seedRecordWorkout, seedRespects, setPrivacy, withDb } from "./db";
+import { achievementCodes, makeFriends, notificationTitles, notificationUrls, respectCount, seedRecordWorkout, seedRespects, setPrivacy, withDb } from "./db";
 import { registerUser } from "./helpers";
 import { twoInGuild } from "./guild-helpers";
 
@@ -130,6 +130,37 @@ test("a guild mate (not a friend) gives respect in /guild", async ({ browser }) 
   } finally {
     await a.context.close();
     await b.context.close();
+  }
+});
+
+test("the fifth respect awards «Заметили»", async ({ page, browser }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "только desktop");
+  test.slow();
+  const author = await registerUser(page, "Автор");
+  const ctx = await browser.newContext();
+  const pageF = await ctx.newPage();
+  try {
+    const friend = await registerUser(pageF, "Друг");
+    const a = nick("Alpha", author.login);
+    await makeFriends(author.login, a, friend.login, nick("Bravo", friend.login));
+    const { workoutId, exerciseIds } = await seedRecordWorkout(author.login, [{ exercise: BENCH, value: 100 }]);
+    await seedRespects(workoutId, exerciseIds[BENCH], 4);
+    expect(await achievementCodes(author.login)).not.toContain("respect:5");
+
+    await pageF.goto("/friends");
+    const card = pageF.getByRole("article", { name: `${a}: Рекордная` });
+    await card.getByRole("button", { name: `Дать респект ${a} за ${BENCH}` }).click();
+    await expect(card.getByRole("button", { name: `Убрать респект у ${a} за ${BENCH}` })).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => achievementCodes(author.login)).toContain("respect:5");
+
+    // снять и поставить снова — второй раз не выдаётся
+    await card.getByRole("button", { name: `Убрать респект у ${a} за ${BENCH}` }).click();
+    await expect(card.getByRole("button", { name: `Дать респект ${a} за ${BENCH}` })).toBeVisible();
+    await card.getByRole("button", { name: `Дать респект ${a} за ${BENCH}` }).click();
+    await expect(card.getByRole("button", { name: `Убрать респект у ${a} за ${BENCH}` })).toHaveAttribute("aria-pressed", "true");
+    expect((await achievementCodes(author.login)).filter((c) => c === "respect:5")).toHaveLength(1);
+  } finally {
+    await ctx.close();
   }
 });
 

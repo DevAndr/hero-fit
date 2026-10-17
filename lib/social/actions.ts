@@ -6,6 +6,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { FriendshipStatus, NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { quietly } from "@/lib/achievements/quietly";
 import { notify } from "@/lib/notifications/service";
 import { nicknameKey, nicknameSchema, normalizeFriendCode } from "@/lib/social/league";
 import { recordExercise, respectNotice } from "@/lib/social/feed";
@@ -219,7 +221,10 @@ export async function toggleRespectAction(workoutId: string, exerciseId: string)
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
       created = false;
     }
-    if (created) await notifyRespect(workoutId, exerciseId, workout.userId, workout.friend);
+    if (created) {
+      await notifyRespect(workoutId, exerciseId, workout.userId, workout.friend);
+      await quietly(() => evaluateAchievementsNow(workout.userId), null); // «Заметили» и выше — автору рекорда
+    }
   }
   revalidatePath("/friends");
   revalidatePath("/guild");
