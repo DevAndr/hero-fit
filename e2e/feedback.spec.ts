@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { feedbackRows, seedFeedback } from "./db";
+import { feedbackRows, makeAdmin, notificationTitles, seedFeedback } from "./db";
 import { registerUser } from "./helpers";
 
 // Обратная связь (спека 2026-10-18-feedback-design)
@@ -64,3 +64,49 @@ test("settings link and empty state", async ({ page }) => {
   await expect(page).toHaveURL(/\/feedback/);
   await expect(page.getByRole("region", { name: "Мои обращения" })).toContainText("Пока нет обращений");
 });
+
+test.describe("admin inbox", () => {
+  // makeAdmin переименовывает глобального админа — по очереди и только на desktop
+  test.describe.configure({ mode: "serial" });
+  test.beforeEach(async ({}, info) => {
+    test.skip(info.project.name !== "desktop", "Админ один на прогон");
+  });
+
+  test("non-admin gets 404", async ({ page }) => {
+    await registerUser(page);
+    expect((await page.goto("/admin/feedback"))?.status()).toBe(404);
+  });
+
+  test("admin marks feedback done with a note; the author is notified once and sees the status", async ({ page, browser }) => {
+    const author = await registerUser(page);
+    await page.goto("/feedback?from=%2Fexercises");
+    const body = uniq("Добавьте экспорт в таблицу");
+    await send(page, "Идея", body);
+    await expect(page.getByText("Спасибо! Обращение отправлено")).toBeVisible();
+
+    const adminPage = await browser.newPage();
+    const admin = await registerUser(adminPage);
+    await makeAdmin(admin.login);
+    await adminPage.goto("/admin/feedback");
+    const card = adminPage.getByRole("article", { name: `Обращение от ${author.login}` });
+    await expect(card).toContainText(body);
+    await expect(card).toContainText("Страница: /exercises");
+    await card.getByRole("radio", { name: "Сделано" }).click();
+    await card.getByLabel("Заметка (видна только админам)").fill("Сделали в 0.14");
+    await card.getByRole("button", { name: "Сохранить" }).click();
+    await expect(card).toBeHidden();
+
+    await adminPage.getByRole("navigation", { name: "Статус" }).getByRole("link", { name: "Сделано" }).click();
+    const done = adminPage.getByRole("article", { name: `Обращение от ${author.login}` });
+    await expect(done.getByLabel("Заметка (видна только админам)")).toHaveValue("Сделали в 0.14");
+    await done.getByRole("button", { name: "Сохранить" }).click();
+    await expect(adminPage.getByText("Сохранено")).toBeVisible();
+
+    await expect.poll(async () => (await notificationTitles(author.login)).filter((t) => t === "Обратная связь")).toHaveLength(1);
+    await page.reload();
+    const mine = page.getByRole("region", { name: "Мои обращения" }).getByRole("article").filter({ hasText: body });
+    await expect(mine).toContainText("Сделано");
+    await expect(page.getByText("Сделали в 0.14")).toHaveCount(0);
+  });
+});
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feedbackAlertText, notificationText, preview, shouldNotify } from "./rules";
+import { feedbackAlertText, notificationText, parseFilter, preview, shouldNotify } from "./rules";
 
 describe("shouldNotify", () => {
   it("only on a change into done or rejected", () => {
@@ -38,5 +38,15 @@ describe("texts", () => {
   });
   it("admin alert has no feedback text", () => {
     expect(feedbackAlertText("IDEA", "https://hero.fit")).toBe("📝 Новое обращение: идея\nhttps://hero.fit/admin/feedback");
+  });
+});
+
+describe("parseFilter", () => {
+  it("known filters pass, anything else is open", () => {
+    expect(parseFilter("done")).toBe("done");
+    expect(parseFilter("all")).toBe("all");
+    expect(parseFilter("x")).toBe("open");
+    expect(parseFilter(undefined)).toBe("open");
+    expect(parseFilter(["new"])).toBe("open");
   });
 });

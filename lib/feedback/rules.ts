@@ -39,3 +39,30 @@ export function notificationText(status: "DONE" | "REJECTED", body: string): { t
 export function feedbackAlertText(kind: FeedbackKind, appUrl: string): string {
   return `📝 Новое обращение: ${KIND_LABEL[kind].toLowerCase()}\n${appUrl.replace(/\/$/, "")}/admin/feedback`;
 }
+
+/** Вкладки /admin/feedback: open = новые и в работе. */
+export const FEEDBACK_FILTERS = ["open", "new", "in_progress", "done", "rejected", "all"] as const;
+export type FeedbackFilter = (typeof FEEDBACK_FILTERS)[number];
+
+export const FILTER_LABEL: Record<FeedbackFilter, string> = {
+  open: "Открытые",
+  new: "Новые",
+  in_progress: "В работе",
+  done: "Сделано",
+  rejected: "Отклонено",
+  all: "Все",
+};
+
+/** Статусы под вкладкой; all — без условия. */
+export const FILTER_STATUSES: Record<FeedbackFilter, FeedbackStatus[] | null> = {
+  open: ["NEW", "IN_PROGRESS"],
+  new: ["NEW"],
+  in_progress: ["IN_PROGRESS"],
+  done: ["DONE"],
+  rejected: ["REJECTED"],
+  all: null,
+};
+
+export function parseFilter(raw: unknown): FeedbackFilter {
+  return (FEEDBACK_FILTERS as readonly unknown[]).includes(raw) ? (raw as FeedbackFilter) : "open";
+}
