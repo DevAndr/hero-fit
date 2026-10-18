@@ -26,6 +26,8 @@
   --color-chart-1: var(--chart-1);
   --color-xp: var(--xp);
   --color-streak: var(--streak);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-zone-0: var(--zone-0);
   --color-zone-1: var(--zone-1);
   --color-zone-2: var(--zone-2);
@@ -104,6 +106,9 @@
   --zone-5: oklch(0.6 0.22 25);
   --xp: oklch(0.681 0.162 75.834);
   --streak: oklch(0.646 0.222 41.116);
+  /* «Важно» у системных оповещений */
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.279 0.077 45.635);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -154,6 +159,8 @@
   --zone-5: oklch(0.66 0.2 25);
   --xp: oklch(0.795 0.184 86.047);
   --streak: oklch(0.705 0.213 47.604);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.279 0.077 45.635);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -293,3 +300,24 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Бегущая строка системного оповещения: только пока текст не влезает (класс ставит AlertBanner), пауза при наведении */
+.alert-marquee {
+  display: inline-flex;
+  gap: 3rem;
+  animation: alert-marquee var(--alert-marquee-duration, 20s) linear infinite;
+}
+.alert-marquee-host:hover .alert-marquee,
+.alert-marquee-host:focus-within .alert-marquee {
+  animation-play-state: paused;
+}
+@keyframes alert-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 1.5rem)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Без движения: одна копия с многоточием, нажатие раскрывает текст */
+  .alert-marquee { display: block; overflow: hidden; text-overflow: ellipsis; animation: none; }
+  .alert-marquee > [data-copy] { display: none; }
+}
+
