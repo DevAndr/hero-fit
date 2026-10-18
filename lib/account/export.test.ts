@@ -62,6 +62,7 @@ const raw = (): ExportRaw => ({
   respectsReceived: [{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null, id: "rr_secret2" }],
   kudosGiven: [{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша", id: "k_secret" }],
   kudosReceived: [{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя", id: "k_secret2" }],
+  favoriteExercises: [{ exercise: "Присед", createdAt: new Date("2026-10-14T10:00:00Z"), exerciseId: "e_secret", userId: "u_secret" }],
   programs: [
     {
       name: "Сила",
@@ -154,6 +155,15 @@ describe("export — respects and kudos", () => {
     expect(o.kudosGiven).toEqual([{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша" }]);
     expect(o.kudosReceived).toEqual([{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя" }]);
     expect(JSON.stringify(o)).not.toMatch(/rr_secret|k_secret|w_secret/);
+  });
+});
+
+describe("export — favorite exercises", () => {
+  it("избранное — название и дата, без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("favoriteExercises");
+    expect(o.favoriteExercises).toEqual([{ exercise: "Присед", createdAt: new Date("2026-10-14T10:00:00Z") }]);
+    expect(JSON.stringify(o.favoriteExercises)).not.toMatch(/e_secret|u_secret/);
   });
 });
 
