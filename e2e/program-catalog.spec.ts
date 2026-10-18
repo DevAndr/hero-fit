@@ -120,7 +120,7 @@ test("my data: the author exports published programs, the user exports the launc
   }
 });
 
-test("my data: the author deletes the account — the user's program goes on, the copied template keeps the author's exercise, the workout starts without it", async ({ page, browser }) => {
+test("my data: the author deletes the account — the user's program goes on with the author's exercise and its base weight", async ({ page, browser }) => {
   test.slow();
   const coach = await registerUser(page, "Тренер");
   const nick = nickOf(coach.login, "Coach");
@@ -132,24 +132,74 @@ test("my data: the author deletes the account — the user's program goes on, th
   const programId = await seedCoachProgram(coach.login, templateId, { name, weekdays: [0, 1, 2, 3, 4, 5, 6], publish: true, description: "Описание" });
   const user = await athlete(browser);
   try {
-    await startProgram(user.page, programId, "this");
+    const dialog = await openStart(user.page, programId, "this");
+    await dialog.getByLabel(`База, ${own} (${template})`).fill("60");
+    await dialog.getByRole("button", { name: "Начать", exact: true }).click();
+    await expect(user.page.getByText("Программа начата")).toBeVisible();
     await deleteAccount(page);
 
     expect(await activeAssignments(user.login)).toEqual([{ name, coachId: null, catalogProgramId: null }]);
     const mine = await exportJson(user.page);
     expect(mine.programs).toEqual([expect.objectContaining({ name, fromCatalog: true, catalogProgram: null, ended: false })]);
 
-    // Копия шаблона открывается; упражнение автора переехало к пользователю архивной копией
+    // Копия шаблона открывается; упражнение автора переехало к пользователю его собственным (не архивным)
     const copy = (await templatesOf(user.login)).find((t) => t.name === template)!;
     await user.page.goto(`/templates/${copy.id}`);
     await expect(user.page.getByText(own).first()).toBeVisible();
+    await user.page.goto("/exercises");
+    await expect(user.page.getByText(own).first()).toBeVisible();
 
-    // Тренировка по плану стартует; архивные упражнения при запуске из шаблона пропускаются (как и раньше)
+    // Тренировка по плану стартует с упражнением автора и весом недели по базе программы
     await user.page.goto("/training");
     await user.page.getByRole("button", { name: new RegExp(`По плану: ${template}`) }).click();
     await expect(user.page.getByRole("region", { name: SQUAT })).toBeVisible();
-    await expect(user.page.getByRole("region", { name: own })).toHaveCount(0);
+    const authors = user.page.getByRole("region", { name: own });
+    await expect(authors.getByLabel("Вес, подход 1")).toHaveValue("60");
+    await expect(authors).toContainText(`программа «${name}»: 3 × 10 · 60 кг`);
     await expect(user.page.getByRole("button", { name: "Начать", exact: true })).toBeVisible();
+  } finally {
+    await user.context.close();
+  }
+});
+
+test("my data: the author deletes the account — the user's same-named exercise stays, the author's one comes under a new name and keeps its kind", async ({ page, browser }) => {
+  test.slow();
+  const coach = await registerUser(page, "Тренер");
+  const nick = nickOf(coach.login, "Coach");
+  await enableCoach(coach.login, nick);
+  const template = `Ноги ${nick}`;
+  const own = `Планка ${nick}`;
+  const templateId = await coachTemplate(coach.login, template, own);
+  await withDb((db) => db.query(`update "Exercise" set kind = 'TIME' where name = $1`, [own]));
+  const programId = await seedCoachProgram(coach.login, templateId, { name: `Сила ${nick}`, weekdays: [0, 1, 2, 3, 4, 5, 6], publish: true, description: "Описание" });
+  const user = await athlete(browser);
+  try {
+    await startProgram(user.page, programId, "this");
+    // У пользователя уже есть своё упражнение с тем же названием (без учёта регистра)
+    await withDb((db) =>
+      db.query(`insert into "Exercise" (id, "userId", name, "muscleGroups", "updatedAt") select gen_random_uuid(), id, $2, '{ABS}', now() from "User" where login = $1`, [
+        user.login,
+        own.toUpperCase(),
+      ]),
+    );
+    await deleteAccount(page);
+
+    const rows = await withDb(async (db) => {
+      const { rows } = await db.query<{ name: string; kind: string; archived: boolean }>(
+        `select e.name, e.kind, e."archivedAt" is not null as archived from "Exercise" e join "User" u on u.id = e."userId" where u.login = $1`,
+        [user.login],
+      );
+      return rows;
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { name: own.toUpperCase(), kind: "REPS", archived: false },
+        { name: `${own} (2)`, kind: "TIME", archived: false },
+      ]),
+    );
+    const copy = (await templatesOf(user.login)).find((t) => t.name === template)!;
+    expect(await templateExerciseLines(copy.id)).toContain(`${own} (2) 3×10`);
   } finally {
     await user.context.close();
   }

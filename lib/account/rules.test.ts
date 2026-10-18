@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RecapData } from "@/lib/recap/types";
-import { DELETED_PLAYER, deletionPreview, scrubRecapLeague } from "./rules";
+import { DELETED_PLAYER, deletionPreview, freeExerciseName, scrubRecapLeague } from "./rules";
 
 describe("deletionPreview", () => {
   it("гильдия: с наследником — перейдёт, без — будет удалена", () => {
@@ -54,5 +54,15 @@ describe("scrubRecapLeague", () => {
       expect(r.changed).toBe(false);
       expect(r.data).toBe(data);
     }
+  });
+});
+
+describe("freeExerciseName", () => {
+  it("имя свободно — без изменений", () => {
+    expect(freeExerciseName("Присед", ["Жим"])).toBe("Присед");
+  });
+  it("занято (без учёта регистра, в том числе архивным) — первый свободный номер", () => {
+    expect(freeExerciseName("Присед", ["присед"])).toBe("Присед (2)");
+    expect(freeExerciseName("Присед", ["Присед", "ПРИСЕД (2)", "Присед (4)"])).toBe("Присед (3)");
   });
 });
