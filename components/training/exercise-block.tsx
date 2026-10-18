@@ -1,7 +1,7 @@
 "use client";
 
 import { SupersetLabel } from "@/components/training/superset-frame";
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ import { cardioWarning, typoWarning, type TypoReference } from "@/lib/workouts/t
 import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
-import { isExerciseDone, parseNumber, setDurationSec, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
+import { ExerciseSwapDialog, type SwapSource } from "@/components/training/exercise-swap-dialog";
+import { exerciseKey, isExerciseDone, parseNumber, setDurationSec, type Action, type ExerciseState, type SetState } from "@/components/training/workout-state";
+import type { ExerciseItem } from "@/lib/exercises/queries";
 
 /** Образец для «точно столько?»: прошлый выполненный рабочий подход здесь, иначе тот же по счёту в прошлый раз. */
 function typoReference(sets: SetState[], index: number, workingNumber: number, last?: LastPerformance[string]): TypoReference | null {
@@ -103,6 +105,7 @@ export function ExerciseBlock({
   collapsed = false,
   onToggleCollapsed,
   groupLabel,
+  swap,
 }: {
   item: ExerciseState;
   index: number;
@@ -124,6 +127,8 @@ export function ExerciseBlock({
   onToggleCollapsed?: () => void;
   /** Метка суперсета A1/A2 (только при флаге workout_formats). */
   groupLabel?: string | null;
+  /** Каталог для «Заменить» (тренажёр занят); без него пункта нет. */
+  swap?: SwapSource;
 }) {
   const { exercise } = item;
   const kind: ExerciseKindName = exercise.kind ?? "REPS";
@@ -143,6 +148,24 @@ export function ExerciseBlock({
     });
   useEffect(() => preloadLottie("success"), []);
 
+  const [swapOpen, setSwapOpen] = useState(false);
+  const replaceWith = (target: ExerciseItem) => {
+    const newKey = exerciseKey();
+    const original = item;
+    setSwapOpen(false);
+    dispatch({
+      type: "replaceExercise",
+      key: item.key,
+      exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, isBodyweight: target.isBodyweight, kind: target.kind },
+      restSec: target.defaultRestSec,
+      last: swap?.last ?? {},
+      newKey,
+    });
+    toast(`Заменено: ${target.name}`, { action: { label: "Вернуть", onClick: () => dispatch({ type: "undoReplace", newKey, original }) } });
+    // Фокус — на новое упражнение (на месте прежнего или следом), когда оно появится
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-exercise-key="${newKey}"] h3`)?.focus());
+  };
+
   if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} groupLabel={groupLabel} />;
 
   return (
@@ -150,7 +173,7 @@ export function ExerciseBlock({
       <header className="flex items-start gap-2 p-4 pb-2">
         {handle}
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold">
+          <h3 className="font-semibold outline-none" tabIndex={-1}>
             <SupersetLabel label={groupLabel} />
             {exercise.name}
           </h3>
@@ -222,6 +245,12 @@ export function ExerciseBlock({
               <ArrowDown />
               Ниже
             </DropdownMenuItem>
+            {swap ? (
+              <DropdownMenuItem onClick={() => setSwapOpen(true)}>
+                <ArrowLeftRight />
+                Заменить
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => dispatch({ type: "removeExercise", key: item.key })}>
               <Trash2 />
@@ -229,6 +258,19 @@ export function ExerciseBlock({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {swap ? (
+          <ExerciseSwapDialog
+            open={swapOpen}
+            onOpenChange={setSwapOpen}
+            item={item}
+            source={swap}
+            onReplace={replaceWith}
+            onSkip={() => {
+              setSwapOpen(false);
+              dispatch({ type: "skipPending", key: item.key });
+            }}
+          />
+        ) : null}
       </header>
 
       <div className="px-2 pb-2">

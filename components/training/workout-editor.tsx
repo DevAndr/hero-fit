@@ -66,7 +66,8 @@ import type { ProgressionHint } from "@/lib/progress/progression";
 import type { ActiveWorkout, LastPerformance } from "@/lib/workouts/queries";
 import { workoutTotals } from "@/lib/workouts/schema";
 import { useAssistant } from "@/components/assistant/assistant";
-import { prunePain } from "@/components/assistant/pain-store";
+import { prunePain, readPain } from "@/components/assistant/pain-store";
+import type { SwapSource } from "@/components/training/exercise-swap-dialog";
 import type { Wellbeing } from "@/lib/assistant/rules";
 import type { Target } from "@/lib/coach/targets";
 
@@ -179,6 +180,12 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
   const lastKey = lastWorkedKey(state.exercises);
   const labels = groupLabels(state.exercises);
+  // «Заменить» (тренажёр занят): каталог и прошлые результаты — те же, что у добавления упражнений
+  const inWorkout = state.exercises.map((e) => e.exercise.id).join(",");
+  const swap = useMemo<SwapSource>(
+    () => ({ exercises, last, inWorkout: inWorkout ? inWorkout.split(",") : [], getPain: () => readPain(workout.id) }),
+    [exercises, last, inWorkout, workout.id],
+  );
   // Свернувшийся блок выше сдвинул бы страницу под пальцем — держим упражнение, где отметили подход, на месте
   const anchor = useRef<{ key: string; top: number } | null>(null);
   useLayoutEffect(() => {
@@ -426,6 +433,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                             collapsed={collapsed}
                             onToggleCollapsed={() => setManualCollapse((prev) => new Map(prev).set(item.key, !collapsed))}
                             groupLabel={formatsOn ? labels[index] : null}
+                            swap={swap}
                           />
                         </SupersetPart>
                       )}
