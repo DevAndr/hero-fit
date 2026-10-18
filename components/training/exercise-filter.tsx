@@ -19,9 +19,10 @@ export function MuscleRecoveryProvider({ recovery, children }: { recovery: Group
 }
 
 /** Поиск по названию + фильтр по группе мышц — общий для диалога выбора и каталога на ПК. */
-export function useExerciseFilter(exercises: ExerciseItem[]) {
+/** initialGroup — фильтр группы при открытии (замена упражнения); reset() сбрасывает в «все». */
+export function useExerciseFilter(exercises: ExerciseItem[], initialGroup: MuscleGroup | null = null) {
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<MuscleGroup | null>(null);
+  const [group, setGroup] = useState<MuscleGroup | null>(initialGroup);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -27,6 +27,8 @@ export type WorkoutState = {
 
 let seq = 0;
 const key = () => `k${Date.now().toString(36)}${(seq++).toString(36)}`;
+/** Ключ нового упражнения, заданный заранее (замена — чтобы «Вернуть» нашло его). */
+export const exerciseKey = key;
 
 const fmt = (n: number) => (n ? String(n) : "");
 
@@ -117,7 +119,9 @@ export type Action =
   /** Совет помощника: невыполненные рабочие подходы — по совету (выполненные и разминка не трогаются). */
   | { type: "applySets"; key: string; sets: { weight: number; reps: number }[] }
   /** Замена от помощника: без выполненных подходов — на месте, иначе новое упражнение сразу после текущего. */
-  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance }
+  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance; newKey?: string }
+  /** «Вернуть» после замены: новое убирается, исходное — на его место (если было заменено на месте). */
+  | { type: "undoReplace"; newKey: string; original: ExerciseState }
   /** Пропуск от помощника (боль): невыполненные подходы убираются, выполненные остаются; ничего не сделано — упражнение целиком. */
   | { type: "skipPending"; key: string };
 
@@ -183,7 +187,7 @@ function regroup(state: WorkoutState): WorkoutState {
   return exercises.every((e, i) => e === state.exercises[i]) ? state : { ...state, exercises };
 }
 
-const GROUPING: ReadonlySet<Action["type"]> = new Set(["replace", "addExercises", "removeExercise", "moveExercise", "reorderExercise", "replaceExercise", "skipPending"]);
+const GROUPING: ReadonlySet<Action["type"]> = new Set(["replace", "addExercises", "removeExercise", "moveExercise", "reorderExercise", "replaceExercise", "undoReplace", "skipPending"]);
 
 export function reducer(state: WorkoutState, action: Action): WorkoutState {
   const next = apply(state, action);
@@ -310,9 +314,20 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       if (at < 0) return state;
       const started = state.exercises[at].sets.some((s) => s.completedAt);
       // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения
-      const fresh = { ...newExercise(action.exercise, action.restSec, action.last), group: state.exercises[at].group };
+      const made = newExercise(action.exercise, action.restSec, action.last);
+      const fresh = { ...made, key: action.newKey ?? made.key, group: state.exercises[at].group };
       const exercises = [...state.exercises];
       exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
+      return { ...state, exercises };
+    }
+
+    case "undoReplace": {
+      const at = state.exercises.findIndex((e) => e.key === action.newKey);
+      if (at < 0) return state;
+      const exercises = [...state.exercises];
+      if (exercises.some((e) => e.key === action.original.key)) exercises.splice(at, 1);
+      // Номер группы — от нового: пока висел тост, группы могли перенумероваться
+      else exercises.splice(at, 1, { ...action.original, group: exercises[at].group });
       return { ...state, exercises };
     }
 
