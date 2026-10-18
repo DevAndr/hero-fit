@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { Check, GripVertical, Plus } from "lucide-react";
+import { FavoriteButton } from "@/components/exercises/favorites";
 import { Button } from "@/components/ui/button";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
@@ -82,6 +83,7 @@ function CatalogItem({
           </span>
         ) : null}
       </span>
+      <FavoriteButton exercise={exercise} />
       <Button
         variant="ghost"
         size="icon-sm"

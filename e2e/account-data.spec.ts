@@ -427,3 +427,20 @@ test("coach's own exercise: a friend's respect for the client's record survives 
   await expect.poll(() => respectCount(workoutId)).toBe(1);
   await expect(friend.page.getByText("Рекорд не найден")).toHaveCount(0);
 });
+
+test("my data: favorite exercises are exported and go with the account", async ({ page }) => {
+  const me = await registerUser(page);
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: "В избранное: Жим ногами" }).first().click();
+  await expect(page.getByRole("region", { name: "Избранное" })).toContainText("Жим ногами");
+
+  await page.goto("/settings");
+  const block = page.getByRole("region", { name: "Мои данные" });
+  const [json] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.favoriteExercises).toEqual([{ exercise: "Жим ногами", createdAt: expect.any(String) }]);
+
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await userExists(me.login)).toBe(false);
+});

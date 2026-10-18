@@ -59,6 +59,7 @@ import {
   type WorkoutState,
   type SetState,
 } from "@/components/training/workout-state";
+import { FavoritesProvider } from "@/components/exercises/favorites";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { unstable_rethrow } from "next/navigation";
 import { cancelWorkoutAction } from "@/lib/workouts/actions";
@@ -89,11 +90,13 @@ type Props = {
 
 export function WorkoutEditor(props: Props) {
   return (
-    <RestTimerProvider>
-      <Editor {...props} />
-      <RestTimerSpacer />
-      <RestTimerBar />
-    </RestTimerProvider>
+    <FavoritesProvider exercises={props.exercises}>
+      <RestTimerProvider>
+        <Editor {...props} />
+        <RestTimerSpacer />
+        <RestTimerBar />
+      </RestTimerProvider>
+    </FavoritesProvider>
   );
 }
 
