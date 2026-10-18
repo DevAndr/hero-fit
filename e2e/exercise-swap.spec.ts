@@ -72,6 +72,8 @@ test("after a completed set the original stays and the new one goes next", async
   await dialog.getByRole("button", { name: new RegExp(`^${LUNGE}`) }).click();
   await expect(page.getByRole("region", { name: LUNGE })).toBeVisible();
   expect(await order(page)).toEqual([SQUAT, LUNGE, BENCH]);
+  // Фокус — на новом упражнении, а не на кнопке меню исходного (диалог возвращает фокус при закрытии)
+  await expect(page.getByRole("region", { name: LUNGE }).getByRole("heading", { name: LUNGE })).toBeFocused();
 });
 
 test("another exercise: filter preset to the main group and can be cleared", async ({ page }) => {
@@ -138,4 +140,20 @@ test("superset: the swap takes the place in the round, undo gives it back", asyn
   await page.getByRole("button", { name: "Вернуть" }).click();
   await expect(heading(SQUAT)).toContainText("A1");
   await expect(heading(BENCH)).toContainText("A2");
+});
+
+test("chained swaps keep one undo toast, and it returns the previous one", async ({ page }) => {
+  await athlete(page);
+  await emptyWorkout(page, [SQUAT, BENCH]);
+  let dialog = await openSwap(page, SQUAT);
+  await dialog.getByRole("button", { name: new RegExp(`^${LUNGE}`) }).click();
+  dialog = await openSwap(page, LUNGE);
+  await dialog.getByRole("button", { name: /^Жим ногами/ }).click();
+  await expect(page.getByText("Заменено: Жим ногами")).toBeVisible();
+  // Тост прошлой замены закрыт — его «Вернуть» уже не сработало бы
+  // Мгновенно, без ожидания: старый тост через 4 с исчез бы и сам
+  expect(await page.locator("[data-sonner-toast]").allTextContents()).toEqual(["Заменено: Жим ногамиВернуть"]);
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  await expect(page.getByRole("region", { name: LUNGE })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Жим ногами" })).toHaveCount(0);
 });

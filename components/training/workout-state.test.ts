@@ -580,6 +580,28 @@ describe("replaceExercise newKey and undoReplace", () => {
     expect(ids(back)).toEqual(["squat", "bench"]);
   });
 
+  it("undoReplace keeps sets already done in the fresh exercise", () => {
+    const s = start(squat, bench);
+    const original = s.exercises[0];
+    let swapped = swap(s, original.key, press, "n1");
+    swapped = reducer(swapped, { type: "toggleComplete", key: "n1", setKey: swapped.exercises[0].sets[0].key, now: NOW });
+    const back = reducer(swapped, { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["squat", "press", "bench"]);
+    expect(back.exercises[1].sets).toHaveLength(1);
+    expect(back.exercises[1].sets[0].completedAt).toBe(NOW);
+  });
+
+  it("a swap after a started exercise in a full round of 6 goes right after the round", () => {
+    const six = Array.from({ length: 6 }, (_, i) => ({ id: `e${i}`, name: `E${i}`, muscleGroups: ["LEGS" as const], isBodyweight: false }));
+    let s = start(...six);
+    for (let i = 0; i < 5; i++) s = reducer(s, { type: "linkNext", key: s.exercises[i].key });
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[2].key, setKey: s.exercises[2].sets[0].key, now: NOW });
+    s = swap(s, s.exercises[2].key, press, "n1");
+    expect(ids(s)).toEqual(["e0", "e1", "e2", "e3", "e4", "e5", "press"]);
+    expect(s.exercises.slice(0, 6).every((e) => e.group === s.exercises[0].group && e.group !== null)).toBe(true);
+    expect(s.exercises[6].group).toBeNull();
+  });
+
   it("chained replace A→B→C and undo returns B", () => {
     const s = start(squat, bench);
     const b = swap(s, s.exercises[0].key, press, "b");

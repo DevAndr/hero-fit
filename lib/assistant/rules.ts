@@ -76,7 +76,10 @@ export function lastResultText(
 ): string {
   if (!last?.sets.length) return "ещё не делали";
   if (isTimed(ex.kind)) return `в прошлый раз ${timedSetText(ex.kind!, last.sets[0])}`;
-  return lastText(lastTop(last), ex.isBodyweight);
+  const top = lastTop(last);
+  // Своим весом с отягощением — «+10 кг» (у помощника lastText его не пишет)
+  if (ex.isBodyweight && top.weight > 0) return `в прошлый раз ${top.sets} × ${top.reps} · +${kg(top.weight)}`;
+  return lastText(top, ex.isBodyweight);
 }
 
 export function weightAdvice(input: {
