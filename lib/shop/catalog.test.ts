@@ -23,7 +23,10 @@ describe("каталог", () => {
     expect(of("avatar").filter((i) => i.acquire === "free")).toHaveLength(3);
     expect(of("frame")).toHaveLength(6);
     expect(of("nickColor")).toHaveLength(8);
-    expect(of("theme")).toHaveLength(5);
+    expect(of("theme")).toHaveLength(11);
+    expect(of("theme").map((i) => i.code)).toEqual(
+      expect.arrayContaining(["theme:teal", "theme:graphite", "theme:indigo", "theme:amber", "theme:fuchsia", "theme:lime"]),
+    );
   });
 
   it("у каждого аватара есть картинка", () => {

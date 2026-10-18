@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MuscleGroup } from "@/generated/prisma/enums";
+import { timedSetText } from "@/lib/workouts/kinds";
 import {
+  lastResultText,
   missedPlanAdvice,
   nextStep,
   painRelated,
@@ -162,5 +164,26 @@ describe("replacementCandidates — exercise kinds", () => {
     ];
     const ids = replacementCandidates(all[0], all, { inWorkout: ["squat"], pain: [], lastDate: {}, today: "2026-10-12" }).map((e) => e.id);
     expect(ids).toEqual(["lunge"]);
+  });
+});
+
+describe("lastResultText", () => {
+  const sets = (n: number, weight: number, reps: number) => ({ date: "2026-10-01", sets: Array.from({ length: n }, () => ({ weight, reps })) });
+  it("без истории — «ещё не делали»", () => {
+    expect(lastResultText({ isBodyweight: false }, undefined)).toBe("ещё не делали");
+    expect(lastResultText({ isBodyweight: false }, { date: "2026-10-01", sets: [] })).toBe("ещё не делали");
+  });
+  it("силовое — подходы × повторы · вес", () => {
+    expect(lastResultText({ isBodyweight: false }, sets(3, 60, 10))).toBe("в прошлый раз 3 × 10 · 60 кг");
+  });
+  it("своим весом — без «0 кг»", () => {
+    expect(lastResultText({ isBodyweight: true }, sets(3, 0, 12))).toBe("в прошлый раз 3 × 12");
+  });
+  it("своим весом с отягощением — «+10 кг»", () => {
+    expect(lastResultText({ isBodyweight: true }, sets(3, 10, 8))).toBe("в прошлый раз 3 × 8 · +10 кг");
+  });
+  it("на время — по первому подходу", () => {
+    const last = { date: "2026-10-01", sets: [{ weight: 0, reps: 0, durationSec: 60 }] };
+    expect(lastResultText({ isBodyweight: true, kind: "TIME" }, last)).toBe(`в прошлый раз ${timedSetText("TIME", { durationSec: 60 })}`);
   });
 });

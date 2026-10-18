@@ -140,6 +140,48 @@ export const SHOP_ITEMS: ShopItem[] = [
     { primary: "#be123c", primaryForeground: "#ffffff", ring: "#e11d48", chart1: "#e11d48" },
     { primary: "#fb7185", primaryForeground: "#4c0519", ring: "#fb7185", chart1: "#fb7185" },
   ),
+  theme(
+    "teal",
+    "Бирюза",
+    "common",
+    { primary: "#0f766e", primaryForeground: "#ffffff", ring: "#0d9488", chart1: "#0d9488" },
+    { primary: "#2dd4bf", primaryForeground: "#042f2e", ring: "#2dd4bf", chart1: "#2dd4bf" },
+  ),
+  theme(
+    "graphite",
+    "Графит",
+    "common",
+    { primary: "#334155", primaryForeground: "#ffffff", ring: "#475569", chart1: "#475569" },
+    { primary: "#cbd5e1", primaryForeground: "#0f172a", ring: "#cbd5e1", chart1: "#cbd5e1" },
+  ),
+  theme(
+    "indigo",
+    "Индиго",
+    "rare",
+    { primary: "#4338ca", primaryForeground: "#ffffff", ring: "#4f46e5", chart1: "#4f46e5" },
+    { primary: "#818cf8", primaryForeground: "#1e1b4b", ring: "#818cf8", chart1: "#818cf8" },
+  ),
+  theme(
+    "amber",
+    "Янтарь",
+    "rare",
+    { primary: "#b45309", primaryForeground: "#ffffff", ring: "#d97706", chart1: "#d97706" },
+    { primary: "#fbbf24", primaryForeground: "#451a03", ring: "#fbbf24", chart1: "#fbbf24" },
+  ),
+  theme(
+    "fuchsia",
+    "Фуксия",
+    "epic",
+    { primary: "#a21caf", primaryForeground: "#ffffff", ring: "#c026d3", chart1: "#c026d3" },
+    { primary: "#e879f9", primaryForeground: "#4a044e", ring: "#e879f9", chart1: "#e879f9" },
+  ),
+  theme(
+    "lime",
+    "Лайм",
+    "epic",
+    { primary: "#4d7c0f", primaryForeground: "#ffffff", ring: "#65a30d", chart1: "#65a30d" },
+    { primary: "#a3e635", primaryForeground: "#1a2e05", ring: "#a3e635", chart1: "#a3e635" },
+  ),
 ];
 
 /**

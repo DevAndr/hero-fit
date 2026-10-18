@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ExerciseFormDialog } from "@/components/exercises/exercise-form-dialog";
+import { FavoriteButton } from "@/components/exercises/favorites";
 import { deleteExerciseAction } from "@/lib/exercises/actions";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
@@ -61,6 +62,7 @@ export function ExerciseCard({ exercise }: { exercise: ExerciseItem }) {
           <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.description}</p>
         ) : null}
       </div>
+      <FavoriteButton exercise={exercise} />
       {own ? <ExerciseActions exercise={exercise} /> : null}
     </div>
   );

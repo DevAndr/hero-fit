@@ -5,6 +5,8 @@
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import type { Target } from "@/lib/coach/targets";
 import { addDays } from "@/lib/plans/expand";
+import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
+import type { LastPerformance } from "@/lib/workouts/queries";
 import type { ProgressionHint } from "@/lib/progress/progression";
 
 export type PainSpot = "shoulder" | "elbow" | "wrist" | "lowerBack" | "knee" | "neck" | "other";
@@ -66,6 +68,19 @@ function lastTop(last: Sets) {
 /** Вес не записан (0) — как свой вес: без «0 кг». */
 const lastText = (t: { weight: number; reps: number; sets: number }, bodyweight: boolean) =>
   bodyweight || !t.weight ? `в прошлый раз ${t.sets} × ${t.reps}` : `в прошлый раз ${t.sets} × ${t.reps} · ${kg(t.weight)}`;
+
+/** Прошлый результат для кнопки замены: «в прошлый раз 3 × 10 · 60 кг», на время/кардио — первый подход. */
+export function lastResultText(
+  ex: { isBodyweight: boolean; kind?: ExerciseKindName },
+  last: LastPerformance[string] | undefined,
+): string {
+  if (!last?.sets.length) return "ещё не делали";
+  if (isTimed(ex.kind)) return `в прошлый раз ${timedSetText(ex.kind!, last.sets[0])}`;
+  const top = lastTop(last);
+  // Своим весом с отягощением — «+10 кг» (у помощника lastText его не пишет)
+  if (ex.isBodyweight && top.weight > 0) return `в прошлый раз ${top.sets} × ${top.reps} · +${kg(top.weight)}`;
+  return lastText(top, ex.isBodyweight);
+}
 
 export function weightAdvice(input: {
   bodyweight: boolean;

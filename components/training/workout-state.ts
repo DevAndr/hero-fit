@@ -1,6 +1,6 @@
 import type { ActiveWorkout, ExerciseInfo, LastPerformance } from "@/lib/workouts/queries";
 import type { WorkoutDraft } from "@/lib/workouts/schema";
-import { afterSet, link, normalizeGroups, unlink } from "@/lib/workouts/supersets";
+import { afterSet, groupSize, link, MAX_GROUP, normalizeGroups, unlink } from "@/lib/workouts/supersets";
 import { formatClock, isTimed, parseClock, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 /** Вес и повторы — строки: пользователь может временно стереть поле или ввести «82,5». */
@@ -27,6 +27,8 @@ export type WorkoutState = {
 
 let seq = 0;
 const key = () => `k${Date.now().toString(36)}${(seq++).toString(36)}`;
+/** Ключ нового упражнения, заданный заранее (замена — чтобы «Вернуть» нашло его). */
+export const exerciseKey = key;
 
 const fmt = (n: number) => (n ? String(n) : "");
 
@@ -117,7 +119,9 @@ export type Action =
   /** Совет помощника: невыполненные рабочие подходы — по совету (выполненные и разминка не трогаются). */
   | { type: "applySets"; key: string; sets: { weight: number; reps: number }[] }
   /** Замена от помощника: без выполненных подходов — на месте, иначе новое упражнение сразу после текущего. */
-  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance }
+  | { type: "replaceExercise"; key: string; exercise: ExerciseInfo; restSec: number; last: LastPerformance; newKey?: string }
+  /** «Вернуть» после замены: новое убирается, исходное — на его место (если было заменено на месте). */
+  | { type: "undoReplace"; newKey: string; original: ExerciseState }
   /** Пропуск от помощника (боль): невыполненные подходы убираются, выполненные остаются; ничего не сделано — упражнение целиком. */
   | { type: "skipPending"; key: string };
 
@@ -183,7 +187,7 @@ function regroup(state: WorkoutState): WorkoutState {
   return exercises.every((e, i) => e === state.exercises[i]) ? state : { ...state, exercises };
 }
 
-const GROUPING: ReadonlySet<Action["type"]> = new Set(["replace", "addExercises", "removeExercise", "moveExercise", "reorderExercise", "replaceExercise", "skipPending"]);
+const GROUPING: ReadonlySet<Action["type"]> = new Set(["replace", "addExercises", "removeExercise", "moveExercise", "reorderExercise", "replaceExercise", "undoReplace", "skipPending"]);
 
 export function reducer(state: WorkoutState, action: Action): WorkoutState {
   const next = apply(state, action);
@@ -309,10 +313,34 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       const at = state.exercises.findIndex((e) => e.key === action.key);
       if (at < 0) return state;
       const started = state.exercises[at].sets.some((s) => s.completedAt);
-      // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения
-      const fresh = { ...newExercise(action.exercise, action.restSec, action.last), group: state.exercises[at].group };
+      // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения;
+      // полный круг (6) не растёт — новое встаёт сразу после круга, вне его
+      const made = newExercise(action.exercise, action.restSec, action.last);
+      const { group } = state.exercises[at];
+      const full = started && group !== null && groupSize(state.exercises, at) >= MAX_GROUP;
+      const fresh = { ...made, key: action.newKey ?? made.key, group: full ? null : group };
       const exercises = [...state.exercises];
-      exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
+      if (!started) exercises.splice(at, 1, fresh);
+      else if (!full) exercises.splice(at + 1, 0, fresh);
+      else {
+        let end = at;
+        while (exercises[end + 1]?.group === group) end++;
+        exercises.splice(end + 1, 0, fresh);
+      }
+      return { ...state, exercises };
+    }
+
+    case "undoReplace": {
+      const at = state.exercises.findIndex((e) => e.key === action.newKey);
+      if (at < 0) return state;
+      const exercises = [...state.exercises];
+      const fresh = exercises[at];
+      // Сделанные в новом подходы не теряются: оно остаётся с ними, невыполненные убираются
+      const done = fresh.sets.filter((x) => x.completedAt);
+      const kept = done.length ? [{ ...fresh, sets: done }] : [];
+      if (exercises.some((e) => e.key === action.original.key)) exercises.splice(at, 1, ...kept);
+      // Номер группы — от нового: пока висел тост, группы могли перенумероваться
+      else exercises.splice(at, 1, { ...action.original, group: fresh.group }, ...kept);
       return { ...state, exercises };
     }
 

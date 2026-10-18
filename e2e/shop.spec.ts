@@ -215,6 +215,25 @@ test.describe("страница магазина", () => {
     expect(await coinBalance(login)).toBe(50);
   });
 
+  test("a new theme: buy, equip, the accent changes", async ({ page }) => {
+    const { login } = await registerUser(page);
+    await addFlagUser("shop", login);
+    await setCoins(login, 700);
+    await page.goto("/shop?tab=theme");
+    const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--primary").trim());
+    const brand = await accent();
+    const amber = page.getByTestId("shop-item-theme:amber");
+    await expect(amber).toContainText("Янтарь");
+    await amber.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Купить за 600" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Надеть" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Снять" })).toBeVisible();
+    await expect.poll(accent).not.toBe(brand);
+    expect(["#b45309", "#fbbf24"]).toContain(await accent());
+    expect(await userItems(login)).toEqual(["theme:amber"]);
+    expect(await coinBalance(login)).toBe(100);
+  });
+
   test("free item is labelled free, not bought", async ({ page }) => {
     const { login } = await registerUser(page);
     await addFlagUser("shop", login);
