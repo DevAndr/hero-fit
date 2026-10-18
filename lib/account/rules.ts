@@ -26,6 +26,16 @@ export function deletionPreview(input: DeletionInput): string[] {
   return lines;
 }
 
+/**
+ * Имя копии чужого упражнения при переносе: unique(userId, name) действует и на архивные, а приложение сравнивает
+ * имена без учёта регистра — занятое получает первый свободный номер «Присед (2)».
+ */
+export function freeExerciseName(name: string, taken: string[]): string {
+  const keys = new Set(taken.map((t) => t.toLowerCase()));
+  if (!keys.has(name.toLowerCase())) return name;
+  for (let n = 2; ; n++) if (!keys.has(`${name} (${n})`.toLowerCase())) return `${name} (${n})`;
+}
+
 /** Снимок итогов недели друга: строка лиги с ником удалённого — «Удалённый игрок». Без совпадений — тот же объект. */
 export function scrubRecapLeague(data: RecapData, nickname: string): { data: RecapData; changed: boolean } {
   const league = data.league;

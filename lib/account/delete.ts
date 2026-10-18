@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, type ClubStatus } from "@/generated/prisma/enums";
-import { scrubRecapLeague, type DeletionInput } from "@/lib/account/rules";
+import { freeExerciseName, scrubRecapLeague, type DeletionInput } from "@/lib/account/rules";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notifications/service";
 import type { RecapData } from "@/lib/recap/types";
@@ -108,11 +108,13 @@ export async function deleteAccount(tx: Tx, userId: string): Promise<void> {
 }
 
 /**
- * Мои упражнения в чужих данных (клиент тренировался по шаблону тренера, добавил его упражнение в свой шаблон):
- * каждому такому пользователю — своя архивная копия упражнения, его тренировки, шаблоны, рекорды, цели, ачивки,
- * задания тренера и респекты за его рекорды переводятся на неё, а в сводках его тренировок (`meta.records`) id
- * упражнения переписывается — иначе группа рекорда в ленте не сойдётся с респектами. Без переноса удаление упадёт на
- * Restrict, а Cascade унёс бы чужие рекорды, цели и респекты.
+ * Мои упражнения в чужих данных (клиент тренировался по шаблону тренера, добавил его упражнение в свой шаблон,
+ * запустил мою программу из каталога): каждому такому пользователю — своя копия упражнения, его тренировки, шаблоны,
+ * базы программ, рекорды, цели, ачивки, задания тренера и респекты за его рекорды переводятся на неё, а в сводках его
+ * тренировок (`meta.records`) id упражнения переписывается — иначе группа рекорда в ленте не сойдётся с респектами.
+ * Без переноса удаление упадёт на Restrict, а Cascade унёс бы чужие рекорды, цели и респекты.
+ * Копия обычная, если упражнение стоит в его шаблоне (иначе старт тренировки по шаблону его пропустит), и архивная,
+ * если осталось только в истории; занятое имя — с номером.
  */
 async function rehomeExercises(tx: Tx, userId: string) {
   const pairs = await tx.$queryRaw<{ exerciseId: string; ownerId: string }[]>`
@@ -133,13 +135,27 @@ async function rehomeExercises(tx: Tx, userId: string) {
   for (const { exerciseId: from, ownerId } of pairs) {
     const source = await tx.exercise.findUniqueOrThrow({
       where: { id: from },
-      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, defaultRestSec: true },
+      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, kind: true, defaultRestSec: true },
     });
-    const { id: to } = await tx.exercise.create({ data: { ...source, userId: ownerId, archivedAt: new Date() }, select: { id: true } });
+    const [inTemplate, taken] = await Promise.all([
+      tx.templateExercise.count({ where: { exerciseId: from, template: { userId: ownerId } } }),
+      tx.exercise.findMany({ where: { userId: ownerId }, select: { name: true } }),
+    ]);
+    const { id: to } = await tx.exercise.create({
+      data: {
+        ...source,
+        name: freeExerciseName(source.name, taken.map((e) => e.name)),
+        userId: ownerId,
+        archivedAt: inTemplate ? null : new Date(),
+      },
+      select: { id: true },
+    });
     await tx.$executeRaw`UPDATE "WorkoutExercise" we SET "exerciseId" = ${to} FROM "Workout" w
       WHERE w.id = we."workoutId" AND w."userId" = ${ownerId} AND we."exerciseId" = ${from}`;
     await tx.$executeRaw`UPDATE "TemplateExercise" te SET "exerciseId" = ${to} FROM "WorkoutTemplate" t
       WHERE t.id = te."templateId" AND t."userId" = ${ownerId} AND te."exerciseId" = ${from}`;
+    // Базы программ из каталога: вес недели ищется по id упражнения
+    await tx.programBase.updateMany({ where: { assignment: { clientId: ownerId }, exerciseId: from }, data: { exerciseId: to } });
     await tx.personalRecord.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
     await tx.goal.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
     await tx.userAchievement.updateMany({ where: { userId: ownerId, exerciseId: from }, data: { exerciseId: to } });
