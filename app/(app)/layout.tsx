@@ -73,7 +73,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         />
       }
       // key: новые уведомления сбрасывают локальное «прочитано»
-      alerts={<SystemAlerts alerts={alerts} />}
+      alerts={<SystemAlerts alerts={alerts} tourPath={user.onboardedAt === null ? "/dashboard" : null} />}
       notifications={<NotificationBell key={`${feed.items[0]?.id}:${feed.unread}`} feed={feed} />}
     >
       {children}

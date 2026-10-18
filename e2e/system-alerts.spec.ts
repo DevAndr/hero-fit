@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { alertDismissalCount, clearAlerts, createAlert, makeAdmin } from "./db";
+import { alertDismissalCount, clearAlerts, createAlert, makeAdmin, resetOnboarding, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // Системные оповещения (спека 2026-10-18-system-alerts-design). Живое оповещение видят все —
@@ -102,6 +102,51 @@ test.describe("in the app", () => {
     await banner(page, "Вышел релиз").getByRole("link", { name: "Подробнее" }).click();
     await expect(page).toHaveURL(/\/whats-new$/);
     await expect(banner(page, "Вышел релиз")).toBeHidden();
+  });
+});
+
+test.describe("edge cases", () => {
+  test("popup waits while the onboarding tour is open", async ({ page }) => {
+    const me = await registerUser(page);
+    await createAlert({ kind: "POPUP", title: "Анонс", body: "Попап поверх экскурсии" });
+    await resetOnboarding(me.login);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("dialog", { name: "Добро пожаловать в Hero Fit" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Анонс" })).toHaveCount(0);
+    await page.goto("/exercises");
+    await expect(page.getByRole("dialog", { name: "Анонс" })).toBeVisible();
+  });
+
+  test("banner respects the Telegram safe area", async ({ page }) => {
+    await registerUser(page);
+    await createAlert({ kind: "BANNER", body: "Под шторкой Telegram" });
+    await page.goto("/exercises");
+    await page.addStyleTag({ content: ":root { --tg-safe-top: 40px !important; }" });
+    const box = await banner(page, "Под шторкой Telegram").boundingBox();
+    expect(box?.y).toBeGreaterThanOrEqual(40);
+  });
+
+  test("dismissing an alert deleted meanwhile does not fail", async ({ page }) => {
+    await registerUser(page);
+    await createAlert({ kind: "BANNER", body: "Уже удалено" });
+    await page.goto("/exercises");
+    await expect(banner(page, "Уже удалено")).toBeVisible();
+    await clearAlerts();
+    const action = page.waitForResponse((r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined);
+    await banner(page, "Уже удалено").getByRole("button", { name: "Закрыть оповещение" }).click();
+    expect((await action).status()).toBe(200);
+    await expect(banner(page, "Уже удалено")).toBeHidden();
+  });
+
+  test("disabled popup is gone after reload", async ({ page }) => {
+    await registerUser(page);
+    const id = await createAlert({ kind: "POPUP", title: "Выключат", body: "Сейчас выключат" });
+    await page.goto("/exercises");
+    await expect(page.getByRole("dialog", { name: "Выключат" })).toBeVisible();
+    await withDb((db) => db.query(`update "SystemAlert" set enabled = false where id = $1`, [id]));
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Выключат" })).toHaveCount(0);
   });
 });
 

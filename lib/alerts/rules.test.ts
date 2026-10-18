@@ -84,7 +84,7 @@ describe("safeHref", () => {
   it("internal paths and https only", () => {
     expect(safeHref("/whats-new")).toBe(true);
     expect(safeHref("https://t.me/x")).toBe(true);
-    for (const bad of ["javascript:alert(1)", "//evil.com", "http://x.ru", "whats-new", "", "/\\evil.com", "https://"]) {
+    for (const bad of ["javascript:alert(1)", "//evil.com", "http://x.ru", "whats-new", "", "/\\evil.com", "https://", "/\t/evil.com", "/\n/evil.com", "/ok\u0000", "https://ok.ru/\tx"]) {
       expect(safeHref(bad), bad).toBe(false);
     }
   });

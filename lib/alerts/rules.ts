@@ -62,6 +62,8 @@ export function nextChange(alerts: AlertView[], now: Date): Date | null {
 
 /** Ссылка кнопки: свой путь «/…» (не «//» и не «/\») или https с хостом — без javascript: и прочего. */
 export function safeHref(href: string): boolean {
+  // Пробелы и управляющие символы браузер выкидывает: «/\t/evil.com» стал бы «//evil.com»
+  if (/[\x00-\x20\x7f]/.test(href)) return false;
   if (href.startsWith("/")) return !/^\/[/\\]/.test(href);
   try {
     const u = new URL(href);

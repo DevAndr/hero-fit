@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { dismissAlertAction } from "@/lib/alerts/actions";
 import { nextChange, nextPopup, visibleBanners, type AlertView } from "@/lib/alerts/rules";
 import { AlertBanner } from "./alert-banner";
@@ -16,7 +17,8 @@ const noopSubscribe = () => () => {};
  * Системные оповещения кабинета (спека 2026-10-18-system-alerts-design): строки над шапкой и попап по одному.
  * Показ — только после гидрации: «закрытые до следующего захода» живут в sessionStorage, а «сейчас» у сервера другое.
  */
-export function SystemAlerts({ alerts }: { alerts: AlertView[] }) {
+export function SystemAlerts({ alerts, tourPath = null }: { alerts: AlertView[]; /** Где сейчас идёт экскурсия онбординга — попап там ждёт. */ tourPath?: string | null }) {
+  const pathname = usePathname();
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [now, setNow] = useState(() => new Date());
   // На сервере хранилища нет — пустой набор; до гидрации всё равно ничего не рисуем
@@ -41,13 +43,19 @@ export function SystemAlerts({ alerts }: { alerts: AlertView[] }) {
   };
 
   const banners = visibleBanners(alerts, now, hidden);
-  const popup = nextPopup(alerts, now, hidden);
+  // Попап поверх экскурсии: клик по ней закрыл бы его как «вне диалога», не показав
+  const popup = pathname === tourPath ? null : nextPopup(alerts, now, hidden);
 
   return (
     <>
-      {banners.map((a) => (
-        <AlertBanner key={a.id} alert={a} onDismiss={() => dismiss(a)} />
-      ))}
+      {banners.length ? (
+        // Безопасная зона Telegram Mini App: строки — самый верх экрана, пока страница не прокручена
+        <div className="pt-(--tg-safe-top)">
+          {banners.map((a) => (
+            <AlertBanner key={a.id} alert={a} onDismiss={() => dismiss(a)} />
+          ))}
+        </div>
+      ) : null}
       {popup ? <AlertPopup key={popup.id} alert={popup} open onDismiss={() => dismiss(popup)} /> : null}
     </>
   );
