@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FavoriteButton } from "@/components/exercises/favorites";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseState } from "@/components/training/workout-state";
 import { lastResultText, replacementCandidates, type PainSpot } from "@/lib/assistant/rules";
@@ -135,13 +136,14 @@ function Catalog({ item, source, onPick }: { item: ExerciseState; source: SwapSo
       <ExerciseFilterControls filter={filter} className="-mx-4 px-4" />
       <ul className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4" aria-label="Список упражнений">
         {filter.filtered.map((e) => (
-          <li key={e.id}>
-            <button type="button" onClick={() => onPick(e)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted">
+          <li key={e.id} className="flex items-center gap-1">
+            <button type="button" onClick={() => onPick(e)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{e.name}</span>
                 <span className="block truncate text-xs text-muted-foreground">{e.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")}</span>
               </span>
             </button>
+            <FavoriteButton exercise={e} />
           </li>
         ))}
         {filter.filtered.length === 0 ? <li className="py-8 text-center text-sm text-muted-foreground">Ничего не найдено</li> : null}

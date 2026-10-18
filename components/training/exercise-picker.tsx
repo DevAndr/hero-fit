@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FavoriteButton } from "@/components/exercises/favorites";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
@@ -73,12 +74,12 @@ export function ExercisePicker({
           {filtered.map((e) => {
             const index = selected.indexOf(e.id);
             return (
-              <li key={e.id}>
+              <li key={e.id} className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => toggle(e.id)}
                   aria-pressed={index >= 0}
-                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted"
                 >
                   <span
                     className={cn(
@@ -100,6 +101,7 @@ export function ExercisePicker({
                     </span>
                   ) : null}
                 </button>
+                <FavoriteButton exercise={e} />
               </li>
             );
           })}

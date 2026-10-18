@@ -259,6 +259,7 @@ model User {
   coachProfile        CoachProfile?
   kudos               Kudos[]
   recordRespects      RecordRespect[]
+  favoriteExercises   FavoriteExercise[]
   goals               Goal[]
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
@@ -412,6 +413,7 @@ model Exercise {
   goals             Goal[]
   clubTasks         ClubTask[]
   recordRespects    RecordRespect[]
+  favorites         FavoriteExercise[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -715,6 +717,19 @@ model Kudos {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workoutId, userId])
+}
+
+/// ★ Избранное упражнение пользователя (встроенное или своё) — сверху в списках, чип «Избранное».
+model FavoriteExercise {
+  userId     String
+  exerciseId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId])
+  @@index([exerciseId])
 }
 
 /// 🏆 от друга/согильдийца на рекорд в упражнении тренировки. Один на тройку «тренировка–упражнение–пользователь».

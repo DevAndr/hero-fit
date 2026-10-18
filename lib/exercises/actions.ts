@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
+import { visibleExercisesWhere } from "@/lib/exercises/queries";
 import { parseExerciseForm, type ExerciseInput } from "@/lib/exercises/schema";
 
 export type ExerciseFormState = {
@@ -94,5 +95,18 @@ export async function deleteExerciseAction(id: string): Promise<{ ok: boolean; m
   if (count === 0) return { ok: false, message: "Упражнение не найдено или его нельзя удалить" };
 
   revalidatePath("/exercises");
+  return { ok: true };
+}
+
+/** ★ Избранное: явное состояние (идемпотентно — быстрые повторные клики не путают итог). Только видимые пользователю упражнения. */
+export async function toggleFavoriteAction(exerciseId: string, favorite: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  if (typeof exerciseId !== "string" || typeof favorite !== "boolean") return { ok: false, error: "Упражнение не найдено" };
+  const visible = await db.exercise.findFirst({ where: { id: exerciseId, ...visibleExercisesWhere(user.id) }, select: { id: true } });
+  if (!visible) return { ok: false, error: "Упражнение не найдено" };
+  if (favorite) await db.favoriteExercise.createMany({ data: [{ userId: user.id, exerciseId }], skipDuplicates: true });
+  else await db.favoriteExercise.deleteMany({ where: { userId: user.id, exerciseId } });
+  // Без revalidatePath: он перерисовал бы и /training посреди тренировки (список прыгнул бы, эффект восстановления
+  // черновика сработал бы заново); /exercises обновляется сам (refreshAfterSave у провайдера)
   return { ok: true };
 }

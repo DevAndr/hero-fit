@@ -46,6 +46,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coinTx,
     whoopConnection,
     whoopWorkouts,
+    favorites,
   ] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.workout.findMany({
@@ -149,6 +150,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
       orderBy: { start: "asc" },
       select: { id: true, start: true, end: true, sportName: true, scoreState: true, strain: true, avgHr: true, maxHr: true, kilojoule: true, zonesMs: true, updatedAt: true },
     }),
+    db.favoriteExercise.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { createdAt: true, exercise: { select: { name: true } } } }),
   ]);
 
   const counts = await participants(publishedPrograms.map((p) => p.id));
@@ -189,6 +191,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     respectsReceived: respectsReceived.map((r) => ({ workoutDate: r.workout.finishedAt, exercise: r.exercise.name, from: r.user.nickname })),
     kudosGiven: kudosGiven.map((k) => ({ workoutDate: k.workout.finishedAt, to: k.workout.user.nickname })),
     kudosReceived: kudosReceived.map((k) => ({ workoutDate: k.workout.finishedAt, from: k.user.nickname })),
+    favoriteExercises: favorites.map((f) => ({ exercise: f.exercise.name, createdAt: f.createdAt })),
     clientNotes: clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client.nickname })),
     programs: (await programsWithNames(programs)).map(({ catalogProgram, ...p }) => ({ ...p, catalogProgram: catalogProgram ? { name: catalogProgram.name, author: catalogProgram.coach.nickname } : null })),
     coachPrograms: coachPrograms.map((p) => ({ ...p, days: p.days.map((d) => ({ weekday: d.weekday, template: d.template.name, time: d.time })) })),

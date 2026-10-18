@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { Search } from "lucide-react";
+import { Search, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { MuscleGroup } from "@/generated/prisma/enums";
+import { isFavorite, useFavorites } from "@/components/exercises/favorites";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { RECOVERY_DOT } from "@/components/progress/body-map";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
@@ -20,16 +21,22 @@ export function MuscleRecoveryProvider({ recovery, children }: { recovery: Group
 
 /** Поиск по названию + фильтр по группе мышц — общий для диалога выбора и каталога на ПК. */
 /** initialGroup — фильтр группы при открытии (замена упражнения); reset() сбрасывает в «все». */
-export function useExerciseFilter(exercises: ExerciseItem[], initialGroup: MuscleGroup | null = null) {
+/** Группа фильтра: группа мышц, «★ Избранное» или все (null). */
+export type FilterGroup = MuscleGroup | "FAVORITES" | null;
+
+export function useExerciseFilter(exercises: ExerciseItem[], initialGroup: FilterGroup = null) {
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<MuscleGroup | null>(initialGroup);
+  const [group, setGroup] = useState<FilterGroup>(initialGroup);
+  const favorites = useFavorites();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return exercises.filter(
-      (e) => (!q || e.name.toLowerCase().includes(q)) && (!group || e.muscleGroups.includes(group)),
+      (e) =>
+        (!q || e.name.toLowerCase().includes(q)) &&
+        (!group || (group === "FAVORITES" ? isFavorite(favorites, e) : e.muscleGroups.includes(group))),
     );
-  }, [exercises, query, group]);
+  }, [exercises, query, group, favorites]);
 
   const reset = () => {
     setQuery("");
@@ -61,6 +68,18 @@ export function ExerciseFilterControls({
       </div>
       {/* shrink-0: в диалоге (flex-колонка) строка иначе сжимается и полоса прокрутки ложится на чипы */}
       <div className={cn("flex shrink-0 gap-1.5 overflow-x-auto pb-2 [scrollbar-width:thin]", className)}>
+        <button
+          type="button"
+          onClick={() => filter.setGroup("FAVORITES")}
+          aria-pressed={filter.group === "FAVORITES"}
+          className={cn(
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm",
+            filter.group === "FAVORITES" ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
+          )}
+        >
+          <Star aria-hidden className="size-3.5" />
+          Избранное
+        </button>
         {[null, ...MUSCLE_GROUPS].map((g) => {
           const r = g ? recovery?.get(g) : undefined;
           return (

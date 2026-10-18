@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ExercisePicker } from "@/components/training/exercise-picker";
 import { parseNumber } from "@/components/training/workout-state";
 import type { MuscleGroup } from "@/generated/prisma/enums";
+import { FavoritesProvider } from "@/components/exercises/favorites";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { saveTemplateAction } from "@/lib/templates/actions";
@@ -79,7 +80,15 @@ function NumberCell({
   );
 }
 
-export function TemplateEditor({ template, exercises }: { template?: TemplateForEdit; exercises: ExerciseItem[] }) {
+export function TemplateEditor(props: { template?: TemplateForEdit; exercises: ExerciseItem[] }) {
+  return (
+    <FavoritesProvider exercises={props.exercises}>
+      <Editor {...props} />
+    </FavoritesProvider>
+  );
+}
+
+function Editor({ template, exercises }: { template?: TemplateForEdit; exercises: ExerciseItem[] }) {
   const router = useRouter();
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
