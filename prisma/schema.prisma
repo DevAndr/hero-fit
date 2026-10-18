@@ -220,6 +220,7 @@ model User {
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
   visits              UserVisit[]
+  alertDismissals     SystemAlertDismissal[]
   bossWeeks           BossWeek[]
   planSeries          PlanSeries[]         @relation("PlanSeriesUser")
   planEntries         PlanEntry[]          @relation("PlanEntryUser")
@@ -1194,6 +1195,63 @@ model UserVisit {
 
   @@id([userId, day])
   @@index([day])
+}
+
+// ───────────────────────────── Системные оповещения ─────────────────────────────
+// Спека: docs/superpowers/specs/2026-10-18-system-alerts-design.md
+
+enum SystemAlertKind {
+  BANNER
+  POPUP
+}
+
+enum SystemAlertTone {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// NEVER — без крестика (только строка), SESSION — до закрытия вкладки, FOREVER — запись SystemAlertDismissal.
+enum SystemAlertDismiss {
+  NEVER
+  SESSION
+  FOREVER
+}
+
+/// Оповещение от админа всем в кабинете (/admin/alerts).
+model SystemAlert {
+  id         String                 @id @default(cuid())
+  kind       SystemAlertKind
+  tone       SystemAlertTone        @default(INFO)
+  /// обязателен у POPUP, у BANNER не используется
+  title      String?
+  body       String
+  ctaLabel   String?
+  ctaHref    String?
+  dismiss    SystemAlertDismiss     @default(FOREVER)
+  startsAt   DateTime
+  /// null — пока не выключат
+  endsAt     DateTime?
+  enabled    Boolean                @default(true)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  /// логин админа, создавшего оповещение
+  createdBy  String?
+  dismissals SystemAlertDismissal[]
+
+  @@index([enabled, startsAt])
+}
+
+/// Кто закрыл оповещение навсегда; служебная запись (в «Мои данные» не входит).
+model SystemAlertDismissal {
+  alertId   String
+  userId    String
+  createdAt DateTime    @default(now())
+  alert     SystemAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([alertId, userId])
+  @@index([userId])
 }
 
 // ───────────────────────────── Фича-флаги ─────────────────────────────
