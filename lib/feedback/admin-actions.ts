@@ -20,12 +20,14 @@ export async function updateFeedbackAction(id: string, patch: unknown): Promise<
   const error = await db.$transaction(async (tx) => {
     const current = await tx.feedback.findUnique({ where: { id }, select: { status: true, userId: true, body: true } });
     if (!current) return "Обращение не найдено";
+    const stale = "Обращение уже изменили — обновите страницу";
+    if (p.expected && p.expected !== current.status) return stale;
     // Условно по прежнему статусу: два админа одновременно не пришлют автору два уведомления
     const { count } = await tx.feedback.updateMany({
       where: { id, status: current.status },
       data: { ...(p.status ? { status: p.status } : {}), ...(p.adminNote !== undefined ? { adminNote: p.adminNote } : {}) },
     });
-    if (count === 0) return "Обращение уже изменили — обновите страницу";
+    if (count === 0) return stale;
     const next = p.status ?? current.status;
     if ((next === "DONE" || next === "REJECTED") && shouldNotify(current.status, next)) {
       await notify(tx, current.userId, { type: "FEEDBACK", ...notificationText(next, current.body) }, { push: true });

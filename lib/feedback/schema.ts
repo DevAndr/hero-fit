@@ -22,6 +22,8 @@ export type FeedbackInput = z.infer<typeof feedbackSchema>;
 /** Правка из /admin/feedback: статус и заметка (пустая — убрать). */
 export const adminPatchSchema = z.object({
   status: z.enum(["NEW", "IN_PROGRESS", "DONE", "REJECTED"]).optional(),
+  /** Статус, который видел админ: изменили в другой вкладке — правка отклоняется, а не затирает. */
+  expected: z.enum(["NEW", "IN_PROGRESS", "DONE", "REJECTED"]).optional(),
   adminNote: z
     .string()
     .trim()

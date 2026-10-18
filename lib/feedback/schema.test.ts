@@ -35,5 +35,7 @@ describe("adminPatchSchema", () => {
     expect(adminPatchSchema.safeParse({ adminNote: "а".repeat(1001) }).success).toBe(false);
     expect(adminPatchSchema.safeParse({ status: "DONE" }).success).toBe(true);
     expect(adminPatchSchema.safeParse({ status: "WAT" }).success).toBe(false);
+    expect(adminPatchSchema.safeParse({ status: "DONE", expected: "NEW" }).success).toBe(true);
+    expect(adminPatchSchema.safeParse({ expected: "WAT" }).success).toBe(false);
   });
 });

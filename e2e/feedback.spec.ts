@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { feedbackRows, makeAdmin, notificationTitles, seedFeedback } from "./db";
+import { feedbackRows, makeAdmin, notificationTitles, seedFeedback, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // Обратная связь (спека 2026-10-18-feedback-design)
@@ -108,5 +108,22 @@ test.describe("admin inbox", () => {
     await expect(mine).toContainText("Сделано");
     await expect(page.getByText("Сделали в 0.14")).toHaveCount(0);
   });
-});
 
+  test("saving from a stale card does not overwrite a newer status", async ({ page, browser }) => {
+    const author = await registerUser(await browser.newPage());
+    const body = uniq("Устаревшая карточка");
+    const [id] = await seedFeedback(author.login, 1, { body });
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin/feedback");
+    const card = page.getByRole("article", { name: `Обращение от ${author.login}` });
+    await expect(card).toContainText(body);
+    // Тем временем в другой вкладке поставили «Сделано» с заметкой
+    await withDb((db) => db.query(`update "Feedback" set status = 'DONE', "adminNote" = 'из другой вкладки' where id = $1`, [id]));
+    await card.getByRole("radio", { name: "В работе" }).click();
+    await card.getByRole("button", { name: "Сохранить" }).click();
+    await expect(page.getByText("Обращение уже изменили — обновите страницу")).toBeVisible();
+    const [row] = await feedbackRows(body);
+    expect(row.status).toBe("DONE");
+  });
+});

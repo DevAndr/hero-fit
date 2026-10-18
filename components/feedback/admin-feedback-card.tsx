@@ -34,7 +34,7 @@ export function AdminFeedbackCard({ item }: { item: FeedbackAdminItem }) {
   const [pending, startTransition] = useTransition();
   const save = () =>
     startTransition(async () => {
-      const r = await updateFeedbackAction(item.id, { status, adminNote: note });
+      const r = await updateFeedbackAction(item.id, { status, adminNote: note, expected: item.status });
       if (!r.ok) return void toast.error(r.error);
       toast.success("Сохранено");
     });
