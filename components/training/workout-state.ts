@@ -326,7 +326,8 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       if (at < 0) return state;
       const exercises = [...state.exercises];
       if (exercises.some((e) => e.key === action.original.key)) exercises.splice(at, 1);
-      else exercises.splice(at, 1, action.original);
+      // Номер группы — от нового: пока висел тост, группы могли перенумероваться
+      else exercises.splice(at, 1, { ...action.original, group: exercises[at].group });
       return { ...state, exercises };
     }
 

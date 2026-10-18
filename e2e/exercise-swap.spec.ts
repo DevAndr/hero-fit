@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ownTemplate, seedWorkouts, templateRow } from "./db";
+import { addFlagUser, ownTemplate, seedWorkouts, templateRow } from "./db";
 import { addToWorkout, registerUser } from "./helpers";
 
 const SQUAT = "Приседания со штангой";
@@ -120,4 +120,22 @@ test("swap works offline and syncs", async ({ page, context }) => {
   await page.reload();
   await expect(page.getByRole("region", { name: LUNGE })).toBeVisible();
   await expect(page.getByRole("region", { name: SQUAT })).toHaveCount(0);
+});
+
+test("superset: the swap takes the place in the round, undo gives it back", async ({ page }) => {
+  const { login } = await athlete(page);
+  await addFlagUser("workout_formats", login);
+  await emptyWorkout(page, [SQUAT, BENCH]);
+  await page.getByRole("button", { name: `Связать «${SQUAT}» и «${BENCH}» в суперсет` }).click();
+  const heading = (name: string) => page.getByRole("region", { name }).getByRole("heading");
+  await expect(heading(SQUAT)).toContainText("A1");
+
+  const dialog = await openSwap(page, SQUAT);
+  await dialog.getByRole("button", { name: new RegExp(`^${LUNGE}`) }).click();
+  await expect(heading(LUNGE)).toContainText("A1");
+  await expect(heading(BENCH)).toContainText("A2");
+
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  await expect(heading(SQUAT)).toContainText("A1");
+  await expect(heading(BENCH)).toContainText("A2");
 });

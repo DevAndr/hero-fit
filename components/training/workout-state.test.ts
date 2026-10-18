@@ -526,7 +526,7 @@ describe("replaceExercise newKey and undoReplace", () => {
     const original = s.exercises[0];
     const back = reducer(swap(s, original.key, press, "n1"), { type: "undoReplace", newKey: "n1", original });
     expect(ids(back)).toEqual(["squat", "bench"]);
-    expect(back.exercises[0]).toBe(original);
+    expect(back.exercises[0]).toEqual(original);
   });
 
   it("undoReplace after a started exercise removes only the fresh one", () => {
@@ -548,6 +548,19 @@ describe("replaceExercise newKey and undoReplace", () => {
     expect(ids(back)).toEqual(["squat", "bench", "pullup"]);
     expect(back.exercises[0].group).not.toBeNull();
     expect(back.exercises[1].group).toBe(back.exercises[0].group);
+  });
+
+  it("undoReplace takes the group of the fresh exercise after groups were renumbered", () => {
+    let s = start(squat, bench, pullup, press);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    s = reducer(s, { type: "linkNext", key: s.exercises[2].key });
+    const original = s.exercises[2];
+    s = swap(s, original.key, lunge, "n1");
+    s = reducer(s, { type: "removeExercise", key: s.exercises[0].key });
+    const back = reducer(s, { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["bench", "pullup", "press"]);
+    expect(back.exercises[1].group).not.toBeNull();
+    expect(back.exercises[2].group).toBe(back.exercises[1].group);
   });
 
   it("undoReplace is a no-op when the fresh exercise is gone", () => {
