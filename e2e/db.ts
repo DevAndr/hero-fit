@@ -1553,3 +1553,27 @@ export async function dismissAlertFor(login: string, alertId: string): Promise<v
     db.query(`insert into "SystemAlertDismissal" ("alertId", "userId") values ($1, $2)`, [alertId, await userId(db, login)]),
   );
 }
+
+// ───────────── Обратная связь (e2e/feedback.spec.ts) ─────────────
+
+/** n обращений пользователя минуя форму (лимит, выгрузка); возвращает id. */
+export async function seedFeedback(login: string, n: number, over: { status?: string; body?: string; adminNote?: string } = {}): Promise<string[]> {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = randomUUID();
+      await db.query(
+        `insert into "Feedback" (id, "userId", kind, body, status, "adminNote", "updatedAt") values ($1, $2, 'IDEA', $3, $4, $5, now())`,
+        [id, uid, over.body ?? `Пожелание номер ${i + 1}`, over.status ?? "NEW", over.adminNote ?? null],
+      );
+      ids.push(id);
+    }
+    return ids;
+  });
+}
+
+/** Обращения с таким текстом (у всех пользователей). */
+export async function feedbackRows(body: string): Promise<{ page: string | null; version: string | null; status: string }[]> {
+  return withDb(async (db) => (await db.query(`select page, version, status from "Feedback" where body = $1`, [body])).rows);
+}
