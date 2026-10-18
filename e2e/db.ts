@@ -1491,3 +1491,65 @@ export async function programSeriesAfterToday(login: string): Promise<number> {
     return rows[0].n as number;
   });
 }
+
+// ───────────── Системные оповещения (e2e/system-alerts.spec.ts) ─────────────
+
+type AlertSeed = {
+  kind: "BANNER" | "POPUP";
+  body: string;
+  tone?: "INFO" | "WARNING" | "CRITICAL";
+  title?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  dismiss?: "NEVER" | "SESSION" | "FOREVER";
+  /** сдвиг начала от «сейчас», мс; по умолчанию — минуту назад */
+  startsInMs?: number;
+  /** сдвиг конца от «сейчас», мс; не задан — без конца */
+  endsInMs?: number;
+  enabled?: boolean;
+};
+
+/** Оповещение минуя админку; возвращает id. Живое видят все — только в проекте alerts-global. */
+export async function createAlert(a: AlertSeed): Promise<string> {
+  const id = randomUUID();
+  const now = Date.now();
+  await withDb((db) =>
+    db.query(
+      `insert into "SystemAlert" (id, kind, tone, title, body, "ctaLabel", "ctaHref", dismiss, "startsAt", "endsAt", enabled, "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())`,
+      [
+        id,
+        a.kind,
+        a.tone ?? "INFO",
+        a.title ?? null,
+        a.body,
+        a.ctaLabel ?? null,
+        a.ctaHref ?? null,
+        a.dismiss ?? "FOREVER",
+        new Date(now + (a.startsInMs ?? -60_000)),
+        a.endsInMs === undefined ? null : new Date(now + a.endsInMs),
+        a.enabled ?? true,
+      ],
+    ),
+  );
+  return id;
+}
+
+/** Удалить все оповещения (с записями о закрытии — каскадом). */
+export async function clearAlerts(): Promise<void> {
+  await withDb((db) => db.query(`delete from "SystemAlert"`));
+}
+
+/** Сколько человек закрыли оповещение навсегда. */
+export async function alertDismissalCount(alertId: string): Promise<number> {
+  return withDb(async (db) =>
+    Number((await db.query<{ n: string }>(`select count(*) as n from "SystemAlertDismissal" where "alertId" = $1`, [alertId])).rows[0].n),
+  );
+}
+
+/** Записать «закрыл навсегда» минуя интерфейс. */
+export async function dismissAlertFor(login: string, alertId: string): Promise<void> {
+  await withDb(async (db) =>
+    db.query(`insert into "SystemAlertDismissal" ("alertId", "userId") values ($1, $2)`, [alertId, await userId(db, login)]),
+  );
+}
