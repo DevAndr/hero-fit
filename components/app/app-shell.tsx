@@ -62,8 +62,10 @@ export function AppShell({
   user,
   chest,
   notifications,
+  alerts,
   whatsNewUnseen = false,
   pendingClubs = 0,
+  newFeedback = 0,
   cosmetics,
   coins,
   children,
@@ -73,6 +75,8 @@ export function AppShell({
   whatsNewUnseen?: boolean;
   /** Заявок на клубы на проверке — только админу приложения. */
   pendingClubs?: number;
+  /** Новых обращений в обратную связь — только админу. */
+  newFeedback?: number;
   /** Надетая косметика пользователя (для меню профиля). */
   cosmetics?: Cosmetics;
   /** Баланс монет для меню профиля (при включённом магазине). */
@@ -80,6 +84,8 @@ export function AppShell({
   /** Ежедневный сундук (значок, пока не открыт). */
   chest?: ReactNode;
   notifications?: ReactNode;
+  /** Системные оповещения: строки над шапкой (уезжают при прокрутке) и попап. */
+  alerts?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -91,6 +97,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {alerts}
         <header className="sticky top-0 z-30 flex h-[calc(3.5rem+var(--tg-safe-top))] items-center pt-(--tg-safe-top) gap-3 border-b bg-background/95 px-4 backdrop-blur">
           <div className="lg:hidden">
             <Logo />
@@ -108,6 +115,7 @@ export function AppShell({
               isAdmin={user.isAdmin}
               unseen={whatsNewUnseen}
               pendingClubs={pendingClubs}
+              newFeedback={newFeedback}
               cosmetics={cosmetics}
               coins={coins}
             />

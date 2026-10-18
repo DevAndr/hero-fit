@@ -87,6 +87,7 @@ enum NotificationType {
   RAID // рейд-босс гильдии: повержен, «не хватает урона»
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
   GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
+  FEEDBACK // обратная связь: обращение сделано или отклонено
 }
 
 enum FriendshipStatus {
@@ -220,6 +221,8 @@ model User {
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
   visits              UserVisit[]
+  alertDismissals     SystemAlertDismissal[]
+  feedback            Feedback[]
   bossWeeks           BossWeek[]
   planSeries          PlanSeries[]         @relation("PlanSeriesUser")
   planEntries         PlanEntry[]          @relation("PlanEntryUser")
@@ -1194,6 +1197,102 @@ model UserVisit {
 
   @@id([userId, day])
   @@index([day])
+}
+
+// ───────────────────────────── Системные оповещения ─────────────────────────────
+// Спека: docs/superpowers/specs/2026-10-18-system-alerts-design.md
+
+enum SystemAlertKind {
+  BANNER
+  POPUP
+}
+
+enum SystemAlertTone {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+/// NEVER — без крестика (только строка), SESSION — до закрытия вкладки, FOREVER — запись SystemAlertDismissal.
+enum SystemAlertDismiss {
+  NEVER
+  SESSION
+  FOREVER
+}
+
+/// Оповещение от админа всем в кабинете (/admin/alerts).
+model SystemAlert {
+  id         String                 @id @default(cuid())
+  kind       SystemAlertKind
+  tone       SystemAlertTone        @default(INFO)
+  /// обязателен у POPUP, у BANNER не используется
+  title      String?
+  body       String
+  ctaLabel   String?
+  ctaHref    String?
+  dismiss    SystemAlertDismiss     @default(FOREVER)
+  startsAt   DateTime
+  /// null — пока не выключат
+  endsAt     DateTime?
+  enabled    Boolean                @default(true)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  /// логин админа, создавшего оповещение
+  createdBy  String?
+  dismissals SystemAlertDismissal[]
+
+  @@index([enabled, startsAt])
+}
+
+/// Кто закрыл оповещение навсегда; служебная запись (в «Мои данные» не входит).
+model SystemAlertDismissal {
+  alertId   String
+  userId    String
+  createdAt DateTime    @default(now())
+  alert     SystemAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([alertId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────────── Обратная связь ─────────────────────────────
+// Спека: docs/superpowers/specs/2026-10-18-feedback-design.md
+
+enum FeedbackKind {
+  BUG
+  IDEA
+  OTHER
+}
+
+enum FeedbackStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  REJECTED
+}
+
+/// Обращение пользователя админу (/feedback → /admin/feedback); данные пользователя — в «Мои данные».
+model Feedback {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      FeedbackKind
+  body      String
+  status    FeedbackStatus @default(NEW)
+  /// заметка админа — автору не показывается и не выгружается
+  adminNote String?
+  /// путь, откуда открыли форму (без query)
+  page      String?
+  /// APP_VERSION на момент отправки
+  version   String?
+  /// обрезан до 300 символов
+  userAgent String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ───────────────────────────── Фича-флаги ─────────────────────────────

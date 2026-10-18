@@ -28,6 +28,9 @@ import { env } from "@/lib/env";
 import { enabledFlags } from "@/lib/flags/server";
 import { pendingClubCount } from "@/lib/club/queries";
 import { getNotificationFeed } from "@/lib/notifications/queries";
+import { getUserAlerts } from "@/lib/alerts/queries";
+import { newFeedbackCount } from "@/lib/feedback/admin-queries";
+import { SystemAlerts } from "@/components/alerts/system-alerts";
 
 /** Личный кабинет — вне поиска (и так за входом, но ссылки могут утечь). */
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -37,11 +40,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const timeZone = (await cookies()).get(TIMEZONE_COOKIE)?.value;
   const visit = await recordDailyVisit(user, timeZone);
   const chestOpened = user.chestOpenedDay?.toISOString().slice(0, 10) === visit.today;
-  const [unseen, feed, flags, pendingClubs] = await Promise.all([
+  const [unseen, feed, flags, pendingClubs, alerts, newFeedback] = await Promise.all([
     getUnseenAchievements(user.id),
     getNotificationFeed(user.id),
     enabledFlags(user.id),
     user.isAdmin ? pendingClubCount() : 0,
+    // Оповещения не должны ронять кабинет
+    quietly(() => getUserAlerts(user.id), []),
+    user.isAdmin ? newFeedbackCount() : 0,
   ]);
   // Косметика и баланс — из того же запроса, что и сессия (requireUser)
   const look = { id: user.id, avatarCode: user.avatarCode, frameCode: user.frameCode, nickColorCode: user.nickColorCode, themeCode: user.themeCode, coins: user.coins };
@@ -57,6 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <AppShell
       user={user}
       pendingClubs={pendingClubs}
+      newFeedback={newFeedback}
       cosmetics={cosmetics}
       coins={flags.includes("shop") ? look.coins : undefined}
       whatsNewUnseen={userChangelog(RELEASES, user.changelogSeen, (f) => flags.includes(f)).unseen}
@@ -69,6 +76,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         />
       }
       // key: новые уведомления сбрасывают локальное «прочитано»
+      alerts={<SystemAlerts alerts={alerts} tourPath={user.onboardedAt === null ? "/dashboard" : null} />}
       notifications={<NotificationBell key={`${feed.items[0]?.id}:${feed.unread}`} feed={feed} />}
     >
       {children}

@@ -5,7 +5,7 @@ import { deletionPreview } from "@/lib/account/rules";
 import { db } from "@/lib/db";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Watch } from "lucide-react";
+import { ChevronRight, MessageSquare, Watch } from "lucide-react";
 import { buildLabel } from "@/lib/changelog/version";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
@@ -71,6 +71,12 @@ export default async function SettingsPage() {
       {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
       <NotificationPrefs initial={prefs} isCoach={user.isCoach} />
       <RestartTourButton />
+      <Link href="/feedback?from=%2Fsettings" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">
+        <MessageSquare className="size-4 shrink-0 text-primary" />
+        <span className="font-bold">Обратная связь</span>
+        <span className="ml-auto text-sm text-muted-foreground">Ошибка или идея</span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </Link>
       <MyDataCard />
       <DeleteAccount hasPassword={hasPassword} preview={deletionPreview(deletion)} />
       <p className="pt-2 text-center text-xs text-muted-foreground">
