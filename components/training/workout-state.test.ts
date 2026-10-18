@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, liveSets, nextStep, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
+import type { ExerciseInfo } from "@/lib/workouts/queries";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
 const pullup = { id: "pullup", name: "Подтягивания", muscleGroups: ["BACK" as const], isBodyweight: true };
@@ -503,5 +504,75 @@ describe("review fixes — timed sets carry no reps or weight", () => {
     s = reducer(s, { type: "updateSet", key: r.key, setKey: r.sets[0].key, patch: { duration: "30:00", distance: "5" } });
     s = reducer(s, { type: "toggleComplete", key: r.key, setKey: r.sets[0].key, now: NOW });
     expect(liveSets(s)[0]).toMatchObject({ reps: 0, durationSec: 1800, completedAt: NOW });
+  });
+});
+
+describe("replaceExercise newKey and undoReplace", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const press = { id: "press", name: "Жим ногами", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const lunge = { id: "lunge", name: "Выпады", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const ids = (s: WorkoutState) => s.exercises.map((e) => e.exercise.id);
+  const start = (...ex: ExerciseInfo[]) => reducer(empty(), { type: "addExercises", exercises: ex.map((exercise) => ({ exercise, restSec: 90 })), last: {} });
+  const swap = (s: WorkoutState, key: string, exercise: ExerciseInfo, newKey: string) =>
+    reducer(s, { type: "replaceExercise", key, exercise, restSec: 90, last: {}, newKey });
+
+  it("replaceExercise uses newKey for the fresh exercise", () => {
+    const s = start(squat, bench);
+    expect(swap(s, s.exercises[0].key, press, "n1").exercises[0].key).toBe("n1");
+  });
+
+  it("undoReplace restores the original in place", () => {
+    const s = start(squat, bench);
+    const original = s.exercises[0];
+    const back = reducer(swap(s, original.key, press, "n1"), { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["squat", "bench"]);
+    expect(back.exercises[0]).toBe(original);
+  });
+
+  it("undoReplace after a started exercise removes only the fresh one", () => {
+    let s = start(squat, bench);
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[0].key, setKey: s.exercises[0].sets[0].key, now: NOW });
+    const original = s.exercises[0];
+    const swapped = swap(s, original.key, press, "n1");
+    expect(ids(swapped)).toEqual(["squat", "press", "bench"]);
+    const back = reducer(swapped, { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["squat", "bench"]);
+    expect(back.exercises[0].sets[0].completedAt).toBe(NOW);
+  });
+
+  it("undoReplace keeps the superset group", () => {
+    let s = start(squat, bench, pullup);
+    s = reducer(s, { type: "linkNext", key: s.exercises[0].key });
+    const original = s.exercises[1];
+    const back = reducer(swap(s, original.key, press, "n1"), { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["squat", "bench", "pullup"]);
+    expect(back.exercises[0].group).not.toBeNull();
+    expect(back.exercises[1].group).toBe(back.exercises[0].group);
+  });
+
+  it("undoReplace is a no-op when the fresh exercise is gone", () => {
+    const s = start(squat, bench);
+    const original = s.exercises[0];
+    const gone = reducer(swap(s, original.key, press, "n1"), { type: "removeExercise", key: "n1" });
+    expect(reducer(gone, { type: "undoReplace", newKey: "n1", original })).toBe(gone);
+  });
+
+  it("undoReplace when the original was removed meanwhile inserts it at the fresh position", () => {
+    let s = start(squat, bench);
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[0].key, setKey: s.exercises[0].sets[0].key, now: NOW });
+    const original = s.exercises[0];
+    let swapped = swap(s, original.key, press, "n1");
+    swapped = reducer(swapped, { type: "removeExercise", key: original.key });
+    const back = reducer(swapped, { type: "undoReplace", newKey: "n1", original });
+    expect(ids(back)).toEqual(["squat", "bench"]);
+  });
+
+  it("chained replace A→B→C and undo returns B", () => {
+    const s = start(squat, bench);
+    const b = swap(s, s.exercises[0].key, press, "b");
+    const original = b.exercises[0];
+    const c = swap(b, "b", lunge, "c");
+    const back = reducer(c, { type: "undoReplace", newKey: "c", original });
+    expect(ids(back)).toEqual(["press", "bench"]);
   });
 });
