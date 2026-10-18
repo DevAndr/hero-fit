@@ -80,8 +80,9 @@ model Feedback {
 - Карточка (`article`, имя — «Обращение от <ник>»): ник автора, тип, дата в поясе админа, текст
   (`whitespace-pre-line`), страница, версия, устройство (`userAgent` мелким), `Select`/радио статуса, `Textarea`
   заметки и «Сохранить».
-- `updateFeedbackAction(id, patch)`: `requireAdmin`, `adminPatchSchema`; в транзакции: прочитать прежний статус
-  (`FOR UPDATE` не нужен — `updateMany` с условием), обновить; если `shouldNotify` — `notify(tx, userId,
+- `updateFeedbackAction(id, patch)`: `requireAdmin`, `adminPatchSchema`; в транзакции: прочитать прежний статус, обновить
+  условно `updateMany({ where: { id, status: prev } })` (два админа одновременно не пришлют два уведомления: у
+  второго `count = 0` → «Обращение уже изменили — обновите страницу»); если `shouldNotify` — `notify(tx, userId,
   notificationText(...), { push: true })`. Нет обращения — «Обращение не найдено». `revalidatePath("/", "layout")`.
 - Порядок — новые сверху; до 100 на страницу (больше — «Показаны последние 100»).
 
