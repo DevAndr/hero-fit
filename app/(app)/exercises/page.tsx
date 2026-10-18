@@ -52,6 +52,8 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
 
   const all = await listExercises(user.id, { q: q || undefined, group: group === "favorites" ? undefined : group });
   const exercises = group === "favorites" ? all.filter((e) => e.favorite) : all;
+  // Ключ провайдера ★ — фильтр: при смене чипа страница не размонтируется, а набор должен взяться из нового списка
+  const favoritesKey = `${group ?? ""}|${q}`;
   const sections = group
     ? [{ key: group, title: group === "favorites" ? "Избранное" : MUSCLE_GROUP_LABELS[group], items: exercises }]
     : groupByPrimary(exercises);
@@ -120,7 +122,7 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
           <p className="text-sm text-muted-foreground">Измените запрос или добавьте своё упражнение.</p>
         </div>
       ) : (
-        <FavoritesProvider exercises={all}>
+        <FavoritesProvider key={favoritesKey} exercises={all} refreshAfterSave>
           <div className="space-y-8">
             {sections.map(({ key, title, items }) => (
               <section key={key} className="space-y-3" aria-label={title}>

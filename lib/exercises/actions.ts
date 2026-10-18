@@ -106,6 +106,7 @@ export async function toggleFavoriteAction(exerciseId: string, favorite: boolean
   if (!visible) return { ok: false, error: "Упражнение не найдено" };
   if (favorite) await db.favoriteExercise.createMany({ data: [{ userId: user.id, exerciseId }], skipDuplicates: true });
   else await db.favoriteExercise.deleteMany({ where: { userId: user.id, exerciseId } });
-  revalidatePath("/exercises");
+  // Без revalidatePath: он перерисовал бы и /training посреди тренировки (список прыгнул бы, эффект восстановления
+  // черновика сработал бы заново); /exercises обновляется сам (refreshAfterSave у провайдера)
   return { ok: true };
 }

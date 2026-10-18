@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { Check, GripVertical, Plus } from "lucide-react";
-import { FavoriteButton } from "@/components/exercises/favorites";
+import { FavoriteButton, stop } from "@/components/exercises/favorites";
 import { Button } from "@/components/ui/button";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
@@ -88,6 +88,7 @@ function CatalogItem({
         variant="ghost"
         size="icon-sm"
         aria-label={`Добавить «${exercise.name}»`}
+        onKeyDown={stop}
         onClick={() => onAdd(exercise)}
       >
         <Plus />

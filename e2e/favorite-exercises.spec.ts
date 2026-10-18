@@ -68,3 +68,41 @@ test("star is shared between lists on the page", async ({ page }) => {
   await dialog.getByRole("button", { name: "Другое упражнение…" }).click();
   await expect(dialog.getByRole("button", { name: `Убрать из избранного: ${PRESS}` })).toBeVisible();
 });
+
+test("a star in the workout does not reorder the list until the next load", async ({ page }) => {
+  test.skip(!desktop(page), "каталог — только на ПК");
+  await registerUser(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  const catalog = page.getByRole("complementary", { name: "Каталог упражнений" });
+  const first = () => catalog.getByTestId("catalog-item").first().locator("span.font-medium").textContent();
+  const before = await first();
+  expect(before).not.toBe(PRESS);
+  const saved = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/training"));
+  await catalog.getByRole("button", { name: `В избранное: ${PRESS}` }).click();
+  await saved;
+  await page.waitForTimeout(500);
+  expect(await first()).toBe(before);
+});
+
+test("keyboard: Enter on a star in the desktop catalog toggles it, not a drag", async ({ page }) => {
+  test.skip(!desktop(page), "каталог — только на ПК");
+  await registerUser(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  const catalog = page.getByRole("complementary", { name: "Каталог упражнений" });
+  await catalog.getByRole("button", { name: `В избранное: ${PRESS}` }).focus();
+  await page.keyboard.press("Enter");
+  await expect(catalog.getByRole("button", { name: `Убрать из избранного: ${PRESS}` })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("/exercises: switching filter chips keeps stars in sync", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: `В избранное: ${PRESS}` }).click();
+  await expect(page.getByRole("region", { name: "Избранное" })).toContainText(PRESS);
+  await page.goto("/exercises?group=CHEST");
+  await page.getByRole("link", { name: "Все", exact: true }).click();
+  await expect(page).toHaveURL(/\/exercises$/);
+  await expect(page.getByRole("region", { name: "Избранное" }).getByRole("button", { name: new RegExp(`избранного: ${PRESS}|избранное: ${PRESS}`) })).toHaveAttribute("aria-pressed", "true");
+});

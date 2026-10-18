@@ -14,7 +14,7 @@
 
 ## Действие
 
-`toggleFavoriteAction(exerciseId: string, favorite: boolean): Promise<{ ok: true } | { ok: false; error: string }>` (`lib/exercises/actions.ts`): `requireUser`; упражнение должно быть видимым пользователю (`visibleExercisesWhere`), иначе `{ ok: false, error: "Упражнение не найдено" }`; `favorite` → `upsert`/`createMany skipDuplicates`, иначе `deleteMany`; идемпотентно; `revalidatePath("/exercises")`.
+`toggleFavoriteAction(exerciseId: string, favorite: boolean): Promise<{ ok: true } | { ok: false; error: string }>` (`lib/exercises/actions.ts`): `requireUser`; упражнение должно быть видимым пользователю (`visibleExercisesWhere`), иначе `{ ok: false, error: "Упражнение не найдено" }`; `favorite` → `upsert`/`createMany skipDuplicates`, иначе `deleteMany`; идемпотентно; без `revalidatePath` (в Next 16 он перерисовал бы текущую страницу — `/training` посреди тренировки); `/exercises` обновляется `router.refresh()` провайдера (`refreshAfterSave`), провайдер там с `key` по фильтру.
 
 ## Интерфейс
 
