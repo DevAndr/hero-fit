@@ -6,6 +6,8 @@ import {
   alertDismissalCount,
   createAlert,
   dismissAlertFor,
+  feedbackRows,
+  seedFeedback,
   coachRecapCounts,
   linkCoach,
   mondayWeeksAgo,
@@ -458,3 +460,20 @@ test("alert dismissal does not block deletion", async ({ page }) => {
   expect(await userExists(me.login)).toBe(false);
   expect(await alertDismissalCount(alert)).toBe(0);
 });
+
+test("feedback: export lists it without the admin note; deletion removes it", async ({ page }) => {
+  const me = await registerUser(page);
+  const body = `Экспорт обращения ${randomUUID().slice(0, 6)}`;
+  await seedFeedback(me.login, 1, { body, adminNote: "секретная_заметка" });
+  await page.goto("/settings");
+  const block = page.getByRole("region", { name: "Мои данные" });
+  const [json] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const text = await readFile((await json.path())!, "utf8");
+  expect(JSON.parse(text).feedback).toEqual([{ kind: "IDEA", body, status: "NEW", page: null, createdAt: expect.any(String) }]);
+  expect(text).not.toContain("секретная_заметка");
+
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await feedbackRows(body)).toHaveLength(0);
+});
+

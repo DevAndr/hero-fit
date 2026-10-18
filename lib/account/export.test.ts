@@ -63,6 +63,9 @@ const raw = (): ExportRaw => ({
   kudosGiven: [{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша", id: "k_secret" }],
   kudosReceived: [{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя", id: "k_secret2" }],
   favoriteExercises: [{ exercise: "Присед", createdAt: new Date("2026-10-14T10:00:00Z"), exerciseId: "e_secret", userId: "u_secret" }],
+  feedback: [
+    { kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z"), id: "fb_secret", adminNote: "заметка_админа", userAgent: "UA_secret" },
+  ],
   programs: [
     {
       name: "Сила",
@@ -164,6 +167,15 @@ describe("export — favorite exercises", () => {
     expect(EXPORT_SECTIONS).toContain("favoriteExercises");
     expect(o.favoriteExercises).toEqual([{ exercise: "Присед", createdAt: new Date("2026-10-14T10:00:00Z") }]);
     expect(JSON.stringify(o.favoriteExercises)).not.toMatch(/e_secret|u_secret/);
+  });
+});
+
+describe("export — feedback", () => {
+  it("обращения — тип, текст, статус, страница, дата; без заметки админа, браузера и id", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("feedback");
+    expect(o.feedback).toEqual([{ kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z") }]);
+    expect(JSON.stringify(o)).not.toMatch(/fb_secret|заметка_админа|UA_secret/);
   });
 });
 
