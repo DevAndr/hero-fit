@@ -77,8 +77,8 @@ model SystemAlertDismissal {
 загрузке (осознанно: без опроса сервера).
 
 - **Строка** (`AlertBanner`): полоса на всю ширину, цвет и иконка Lucide по тону (`Info`, `TriangleAlert`,
-  `OctagonAlert`), только семантические токены (`primary`/`warning`-подобные из `app/globals.css`; при отсутствии
-  нужного — добавить токен для обеих тем). Короткий текст стоит. Длинный (проверка `scrollWidth > clientWidth` через
+  `OctagonAlert`), только семантические токены: `INFO` — `primary`, `CRITICAL` — `destructive`, `WARNING` — новый
+  токен `warning`/`warning-foreground` в `app/globals.css` для обеих тем (янтарный, контраст текста ≥ 4.5:1). Короткий текст стоит. Длинный (проверка `scrollWidth > clientWidth` через
   `ResizeObserver`) медленно прокручивается CSS-анимацией, которая ставится только пока текст не влезает; пауза при
   наведении и фокусе. При `prefers-reduced-motion: reduce` — без анимации: многоточие, нажатие раскрывает текст
   целиком в несколько строк. Кнопка-ссылка справа; крестик — если `dismiss != NEVER`. Стопка до 3 строк.
