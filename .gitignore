@@ -51,3 +51,6 @@ next-env.d.ts
 /playwright/.cache/
 /e2e/.certs/
 .idea/
+
+# рабочие файлы агентов: журналы прогонов, черновики описаний MR, журналы планов
+/.superpowers/
