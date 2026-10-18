@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, LibraryBig, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users, Bug, Megaphone } from "lucide-react";
+import { Activity, Building2, LibraryBig, ChartColumn, ClipboardCheck, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users, Bug, Megaphone, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -128,6 +128,10 @@ export function UserMenu({
             {pendingClubs > 0 ? <span className="ml-auto rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">{pendingClubs}</span> : null}
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem render={<Link href={`/feedback?from=${encodeURIComponent(pathname)}`} />}>
+          <MessageSquare />
+          Обратная связь
+        </DropdownMenuItem>
         {/* Без prefetch={true}: открытие страницы помечает релиз просмотренным */}
         <DropdownMenuItem render={<Link href="/whats-new" />} onClick={() => setOpened(true)}>
           <Sparkles />

@@ -5,6 +5,8 @@ export type FeedbackStatus = "NEW" | "IN_PROGRESS" | "DONE" | "REJECTED";
 
 /** Обращений за скользящие сутки на пользователя. */
 export const FEEDBACK_DAILY_MAX = 5;
+/** Сообщений админам в Telegram о новых обращениях за час, не больше. */
+export const FEEDBACK_ALERTS_HOURLY = 20;
 
 export const KIND_LABEL: Record<FeedbackKind, string> = { BUG: "Ошибка", IDEA: "Идея", OTHER: "Другое" };
 export const STATUS_LABEL: Record<FeedbackStatus, string> = { NEW: "Новое", IN_PROGRESS: "В работе", DONE: "Сделано", REJECTED: "Отклонено" };
