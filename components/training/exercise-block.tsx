@@ -2,7 +2,7 @@
 
 import { SupersetLabel } from "@/components/training/superset-frame";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
-import { Fragment, useEffect, useState, type Dispatch, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type Dispatch, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,8 +149,11 @@ export function ExerciseBlock({
   useEffect(() => preloadLottie("success"), []);
 
   const [swapOpen, setSwapOpen] = useState(false);
+  const swappedTo = useRef<string | null>(null);
+  const freshHeading = (key: string) => document.querySelector<HTMLElement>(`[data-exercise-key="${key}"] h3`);
   const replaceWith = (target: ExerciseItem) => {
     const newKey = exerciseKey();
+    swappedTo.current = newKey;
     const original = item;
     setSwapOpen(false);
     dispatch({
@@ -161,9 +164,11 @@ export function ExerciseBlock({
       last: swap?.last ?? {},
       newKey,
     });
-    toast(`Заменено: ${target.name}`, { action: { label: "Вернуть", onClick: () => dispatch({ type: "undoReplace", newKey, original }) } });
-    // Фокус — на новое упражнение (на месте прежнего или следом), когда оно появится
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-exercise-key="${newKey}"] h3`)?.focus());
+    // Один тост на все замены: «Вернуть» прошлой замены после следующей уже не сработало бы
+    toast(`Заменено: ${target.name}`, { id: "exercise-swap", action: { label: "Вернуть", onClick: () => dispatch({ type: "undoReplace", newKey, original }) } });
+    // Фокус — на новое упражнение. Замена на месте: блок с диалогом размонтирован — фокус вручную;
+    // новое следом за начатым: диалог при закрытии вернёт фокус сам (finalFocus)
+    requestAnimationFrame(() => freshHeading(newKey)?.focus());
   };
 
   if (collapsed && onToggleCollapsed) return <CollapsedExercise item={item} handle={handle} onToggle={onToggleCollapsed} groupLabel={groupLabel} />;
@@ -265,6 +270,11 @@ export function ExerciseBlock({
             item={item}
             source={swap}
             onReplace={replaceWith}
+            finalFocus={() => {
+              const key = swappedTo.current;
+              swappedTo.current = null;
+              return (key && freshHeading(key)) || true;
+            }}
             onSkip={() => {
               setSwapOpen(false);
               dispatch({ type: "skipPending", key: item.key });

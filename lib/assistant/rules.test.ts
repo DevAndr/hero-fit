@@ -179,6 +179,9 @@ describe("lastResultText", () => {
   it("своим весом — без «0 кг»", () => {
     expect(lastResultText({ isBodyweight: true }, sets(3, 0, 12))).toBe("в прошлый раз 3 × 12");
   });
+  it("своим весом с отягощением — «+10 кг»", () => {
+    expect(lastResultText({ isBodyweight: true }, sets(3, 10, 8))).toBe("в прошлый раз 3 × 8 · +10 кг");
+  });
   it("на время — по первому подходу", () => {
     const last = { date: "2026-10-01", sets: [{ weight: 0, reps: 0, durationSec: 60 }] };
     expect(lastResultText({ isBodyweight: true, kind: "TIME" }, last)).toBe(`в прошлый раз ${timedSetText("TIME", { durationSec: 60 })}`);

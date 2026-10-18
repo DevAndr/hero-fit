@@ -34,6 +34,7 @@ export function ExerciseSwapDialog({
   source,
   onReplace,
   onSkip,
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,6 +42,8 @@ export function ExerciseSwapDialog({
   source: SwapSource;
   onReplace: (target: ExerciseItem) => void;
   onSkip: () => void;
+  /** Куда вернуть фокус при закрытии (после замены — на новое упражнение); по умолчанию — на кнопку меню. */
+  finalFocus?: () => HTMLElement | true;
 }) {
   const [browsing, setBrowsing] = useState(false);
   const started = item.sets.some((s) => s.completedAt);
@@ -51,7 +54,7 @@ export function ExerciseSwapDialog({
 
   return (
     <Dialog open={open} onOpenChange={change}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg" finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>Заменить: {item.exercise.name}</DialogTitle>
           <DialogDescription>Тренажёр занят? Похожие упражнения</DialogDescription>

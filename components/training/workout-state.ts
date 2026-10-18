@@ -1,6 +1,6 @@
 import type { ActiveWorkout, ExerciseInfo, LastPerformance } from "@/lib/workouts/queries";
 import type { WorkoutDraft } from "@/lib/workouts/schema";
-import { afterSet, link, normalizeGroups, unlink } from "@/lib/workouts/supersets";
+import { afterSet, groupSize, link, MAX_GROUP, normalizeGroups, unlink } from "@/lib/workouts/supersets";
 import { formatClock, isTimed, parseClock, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 /** Вес и повторы — строки: пользователь может временно стереть поле или ввести «82,5». */
@@ -313,11 +313,20 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       const at = state.exercises.findIndex((e) => e.key === action.key);
       if (at < 0) return state;
       const started = state.exercises[at].sets.some((s) => s.completedAt);
-      // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения
+      // Замена остаётся в том же суперсете — и на месте, и сразу после начатого упражнения;
+      // полный круг (6) не растёт — новое встаёт сразу после круга, вне его
       const made = newExercise(action.exercise, action.restSec, action.last);
-      const fresh = { ...made, key: action.newKey ?? made.key, group: state.exercises[at].group };
+      const { group } = state.exercises[at];
+      const full = started && group !== null && groupSize(state.exercises, at) >= MAX_GROUP;
+      const fresh = { ...made, key: action.newKey ?? made.key, group: full ? null : group };
       const exercises = [...state.exercises];
-      exercises.splice(started ? at + 1 : at, started ? 0 : 1, fresh);
+      if (!started) exercises.splice(at, 1, fresh);
+      else if (!full) exercises.splice(at + 1, 0, fresh);
+      else {
+        let end = at;
+        while (exercises[end + 1]?.group === group) end++;
+        exercises.splice(end + 1, 0, fresh);
+      }
       return { ...state, exercises };
     }
 
@@ -325,9 +334,13 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       const at = state.exercises.findIndex((e) => e.key === action.newKey);
       if (at < 0) return state;
       const exercises = [...state.exercises];
-      if (exercises.some((e) => e.key === action.original.key)) exercises.splice(at, 1);
+      const fresh = exercises[at];
+      // Сделанные в новом подходы не теряются: оно остаётся с ними, невыполненные убираются
+      const done = fresh.sets.filter((x) => x.completedAt);
+      const kept = done.length ? [{ ...fresh, sets: done }] : [];
+      if (exercises.some((e) => e.key === action.original.key)) exercises.splice(at, 1, ...kept);
       // Номер группы — от нового: пока висел тост, группы могли перенумероваться
-      else exercises.splice(at, 1, { ...action.original, group: exercises[at].group });
+      else exercises.splice(at, 1, { ...action.original, group: fresh.group }, ...kept);
       return { ...state, exercises };
     }
 
