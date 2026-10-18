@@ -35,7 +35,8 @@ export function SystemAlerts({ alerts }: { alerts: AlertView[] }) {
   const dismiss = (a: AlertView) => {
     const next = new Set(hidden).add(a.id);
     setHidden(next);
-    if (a.dismiss === "SESSION") writeSessionHidden(sessionStore(), next);
+    // «Навсегда» — тоже в сессию: перезагрузка сразу после закрытия может оборвать запрос
+    writeSessionHidden(sessionStore(), next);
     if (a.dismiss === "FOREVER") dismissAlertAction(a.id).catch(() => {});
   };
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { alertDismissalCount, clearAlerts, createAlert } from "./db";
+import { alertDismissalCount, clearAlerts, createAlert, makeAdmin } from "./db";
 import { registerUser } from "./helpers";
 
 // Системные оповещения (спека 2026-10-18-system-alerts-design). Живое оповещение видят все —
@@ -104,3 +104,81 @@ test.describe("in the app", () => {
     await expect(banner(page, "Вышел релиз")).toBeHidden();
   });
 });
+
+test.describe("admin page", () => {
+  test("non-admin gets 404", async ({ page }) => {
+    await registerUser(page);
+    const res = await page.goto("/admin/alerts");
+    expect(res?.status()).toBe(404);
+  });
+
+  test("admin schedules a banner, a user dismisses it, admin sees the count and disables it", async ({ page, browser }) => {
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin/alerts");
+    await page.getByRole("button", { name: "Новое оповещение" }).click();
+    const form = page.getByRole("dialog", { name: "Новое оповещение" });
+    await form.getByLabel("Текст").fill("Техработы в 23:00");
+    await form.getByRole("radio", { name: "Важно" }).click();
+    await form.getByRole("radio", { name: "Можно закрыть навсегда" }).click();
+    await expect(form.getByRole("region", { name: "Превью" })).toContainText("Техработы в 23:00");
+    await form.getByRole("button", { name: "Сохранить" }).click();
+    await expect(form).toBeHidden();
+    const live = page.getByRole("region", { name: "Идут сейчас" });
+    await expect(live.getByRole("article", { name: "Техработы в 23:00" })).toBeVisible();
+    await page.reload();
+    await expect(banner(page, "Техработы в 23:00")).toBeVisible();
+
+    const other = await browser.newPage();
+    await registerUser(other);
+    await other.goto("/exercises");
+    await banner(other, "Техработы в 23:00").getByRole("button", { name: "Закрыть оповещение" }).click();
+    await expect(banner(other, "Техработы в 23:00")).toBeHidden();
+
+    const third = await browser.newPage();
+    await registerUser(third);
+    await third.goto("/exercises");
+    await expect(banner(third, "Техработы в 23:00")).toBeVisible();
+
+    await expect(async () => {
+      await page.reload();
+      await expect(live.getByRole("article", { name: "Техработы в 23:00" })).toContainText("Закрыли: 1", { timeout: 1000 });
+    }).toPass();
+    await live.getByRole("article", { name: "Техработы в 23:00" }).getByRole("switch", { name: "Включено" }).click();
+    await expect(page.getByRole("region", { name: "Прошедшие и выключенные" }).getByRole("article", { name: "Техработы в 23:00" })).toBeVisible();
+    await third.reload();
+    await expect(third.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(banner(third, "Техработы в 23:00")).toBeHidden();
+  });
+
+  test("popup form: no «cannot close» option, title required; delete removes the alert", async ({ page }) => {
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin/alerts");
+    await page.getByRole("button", { name: "Новое оповещение" }).click();
+    const form = page.getByRole("dialog", { name: "Новое оповещение" });
+    await expect(form.getByRole("radio", { name: "Нельзя закрыть" })).toBeVisible();
+    await form.getByRole("radio", { name: "Попап" }).click();
+    await expect(form.getByRole("radio", { name: "Нельзя закрыть" })).toHaveCount(0);
+    await form.getByLabel("Текст").fill("Без заголовка");
+    await form.getByRole("button", { name: "Сохранить" }).click();
+    await expect(form.getByRole("alert")).toHaveText("Заголовок обязателен для попапа");
+    await form.getByLabel("Заголовок").fill("Анонс");
+    // Начало — через час: попап не перекроет страницу админа
+    await form.getByLabel("Начало показа").fill(await page.evaluate(() => {
+      const d = new Date(Date.now() + 3600_000);
+      const p = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    }));
+    await form.getByRole("button", { name: "Сохранить" }).click();
+    await expect(form).toBeHidden();
+    const planned = page.getByRole("region", { name: "Запланированы" });
+    const item = planned.getByRole("article", { name: "Анонс" });
+    await expect(item).toBeVisible();
+    await item.getByRole("button", { name: "Удалить" }).click();
+    await page.getByRole("alertdialog", { name: "Удалить оповещение?" }).getByRole("button", { name: "Удалить" }).click();
+    await expect(item).toBeHidden();
+    await expect(planned).toContainText("Нет");
+  });
+});
+
