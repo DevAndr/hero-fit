@@ -9,69 +9,21 @@ import { isEnabled } from "@/lib/flags/server";
 import { rollGoblin } from "@/lib/goblin/queries";
 import { requireUser } from "@/lib/auth/dal";
 import { templateItemsFromWorkout } from "@/lib/templates/from-workout";
-import { getOccurrence } from "@/lib/plans/queries";
-import { recoveryWorkoutName } from "@/lib/progress/recovery-plan";
-import { getRecoveryPlan } from "@/lib/progress/recovery-queries";
-import { templateAccessible } from "@/lib/coach/templates";
-import { getTemplateTargets } from "@/lib/coach/target-queries";
-import { plannedSets, type Target } from "@/lib/coach/targets";
-import { ownTargets } from "@/lib/templates/progression";
-import { getOwnTemplateTargets } from "@/lib/templates/queries";
 import { markOnboarded } from "@/lib/onboarding/complete";
 import { finishWorkout } from "@/lib/workouts/finish";
-import { ACTIVE_STATUSES, getLastPerformance } from "@/lib/workouts/queries";
+import { createPlannedWorkout } from "@/lib/workouts/create";
+import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
 import { skipOccurrence } from "@/lib/plans/mutations";
 import { normalizeGroups } from "@/lib/workouts/supersets";
-import { plannedTimedSets } from "@/lib/workouts/kinds";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-/** `group` — суперсет из шаблона или прошлой тренировки; план календаря — без групп. */
-type PlannedExercise = {
-  exerciseId: string;
-  restSec: number;
-  group?: number | null;
-  sets: { weight: number; reps: number; durationSec?: number | null; distanceM?: number | null }[];
-};
-
 // ───────────────────────────── Старт ─────────────────────────────
 
-/** Упражнения из шаблона (свой, встроенный или назначенный тренером); вес — из цели прогрессии, задания тренера или прошлой тренировки. */
-async function fromTemplate(userId: string, id: string, day?: string): Promise<{ name: string; templateId: string; planned: PlannedExercise[] } | null> {
-  if (!(await templateAccessible(userId, id))) return null;
-  const template = await db.workoutTemplate.findUnique({
-    where: { id },
-    include: {
-      exercises: {
-        orderBy: { order: "asc" },
-        where: { exercise: { archivedAt: null } },
-        include: { exercise: { select: { defaultRestSec: true } } },
-      },
-    },
-  });
-  if (!template) return null;
-  const [last, targets] = await Promise.all([
-    getLastPerformance(userId, template.exercises.map((e) => e.exerciseId)),
-    // Свой шаблон — цели своей прогрессии (копия из каталога с идущей программой — веса недели); шаблон тренера — его задания
-    getTemplateTargets(userId, template.id, day).then((t) => (template.userId === userId && !t.size ? ownTargets(template.exercises) : t)),
-  ]);
-  return {
-    name: template.name,
-    templateId: template.id,
-    // Вес — из задания тренера или прошлой тренировки: пользователю остаётся только подтвердить.
-    planned: template.exercises.map((te) => ({
-      exerciseId: te.exerciseId,
-      restSec: te.restSec ?? te.exercise.defaultRestSec,
-      group: te.supersetGroup,
-      sets: plannedSets(te, last[te.exerciseId]?.sets ?? [], targets.get(te.exerciseId)),
-    })),
-  };
-}
-
 /**
- * source: "empty" | "template:<id>" | "repeat:<workoutId>" | "plan:<ключ вхождения календаря>".
- * Создаёт тренировку в статусе PLANNED — её можно дособрать перед стартом.
+ * source: "empty" | "template:<id>" | "repeat:<workoutId>" | "plan:<ключ вхождения календаря>" | "recovery".
+ * Создаёт тренировку в статусе PLANNED (`createPlannedWorkout`) — её можно дособрать перед стартом.
  */
 export async function createWorkoutAction(formData: FormData) {
   const user = await requireUser();
@@ -83,102 +35,7 @@ export async function createWorkoutAction(formData: FormData) {
   });
   if (active) redirect("/training");
 
-  const source = String(formData.get("source") ?? "empty");
-  const [kind, id] = source.split(":");
-  let name = "Тренировка";
-  let templateId: string | undefined;
-  let planned: PlannedExercise[] = [];
-
-  let planKey: string | undefined;
-
-  if (kind === "template" && id) {
-    const fromTpl = await fromTemplate(user.id, id);
-    if (fromTpl) ({ name, templateId, planned } = fromTpl);
-  } else if (kind === "plan") {
-    // Ключ вхождения сам содержит «:» — берём всё после «plan:»
-    const key = source.slice("plan:".length);
-    const found = await getOccurrence(user.id, key);
-    if (found) {
-      planKey = key;
-      name = found.occurrence.title;
-      // Шаблон удалён или недоступен — пустая тренировка с названием плана
-      // Неделя программы тренера — по дате вхождения
-      const fromTpl = found.occurrence.templateId ? await fromTemplate(user.id, found.occurrence.templateId, found.occurrence.date) : null;
-      if (fromTpl) ({ templateId, planned } = fromTpl);
-    }
-  } else if (kind === "recovery") {
-    const plan = await getRecoveryPlan(user.id);
-    if (plan.exercises.length) {
-      name = recoveryWorkoutName(plan.groups);
-      const last = await getLastPerformance(user.id, plan.exercises.map((e) => e.id));
-      // Подходы, веса и повторы — из прошлого раза; без истории — 3 × 10, вес пустой
-      planned = plan.exercises.map((e) => ({
-        exerciseId: e.id,
-        restSec: e.restSec,
-        sets: last[e.id]?.sets.length ? last[e.id].sets : Array.from({ length: 3 }, () => ({ weight: 0, reps: 10 })),
-      }));
-    }
-  } else if (kind === "repeat" && id) {
-    const previous = await db.workout.findFirst({
-      where: { id, userId: user.id, status: WorkoutStatus.COMPLETED },
-      include: {
-        exercises: {
-          orderBy: { order: "asc" },
-          where: { exercise: { archivedAt: null } },
-          include: { sets: { where: { isWarmup: false }, orderBy: { order: "asc" } } },
-        },
-      },
-    });
-    if (previous) {
-      name = previous.name;
-      templateId = previous.templateId ?? undefined;
-      // Поверх прошлого раза — цели своей прогрессии или задания активного тренера (прогрессия могла сдвинуть вес)
-      const own = templateId ? await getOwnTemplateTargets(user.id, templateId) : new Map<string, Target>();
-      const targets = own.size ? own : templateId ? await getTemplateTargets(user.id, templateId) : new Map<string, Target>();
-      planned = previous.exercises.map((we) => {
-        const sets = we.sets.map((s) => ({ weight: s.weight, reps: s.reps }));
-        const target = targets.get(we.exerciseId);
-        return {
-          exerciseId: we.exerciseId,
-          restSec: we.restSec,
-          group: we.supersetGroup,
-          sets: target ? plannedSets({ targetSets: sets.length, targetReps: null, targetWeight: null }, sets, target) : sets,
-        };
-      });
-    }
-  }
-
-  // На время и кардио: без веса и повторов (их мог дать шаблон, задание тренера или план), время и дистанция — как в прошлый раз
-  const timedIds = new Set(
-    (await db.exercise.findMany({ where: { id: { in: planned.map((e) => e.exerciseId) }, kind: { not: "REPS" } }, select: { id: true } })).map((e) => e.id),
-  );
-  if (timedIds.size) {
-    const lastTimed = await getLastPerformance(user.id, [...timedIds]);
-    planned = planned.map((e) => (timedIds.has(e.exerciseId) ? { ...e, sets: plannedTimedSets(e.sets.length || 1, lastTimed[e.exerciseId]?.sets ?? []) } : e));
-  }
-
-  await db.workout.create({
-    data: {
-      userId: user.id,
-      name,
-      templateId,
-      planKey,
-      status: WorkoutStatus.PLANNED,
-      exercises: {
-        // Архивные упражнения выпали из шаблона/повтора — группы суперсетов пересчитываются
-        create: normalizeGroups(planned.map((e) => ({ ...e, group: e.group ?? null }))).map((e, order) => ({
-          exerciseId: e.exerciseId,
-          order,
-          restSec: e.restSec,
-          supersetGroup: e.group,
-          sets: {
-            create: e.sets.map((s, i) => ({ order: i, weight: s.weight, reps: s.reps, durationSec: s.durationSec ?? null, distanceM: s.distanceM ?? null })),
-          },
-        })),
-      },
-    },
-  });
-
+  await createPlannedWorkout(user.id, String(formData.get("source") ?? "empty"));
   redirect("/training");
 }
 

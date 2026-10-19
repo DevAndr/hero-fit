@@ -156,4 +156,5 @@ docker compose start app
   сервера; проверка: `timeout 6 bash -c '</dev/tcp/smtp.timeweb.ru/465' && echo open`.
 - Яндекс.Метрика: создать счётчик на metrika.yandex.ru, номер — в переменную GitLab `YM_ID` (вшивается при
   сборке; следующий деплой включит счётчик и уведомление о cookies). Цели (тип «JavaScript-событие») — `signup`,
-  `workout_start`, `workout_finish`, `first_workout`. Вебвизор не записывает текст кабинета (`ym-hide-content`).
+  `workout_start`, `workout_finish`, `first_workout`, `program_start` («Начать программу» на `/training-programs`). Вебвизор не записывает текст
+  кабинета (`ym-hide-content`).

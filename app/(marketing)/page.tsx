@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Trophy, Users, X } from "lucide-react";
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
@@ -606,10 +606,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {/* Инструменты */}
       <section aria-labelledby="tools" className="mx-auto w-full max-w-6xl px-4 py-20 sm:py-24">
         <SectionTitle id="tools" eyebrow="Бесплатные инструменты" title="Посчитай прямо сейчас — без регистрации" />
-        <div className="mt-12 grid gap-4 md:grid-cols-2">
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[
             { href: "/tools/1rm", icon: Calculator, title: "Калькулятор 1ПМ", text: "Одноповторный максимум по формуле Эпли и таблица рабочих весов на 1–12 повторений." },
             { href: "/tools/plates", icon: Dumbbell, title: "Калькулятор блинов и разминки", text: "Какие блины вешать на гриф для нужного веса и разминочные подходы к рабочему." },
+            { href: "/tools/dots-wilks", icon: Trophy, title: "Калькулятор DOTS и Wilks", text: "Сравните силу в троеборье с поправкой на вес тела: оба коэффициента и ориентировочный уровень." },
           ].map(({ href, icon: Icon, title, text }) => (
             <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -626,6 +627,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </Link>
           ))}
         </div>
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Не знаете, с чего начать?{" "}
+          <Link href="/training-programs" className="font-medium text-primary underline underline-offset-4 hover:no-underline">
+            Готовые программы тренировок
+          </Link>
+          : Push Pull Legs, Full Body, 5×5, Верх / Низ и план для новичка.
+        </p>
       </section>
 
       {/* Тарифы */}

@@ -1,5 +1,7 @@
 /** SEO: тексты сайта, адреса и правило индексации. Без server-only — чистые функции тестируются отдельно. */
 
+import { BUILTIN_PROGRAMS, type BuiltinProgram } from "@/lib/programs/builtin";
+
 export const SITE_NAME = "Hero Fit";
 export const SITE_TITLE = "Hero Fit — дневник тренировок в игровом стиле";
 export const SITE_DESCRIPTION =
@@ -38,6 +40,9 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
   { path: "/", priority: 1, changeFrequency: "weekly" },
   { path: "/tools/1rm", priority: 0.8, changeFrequency: "monthly" },
   { path: "/tools/plates", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/tools/dots-wilks", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/training-programs", priority: 0.8, changeFrequency: "monthly" },
+  ...BUILTIN_PROGRAMS.map((p) => ({ path: `/training-programs/${p.slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
   { path: "/register", priority: 0.5, changeFrequency: "monthly" },
   { path: "/changelog", priority: 0.5, changeFrequency: "weekly" },
   { path: "/privacy", priority: 0.2, changeFrequency: "monthly" },
@@ -98,6 +103,44 @@ export function toolJsonLd(
   ];
 }
 
+/** Крошки списка программ — один источник для видимой навигации и BreadcrumbList. */
+export const PROGRAMS_CRUMBS = [
+  { href: "/", label: "Hero Fit" },
+  { href: "/training-programs", label: "Программы тренировок" },
+];
+
+/** Крошки страницы программы: последняя — короткое имя программы. */
+export function programCrumbs(p: BuiltinProgram) {
+  return [...PROGRAMS_CRUMBS, { href: `/training-programs/${p.slug}`, label: p.program }];
+}
+
+/** Структурированные данные страницы программы: хлебные крошки, план тренировок и FAQ. */
+export function programJsonLd(origin: string, p: BuiltinProgram): object[] {
+  const crumbs = programCrumbs(p);
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, name: c.label, item: absoluteUrl(origin, c.href) })),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "ExercisePlan",
+      name: p.title,
+      description: p.description,
+      url: absoluteUrl(origin, `/training-programs/${p.slug}`),
+      activityFrequency: p.perWeek,
+      exerciseType: "Силовые тренировки",
+      inLanguage: "ru-RU",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: p.faq.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+    },
+  ];
+}
+
 /** Описание публичной страницы (тренер, клуб) для поисковиков: начало текста до 160 символов по слову, в одну строку. */
 export function shortDescription(about: string, max = 160): string {
   const text = about.replace(/\s+/g, " ").trim();
@@ -138,5 +181,33 @@ export function cityJsonLd(c: { city: string; urls: string[] }) {
     "@type": "ItemList",
     name: `Тренажёрные залы — ${c.city}`,
     itemListElement: c.urls.map((url, i) => ({ "@type": "ListItem", position: i + 1, url })),
+  };
+}
+
+/**
+ * Правила robots.txt для индексируемого сайта. Поисковики сравнивают путь по префиксу, побеждает самое длинное
+ * совпадение: новый публичный путь, начинающийся с закрытого префикса (как /training-programs у /training), нужно
+ * явно открыть в `allow`.
+ */
+export function robotsRules(): { allow: string[]; disallow: string[] } {
+  return {
+    allow: ["/", "/tools/", "/training-programs"],
+    disallow: [
+      "/api/",
+      "/dashboard",
+      "/training",
+      "/training-programs/*/start",
+      "/workouts",
+      "/exercises",
+      "/templates",
+      "/calendar",
+      "/stats",
+      "/achievements",
+      "/friends",
+      "/leaderboard",
+      "/recap",
+      "/settings",
+      "/reset-password",
+    ],
   };
 }
