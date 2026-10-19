@@ -1297,6 +1297,17 @@ export async function resetWhoopSync(login: string): Promise<void> {
   });
 }
 
+/** Отметка последней синхронизации WHOOP (ставится по окончании истории в callback); null — не было или не подключён. */
+export async function whoopLastSyncAt(login: string): Promise<Date | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ v: Date | null }>(
+      `select c."lastSyncAt" at time zone 'UTC' as v from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.v ?? null;
+  });
+}
+
 /** Состарить access-токен WHOOP: следующий запрос приложения пойдёт через refresh. */
 export async function expireWhoopToken(login: string): Promise<void> {
   await withDb(async (db) => {

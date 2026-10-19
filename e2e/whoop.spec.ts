@@ -10,6 +10,7 @@ import {
   resetWhoopSync,
   seedWorkouts,
   setWhoopScopes,
+  whoopLastSyncAt,
   whoopNeedsReauth,
   whoopScopes,
   whoopSleepRow,
@@ -263,6 +264,8 @@ async function connectWith(page: Page, login: string, list: WhoopApiWorkout[]) {
   await connectWhoop(page);
   await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
   await expect.poll(() => whoopWorkoutCount(login)).toBe(list.length);
+  // История (активности и сны) идёт в after() callback и кончается отметкой lastSyncAt — ждём её, иначе она гонится с вебхуками тестов
+  await expect.poll(() => whoopLastSyncAt(login)).not.toBeNull();
   return whoopId;
 }
 
