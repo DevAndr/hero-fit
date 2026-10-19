@@ -6,11 +6,6 @@ const STROKE: Record<RecoveryZone, string> = {
   yellow: "stroke-recovery-yellow",
   red: "stroke-recovery-red",
 };
-const TEXT: Record<RecoveryZone, string> = {
-  green: "text-recovery-green",
-  yellow: "text-recovery-yellow",
-  red: "text-recovery-red",
-};
 
 const WIDTH = 8;
 
@@ -51,7 +46,7 @@ export function RecoveryRing({
           />
         ) : null}
       </svg>
-      <span className={cn("absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums", zone ? TEXT[zone] : "text-muted-foreground", textClassName)}>
+      <span className={cn("absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums", pct === null ? "text-muted-foreground" : "text-foreground", textClassName)}>
         {pct === null ? "—" : `${pct} %`}
       </span>
     </div>

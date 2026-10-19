@@ -1341,6 +1341,13 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
   });
 }
 
+/** Помечает подключение WHOOP как требующее переподключения. */
+export async function setWhoopNeedsReauth(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set "needsReauth" = true from "User" u where u.id = c."userId" and u.login = $1`, [login]);
+  });
+}
+
 /**
  * Снимок «Итогов недели» тренера с одной строкой клиента (минимальные data); возвращает id снимка.
  * Снимок недели уже есть (его мог построить фоновый воркер — в понедельник после 09:00) — перезаписывается

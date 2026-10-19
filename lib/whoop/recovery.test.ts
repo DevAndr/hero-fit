@@ -167,6 +167,10 @@ describe("whoopAdvice", () => {
     expect(a[0]).toMatchObject({ id: "good-day", tone: "good", href: "/training" });
     expect(ids(run({ recoveryPct: 80, performancePct: 92, hrvMs: 55, restingHr: 60 }))).not.toContain("good-day");
   });
+  it("хороший день: при калибровке и без базы не срабатывает", () => {
+    expect(ids(run({ recoveryPct: 80, performancePct: 92, hrvMs: 55, calibrating: true }))).not.toContain("good-day");
+    expect(ids(run({ recoveryPct: 80, performancePct: 92, hrvMs: 55 }, { base: null }))).not.toContain("good-day");
+  });
   it("порядок", () => {
     const a = run({ restingHr: 60, hrvMs: 40, sleepMs: 5 * H, needMs: 8 * H });
     expect(ids(a)).toEqual(["rhr", "hrv", "sleep"]);

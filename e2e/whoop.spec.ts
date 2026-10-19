@@ -1,21 +1,24 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { APIRequestContext } from "@playwright/test";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
   coachAssignOnce,
   coachTarget,
   coachTemplate,
+  createTelegramUser,
   createUserRow,
   enableCoach,
   expireWhoopToken,
+  insertWhoopConnection,
   insertWhoopSleep,
   latestWorkout,
   linkCoach,
   resetWhoopSync,
   seedWorkouts,
   setTimeZone,
+  setWhoopNeedsReauth,
   setWhoopScopes,
   whoopLastSyncAt,
   whoopNeedsReauth,
@@ -26,6 +29,7 @@ import {
   whoopWorkoutCount,
 } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
+import { mockTelegram } from "./telegram-webapp";
 import { E2E_TZ_OFFSET } from "./tz";
 import { WHOOP_FAKE_URL } from "./whoop-server";
 
@@ -916,4 +920,61 @@ test("согласие при подключении называет сон, в
   await page.goto("/devices");
   await page.getByRole("button", { name: "Подключить WHOOP" }).click();
   await expect(page.getByRole("dialog")).toContainText("вариабельность пульса (HRV)");
+});
+
+/** Пользователь Mini App (создан по Telegram id) с флагом whoop и старым подключением; вход — через /tg, сессия embedded. */
+async function miniAppUser(browser: Browser, opts: { reauth?: boolean } = {}) {
+  const id = String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+  const login = await createTelegramUser(id);
+  await addFlagUser("whoop", login);
+  await insertWhoopConnection(login, "read:workout read:profile offline");
+  if (opts.reauth) await setWhoopNeedsReauth(login);
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await mockTelegram(page, { id, firstName: "Маша" });
+  await page.goto("/tg");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  return { ctx, page };
+}
+
+test("Mini App: старое подключение — на дашборде и /devices нет кнопок «Разрешить», есть подсказка про браузер", async ({ browser }) => {
+  const { ctx, page: tg } = await miniAppUser(browser);
+  try {
+    await expect(recoveryCard(tg)).toContainText("WHOOP может показывать сон и восстановление");
+    await expect(recoveryCard(tg)).toContainText("Подключение WHOOP доступно в браузере");
+    await expect(recoveryCard(tg).getByRole("button", { name: "Разрешить" })).toHaveCount(0);
+
+    await tg.goto("/devices");
+    await expect(card(tg)).toContainText("Передаются: тренировки, пульс");
+    await expect(card(tg).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("Mini App: needsReauth — на /devices нет «Разрешить сон и восстановление»", async ({ browser }) => {
+  const { ctx, page: tg } = await miniAppUser(browser, { reauth: true });
+  try {
+    await tg.goto("/devices");
+    await expect(card(tg)).toContainText("Подключение WHOOP доступно в браузере");
+    await expect(card(tg).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+    await expect(card(tg).getByRole("button", { name: "Переподключить WHOOP" })).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("вебхук recovery.updated: sleep_id в ответе отличается от id события — пишем в строку из ответа", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const eventSleep = randomUUID();
+  const otherSleep = await insertWhoopSleep(login, { end: new Date(Date.now() - 20 * H), recoveryPct: null });
+  await putSleeps(whoopId, {
+    sleeps: [whoopSleepApi(eventSleep, whoopId + 7, new Date(Date.now() - 2 * H))],
+    recoveries: [whoopRecoveryApi(otherSleep, whoopId + 7, 61)],
+  });
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: eventSleep, type: "recovery.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(2);
+  await expect.poll(async () => (await whoopSleepRow(login, otherSleep))?.recoveryPct).toBe(61);
+  expect((await whoopSleepRow(login, eventSleep))?.recoveryPct ?? null).toBeNull();
 });

@@ -117,13 +117,13 @@ export async function getWhoopRecovery(
   ]);
   if (!conn) return null;
   if (conn.needsReauth) return { state: "reauth" };
-  if (!hasScope(conn.scopes, "read:recovery")) return { state: "no-access" };
+  if (!hasScope(conn.scopes, "read:recovery") || !hasScope(conn.scopes, "read:sleep")) return { state: "no-access" };
 
   const today = todaySleep(nights as SleepNight[], now, timeZone);
   const yesterday = yesterdaySleep(nights as SleepNight[], now, timeZone);
   if (!today) return { state: "empty", yesterdayPct: yesterday?.recoveryPct ?? null };
 
-  const pending = today.recoveryScoreState !== "SCORED";
+  const pending = today.recoveryScoreState !== "SCORED" || today.recoveryPct === null;
   const recoveryPct = pending ? null : today.recoveryPct;
   return {
     state: "data",

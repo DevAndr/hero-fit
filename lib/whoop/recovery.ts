@@ -150,7 +150,7 @@ export function whoopAdvice(input: {
     out.length === 0 &&
     zone === "green" &&
     (today.performancePct ?? 0) >= 90 &&
-    base !== null &&
+    useBase &&
     today.hrvMs !== null &&
     today.hrvMs > base.hrvMs
   ) {

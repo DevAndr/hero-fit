@@ -272,7 +272,7 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      {whoopRecovery ? <WhoopRecoveryCard view={whoopRecovery} /> : null}
+      {whoopRecovery ? <WhoopRecoveryCard view={whoopRecovery} embedded={user.embedded} /> : null}
       <BodyMap recovery={recovery} balance={balance} />
 
       <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">

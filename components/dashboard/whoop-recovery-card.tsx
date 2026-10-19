@@ -18,7 +18,7 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Watch; label: string;
 }
 
 /** Карточка «Восстановление · WHOOP» перед картой мышц; `view` приходит только при подключённом WHOOP и флаге. */
-export function WhoopRecoveryCard({ view }: { view: WhoopRecoveryView }) {
+export function WhoopRecoveryCard({ view, embedded = false }: { view: WhoopRecoveryView; embedded?: boolean }) {
   return (
     <section aria-label="Восстановление WHOOP" className="space-y-3 rounded-xl border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
@@ -32,7 +32,7 @@ export function WhoopRecoveryCard({ view }: { view: WhoopRecoveryView }) {
       {view.state === "no-access" ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">WHOOP может показывать сон и восстановление — разрешите доступ</p>
-          <AllowRecoveryButton />
+          {embedded ? <p className="w-full text-sm font-medium">Подключение WHOOP доступно в браузере</p> : <AllowRecoveryButton />}
         </div>
       ) : null}
 

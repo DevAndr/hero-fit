@@ -53,7 +53,7 @@ export async function syncSleepRange(userId: string, from: Date, to: Date): Prom
   let nextToken: string | null | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
     const data: Page<WhoopApiSleep> | null = await whoopGet<Page<WhoopApiSleep>>(userId, "/v2/activity/sleep", nextToken ? { ...range, nextToken } : range);
-    if (!data) return;
+    if (!data) break; // 404 на списке снов — к восстановлениям
     for (const s of Array.isArray(data.records) ? data.records : []) await upsertSleep(userId, whoopUserId, s);
     nextToken = typeof data.next_token === "string" ? data.next_token : null;
     if (!nextToken) break;
@@ -105,7 +105,7 @@ export async function syncRecoveryOne(userId: string, whoopUserId: string, sleep
     return;
   }
   const row = toWhoopRecovery(r);
-  if (row) await applyRecovery(userId, whoopUserId, { ...row, sleepId });
+  if (row) await applyRecovery(userId, whoopUserId, row); // по sleep_id из ответа, не из события
 }
 
 /** Удаление сна (вебхук `sleep.deleted`). */
