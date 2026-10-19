@@ -139,7 +139,11 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
           <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор блинов и разминки
           </Link>{" "}
-          подскажет, что повесить на гриф.
+          подскажет, что повесить на гриф. А{" "}
+          <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
+            калькулятор DOTS и Wilks
+          </Link>{" "}
+          сравнит вашу силу с поправкой на вес тела.
         </p>
       </section>
 

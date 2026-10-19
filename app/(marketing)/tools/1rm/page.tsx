@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
 import { env } from "@/lib/env";
@@ -75,6 +76,14 @@ export default function OneRmPage() {
           </div>
         ))}
       </article>
+
+      <p className="text-sm text-muted-foreground">
+        Знаете максимум в приседе, жиме и тяге?{" "}
+        <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
+          Посчитайте DOTS и Wilks
+        </Link>
+        .
+      </p>
 
       <ToolCta text="В Hero Fit расчётный 1ПМ, рекорды по весу и повторам считаются после каждой тренировки, а график показывает, как растёт сила." />
     </div>

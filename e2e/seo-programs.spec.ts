@@ -88,3 +88,43 @@ test("старт неизвестной программы — 404", async ({ pa
   const res = await page.goto("/training-programs/nope/start");
   expect(res?.status()).toBe(404);
 });
+
+test("калькулятор DOTS/Wilks без входа: мета, расчёт по трём лифтам и по сумме", async ({ page }) => {
+  await page.goto("/tools/dots-wilks");
+  await expect(page).toHaveURL(/\/tools\/dots-wilks$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Калькулятор DOTS и Wilks");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/tools\/dots-wilks$/);
+
+  const calc = page.getByRole("region", { name: "Калькулятор DOTS и Wilks" });
+  const result = calc.getByTestId("strength-result");
+  await expect(result).toHaveCount(0);
+  await calc.getByRole("radio", { name: "Мужчина" }).check({ force: true });
+  await calc.getByLabel("Вес тела, кг").fill("100");
+  await calc.getByLabel("Присед, кг").fill("220");
+  await calc.getByLabel("Жим лёжа, кг").fill("150");
+  await calc.getByLabel("Становая, кг").fill("230");
+  await expect(result).toContainText("Сумма 600 кг");
+  await expect(result).toContainText("DOTS 369,31");
+  await expect(result).toContainText("Wilks 365,15");
+  await expect(result).toContainText("Продвинутый");
+  await expect(result).toContainText("Шкала уровней ориентировочная");
+
+  await calc.getByRole("radio", { name: "Женщина" }).check({ force: true });
+  await calc.getByRole("switch", { name: "Только сумма" }).click();
+  await calc.getByLabel("Вес тела, кг").fill("70");
+  await calc.getByLabel("Сумма, кг").fill("400");
+  await expect(result).toContainText("DOTS 404,50");
+  await expect(result).toContainText("Мастер");
+
+  const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+  expect(blocks.join("")).toContain("BreadcrumbList");
+});
+
+test("sitemap и перекрёстные ссылки ведут на калькулятор DOTS/Wilks", async ({ page, request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  expect(sitemap).toContain("/tools/dots-wilks</loc>");
+  await page.goto("/tools/1rm");
+  await expect(page.locator('main a[href="/tools/dots-wilks"]').first()).toBeVisible();
+  await page.goto("/training-programs");
+  await expect(page.locator('main a[href="/tools/dots-wilks"]')).toBeVisible();
+});

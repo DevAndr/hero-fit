@@ -60,6 +60,10 @@ export default function ProgramsPage() {
           <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор блинов и разминки
           </Link>
+          , а свою силу с поправкой на вес тела оценит{" "}
+          <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
+            калькулятор DOTS и Wilks
+          </Link>
           .
         </p>
       </section>
