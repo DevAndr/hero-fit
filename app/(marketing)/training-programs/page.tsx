@@ -4,7 +4,7 @@ import { ProgramCard } from "@/components/marketing/program-card";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { env } from "@/lib/env";
 import { BUILTIN_PROGRAMS } from "@/lib/programs/builtin";
-import { absoluteUrl, jsonLd } from "@/lib/seo";
+import { PROGRAMS_CRUMBS as CRUMBS, absoluteUrl, jsonLd } from "@/lib/seo";
 
 const TITLE = "Программы тренировок в зал: готовые планы на неделю";
 const DESCRIPTION =
@@ -18,11 +18,6 @@ export const metadata: Metadata = {
   openGraph: { title: TITLE, description: DESCRIPTION, url: "/training-programs" },
 };
 
-const CRUMBS = [
-  { href: "/", label: "Hero Fit" },
-  { href: "/training-programs", label: "Программы тренировок" },
-];
-
 export default function ProgramsPage() {
   const data = [
     {
@@ -34,7 +29,7 @@ export default function ProgramsPage() {
       "@context": "https://schema.org",
       "@type": "ItemList",
       name: "Программы тренировок в зал",
-      itemListElement: BUILTIN_PROGRAMS.map((p, i) => ({ "@type": "ListItem", position: i + 1, name: p.title, url: absoluteUrl(env.APP_URL, `/training-programs/${p.slug}`) })),
+      itemListElement: BUILTIN_PROGRAMS.map((p, i) => ({ "@type": "ListItem", position: i + 1, name: p.program, url: absoluteUrl(env.APP_URL, `/training-programs/${p.slug}`) })),
     },
   ];
   return (
@@ -58,11 +53,11 @@ export default function ProgramsPage() {
         <h2 className="font-display text-2xl font-bold text-foreground">Калькуляторы</h2>
         <p>
           Подобрать рабочий вес поможет{" "}
-          <Link href="/tools/1rm" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/tools/1rm" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор 1ПМ
           </Link>
           , а повесить нужные блины и разогреться перед подходом —{" "}
-          <Link href="/tools/plates" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор блинов и разминки
           </Link>
           .

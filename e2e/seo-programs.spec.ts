@@ -19,6 +19,11 @@ test("страница программы 5×5: мета, JSON-LD, таблиц�
   });
   expect(types).toContain("ExercisePlan");
 
+  await expect(page).toHaveTitle("Программа 5×5 для силы: присед, жим, тяга — 3 раза в неделю");
+  const crumbList = JSON.parse(blocks.find((b) => b.includes("BreadcrumbList"))!) as { itemListElement: { name: string }[] }[] | { itemListElement: { name: string }[] };
+  const items = (Array.isArray(crumbList) ? crumbList.find((d) => d.itemListElement) : crumbList)!.itemListElement;
+  await expect(page.getByRole("navigation", { name: "Хлебные крошки" }).locator('[aria-current="page"]')).toHaveText(items.at(-1)!.name);
+
   const table = page.getByRole("table").first();
   await expect(table.getByText("Приседания со штангой")).toBeVisible();
   await expect(table.getByText("5 × 5").first()).toBeVisible();

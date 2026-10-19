@@ -102,13 +102,20 @@ export function toolJsonLd(
   ];
 }
 
+/** Крошки списка программ — один источник для видимой навигации и BreadcrumbList. */
+export const PROGRAMS_CRUMBS = [
+  { href: "/", label: "Hero Fit" },
+  { href: "/training-programs", label: "Программы тренировок" },
+];
+
+/** Крошки страницы программы: последняя — короткое имя программы. */
+export function programCrumbs(p: BuiltinProgram) {
+  return [...PROGRAMS_CRUMBS, { href: `/training-programs/${p.slug}`, label: p.program }];
+}
+
 /** Структурированные данные страницы программы: хлебные крошки, план тренировок и FAQ. */
 export function programJsonLd(origin: string, p: BuiltinProgram): object[] {
-  const crumbs = [
-    { href: "/", label: "Hero Fit" },
-    { href: "/training-programs", label: "Программы тренировок" },
-    { href: `/training-programs/${p.slug}`, label: p.title },
-  ];
+  const crumbs = programCrumbs(p);
   return [
     {
       "@context": "https://schema.org",

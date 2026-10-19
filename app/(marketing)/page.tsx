@@ -628,7 +628,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </div>
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Не знаете, с чего начать?{" "}
-          <Link href="/training-programs" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link href="/training-programs" className="font-medium text-primary underline underline-offset-4 hover:no-underline">
             Готовые программы тренировок
           </Link>
           : Push Pull Legs, Full Body, 5×5, Верх / Низ и план для новичка.

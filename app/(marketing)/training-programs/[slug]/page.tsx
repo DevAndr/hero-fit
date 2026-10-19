@@ -6,7 +6,7 @@ import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { buttonVariants } from "@/components/ui/button";
 import { env } from "@/lib/env";
 import { BUILTIN_PROGRAMS, programBySlug } from "@/lib/programs/builtin";
-import { jsonLd, programJsonLd } from "@/lib/seo";
+import { jsonLd, programCrumbs, programJsonLd } from "@/lib/seo";
 
 export const dynamicParams = false;
 
@@ -29,11 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProgramPage({ params }: { params: Promise<{ slug: string }> }) {
   const p = programBySlug((await params).slug);
   if (!p) notFound();
-  const crumbs = [
-    { href: "/", label: "Hero Fit" },
-    { href: "/training-programs", label: "Программы тренировок" },
-    { href: `/training-programs/${p.slug}`, label: p.program },
-  ];
+  const crumbs = programCrumbs(p);
   // Обычная ссылка, не Link: обработчик /start не должен префетчиться
   const start = (
     <a href={`/training-programs/${p.slug}/start`} className={buttonVariants({ size: "lg" })}>
@@ -136,11 +132,11 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
       <section className="space-y-2 text-muted-foreground">
         <h2 className="font-display text-2xl font-bold text-foreground">Калькуляторы</h2>
         <p>
-          <Link href="/tools/1rm" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/tools/1rm" className="text-primary underline underline-offset-4 hover:no-underline">
             Калькулятор 1ПМ
           </Link>{" "}
           поможет выбрать рабочий вес, а{" "}
-          <Link href="/tools/plates" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор блинов и разминки
           </Link>{" "}
           подскажет, что повесить на гриф.
