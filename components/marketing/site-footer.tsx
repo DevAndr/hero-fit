@@ -19,6 +19,7 @@ const COLUMNS: { title: string; links: { href: string; label: string; clubs?: tr
     links: [
       { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
       { href: "/tools/plates", label: "Калькулятор блинов и разминки" },
+      { href: "/training-programs", label: "Программы тренировок" },
     ],
   },
   {
