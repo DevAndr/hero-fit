@@ -14,6 +14,7 @@ import { addDays } from "../lib/plans/expand";
 import { MIN_HP, SET_DAMAGE } from "../lib/boss/damage";
 import { clubKey } from "../lib/club/rules";
 import { slugify } from "../lib/club/public";
+import { seedDays } from "../lib/programs/builtin";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -79,86 +80,6 @@ const EXERCISES: SeedExercise[] = [
   { name: "Скакалка", muscleGroups: ["CALVES"], restSec: 120, bodyweight: true, kind: "CARDIO" },
 ];
 
-type SeedTemplate = {
-  name: string;
-  program: string;
-  description: string;
-  exercises: [name: string, sets: number, reps: number][];
-};
-
-const PROGRAMS: SeedTemplate[] = [
-  {
-    name: "Push",
-    program: "Push / Pull / Legs",
-    description: "Жимовые движения: грудь, плечи, трицепс",
-    exercises: [
-      ["Жим штанги лёжа", 4, 8],
-      ["Жим гантелей на наклонной скамье", 3, 10],
-      ["Жим штанги стоя", 3, 8],
-      ["Махи гантелями в стороны", 3, 15],
-      ["Разгибание рук на блоке", 3, 12],
-    ],
-  },
-  {
-    name: "Pull",
-    program: "Push / Pull / Legs",
-    description: "Тяговые движения: спина, бицепс, трапеция",
-    exercises: [
-      ["Становая тяга", 3, 5],
-      ["Подтягивания", 4, 8],
-      ["Тяга штанги в наклоне", 3, 10],
-      ["Тяга к лицу", 3, 15],
-      ["Подъём штанги на бицепс", 3, 12],
-      ["Шраги со штангой", 3, 12],
-    ],
-  },
-  {
-    name: "Legs",
-    program: "Push / Pull / Legs",
-    description: "Ноги, икры, пресс",
-    exercises: [
-      ["Приседания со штангой", 4, 8],
-      ["Румынская тяга", 3, 10],
-      ["Жим ногами", 3, 12],
-      ["Выпады с гантелями", 3, 10],
-      ["Подъём на носки стоя", 4, 15],
-      ["Подъём ног в висе", 3, 12],
-    ],
-  },
-  {
-    name: "Full Body",
-    program: "Full Body",
-    description: "Все основные группы мышц за одну тренировку",
-    exercises: [
-      ["Приседания со штангой", 3, 8],
-      ["Жим штанги лёжа", 3, 8],
-      ["Тяга штанги в наклоне", 3, 8],
-      ["Жим штанги стоя", 3, 10],
-      ["Скручивания", 3, 15],
-    ],
-  },
-  {
-    name: "5×5 — день A",
-    program: "5×5",
-    description: "Силовая программа: присед, жим лёжа, тяга в наклоне",
-    exercises: [
-      ["Приседания со штангой", 5, 5],
-      ["Жим штанги лёжа", 5, 5],
-      ["Тяга штанги в наклоне", 5, 5],
-    ],
-  },
-  {
-    name: "5×5 — день B",
-    program: "5×5",
-    description: "Силовая программа: присед, жим стоя, становая",
-    exercises: [
-      ["Приседания со штангой", 5, 5],
-      ["Жим штанги стоя", 5, 5],
-      ["Становая тяга", 1, 5],
-    ],
-  },
-];
-
 // Встроенные записи имеют userId = null; в Postgres NULL не участвует в unique,
 // поэтому upsert делаем вручную через findFirst — сид можно запускать повторно.
 async function seedExercises() {
@@ -182,7 +103,7 @@ async function seedExercises() {
 }
 
 async function seedPrograms(exerciseIds: Map<string, string>) {
-  for (const t of PROGRAMS) {
+  for (const t of seedDays()) {
     const exercises = t.exercises.map(([name, sets, reps], order) => {
       const exerciseId = exerciseIds.get(name);
       if (!exerciseId) throw new Error(`Неизвестное упражнение в программе «${t.name}»: ${name}`);
@@ -937,7 +858,7 @@ async function seedDemoClubs() {
 async function main() {
   const exerciseIds = await seedExercises();
   await seedPrograms(exerciseIds);
-  console.log(`Seeded ${EXERCISES.length} exercises, ${PROGRAMS.length} program templates`);
+  console.log(`Seeded ${EXERCISES.length} exercises, ${seedDays().length} program templates`);
   const demoHash = await seedDemoUser();
   if (demoHash) {
     console.log(`Demo user: ${DEMO_USER.login} / ${DEMO_USER.password}`);

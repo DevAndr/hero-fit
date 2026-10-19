@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PlateCalculator } from "@/components/marketing/plate-calculator";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { env } from "@/lib/env";
@@ -66,6 +67,22 @@ export default function PlatesPage() {
           </div>
         ))}
       </article>
+
+      <p className="text-sm text-muted-foreground">
+        Смотрите также:{" "}
+        <Link href="/tools/1rm" className="text-primary underline underline-offset-4 hover:no-underline">
+          калькулятор 1ПМ
+        </Link>
+        ,{" "}
+        <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
+          DOTS и Wilks
+        </Link>{" "}
+        и{" "}
+        <Link href="/training-programs" className="text-primary underline underline-offset-4 hover:no-underline">
+          готовые программы тренировок
+        </Link>
+        .
+      </p>
 
       <ToolCta text="В Hero Fit калькулятор блинов и разминка встроены в тренировку: разминочные подходы добавляются одним касанием." />
     </div>
