@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, liveSets, nextStep, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
+import { forgottenSince, initState, isCollapsed, isExerciseDone, lastWorkedKey, lightenPlan, liveSets, nextStep, reducer, toDraft, type ExerciseState, type WorkoutState } from "./workout-state";
 import type { ExerciseInfo } from "@/lib/workouts/queries";
 
 const bench = { id: "bench", name: "Жим лёжа", muscleGroups: ["CHEST" as const], isBodyweight: false };
@@ -609,5 +609,65 @@ describe("replaceExercise newKey and undoReplace", () => {
     const c = swap(b, "b", lunge, "c");
     const back = reducer(c, { type: "undoReplace", newKey: "c", original });
     expect(ids(back)).toEqual(["press", "bench"]);
+  });
+});
+
+describe("lightenPlan and setWeights", () => {
+  const squat = { id: "squat", name: "Присед", muscleGroups: ["LEGS" as const], isBodyweight: false };
+  const run = { id: "run", name: "Бег", muscleGroups: ["LEGS" as const], isBodyweight: true, kind: "CARDIO" as const };
+  const NONE: ReadonlySet<string> = new Set();
+
+  const withWeights = (exercise: ExerciseInfo, weights: number[]) =>
+    reducer(empty(), {
+      type: "addExercises",
+      exercises: [{ exercise, restSec: 90 }],
+      last: { [exercise.id]: { date: NOW, sets: weights.map((weight) => ({ weight, reps: 5 })) } },
+    });
+
+  it("−10 % rounded down: step 1 kg below 20 kg, 2.5 kg above; nothing left to lighten — skipped", () => {
+    const s = withWeights(bench, [100, 82.5, 15, 1]);
+    const plan = lightenPlan(s, NONE);
+    const [a, b, c] = s.exercises[0].sets;
+    expect(plan).toEqual([
+      { key: s.exercises[0].key, setKey: a.key, from: "100", to: "90" },
+      { key: s.exercises[0].key, setKey: b.key, from: "82.5", to: "72.5" },
+      { key: s.exercises[0].key, setKey: c.key, from: "15", to: "13" },
+    ]);
+  });
+
+  it("leaves completed, warm-up, cardio sets and skipped exercises alone", () => {
+    let s = withWeights(bench, [100, 100]);
+    const k = s.exercises[0].key;
+    s = reducer(s, { type: "setWarmup", key: k, sets: [{ weight: 40, reps: 10 }] });
+    s = reducer(s, { type: "toggleComplete", key: k, setKey: s.exercises[0].sets[1].key, now: NOW });
+    s = reducer(s, { type: "addExercises", exercises: [{ exercise: squat, restSec: 90 }, { exercise: run as ExerciseInfo, restSec: 90 }], last: {} });
+    const [, sq, rn] = s.exercises;
+    s = reducer(s, { type: "updateSet", key: sq.key, setKey: sq.sets[0].key, patch: { weight: "80" } });
+    s = reducer(s, { type: "updateSet", key: rn.key, setKey: rn.sets[0].key, patch: { weight: "50" } });
+
+    const plan = lightenPlan(s, new Set(["squat"]));
+    expect(plan).toEqual([{ key: k, setKey: s.exercises[0].sets[2].key, from: "100", to: "90" }]);
+  });
+
+  it("setWeights applies the plan; undo with expect skips a set edited by hand and a completed one", () => {
+    const s0 = withWeights(bench, [100, 100, 100]);
+    const plan = lightenPlan(s0, NONE);
+    let s = reducer(s0, { type: "setWeights", weights: plan.map((p) => ({ key: p.key, setKey: p.setKey, weight: p.to })) });
+    expect(s.exercises[0].sets.map((x) => x.weight)).toEqual(["90", "90", "90"]);
+
+    const [a, b, c] = s.exercises[0].sets;
+    s = reducer(s, { type: "updateSet", key: s.exercises[0].key, setKey: b.key, patch: { weight: "95" } });
+    s = reducer(s, { type: "toggleComplete", key: s.exercises[0].key, setKey: c.key, now: NOW });
+    s = reducer(s, { type: "setWeights", weights: plan.map((p) => ({ key: p.key, setKey: p.setKey, weight: p.from, expect: p.to })) });
+    expect(s.exercises[0].sets.map((x) => x.weight)).toEqual(["100", "95", "90"]);
+    expect(s.exercises[0].sets[0].key).toBe(a.key);
+  });
+
+  it("setWeights ignores removed sets and exercises", () => {
+    const s0 = withWeights(bench, [100, 100]);
+    const plan = lightenPlan(s0, NONE);
+    let s = reducer(s0, { type: "removeSet", key: s0.exercises[0].key, setKey: s0.exercises[0].sets[0].key });
+    s = reducer(s, { type: "setWeights", weights: [...plan.map((p) => ({ key: p.key, setKey: p.setKey, weight: p.to })), { key: "gone", setKey: "x", weight: "1" }] });
+    expect(s.exercises[0].sets.map((x) => x.weight)).toEqual(["90"]);
   });
 });

@@ -26,13 +26,14 @@ export default async function DevicesPage({ searchParams }: PageProps<"/devices"
         since: date.format(status.since),
         lastSync: status.lastSyncAt ? dateTime.format(status.lastSyncAt) : null,
         needsReauth: status.needsReauth,
+        recovery: status.recovery,
       }
     : { connected: false };
   const notice = NOTICES.find((n) => n === params.whoop) ?? null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title="Браслеты и часы" description="Пульс и нагрузка с браслета — в сводке тренировки" />
+      <PageHeader title="Браслеты и часы" description="Пульс, нагрузка, сон и восстановление с браслета — в сводке тренировки и советах по нагрузке" />
       <WhoopCard status={card} notice={notice} embedded={user.embedded} />
     </div>
   );

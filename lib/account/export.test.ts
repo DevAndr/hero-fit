@@ -232,9 +232,11 @@ describe("export — whoop", () => {
       connectedAt: new Date("2026-10-01T00:00:00Z"),
       consentAt: new Date("2026-10-01T00:00:00Z"),
       workouts: [{ id: "w1", sportName: "weightlifting", avgHr: 120 }],
+      sleeps: [{ id: "s1", sleepMs: 28_800_000, recoveryPct: 70, hrvMs: 80.5 }],
     };
     const o = buildExport(r, new Date("2026-10-17T00:00:00Z"));
     expect(o.whoop?.workouts).toHaveLength(1);
+    expect(o.whoop?.sleeps).toEqual([{ id: "s1", sleepMs: 28_800_000, recoveryPct: 70, hrvMs: 80.5 }]);
     expect(o.whoop?.whoopUserId).toBe("123");
     expect(JSON.stringify(o)).not.toMatch(/accessToken|refreshToken/);
   });
