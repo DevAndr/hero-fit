@@ -1248,8 +1248,8 @@ export async function insertWhoopSleep(
         id,
         await userId(db, login),
         String(Date.now()),
-        new Date(night.end.getTime() - sleepMs - 30 * 60_000),
-        night.end,
+        new Date(night.end.getTime() - sleepMs - 30 * 60_000).toISOString(),
+        night.end.toISOString(),
         sleepMs,
         night.needMs ?? 8 * 3_600_000,
         recoveryPct === null ? null : "SCORED",
@@ -1260,6 +1260,20 @@ export async function insertWhoopSleep(
       ],
     );
     return id;
+  });
+}
+
+/** Поля сна WHOOP у пользователя по id; null — строки нет. */
+export async function whoopSleepRow(
+  login: string,
+  id: string,
+): Promise<{ id: string; recoveryPct: number | null; restingHr: number | null; hrvMs: number | null; sleepMs: number | null } | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; recoveryPct: number | null; restingHr: number | null; hrvMs: number | null; sleepMs: number | null }>(
+      `select s.id, s."recoveryPct", s."restingHr", s."hrvMs", s."sleepMs" from "WhoopSleep" s join "User" u on u.id = s."userId" where u.login = $1 and s.id = $2`,
+      [login, id],
+    );
+    return rows[0] ?? null;
   });
 }
 

@@ -11,6 +11,7 @@ import { WHOOP_HISTORY_MS } from "@/lib/whoop/card";
 import { encryptToken } from "@/lib/whoop/crypto";
 import { CONSENT_COOKIE, oauthCookieOptions, STATE_COOKIE, type WhoopNotice } from "@/lib/whoop/oauth";
 import { whoopAvailable } from "@/lib/whoop/queries";
+import { syncSleepRange } from "@/lib/whoop/sleep-sync";
 import { syncRange } from "@/lib/whoop/sync";
 import { exchangeCode, WhoopUnavailableError, type WhoopTokenSet } from "@/lib/whoop/tokens";
 
@@ -100,7 +101,9 @@ export async function GET(req: NextRequest) {
   after(async () => {
     const now = new Date();
     try {
-      await syncRange(userId, new Date(now.getTime() - WHOOP_HISTORY_MS), now);
+      const from = new Date(now.getTime() - WHOOP_HISTORY_MS);
+      await syncRange(userId, from, now);
+      await syncSleepRange(userId, from, now);
       await db.whoopConnection.updateMany({ where: { userId }, data: { lastSyncAt: new Date() } });
     } catch (e) {
       await reportError({

@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test, type Page } from "@playwright/test";
-import type { WhoopApiWorkout } from "../lib/whoop/types";
+import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
   expireWhoopToken,
@@ -9,8 +9,10 @@ import {
   latestWorkout,
   resetWhoopSync,
   seedWorkouts,
+  setWhoopScopes,
   whoopNeedsReauth,
   whoopScopes,
+  whoopSleepRow,
   whoopSleepCount,
   whoopUserIdOf,
   whoopWorkoutCount,
@@ -481,4 +483,133 @@ test("удаление аккаунта отзывает доступ WHOOP и �
   expect(await whoopWorkoutCount(login)).toBe(0);
   expect(await whoopUserIdOf(login)).toBeNull();
   expect(await isRevoked(whoopId)).toBe(true);
+});
+
+// --- сон и восстановление ---
+
+const H = 3_600_000;
+
+/** Сон WHOOP в форме API v2: 8 ч сна (light 4 + slow wave 2 + REM 2), `cycleId` связывает с восстановлением. */
+function whoopSleepApi(id: string, cycleId: number, end: Date, o: { nap?: boolean } = {}): WhoopApiSleep {
+  return {
+    id,
+    cycle_id: cycleId,
+    start: new Date(end.getTime() - 8.5 * H).toISOString(),
+    end: end.toISOString(),
+    nap: o.nap ?? false,
+    score_state: "SCORED",
+    score: {
+      stage_summary: { total_light_sleep_time_milli: 4 * H, total_slow_wave_sleep_time_milli: 2 * H, total_rem_sleep_time_milli: 2 * H },
+      sleep_needed: { baseline_milli: 8 * H, need_from_sleep_debt_milli: 0, need_from_recent_strain_milli: 0, need_from_recent_nap_milli: 0 },
+      sleep_performance_percentage: 95,
+    },
+  };
+}
+
+function whoopRecoveryApi(sleepId: string, cycleId: number, pct: number): WhoopApiRecovery {
+  return {
+    cycle_id: cycleId,
+    sleep_id: sleepId,
+    score_state: "SCORED",
+    score: { user_calibrating: false, recovery_score: pct, resting_heart_rate: 52, hrv_rmssd_milli: 88.5 },
+  };
+}
+
+const putSleeps = (user: number, body: { sleeps: WhoopApiSleep[]; recoveries: WhoopApiRecovery[] }) =>
+  control(`sleeps?user=${user}`, { method: "PUT", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
+
+/** Сколько запросов этого пользователя фейк получил на путь с таким префиксом. */
+async function fakeRequests(user: number, path: string): Promise<number> {
+  const res = await control(`requests?user=${user}&path=${encodeURIComponent(path)}`);
+  return ((await res.json()) as { count: number }).count;
+}
+
+test("история снов при подключении", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  const a = randomUUID();
+  const b = randomUUID();
+  await putSleeps(whoopId, {
+    sleeps: [
+      whoopSleepApi(a, whoopId + 1, new Date(now - 30 * H)),
+      whoopSleepApi(b, whoopId + 2, new Date(now - 6 * H)),
+      whoopSleepApi(randomUUID(), whoopId + 3, new Date(now - 3 * H), { nap: true }),
+    ],
+    recoveries: [whoopRecoveryApi(a, whoopId + 1, 82), whoopRecoveryApi(b, whoopId + 2, 41)],
+  });
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+
+  await expect.poll(() => whoopSleepCount(login)).toBe(2);
+  await expect.poll(async () => (await whoopSleepRow(login, a))?.recoveryPct).toBe(82);
+  expect((await whoopSleepRow(login, b))?.recoveryPct).toBe(41);
+  expect((await whoopSleepRow(login, a))?.sleepMs).toBe(8 * H);
+});
+
+test("старое подключение не ходит за снами", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 70)] });
+  await setWhoopScopes(login, "read:workout read:profile offline");
+  const sleepBefore = await fakeRequests(whoopId, "/v2/activity/sleep");
+  const recoveryBefore = await fakeRequests(whoopId, "/v2/recovery");
+  const cycleBefore = await fakeRequests(whoopId, "/v2/cycle");
+
+  for (const type of ["sleep.updated", "recovery.updated"]) {
+    expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type, trace_id: randomUUID() })).status()).toBe(204);
+  }
+  await page.waitForTimeout(1500);
+  expect(await fakeRequests(whoopId, "/v2/activity/sleep")).toBe(sleepBefore);
+  expect(await fakeRequests(whoopId, "/v2/recovery")).toBe(recoveryBefore);
+  expect(await fakeRequests(whoopId, "/v2/cycle")).toBe(cycleBefore);
+  expect(await whoopSleepCount(login)).toBe(0);
+  expect(await whoopNeedsReauth(login)).toBe(false);
+});
+
+test("sleep.updated добавляет сон", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 64)] });
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "sleep.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(1);
+  // сон пришёл без восстановления — его подтягивает recovery.updated
+  expect((await whoopSleepRow(login, sleepId))?.sleepMs).toBe(8 * H);
+});
+
+test("recovery.updated раньше сна", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 77)] });
+  expect(await whoopSleepCount(login)).toBe(0);
+
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "recovery.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(1);
+  await expect.poll(async () => (await whoopSleepRow(login, sleepId))?.recoveryPct).toBe(77);
+});
+
+test("sleep.deleted удаляет сон", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = await insertWhoopSleep(login, { end: new Date(Date.now() - 2 * H) });
+  expect(await whoopSleepCount(login)).toBe(1);
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "sleep.deleted", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(0);
+});
+
+test("recovery.deleted очищает восстановление, сон остаётся", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = await insertWhoopSleep(login, { end: new Date(Date.now() - 2 * H), recoveryPct: 70 });
+  expect((await whoopSleepRow(login, sleepId))?.recoveryPct).toBe(70);
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "recovery.deleted", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(async () => (await whoopSleepRow(login, sleepId))?.recoveryPct).toBeNull();
+  const row = await whoopSleepRow(login, sleepId);
+  expect(row).not.toBeNull();
+  expect(row?.restingHr).toBeNull();
+  expect(row?.hrvMs).toBeNull();
 });
