@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { userId, withDb } from "./db";
+import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
 test("список программ открывается без входа", async ({ page }) => {
   await page.goto("/training-programs");
@@ -33,5 +35,56 @@ test("страница программы 5×5: мета, JSON-LD, таблиц�
 
 test("неизвестная программа — 404", async ({ page }) => {
   const res = await page.goto("/training-programs/nope");
+  expect(res?.status()).toBe(404);
+});
+
+const workoutCount = (login: string) =>
+  withDb(async (db) => Number((await db.query<{ n: string }>(`select count(*) as n from "Workout" where "userId" = $1`, [await userId(db, login)])).rows[0].n));
+
+test("гость: «Начать программу» → регистрация → первый день в редакторе", async ({ page }) => {
+  test.slow();
+  await page.goto("/training-programs/beginner");
+  await page.getByRole("link", { name: "Начать программу" }).first().click();
+  await expect(page).toHaveURL(/\/register\?next=%2Ftraining-programs%2Fbeginner%2Fstart$/);
+  const login = uniqueLogin();
+  await page.getByLabel("Логин").fill(login);
+  await page.getByLabel("Email").fill(`${login}@test.local`);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByLabel("Повторите пароль").fill(PASSWORD);
+  await page.getByRole("checkbox", { name: /согласие на обработку персональных данных/ }).click();
+  await page.getByRole("button", { name: "Создать аккаунт" }).click();
+  await expect(page).toHaveURL(/\/training$/, { timeout: 15_000 });
+  for (const name of ["Приседания со штангой", "Жим штанги лёжа", "Тяга верхнего блока", "Скручивания"]) {
+    await expect(page.getByRole("region", { name }).first()).toBeVisible();
+  }
+  expect(await workoutCount(login)).toBe(1);
+});
+
+test("вошедший без тренировки: старт программы открывает первый день", async ({ page }) => {
+  const { login } = await registerUser(page);
+  // RSC-запрос (префетч, redirect из server action) ничего не создаёт — работает только обычный переход
+  const rsc = await page.request.get("/training-programs/upper-lower/start", { headers: { rsc: "1" } });
+  expect(rsc.status()).toBe(204);
+  expect(await workoutCount(login)).toBe(0);
+  await page.goto("/training-programs/upper-lower/start");
+  await expect(page).toHaveURL(/\/training$/);
+  for (const name of ["Жим штанги лёжа", "Разгибание рук на блоке"]) {
+    await expect(page.getByRole("region", { name }).first()).toBeVisible();
+  }
+  expect(await workoutCount(login)).toBe(1);
+});
+
+test("при идущей тренировке старт программы не создаёт новую", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await expect.poll(() => workoutCount(login)).toBe(1);
+  await page.goto("/training-programs/5x5/start");
+  await expect(page).toHaveURL(/\/training$/);
+  expect(await workoutCount(login)).toBe(1);
+});
+
+test("старт неизвестной программы — 404", async ({ page }) => {
+  const res = await page.goto("/training-programs/nope/start");
   expect(res?.status()).toBe(404);
 });
