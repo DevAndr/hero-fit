@@ -95,7 +95,7 @@ export async function createPlannedWorkout(userId: string, source: string): Prom
     }
   } else if (kind === "repeat" && id) {
     const previous = await db.workout.findFirst({
-      where: { id, userId: userId, status: WorkoutStatus.COMPLETED },
+      where: { id, userId, status: WorkoutStatus.COMPLETED },
       include: {
         exercises: {
           orderBy: { order: "asc" },

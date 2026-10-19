@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_PROGRAMS } from "./programs/builtin";
-import { absoluteUrl, cityJsonLd, clubJsonLd, isIndexable, jsonLd, programJsonLd, shortDescription, sitemapEntries } from "./seo";
+import { absoluteUrl, cityJsonLd, clubJsonLd, isIndexable, jsonLd, programJsonLd, robotsRules, shortDescription, sitemapEntries } from "./seo";
 
 describe("isIndexable", () => {
   it("only production on a public host", () => {
@@ -120,5 +120,28 @@ describe("cityJsonLd", () => {
       { "@type": "ListItem", position: 1, url: "https://a/1" },
       { "@type": "ListItem", position: 2, url: "https://a/2" },
     ]);
+  });
+});
+
+describe("robotsRules", () => {
+  /** Самое длинное совпадение выигрывает, `*` — любая последовательность, при равенстве выигрывает allow. */
+  function allowed(path: string): boolean {
+    const { allow, disallow } = robotsRules();
+    const len = (rule: string): number => {
+      const esc = (s: string) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`^${rule.split("*").map(esc).join(".*")}`);
+      return re.test(path) ? rule.length : -1;
+    };
+    const a = Math.max(-1, ...allow.map(len));
+    const d = Math.max(-1, ...disallow.map(len));
+    return a >= d;
+  }
+
+  it("opens public pages, including programs that share the /training prefix", () => {
+    for (const p of ["/", "/training-programs", "/training-programs/5x5", "/tools/dots-wilks"]) expect(allowed(p), p).toBe(true);
+  });
+
+  it("keeps private pages and the program start handler closed", () => {
+    for (const p of ["/training", "/training-programs/5x5/start", "/dashboard"]) expect(allowed(p), p).toBe(false);
   });
 });

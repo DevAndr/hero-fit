@@ -98,7 +98,8 @@ test("калькулятор DOTS/Wilks без входа: мета, расчё�
   const calc = page.getByRole("region", { name: "Калькулятор DOTS и Wilks" });
   const result = calc.getByTestId("strength-result");
   await expect(result).toHaveCount(0);
-  await calc.getByRole("radio", { name: "Мужчина" }).check({ force: true });
+  await calc.getByText("Мужчина", { exact: true }).click();
+  await expect(calc.getByRole("radio", { name: "Мужчина" })).toBeChecked();
   await calc.getByLabel("Вес тела, кг").fill("100");
   await calc.getByLabel("Присед, кг").fill("220");
   await calc.getByLabel("Жим лёжа, кг").fill("150");
@@ -109,7 +110,8 @@ test("калькулятор DOTS/Wilks без входа: мета, расчё�
   await expect(result).toContainText("Продвинутый");
   await expect(result).toContainText("Шкала уровней ориентировочная");
 
-  await calc.getByRole("radio", { name: "Женщина" }).check({ force: true });
+  await calc.getByText("Женщина", { exact: true }).click();
+  await expect(calc.getByRole("radio", { name: "Женщина" })).toBeChecked();
   await calc.getByRole("switch", { name: "Только сумма" }).click();
   await calc.getByLabel("Вес тела, кг").fill("70");
   await calc.getByLabel("Сумма, кг").fill("400");

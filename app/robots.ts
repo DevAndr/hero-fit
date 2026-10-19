@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 import { env } from "@/lib/env";
-import { absoluteUrl, isIndexable } from "@/lib/seo";
+import { absoluteUrl, isIndexable, robotsRules } from "@/lib/seo";
 
 /** Вне production на публичном домене — запрет всего; иначе открыты лендинг и калькуляторы, кабинет и API — нет. */
 export default async function robots(): Promise<MetadataRoute.Robots> {
@@ -9,11 +9,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   await connection();
   if (!isIndexable(env.NODE_ENV, env.APP_URL)) return { rules: { userAgent: "*", disallow: "/" } };
   return {
-    rules: {
-      userAgent: "*",
-      allow: ["/", "/tools/"],
-      disallow: ["/api/", "/dashboard", "/training", "/workouts", "/exercises", "/templates", "/calendar", "/stats", "/achievements", "/friends", "/leaderboard", "/recap", "/settings", "/reset-password"],
-    },
+    rules: { userAgent: "*", ...robotsRules() },
     // Без Host: директиву Яндекс больше не читает (главное зеркало — в Вебмастере)
     sitemap: absoluteUrl(env.APP_URL, "/sitemap.xml"),
   };

@@ -48,7 +48,7 @@ export function StrengthScoreCalculator() {
               <label
                 key={s.value}
                 className={cn(
-                  "flex h-8 flex-1 cursor-pointer items-center justify-center rounded-lg border text-sm font-semibold has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+                  "relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-lg border text-sm font-semibold has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
                   sex === s.value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
                 )}
               >

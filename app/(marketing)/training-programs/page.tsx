@@ -60,7 +60,7 @@ export default function ProgramsPage() {
           <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор блинов и разминки
           </Link>
-          , а свою силу с поправкой на вес тела оценит{" "}
+          . Свою силу с поправкой на вес тела оценит{" "}
           <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
             калькулятор DOTS и Wilks
           </Link>
@@ -68,7 +68,7 @@ export default function ProgramsPage() {
         </p>
       </section>
 
-      <ToolCta text="Программа сохраняется в вашем дневнике: Hero Fit ведёт подходы, таймер отдыха и подсказывает, когда пора увеличить вес." />
+      <ToolCta text="Тренировки по программе сохраняются в дневнике: Hero Fit ведёт подходы, таймер отдыха и подсказывает, когда пора увеличить вес." />
     </div>
   );
 }

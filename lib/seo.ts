@@ -183,3 +183,31 @@ export function cityJsonLd(c: { city: string; urls: string[] }) {
     itemListElement: c.urls.map((url, i) => ({ "@type": "ListItem", position: i + 1, url })),
   };
 }
+
+/**
+ * Правила robots.txt для индексируемого сайта. Поисковики сравнивают путь по префиксу, побеждает самое длинное
+ * совпадение: новый публичный путь, начинающийся с закрытого префикса (как /training-programs у /training), нужно
+ * явно открыть в `allow`.
+ */
+export function robotsRules(): { allow: string[]; disallow: string[] } {
+  return {
+    allow: ["/", "/tools/", "/training-programs"],
+    disallow: [
+      "/api/",
+      "/dashboard",
+      "/training",
+      "/training-programs/*/start",
+      "/workouts",
+      "/exercises",
+      "/templates",
+      "/calendar",
+      "/stats",
+      "/achievements",
+      "/friends",
+      "/leaderboard",
+      "/recap",
+      "/settings",
+      "/reset-password",
+    ],
+  };
+}

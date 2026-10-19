@@ -82,6 +82,10 @@ export default function OneRmPage() {
         <Link href="/tools/dots-wilks" className="text-primary underline underline-offset-4 hover:no-underline">
           Посчитайте DOTS и Wilks
         </Link>
+        {" "}или{" "}
+        <Link href="/tools/plates" className="text-primary underline underline-offset-4 hover:no-underline">
+          подберите блины на гриф
+        </Link>
         .
       </p>
 

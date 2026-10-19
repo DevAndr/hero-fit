@@ -32,7 +32,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
   const crumbs = programCrumbs(p);
   // Обычная ссылка, не Link: обработчик /start не должен префетчиться
   const start = (
-    <a href={`/training-programs/${p.slug}/start`} className={buttonVariants({ size: "lg" })}>
+    <a href={`/training-programs/${p.slug}/start`} rel="nofollow" className={buttonVariants({ size: "lg" })}>
       Начать программу
     </a>
   );
@@ -91,7 +91,9 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                 <tbody>
                   {d.exercises.map(([name, sets, reps]) => (
                     <tr key={name} className="border-t">
-                      <td className="p-3">{name}</td>
+                      <th scope="row" className="p-3 font-normal">
+                        {name}
+                      </th>
                       <td className="p-3 whitespace-nowrap tabular-nums">{`${sets} × ${reps}`}</td>
                     </tr>
                   ))}
@@ -105,10 +107,10 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
         <p>{p.progression}</p>
       </article>
 
-      <aside className="flex flex-col gap-3 rounded-2xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="font-display text-lg font-bold">Готовы начать? Первый день уже собран.</p>
         <div className="shrink-0">{start}</div>
-      </aside>
+      </div>
 
       <article className="space-y-4 text-pretty [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-bold [&_p]:text-muted-foreground">
         <h2>Частые вопросы</h2>
