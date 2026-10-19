@@ -6,10 +6,12 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { reportError } from "@/lib/errors/report";
 import { fetchProfileUserId } from "@/lib/whoop/client";
+import { WHOOP_SCOPES } from "@/lib/whoop/config";
 import { WHOOP_HISTORY_MS } from "@/lib/whoop/card";
 import { encryptToken } from "@/lib/whoop/crypto";
 import { CONSENT_COOKIE, oauthCookieOptions, STATE_COOKIE, type WhoopNotice } from "@/lib/whoop/oauth";
 import { whoopAvailable } from "@/lib/whoop/queries";
+import { syncSleepRange } from "@/lib/whoop/sleep-sync";
 import { syncRange } from "@/lib/whoop/sync";
 import { exchangeCode, WhoopUnavailableError, type WhoopTokenSet } from "@/lib/whoop/tokens";
 
@@ -76,14 +78,17 @@ export async function GET(req: NextRequest) {
     accessToken: encryptToken(tokens.accessToken, key),
     refreshToken: encryptToken(tokens.refreshToken, key),
     expiresAt: tokens.expiresAt,
+    scopes: tokens.scope ?? WHOOP_SCOPES,
     consentAt,
     needsReauth: false,
   };
-  // Переподключили другой аккаунт WHOOP — активности прежнего не оставляем
+  // Переподключили другой аккаунт WHOOP — активности и сны прежнего не оставляем
   const prev = await db.whoopConnection.findUnique({ where: { userId: user.id }, select: { whoopUserId: true } });
   try {
     await db.$transaction([
-      ...(prev && prev.whoopUserId !== whoopUserId ? [db.whoopWorkout.deleteMany({ where: { userId: user.id } })] : []),
+      ...(prev && prev.whoopUserId !== whoopUserId
+        ? [db.whoopWorkout.deleteMany({ where: { userId: user.id } }), db.whoopSleep.deleteMany({ where: { userId: user.id } })]
+        : []),
       db.whoopConnection.upsert({ where: { userId: user.id }, create: { userId: user.id, ...data }, update: data }),
     ]);
   } catch (e) {
@@ -96,7 +101,9 @@ export async function GET(req: NextRequest) {
   after(async () => {
     const now = new Date();
     try {
-      await syncRange(userId, new Date(now.getTime() - WHOOP_HISTORY_MS), now);
+      const from = new Date(now.getTime() - WHOOP_HISTORY_MS);
+      await syncRange(userId, from, now);
+      await syncSleepRange(userId, from, now);
       await db.whoopConnection.updateMany({ where: { userId }, data: { lastSyncAt: new Date() } });
     } catch (e) {
       await reportError({

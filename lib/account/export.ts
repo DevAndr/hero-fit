@@ -67,7 +67,7 @@ export type ExportRaw = {
   publishedPrograms: ({ name: string; description: string | null; publishedAt: Date; hiddenAt: Dated; participants: number } & Record<string, unknown>)[];
   notifications: unknown[];
   /** WHOOP: null без подключения. Токены не выбираются вовсе; активности — без userId. */
-  whoop: { whoopUserId: string; connectedAt: Date; consentAt: Date; workouts: unknown[] } | null;
+  whoop: { whoopUserId: string; connectedAt: Date; consentAt: Date; workouts: unknown[]; sleeps: unknown[] } | null;
   shop: {
     coins: number;
     items: { code: string; acquiredAt: Date }[];

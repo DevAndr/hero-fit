@@ -46,6 +46,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     coinTx,
     whoopConnection,
     whoopWorkouts,
+    whoopSleeps,
     favorites,
     feedback,
   ] = await Promise.all([
@@ -151,6 +152,11 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
       orderBy: { start: "asc" },
       select: { id: true, start: true, end: true, sportName: true, scoreState: true, strain: true, avgHr: true, maxHr: true, kilojoule: true, zonesMs: true, updatedAt: true },
     }),
+    db.whoopSleep.findMany({
+      where: { userId },
+      orderBy: { start: "asc" },
+      select: { id: true, start: true, end: true, sleepMs: true, needMs: true, performancePct: true, recoveryPct: true, restingHr: true, hrvMs: true, calibrating: true },
+    }),
     db.favoriteExercise.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { createdAt: true, exercise: { select: { name: true } } } }),
     db.feedback.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { kind: true, body: true, status: true, page: true, createdAt: true } }),
   ]);
@@ -201,7 +207,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     publishedPrograms: publishedPrograms.map((p) => ({ name: p.name, description: p.catalogDescription, publishedAt: p.publishedAt!, hiddenAt: p.hiddenAt, participants: counts.get(p.id) ?? 0 })),
     notifications,
     shop: { coins: user.coins, items: userItems, coinHistory: coinTx },
-    whoop: whoopConnection ? { whoopUserId: whoopConnection.whoopUserId, connectedAt: whoopConnection.createdAt, consentAt: whoopConnection.consentAt, workouts: whoopWorkouts } : null,
+    whoop: whoopConnection ? { whoopUserId: whoopConnection.whoopUserId, connectedAt: whoopConnection.createdAt, consentAt: whoopConnection.consentAt, workouts: whoopWorkouts, sleeps: whoopSleeps } : null,
   };
 }
 

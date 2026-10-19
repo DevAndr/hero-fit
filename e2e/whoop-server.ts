@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { WhoopApiWorkout } from "../lib/whoop/types";
+import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 
 /**
  * Фейковый WHOOP для e2e — третий webServer в playwright.config.ts (порт 3125, HTTP); `WHOOP_API_URL` сервера — сюда.
- * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code`; POST /oauth/oauth2/token — коды и refresh-ротация
+ * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code` (запрошенный `scope` запоминается и возвращается в ответе токена и при refresh); POST /oauth/oauth2/token — коды и refresh-ротация
  * (старые refresh и access недействительны сразу; `expires_in` по умолчанию 1 — каждый запрос приложения идёт через refresh).
  * API (под /developer): GET /v2/user/profile/basic, GET /v2/activity/workout (пересечение с [start, end), по убыванию
  * start, limit, nextToken = смещение), GET /v2/activity/workout/:id, DELETE /v2/user/access (как настоящий —
  * пессимистично: отзывает все токены этого user_id). Неверный access → 401.
  * Служебные: POST /__control/reuse-next?user= (следующая авторизация — этот user_id; глобально, поэтому спека serial),
  * PUT /__control/workouts?user= (тело — массив активностей, заменяет), GET /__control/revoked?user=,
+ * Сон и восстановление: GET /v2/activity/sleep (как у активностей), GET /v2/activity/sleep/:id, GET /v2/recovery,
+ * GET /v2/cycle/:id/recovery — без scope `read:sleep`/`read:recovery` у токена → 401.
+ * PUT /__control/sleeps?user= (тело `{ sleeps, recoveries }`, заменяет), GET /__control/requests?user=&path= (сколько
+ * запросов этого пользователя пришло на путь с таким префиксом, например /v2/activity/sleep).
  * POST /__control/expires?seconds=N (`expires_in` новых токенов; глобально), POST /__control/api-delay?ms=N (пауза API
  * перед проверкой токена — чтобы соседний запрос успел ротировать токен; глобально), GET /health.
  */
@@ -21,20 +25,22 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
   /** Новые user_id: от времени запуска — база e2e переживает прогоны, а `whoopUserId` уникален. */
   let nextUserId = Date.now();
   let reuseNext: number | null = null;
-  const codes = new Map<string, number>();
-  const accessTokens = new Map<string, { user: number; refresh: string }>();
-  const refreshTokens = new Map<string, { user: number; access: string }>();
+  const codes = new Map<string, { user: number; scope: string }>();
+  const accessTokens = new Map<string, { user: number; refresh: string; scope: string }>();
+  const refreshTokens = new Map<string, { user: number; access: string; scope: string }>();
   const workouts = new Map<number, WhoopApiWorkout[]>();
+  const sleeps = new Map<number, { sleeps: WhoopApiSleep[]; recoveries: WhoopApiRecovery[] }>();
+  const requests: { user: number; path: string }[] = [];
   const revoked = new Set<number>();
   let expiresIn = 1;
   let apiDelayMs = 0;
 
-  const issue = (user: number) => {
+  const issue = (user: number, scope: string) => {
     const access = `acc-${randomUUID()}`;
     const refresh = `ref-${randomUUID()}`;
-    accessTokens.set(access, { user, refresh });
-    refreshTokens.set(refresh, { user, access });
-    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope: "read:workout read:profile offline", token_type: "bearer" };
+    accessTokens.set(access, { user, refresh, scope });
+    refreshTokens.set(refresh, { user, access, scope });
+    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope, token_type: "bearer" };
   };
 
   const readBody = (req: IncomingMessage) =>
@@ -76,6 +82,15 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
       workouts.set(userParam(), JSON.parse((await readBody(req)) || "[]") as WhoopApiWorkout[]);
       return json(200, { ok: true });
     }
+    if (req.method === "PUT" && path === "/__control/sleeps") {
+      sleeps.set(userParam(), JSON.parse((await readBody(req)) || '{"sleeps":[],"recoveries":[]}') as { sleeps: WhoopApiSleep[]; recoveries: WhoopApiRecovery[] });
+      return json(200, { ok: true });
+    }
+    if (req.method === "GET" && path === "/__control/requests") {
+      const prefix = url.searchParams.get("path") ?? "";
+      const user = userParam();
+      return json(200, { count: requests.filter((r) => r.user === user && r.path.startsWith(prefix)).length });
+    }
     if (req.method === "GET" && path === "/__control/revoked") return json(200, { revoked: revoked.has(userParam()) });
 
     // --- OAuth ---
@@ -83,7 +98,7 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
       const redirect = url.searchParams.get("redirect_uri");
       if (!redirect) return json(400, { error: "invalid_request" });
       const code = randomUUID();
-      codes.set(code, reuseNext ?? nextUserId++);
+      codes.set(code, { user: reuseNext ?? nextUserId++, scope: url.searchParams.get("scope") ?? "" });
       reuseNext = null;
       const back = new URL(redirect);
       back.searchParams.set("code", code);
@@ -94,17 +109,17 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     if (req.method === "POST" && path === "/oauth/oauth2/token") {
       const form = new URLSearchParams(await readBody(req));
       if (form.get("grant_type") === "authorization_code") {
-        const user = codes.get(form.get("code") ?? "");
-        if (user === undefined) return json(400, { error: "invalid_grant" });
+        const granted = codes.get(form.get("code") ?? "");
+        if (granted === undefined) return json(400, { error: "invalid_grant" });
         codes.delete(form.get("code")!);
-        return json(200, issue(user));
+        return json(200, issue(granted.user, granted.scope));
       }
       if (form.get("grant_type") === "refresh_token") {
         const old = refreshTokens.get(form.get("refresh_token") ?? "");
         if (!old) return json(400, { error: "invalid_grant" });
         refreshTokens.delete(form.get("refresh_token")!);
         accessTokens.delete(old.access);
-        return json(200, issue(old.user));
+        return json(200, issue(old.user, old.scope));
       }
       return json(400, { error: "unsupported_grant_type" });
     }
@@ -116,6 +131,13 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     const token = accessTokens.get(bearer);
     if (!token) return json(401, { error: "unauthorized" });
     const api = path.slice("/developer".length);
+    requests.push({ user: token.user, path: api });
+    const scoped = (scope: string) => token.scope.split(/\s+/).includes(scope);
+    const page = <T>(all: T[]) => {
+      const limit = Math.min(Number(url.searchParams.get("limit") ?? 10) || 10, 25);
+      const offset = Number(url.searchParams.get("nextToken") ?? 0) || 0;
+      return { records: all.slice(offset, offset + limit), next_token: offset + limit < all.length ? String(offset + limit) : null };
+    };
 
     if (req.method === "GET" && api === "/v2/user/profile/basic") {
       return json(200, { user_id: token.user, email: `whoop${token.user}@test.local`, first_name: "E2E", last_name: "Whoop" });
@@ -144,6 +166,33 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     if (req.method === "GET" && one) {
       const w = (workouts.get(token.user) ?? []).find((x) => x.id === decodeURIComponent(one[1]));
       return w ? json(200, w) : json(404, { error: "not found" });
+    }
+
+    if (req.method === "GET" && api.startsWith("/v2/activity/sleep")) {
+      if (!scoped("read:sleep")) return json(401, { error: "unauthorized" });
+      const list = sleeps.get(token.user)?.sleeps ?? [];
+      const sleepOne = /^\/v2\/activity\/sleep\/([^/]+)$/.exec(api);
+      if (sleepOne) {
+        const s = list.find((x) => x.id === decodeURIComponent(sleepOne[1]));
+        return s ? json(200, s) : json(404, { error: "not found" });
+      }
+      if (api === "/v2/activity/sleep") {
+        const start = url.searchParams.get("start");
+        const end = url.searchParams.get("end");
+        const from = start ? Date.parse(start) : -Infinity;
+        const to = end ? Date.parse(end) : Infinity;
+        return json(200, page(list.filter((s) => Date.parse(s.start) < to && Date.parse(s.end) > from).sort((a, b) => Date.parse(b.start) - Date.parse(a.start))));
+      }
+    }
+    if (req.method === "GET" && api === "/v2/recovery") {
+      if (!scoped("read:recovery")) return json(401, { error: "unauthorized" });
+      return json(200, page(sleeps.get(token.user)?.recoveries ?? []));
+    }
+    const cycleRecovery = /^\/v2\/cycle\/([^/]+)\/recovery$/.exec(api);
+    if (req.method === "GET" && cycleRecovery) {
+      if (!scoped("read:recovery")) return json(401, { error: "unauthorized" });
+      const r = (sleeps.get(token.user)?.recoveries ?? []).find((x) => String(x.cycle_id) === decodeURIComponent(cycleRecovery[1]));
+      return r ? json(200, r) : json(404, { error: "not found" });
     }
     return json(404, { error: "not found" });
   };

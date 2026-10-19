@@ -1,18 +1,36 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { APIRequestContext } from "@playwright/test";
-import { expect, test, type Page } from "@playwright/test";
-import type { WhoopApiWorkout } from "../lib/whoop/types";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
+  coachAssignOnce,
+  coachTarget,
+  coachTemplate,
+  createTelegramUser,
+  createUserRow,
+  enableCoach,
   expireWhoopToken,
+  insertWhoopConnection,
+  insertWhoopSleep,
   latestWorkout,
+  linkCoach,
   resetWhoopSync,
   seedWorkouts,
+  setTimeZone,
+  setWhoopNeedsReauth,
+  setWhoopScopes,
+  whoopLastSyncAt,
   whoopNeedsReauth,
+  whoopScopes,
+  whoopSleepRow,
+  whoopSleepCount,
   whoopUserIdOf,
   whoopWorkoutCount,
 } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
+import { mockTelegram } from "./telegram-webapp";
+import { E2E_TZ_OFFSET } from "./tz";
 import { WHOOP_FAKE_URL } from "./whoop-server";
 
 // У фейкового WHOOP глобальный /__control/reuse-next — параллельные тесты перехватили бы его
@@ -163,6 +181,36 @@ test("чужой аккаунт WHOOP", async ({ page }) => {
   expect(await isRevoked(whoopId!)).toBe(true);
 });
 
+test("подключение сохраняет новые scope", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  const scopes = (await whoopScopes(login)) ?? "";
+  expect(scopes.split(" ")).toEqual(expect.arrayContaining(["read:recovery", "read:sleep", "read:workout", "offline"]));
+});
+
+test("переподключение другого аккаунта удаляет сны", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await insertWhoopSleep(login, { end: new Date() });
+  expect(await whoopSleepCount(login)).toBe(1);
+
+  // Тот же аккаунт WHOOP — сон остаётся
+  const same = (await whoopUserIdOf(login))!;
+  await reuseNext(same);
+  await page.goto("/api/whoop/connect?consent=1");
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  expect(await whoopSleepCount(login)).toBe(1);
+
+  // Другой аккаунт — сны прежнего удалены
+  await reuseNext(9_000_000_000_000 + Math.floor(Math.random() * 1e9));
+  await page.goto("/api/whoop/connect?consent=1");
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  expect(await whoopUserIdOf(login)).not.toBe(same);
+  expect(await whoopSleepCount(login)).toBe(0);
+});
+
 test("callback с чужим state — ошибка, подключения нет", async ({ page }) => {
   const { login } = await flaggedUser(page);
   // Настоящий state в cookie (как после «Продолжить»), но в callback пришёл другой
@@ -188,6 +236,7 @@ test("отключение удаляет данные", async ({ page }) => {
   expect(await whoopUserIdOf(login)).toBe(String(whoopId));
   // История грузится в after() — дождаться, чтобы загрузка не дописала строки после отключения
   await expect.poll(() => whoopWorkoutCount(login)).toBe(2);
+  await insertWhoopSleep(login, { end: new Date() });
 
   await card(page).getByRole("button", { name: "Отключить WHOOP" }).click();
   const confirm = page.getByRole("alertdialog");
@@ -195,6 +244,7 @@ test("отключение удаляет данные", async ({ page }) => {
   await confirm.getByRole("button", { name: "Отключить" }).click();
   await expect(card(page)).toContainText("Не подключён");
   expect(await whoopWorkoutCount(login)).toBe(0);
+  expect(await whoopSleepCount(login)).toBe(0);
   expect(await whoopUserIdOf(login)).toBeNull();
   expect(await isRevoked(whoopId)).toBe(true);
 });
@@ -226,6 +276,8 @@ async function connectWith(page: Page, login: string, list: WhoopApiWorkout[]) {
   await connectWhoop(page);
   await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
   await expect.poll(() => whoopWorkoutCount(login)).toBe(list.length);
+  // История (активности и сны) идёт в after() callback и кончается отметкой lastSyncAt — ждём её, иначе она гонится с вебхуками тестов
+  await expect.poll(() => whoopLastSyncAt(login)).not.toBeNull();
   return whoopId;
 }
 
@@ -446,4 +498,483 @@ test("удаление аккаунта отзывает доступ WHOOP и �
   expect(await whoopWorkoutCount(login)).toBe(0);
   expect(await whoopUserIdOf(login)).toBeNull();
   expect(await isRevoked(whoopId)).toBe(true);
+});
+
+// --- сон и восстановление ---
+
+const H = 3_600_000;
+
+/** Сон WHOOP в форме API v2: 8 ч сна (light 4 + slow wave 2 + REM 2), `cycleId` связывает с восстановлением. */
+function whoopSleepApi(id: string, cycleId: number, end: Date, o: { nap?: boolean } = {}): WhoopApiSleep {
+  return {
+    id,
+    cycle_id: cycleId,
+    start: new Date(end.getTime() - 8.5 * H).toISOString(),
+    end: end.toISOString(),
+    nap: o.nap ?? false,
+    score_state: "SCORED",
+    score: {
+      stage_summary: { total_light_sleep_time_milli: 4 * H, total_slow_wave_sleep_time_milli: 2 * H, total_rem_sleep_time_milli: 2 * H },
+      sleep_needed: { baseline_milli: 8 * H, need_from_sleep_debt_milli: 0, need_from_recent_strain_milli: 0, need_from_recent_nap_milli: 0 },
+      sleep_performance_percentage: 95,
+    },
+  };
+}
+
+function whoopRecoveryApi(sleepId: string, cycleId: number, pct: number): WhoopApiRecovery {
+  return {
+    cycle_id: cycleId,
+    sleep_id: sleepId,
+    score_state: "SCORED",
+    score: { user_calibrating: false, recovery_score: pct, resting_heart_rate: 52, hrv_rmssd_milli: 88.5 },
+  };
+}
+
+const putSleeps = (user: number, body: { sleeps: WhoopApiSleep[]; recoveries: WhoopApiRecovery[] }) =>
+  control(`sleeps?user=${user}`, { method: "PUT", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
+
+/** Сколько запросов этого пользователя фейк получил на путь с таким префиксом. */
+async function fakeRequests(user: number, path: string): Promise<number> {
+  const res = await control(`requests?user=${user}&path=${encodeURIComponent(path)}`);
+  return ((await res.json()) as { count: number }).count;
+}
+
+test("история снов при подключении", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = presetWhoopUser();
+  const now = Date.now();
+  const a = randomUUID();
+  const b = randomUUID();
+  await putSleeps(whoopId, {
+    sleeps: [
+      whoopSleepApi(a, whoopId + 1, new Date(now - 30 * H)),
+      whoopSleepApi(b, whoopId + 2, new Date(now - 6 * H)),
+      whoopSleepApi(randomUUID(), whoopId + 3, new Date(now - 3 * H), { nap: true }),
+    ],
+    recoveries: [whoopRecoveryApi(a, whoopId + 1, 82), whoopRecoveryApi(b, whoopId + 2, 41)],
+  });
+  await reuseNext(whoopId);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+
+  await expect.poll(() => whoopSleepCount(login)).toBe(2);
+  await expect.poll(async () => (await whoopSleepRow(login, a))?.recoveryPct).toBe(82);
+  expect((await whoopSleepRow(login, b))?.recoveryPct).toBe(41);
+  expect((await whoopSleepRow(login, a))?.sleepMs).toBe(8 * H);
+});
+
+test("старое подключение не ходит за снами", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 70)] });
+  await setWhoopScopes(login, "read:workout read:profile offline");
+  const sleepBefore = await fakeRequests(whoopId, "/v2/activity/sleep");
+  const recoveryBefore = await fakeRequests(whoopId, "/v2/recovery");
+  const cycleBefore = await fakeRequests(whoopId, "/v2/cycle");
+
+  for (const type of ["sleep.updated", "recovery.updated"]) {
+    expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type, trace_id: randomUUID() })).status()).toBe(204);
+  }
+  await page.waitForTimeout(1500);
+  expect(await fakeRequests(whoopId, "/v2/activity/sleep")).toBe(sleepBefore);
+  expect(await fakeRequests(whoopId, "/v2/recovery")).toBe(recoveryBefore);
+  expect(await fakeRequests(whoopId, "/v2/cycle")).toBe(cycleBefore);
+  expect(await whoopSleepCount(login)).toBe(0);
+  expect(await whoopNeedsReauth(login)).toBe(false);
+});
+
+test("sleep.updated добавляет сон", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 64)] });
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "sleep.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(1);
+  // сон пришёл без восстановления — его подтягивает recovery.updated
+  expect((await whoopSleepRow(login, sleepId))?.sleepMs).toBe(8 * H);
+});
+
+test("recovery.updated раньше сна", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, new Date(Date.now() - 2 * H))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 77)] });
+  expect(await whoopSleepCount(login)).toBe(0);
+
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "recovery.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(1);
+  await expect.poll(async () => (await whoopSleepRow(login, sleepId))?.recoveryPct).toBe(77);
+});
+
+test("sleep.deleted удаляет сон", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = await insertWhoopSleep(login, { end: new Date(Date.now() - 2 * H) });
+  expect(await whoopSleepCount(login)).toBe(1);
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "sleep.deleted", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(0);
+});
+
+test("recovery.deleted очищает восстановление, сон остаётся", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const sleepId = await insertWhoopSleep(login, { end: new Date(Date.now() - 2 * H), recoveryPct: 70 });
+  expect((await whoopSleepRow(login, sleepId))?.recoveryPct).toBe(70);
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: sleepId, type: "recovery.deleted", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(async () => (await whoopSleepRow(login, sleepId))?.recoveryPct).toBeNull();
+  const row = await whoopSleepRow(login, sleepId);
+  expect(row).not.toBeNull();
+  expect(row?.restingHr).toBeNull();
+  expect(row?.hrvMs).toBeNull();
+});
+
+// --- карточка «Восстановление» на дашборде ---
+
+const recoveryCard = (page: Page) => page.getByRole("region", { name: "Восстановление WHOOP" });
+/** Конец сна «сегодня» в поясе e2e: прогон стартует около 12:00 местного, час назад — то же утро. */
+const sleptAt = (hoursAgo: number) => new Date(Date.now() - hoursAgo * H);
+
+test("плашка у старого подключения → «Разрешить» открывает согласие", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setWhoopScopes(login, "read:workout read:profile offline");
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("WHOOP может показывать сон и восстановление");
+  await recoveryCard(page).getByRole("button", { name: "Разрешить" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("только вы");
+  await expect(dialog.getByRole("link", { name: "Продолжить" })).toBeDisabled();
+});
+
+test("карточка: восстановление посчитано", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 78, hrvMs: 58, restingHr: 52, sleepMs: 7 * H + 20 * 60_000, performancePct: 86 });
+
+  await page.goto("/dashboard");
+  const c = recoveryCard(page);
+  await expect(c).toContainText("78 %");
+  await expect(c).toContainText("58 мс");
+  await expect(c).toContainText("52 уд/мин");
+  await expect(c).toContainText("7 ч 20 мин · 86 %");
+  await expect(c).toContainText("можно тяжёлую тренировку");
+});
+
+test("карточка: WHOOP считает", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: null, sleepMs: 7 * H + 20 * 60_000 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("WHOOP считает…");
+  await expect(recoveryCard(page)).toContainText("7 ч 20 мин");
+});
+
+test("карточка: за сегодня данных нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("Данных за сегодня пока нет · вчера: 64 %");
+});
+
+test("карточка: совет про HRV", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  for (let i = 1; i <= 7; i++) await insertWhoopSleep(login, { end: sleptAt(1 + 24 * i), recoveryPct: 70, hrvMs: 50 });
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 70, hrvMs: 40 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("HRV ниже твоей нормы");
+});
+
+test("карточка: «Обновить» догружает сон, повтор — ограничение", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, sleptAt(1))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 78)] });
+  await resetWhoopSync(login);
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("Данных за сегодня пока нет");
+  await recoveryCard(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(recoveryCard(page)).toContainText("78 %");
+  await expect(recoveryCard(page)).toContainText("52 уд/мин");
+
+  await recoveryCard(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(page.getByText("Обновить можно через минуту")).toBeVisible();
+});
+
+// --- зона на экране тренировки и «Облегчить» ---
+
+const SQUAT = "Приседания со штангой";
+const LEG_PRESS = "Жим ногами";
+const zoneLine = (page: Page) => page.getByRole("region", { name: "Восстановление WHOOP" });
+/** Дата в поясе e2e через n дней, «YYYY-MM-DD». */
+const localDate = (n: number) => new Date(Date.now() + E2E_TZ_OFFSET * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Три одинаковые тренировки с жимом ногами 100 кг — подсказка «Пора увеличить вес». */
+const seedLegPress = (login: string) =>
+  seedWorkouts(login, LEG_PRESS, [
+    { weight: 100, reps: 10, sets: 3 },
+    { weight: 100, reps: 10, sets: 3 },
+    { weight: 100, reps: 10, sets: 3 },
+  ], 4);
+
+test("тренировка: красная зона — строка, «Облегчить» не трогает задание тренера, «Вернуть»", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 21 });
+  await seedLegPress(login);
+  // Шаблон тренера: присед с заданием 60 кг и жим ногами без задания (вес — как в прошлый раз)
+  const coach = `e2e_whoopcoach_${randomUUID().slice(0, 8)}`;
+  await createUserRow(coach);
+  await enableCoach(coach, `wc_${randomUUID().slice(0, 8)}`);
+  const templateId = await coachTemplate(coach, "Ноги — база");
+  await linkCoach(coach, login);
+  await coachTarget(login, templateId, SQUAT, { weight: 60 });
+  await coachAssignOnce(coach, login, templateId, "Ноги — база", localDate(2));
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText("Восстановление 21 % — лёгкий день");
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+  await page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+
+  const squat = page.getByRole("region", { name: SQUAT });
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(zoneLine(page)).toContainText("Восстановление 21 % — лёгкий день");
+  await expect(press.getByLabel("Вес, подход 1")).toHaveValue("100");
+  await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("60");
+  // Красная зона — как «устал»: прибавку не предлагаем
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+
+  await zoneLine(page).getByRole("button", { name: "Облегчить" }).click();
+  for (let i = 1; i <= 3; i++) await expect(press.getByLabel(`Вес, подход ${i}`)).toHaveValue("90");
+  await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("60");
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+
+  await expect(page.getByText("Облегчено")).toBeVisible();
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  for (let i = 1; i <= 3; i++) await expect(press.getByLabel(`Вес, подход ${i}`)).toHaveValue("100");
+
+  // Один раз за тренировку — и после перезагрузки
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
+  await page.reload();
+  await expect(zoneLine(page)).toBeVisible();
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: зелёная зона — подсказка прибавки видна, «Облегчить» нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 80 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText("Восстановление 80 % — можно тяжело");
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
+  await expect(zoneLine(page)).toContainText("80 %");
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: жёлтая зона — держи веса, подсказки прибавки нет, «Облегчить» нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 50 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText("Восстановление 50 % — держи текущие веса");
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByLabel("Вес, подход 1")).toHaveValue("100");
+  await expect(zoneLine(page)).toContainText("Восстановление 50 % — держи текущие веса");
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: красная зона, но в чек-ине «Отлично» — подсказка прибавки снова видна", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 21 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+  await page.getByRole("button", { name: "Начать", exact: true }).click();
+  // Зона не отвечает за пользователя: чек-ин всё равно спрашивает, явный выбор важнее зоны
+  const checkin = page.getByRole("region", { name: "Как ты сегодня?" });
+  await checkin.getByRole("button", { name: "Отлично" }).click();
+  await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
+});
+
+// --- помощник «Как я восстановился?» ---
+
+const assistantChat = (page: Page) => page.getByRole("dialog", { name: "Помощник" });
+
+async function askRecovery(page: Page) {
+  await page.getByRole("button", { name: "Помощник" }).click();
+  await assistantChat(page).getByRole("button", { name: "Как я восстановился?" }).click();
+}
+
+test("помощник: без флага whoop кнопки нет", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addFlagUser("smart_coach", login);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Помощник" }).click();
+  await expect(assistantChat(page).getByRole("button", { name: "Как я восстановился?" })).toHaveCount(0);
+  await expect(assistantChat(page).getByRole("button", { name: "Застой — что делать?" })).toBeVisible();
+});
+
+test("помощник: WHOOP не подключён — ссылка на устройства", async ({ page }) => {
+  await flaggedUser(page).then(({ login }) => addFlagUser("smart_coach", login));
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("WHOOP не подключён");
+  await expect(assistantChat(page).getByRole("link", { name: "Браслеты и часы" })).toHaveAttribute("href", "/devices");
+});
+
+test("помощник: восстановление с цифрами и всеми советами", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  for (let i = 1; i <= 7; i++) await insertWhoopSleep(login, { end: sleptAt(1 + 24 * i), recoveryPct: 70, hrvMs: 50, restingHr: 50 });
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 78, hrvMs: 40, restingHr: 58, sleepMs: 7 * H + 20 * 60_000, performancePct: 86 });
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  const c = assistantChat(page);
+  await expect(c).toContainText("Восстановление 78 % — можно тяжело");
+  await expect(c).toContainText("HRV: 40 мс");
+  await expect(c).toContainText("Пульс покоя: 58 уд/мин");
+  await expect(c).toContainText("Сон: 7 ч 20 мин · 86 %");
+  await expect(c).toContainText("• Пульс покоя выше обычного на 8");
+  await expect(c).toContainText("• HRV ниже твоей нормы");
+  await expect(c.getByRole("button", { name: "Назад в меню" })).toBeVisible();
+});
+
+test("помощник: данных за сегодня нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("Данных за сегодня пока нет · вчера: 64 %");
+  await expect(assistantChat(page).getByRole("link", { name: "Кабинет" })).toHaveAttribute("href", "/dashboard");
+});
+
+test("помощник: нет доступа к восстановлению — ссылка на устройства", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setWhoopScopes(login, "read:workout read:profile offline");
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("Разреши WHOOP передавать сон и восстановление");
+  await expect(assistantChat(page).getByRole("link", { name: "Браслеты и часы" })).toHaveAttribute("href", "/devices");
+});
+
+test("/devices: перечень данных и «Разрешить сон и восстановление» у старого подключения", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await page.goto("/devices");
+  await expect(card(page)).toContainText("Передаются: тренировки, пульс, сон, восстановление");
+  await expect(card(page).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+
+  await setWhoopScopes(login, "read:workout read:profile offline");
+  await page.goto("/devices");
+  await expect(card(page)).toContainText("Передаются: тренировки, пульс");
+  await expect(card(page)).not.toContainText("сон, восстановление");
+  await card(page).getByRole("button", { name: "Разрешить сон и восстановление" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("вариабельность пульса (HRV)");
+  await expect(dialog).toContainText("тренеру и друзьям не передаётся");
+  await expect(dialog.getByRole("link", { name: "Продолжить" })).toBeDisabled();
+});
+
+test("согласие при подключении называет сон, восстановление и HRV", async ({ page }) => {
+  await flaggedUser(page);
+  await page.goto("/devices");
+  await page.getByRole("button", { name: "Подключить WHOOP" }).click();
+  await expect(page.getByRole("dialog")).toContainText("вариабельность пульса (HRV)");
+});
+
+/** Пользователь Mini App (создан по Telegram id) с флагом whoop и старым подключением; вход — через /tg, сессия embedded. */
+async function miniAppUser(browser: Browser, opts: { reauth?: boolean } = {}) {
+  const id = String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+  const login = await createTelegramUser(id);
+  await addFlagUser("whoop", login);
+  await insertWhoopConnection(login, "read:workout read:profile offline");
+  if (opts.reauth) await setWhoopNeedsReauth(login);
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await mockTelegram(page, { id, firstName: "Маша" });
+  await page.goto("/tg");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  return { ctx, page };
+}
+
+test("Mini App: старое подключение — на дашборде и /devices нет кнопок «Разрешить», есть подсказка про браузер", async ({ browser }) => {
+  const { ctx, page: tg } = await miniAppUser(browser);
+  try {
+    await expect(recoveryCard(tg)).toContainText("WHOOP может показывать сон и восстановление");
+    await expect(recoveryCard(tg)).toContainText("Подключение WHOOP доступно в браузере");
+    await expect(recoveryCard(tg).getByRole("button", { name: "Разрешить" })).toHaveCount(0);
+
+    await tg.goto("/devices");
+    await expect(card(tg)).toContainText("Передаются: тренировки, пульс");
+    await expect(card(tg).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("Mini App: needsReauth — на /devices нет «Разрешить сон и восстановление»", async ({ browser }) => {
+  const { ctx, page: tg } = await miniAppUser(browser, { reauth: true });
+  try {
+    await tg.goto("/devices");
+    await expect(card(tg)).toContainText("Подключение WHOOP доступно в браузере");
+    await expect(card(tg).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+    await expect(card(tg).getByRole("button", { name: "Переподключить WHOOP" })).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("вебхук recovery.updated: sleep_id в ответе отличается от id события — пишем в строку из ответа", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  const eventSleep = randomUUID();
+  const otherSleep = await insertWhoopSleep(login, { end: new Date(Date.now() - 20 * H), recoveryPct: null });
+  await putSleeps(whoopId, {
+    sleeps: [whoopSleepApi(eventSleep, whoopId + 7, new Date(Date.now() - 2 * H))],
+    recoveries: [whoopRecoveryApi(otherSleep, whoopId + 7, 61)],
+  });
+  expect((await sendWhoopWebhook(page.request, { user_id: whoopId, id: eventSleep, type: "recovery.updated", trace_id: randomUUID() })).status()).toBe(204);
+  await expect.poll(() => whoopSleepCount(login)).toBe(2);
+  await expect.poll(async () => (await whoopSleepRow(login, otherSleep))?.recoveryPct).toBe(61);
+  expect((await whoopSleepRow(login, eventSleep))?.recoveryPct ?? null).toBeNull();
 });

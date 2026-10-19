@@ -123,7 +123,12 @@ export type Action =
   /** «Вернуть» после замены: новое убирается, исходное — на его место (если было заменено на месте). */
   | { type: "undoReplace"; newKey: string; original: ExerciseState }
   /** Пропуск от помощника (боль): невыполненные подходы убираются, выполненные остаются; ничего не сделано — упражнение целиком. */
-  | { type: "skipPending"; key: string };
+  | { type: "skipPending"; key: string }
+  /**
+   * Веса подходов списком («Облегчить» и его «Вернуть»): подход должен быть на месте и не выполнен; с `expect` —
+   * только если вес сейчас именно такой (правка вручную после «Облегчить» не затирается).
+   */
+  | { type: "setWeights"; weights: { key: string; setKey: string; weight: string; expect?: string }[] };
 
 const DEFAULT_SETS = 3;
 
@@ -350,6 +355,24 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
       return mapExercise(state, action.key, (e) => ({ ...e, sets: e.sets.filter((s) => s.completedAt) }));
     }
 
+    case "setWeights": {
+      const byKey = new Map(action.weights.map((w) => [`${w.key}:${w.setKey}`, w]));
+      let changed = false;
+      const exercises = state.exercises.map((e) => {
+        let touched = false;
+        const sets = e.sets.map((s) => {
+          const w = byKey.get(`${e.key}:${s.key}`);
+          if (!w || s.completedAt || (w.expect !== undefined && s.weight !== w.expect) || s.weight === w.weight) return s;
+          touched = true;
+          return { ...s, weight: w.weight };
+        });
+        if (!touched) return e;
+        changed = true;
+        return { ...e, sets };
+      });
+      return changed ? { ...state, exercises } : state;
+    }
+
     case "toggleComplete":
       return mapExercise(state, action.key, (e) => {
         const at = e.sets.findIndex((s) => s.key === action.setKey);
@@ -367,6 +390,29 @@ function apply(state: WorkoutState, action: Action): WorkoutState {
         return { ...e, sets };
       });
   }
+}
+
+/** Вес −10 % вниз по шагу помощника: 1 кг до 20 кг, дальше 2,5 кг. */
+function lightened(weight: number) {
+  const v = weight * 0.9;
+  // Эпсилон — от погрешности умножения (90 · 0,9 не должно стать 80,99…)
+  return v < 20 ? Math.floor(v + 1e-9) : Math.floor(v / 2.5 + 1e-9) * 2.5;
+}
+
+/**
+ * «Облегчить» (красная зона WHOOP): невыполненные рабочие подходы с весом — −10 %. Выполненные, разминку, кардио/время
+ * и упражнения из `skip` (задания тренера и программы) не трогает; подход, который нечем облегчить, пропускает.
+ */
+export function lightenPlan(state: WorkoutState, skip: ReadonlySet<string>): { key: string; setKey: string; from: string; to: string }[] {
+  return state.exercises.flatMap((e) => {
+    if (skip.has(e.exercise.id) || isTimed(e.exercise.kind)) return [];
+    return e.sets.flatMap((s) => {
+      const from = parseNumber(s.weight);
+      if (s.completedAt || s.isWarmup || from <= 0) return [];
+      const to = lightened(from);
+      return to <= 0 || to >= from ? [] : [{ key: e.key, setKey: s.key, from: s.weight, to: String(to) }];
+    });
+  });
 }
 
 /** Час без отмеченных подходов — тренировку, похоже, забыли завершить. */

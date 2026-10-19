@@ -4,6 +4,8 @@
  * из правил `rules.ts` (в тренировке — на клиенте) и ответов `askAssistantAction`.
  */
 import { HELP_TOPICS, TIPS } from "./content";
+import type { WhoopRecoveryView } from "@/lib/whoop/queries";
+import { hrvText, restingHrText, sleepText, zoneShort } from "@/lib/whoop/recovery";
 import { kg, PAIN_SPOTS, type PainSpot, type WeightAdvice } from "./rules";
 
 export type NodeId = string;
@@ -34,8 +36,12 @@ const RULES_TEXT = [
   "Что тренировать — по карте восстановления мышц.",
 ].join("\n\n");
 
-export function staticReply(id: NodeId): Reply | null {
-  if (id === "menu") return { text: "Привет! Я помогу с весами, планом и самочувствием. Что подсказать?", buttons: MENU_BUTTONS };
+/** Меню: «Как я восстановился?» — только при флаге whoop (после «Пропущена тренировка»). */
+export const menuButtons = (whoop: boolean): Button[] =>
+  whoop ? [...MENU_BUTTONS.slice(0, 2), { label: "Как я восстановился?", go: "whoop" }, ...MENU_BUTTONS.slice(2)] : MENU_BUTTONS;
+
+export function staticReply(id: NodeId, whoop = false): Reply | null {
+  if (id === "menu") return { text: "Привет! Я помогу с весами, планом и самочувствием. Что подсказать?", buttons: menuButtons(whoop) };
   if (id === "help") {
     return { text: "О чём рассказать?", buttons: [...HELP_TOPICS.map((t) => ({ label: t.title, go: `help:${t.id}` })), BACK] };
   }
@@ -80,6 +86,26 @@ export function checkinReply(): Reply {
     text: "Как ты сегодня? Учту это в советах.",
     buttons: CHECKIN_OPTIONS.map((o) => ({ label: o.label, action: "checkin" as const, payload: o.payload })),
   };
+}
+
+/** Ответ «Как я восстановился?» по виду восстановления WHOOP; `null` — не подключён. */
+export function whoopReply(view: WhoopRecoveryView | null | undefined): Reply {
+  const devices: Button = { label: "Браслеты и часы", href: "/devices" };
+  if (!view) return { text: "WHOOP не подключён", buttons: [devices, BACK] };
+  if (view.state === "no-access") return { text: "Разреши WHOOP передавать сон и восстановление", buttons: [devices, BACK] };
+  if (view.state === "reauth") return { text: "Переподключи WHOOP", buttons: [devices, BACK] };
+  if (view.state === "empty") {
+    return {
+      text: `Данных за сегодня пока нет${view.yesterdayPct !== null ? ` · вчера: ${view.yesterdayPct} %` : ""}`,
+      buttons: [{ label: "Кабинет", href: "/dashboard" }, BACK],
+    };
+  }
+  const head = view.pending
+    ? "WHOOP ещё считает восстановление"
+    : `Восстановление ${view.recoveryPct ?? "—"} %${view.zone ? ` — ${zoneShort(view.zone)}` : ""}`;
+  const stats = [head, `HRV: ${hrvText(view.hrvMs)}`, `Пульс покоя: ${restingHrText(view.restingHr)}`, `Сон: ${sleepText(view.sleepMs, view.performancePct)}`];
+  const advice = view.advice.map((a) => `• ${a.text}`);
+  return { text: [stats.join("\n"), ...(advice.length ? [advice.join("\n")] : [])].join("\n\n"), buttons: [BACK] };
 }
 
 export function exerciseMenuReply(ex: Ex): Reply {

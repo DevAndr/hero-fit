@@ -81,8 +81,11 @@ async function planCandidates(userId: string, now: Date) {
   `;
 }
 
-/** Что соберёт «По восстановлению» сейчас (для карточки на экране старта и для самого старта). */
-export async function getRecoveryPlan(userId: string, now = new Date()) {
-  const [recovery, candidates] = await Promise.all([getMuscleRecovery(userId, now), planCandidates(userId, now)]);
+/**
+ * Что соберёт «По восстановлению» сейчас (для карточки на экране старта и для самого старта).
+ * `muscles` — уже запрошенное восстановление мышц (экран старта отдаёт его и WHOOP), иначе запрашивается здесь.
+ */
+export async function getRecoveryPlan(userId: string, now = new Date(), muscles?: Promise<GroupRecovery[]>) {
+  const [recovery, candidates] = await Promise.all([muscles ?? getMuscleRecovery(userId, now), planCandidates(userId, now)]);
   return planRecoveryWorkout(recovery, candidates);
 }

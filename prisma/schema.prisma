@@ -125,6 +125,7 @@ model User {
   coinTxs           CoinTx[]
   whoopConnection   WhoopConnection?
   whoopWorkouts     WhoopWorkout[]
+  whoopSleeps       WhoopSleep[]
   items             UserItem[]
   /// умный помощник (флаг smart_coach): выключается в /settings
   assistantEnabled  Boolean   @default(true)
@@ -1626,6 +1627,7 @@ model WhoopConnection {
   accessToken  String // AES-256-GCM, lib/whoop/crypto.ts
   refreshToken String // AES-256-GCM
   expiresAt    DateTime
+  scopes       String   @default("") // выданные scope через пробел
   consentAt    DateTime // время согласия на обработку данных о здоровье
   needsReauth  Boolean  @default(false) // refresh отклонён — нужно переподключить
   lastSyncAt   DateTime? // ограничение «Обновить» — раз в 60 с
@@ -1648,4 +1650,25 @@ model WhoopWorkout {
   updatedAt  DateTime @updatedAt
 
   @@index([userId, start])
+}
+
+model WhoopSleep {
+  id                 String   @id // uuid сна WHOOP
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycleId            String // int64 строкой
+  start              DateTime
+  end                DateTime
+  sleepScoreState    String // SCORED | PENDING_SCORE | UNSCORABLE
+  sleepMs            Int? // лёгкий + глубокий + быстрый сон
+  needMs             Int? // сумма sleep_needed
+  performancePct     Int?
+  recoveryScoreState String? // null — восстановления ещё нет
+  recoveryPct        Int?
+  restingHr          Int?
+  hrvMs              Float?
+  calibrating        Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, end])
 }

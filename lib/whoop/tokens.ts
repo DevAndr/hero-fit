@@ -20,7 +20,7 @@ export class WhoopUnavailableError extends Error {
   }
 }
 
-export type WhoopTokenSet = { accessToken: string; refreshToken: string; expiresAt: Date };
+export type WhoopTokenSet = { accessToken: string; refreshToken: string; expiresAt: Date; scope: string | null };
 
 const TIMEOUT_MS = 10_000;
 /** Токен, которому жить меньше этого, считаем истёкшим. */
@@ -62,9 +62,9 @@ async function postToken(params: Record<string, string>): Promise<WhoopTokenSet>
   return parseTokenResponse(body);
 }
 
-function parseTokenResponse(body: unknown): WhoopTokenSet {
+export function parseTokenResponse(body: unknown): WhoopTokenSet {
   const b = (body ?? {}) as Record<string, unknown>;
-  const { access_token, refresh_token, expires_in } = b;
+  const { access_token, refresh_token, expires_in, scope } = b;
   if (
     typeof access_token !== "string" ||
     !access_token ||
@@ -79,6 +79,7 @@ function parseTokenResponse(body: unknown): WhoopTokenSet {
     accessToken: access_token,
     refreshToken: refresh_token,
     expiresAt: new Date(Date.now() + expires_in * 1000),
+    scope: typeof scope === "string" ? scope : null,
   };
 }
 
@@ -149,6 +150,8 @@ export async function getAccessToken(userId: string, rejected?: string): Promise
             accessToken: encryptToken(next.accessToken, key),
             refreshToken: encryptToken(next.refreshToken, key),
             expiresAt: next.expiresAt,
+            // WHOOP мог не вернуть scope при refresh — тогда прежние остаются
+            ...(next.scope !== null ? { scopes: next.scope } : {}),
           },
         });
         return next.accessToken;

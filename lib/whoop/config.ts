@@ -1,7 +1,7 @@
 import "server-only";
 import { env } from "@/lib/env";
 
-export const WHOOP_SCOPES = "read:workout read:profile offline";
+export { WHOOP_SCOPES, WHOOP_LEGACY_SCOPES, hasScope } from "./scopes";
 
 export function whoopConfigured(): boolean {
   return !!(env.WHOOP_CLIENT_ID && env.WHOOP_CLIENT_SECRET && env.WHOOP_TOKEN_KEY);

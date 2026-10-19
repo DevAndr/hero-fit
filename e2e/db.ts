@@ -1191,6 +1191,17 @@ export async function whoopUserIdOf(login: string): Promise<string | null> {
   });
 }
 
+/** Подключение WHOOP без обращения к API (токены-заглушки: расшифровка не удастся, отзыв при удалении проглатывается). */
+export async function insertWhoopConnection(login: string, scopes = "read:workout read:profile read:recovery read:sleep offline"): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "WhoopConnection" ("userId", "whoopUserId", "accessToken", "refreshToken", "expiresAt", scopes, "consentAt")
+       values ($1, $2, 'x', 'x', now() + interval '1 hour', $3, now())`,
+      [await userId(db, login), String(9_100_000_000_000_000 + Math.floor(Math.random() * 1e12)), scopes],
+    );
+  });
+}
+
 /** Сколько активностей WHOOP сохранено у пользователя. */
 export async function whoopWorkoutCount(login: string): Promise<number> {
   return withDb(async (db) => {
@@ -1199,6 +1210,82 @@ export async function whoopWorkoutCount(login: string): Promise<number> {
       [login],
     );
     return rows[0].n;
+  });
+}
+
+/** Выданные scope подключения WHOOP; null — не подключён. */
+export async function whoopScopes(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ s: string }>(
+      `select c.scopes as s from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.s ?? null;
+  });
+}
+
+/** Подменить scope подключения WHOOP (старое подключение без сна и восстановления). */
+export async function setWhoopScopes(login: string, scopes: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set scopes = $2 from "User" u where u.id = c."userId" and u.login = $1`, [login, scopes]);
+  });
+}
+
+/** Сколько снов WHOOP сохранено у пользователя. */
+export async function whoopSleepCount(login: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(
+      `select count(*)::int as n from "WhoopSleep" s join "User" u on u.id = s."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0].n;
+  });
+}
+
+/** Вставить сон WHOOP, закончившийся в `night.end`; остальные поля можно переопределить. */
+export async function insertWhoopSleep(
+  login: string,
+  night: { end: Date; id?: string; sleepMs?: number; needMs?: number; performancePct?: number; recoveryPct?: number | null; restingHr?: number; hrvMs?: number; calibrating?: boolean },
+): Promise<string> {
+  return withDb(async (db) => {
+    const id = night.id ?? randomUUID();
+    const recoveryPct = night.recoveryPct === undefined ? 70 : night.recoveryPct;
+    const sleepMs = night.sleepMs ?? 8 * 3_600_000;
+    await db.query(
+      `insert into "WhoopSleep" (id, "userId", "cycleId", start, "end", "sleepScoreState", "sleepMs", "needMs", "performancePct",
+         "recoveryScoreState", "recoveryPct", "restingHr", "hrvMs", calibrating, "updatedAt")
+       values ($1, $2, $3, $4, $5, 'SCORED', $6, $7, $13, $8, $9, $10, $11, $12, now())`,
+      [
+        id,
+        await userId(db, login),
+        String(Date.now()),
+        new Date(night.end.getTime() - sleepMs - 30 * 60_000).toISOString(),
+        night.end.toISOString(),
+        sleepMs,
+        night.needMs ?? 8 * 3_600_000,
+        recoveryPct === null ? null : "SCORED",
+        recoveryPct,
+        night.restingHr ?? 55,
+        night.hrvMs ?? 80,
+        night.calibrating ?? false,
+        night.performancePct ?? 90,
+      ],
+    );
+    return id;
+  });
+}
+
+/** Поля сна WHOOP у пользователя по id; null — строки нет. */
+export async function whoopSleepRow(
+  login: string,
+  id: string,
+): Promise<{ id: string; recoveryPct: number | null; restingHr: number | null; hrvMs: number | null; sleepMs: number | null } | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string; recoveryPct: number | null; restingHr: number | null; hrvMs: number | null; sleepMs: number | null }>(
+      `select s.id, s."recoveryPct", s."restingHr", s."hrvMs", s."sleepMs" from "WhoopSleep" s join "User" u on u.id = s."userId" where u.login = $1 and s.id = $2`,
+      [login, id],
+    );
+    return rows[0] ?? null;
   });
 }
 
@@ -1222,6 +1309,17 @@ export async function resetWhoopSync(login: string): Promise<void> {
   });
 }
 
+/** Отметка последней синхронизации WHOOP (ставится по окончании истории в callback); null — не было или не подключён. */
+export async function whoopLastSyncAt(login: string): Promise<Date | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ v: Date | null }>(
+      `select c."lastSyncAt" at time zone 'UTC' as v from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.v ?? null;
+  });
+}
+
 /** Состарить access-токен WHOOP: следующий запрос приложения пойдёт через refresh. */
 export async function expireWhoopToken(login: string): Promise<void> {
   await withDb(async (db) => {
@@ -1240,6 +1338,13 @@ export async function whoopNeedsReauth(login: string): Promise<boolean | null> {
       [login],
     );
     return rows[0]?.v ?? null;
+  });
+}
+
+/** Помечает подключение WHOOP как требующее переподключения. */
+export async function setWhoopNeedsReauth(login: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set "needsReauth" = true from "User" u where u.id = c."userId" and u.login = $1`, [login]);
   });
 }
 

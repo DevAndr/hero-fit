@@ -26,6 +26,9 @@
   --color-chart-1: var(--chart-1);
   --color-xp: var(--xp);
   --color-streak: var(--streak);
+  --color-recovery-green: var(--recovery-green);
+  --color-recovery-yellow: var(--recovery-yellow);
+  --color-recovery-red: var(--recovery-red);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-zone-0: var(--zone-0);
@@ -106,6 +109,10 @@
   --zone-5: oklch(0.6 0.22 25);
   --xp: oklch(0.681 0.162 75.834);
   --streak: oklch(0.646 0.222 41.116);
+  /* Зоны восстановления WHOOP */
+  --recovery-green: oklch(0.6 0.17 150);
+  --recovery-yellow: oklch(0.76 0.16 90);
+  --recovery-red: oklch(0.58 0.22 25);
   /* «Важно» у системных оповещений */
   --warning: oklch(0.769 0.188 70.08);
   --warning-foreground: oklch(0.279 0.077 45.635);
@@ -159,6 +166,9 @@
   --zone-5: oklch(0.66 0.2 25);
   --xp: oklch(0.795 0.184 86.047);
   --streak: oklch(0.705 0.213 47.604);
+  --recovery-green: oklch(0.72 0.18 150);
+  --recovery-yellow: oklch(0.82 0.16 90);
+  --recovery-red: oklch(0.68 0.2 25);
   --warning: oklch(0.828 0.189 84.429);
   --warning-foreground: oklch(0.279 0.077 45.635);
   --sidebar: oklch(0.205 0 0);
@@ -331,3 +341,10 @@
   .alert-marquee > [data-copy] { display: none; }
 }
 
+
+/* Кольцо восстановления WHOOP: заполнение один раз при показе */
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-len);
+  }
+}
