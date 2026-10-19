@@ -84,6 +84,12 @@ export function zoneShort(zone: RecoveryZone): string {
   }
 }
 
+/** Значения восстановления для карточки и помощника: «58 мс», «52 уд/мин», «7 ч 20 мин · 86 %». */
+export const hrvText = (ms: number | null) => (ms === null ? "—" : `${Math.round(ms)} мс`);
+export const restingHrText = (bpm: number | null) => (bpm === null ? "—" : `${bpm} уд/мин`);
+export const sleepText = (sleepMs: number | null, performancePct: number | null) =>
+  sleepMs === null ? "—" : `${formatDuration(sleepMs / 1000)}${performancePct !== null ? ` · ${performancePct} %` : ""}`;
+
 /** Группы, чья метка стоит во множественном числе («Ноги», «Плечи»…). */
 const PLURAL_LABEL_GROUPS = new Set<string>(["LEGS", "SHOULDERS", "FOREARMS", "CALVES"]);
 

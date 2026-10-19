@@ -25,12 +25,13 @@ import {
   BACK,
   checkinReply,
   exerciseMenuReply,
-  MENU_BUTTONS,
+  menuButtons,
   painReply,
   repsReply,
   replaceReply,
   staticReply,
   weightReply,
+  whoopReply,
   type Button as ReplyButton,
   type NodeId,
   type Reply,
@@ -66,11 +67,13 @@ export type WorkoutBridge = {
 
 type Ctx = {
   available: boolean;
+  /** Флаг whoop: в меню появляется «Как я восстановился?». */
+  whoop: boolean;
   setWorkout: (bridge: WorkoutBridge | null) => void;
   openExercise: (exerciseId: string) => void;
 };
 
-const AssistantContext = createContext<Ctx>({ available: false, setWorkout: () => {}, openExercise: () => {} });
+const AssistantContext = createContext<Ctx>({ available: false, whoop: false, setWorkout: () => {}, openExercise: () => {} });
 
 export const useAssistant = () => useContext(AssistantContext);
 
@@ -99,7 +102,7 @@ function markCheckin(workoutId: string) {
  * Умный помощник (спека 2026-10-12-smart-coach): плавающая кнопка и чат на сценариях. `available` — флаг
  * smart_coach и выключатель в /settings (считает layout; сервер в действиях проверяет сам).
  */
-export function AssistantProvider({ available, children }: { available: boolean; children: ReactNode }) {
+export function AssistantProvider({ available, whoop = false, children }: { available: boolean; whoop?: boolean; children: ReactNode }) {
   const [workout, setWorkout] = useState<WorkoutBridge | null>(null);
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState<NodeId>("menu");
@@ -113,7 +116,7 @@ export function AssistantProvider({ available, children }: { available: boolean;
     setOpen(true);
   }, []);
 
-  const value = useMemo(() => ({ available, setWorkout, openExercise }), [available, openExercise]);
+  const value = useMemo(() => ({ available, whoop, setWorkout, openExercise }), [available, whoop, openExercise]);
 
   // Чек-ин, отвеченный без сети, — досылаем при появлении сети и при открытии кабинета
   useEffect(() => {
@@ -135,6 +138,7 @@ export function AssistantProvider({ available, children }: { available: boolean;
               key={session}
               start={start}
               workout={workout}
+              whoop={whoop}
               onClose={() => {
                 setOpen(false);
                 setRefocus(true);
@@ -336,7 +340,7 @@ function CheckIn({ workout, onDone }: { workout: WorkoutBridge; onDone: (pain: b
   );
 }
 
-function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBridge | null; onClose: () => void }) {
+function Chat({ start, workout, whoop, onClose }: { start: NodeId; workout: WorkoutBridge | null; whoop: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [pain, setPain] = useState<PainSpot[]>([]);
@@ -370,10 +374,10 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
         const names = new Map(w.exercises.filter((e) => !isTimed(e.exercise.kind)).map((e) => [e.exercise.id, e.exercise.name]));
         return {
           text: names.size ? "Чем помочь? Выбери упражнение или тему." : "Чем помочь?",
-          buttons: [...[...names].map(([id, name]) => ({ label: name, go: `exercise:${id}` })), ...MENU_BUTTONS],
+          buttons: [...[...names].map(([id, name]) => ({ label: name, go: `exercise:${id}` })), ...menuButtons(whoop)],
         };
       }
-      const fixed = staticReply(node);
+      const fixed = staticReply(node, whoop);
       if (fixed) return fixed;
 
       if (node === "recovery") {
@@ -381,6 +385,11 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
           text: w ? "Тренировка уже идёт — по карте мышц на дашборде видно, кто восстановился." : "Соберу тренировку из групп мышц, которые уже восстановились.",
           buttons: w ? [{ label: "Карта мышц", href: "/dashboard" }, BACK] : [{ label: "Собрать по восстановлению", action: "recovery" }, BACK],
         };
+      }
+      if (node === "whoop") {
+        const answer = await askAssistantAction("whoop").catch(() => null);
+        if (!answer?.ok) return { text: "Нужна сеть — попробуй, когда появится связь.", buttons: [BACK] };
+        return whoopReply(answer.whoop);
       }
       if (node === "stall" || node === "missed") {
         const answer = await askAssistantAction(node).catch(() => null);
@@ -438,7 +447,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
       });
       return replaceReply(ex, candidates, item.sets.some((s) => s.completedAt));
     },
-    [wellbeing],
+    [wellbeing, whoop],
   );
 
   const show = useCallback(

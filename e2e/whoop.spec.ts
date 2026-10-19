@@ -821,3 +821,74 @@ test("тренировка: красная зона, но в чек-ине «О�
   await checkin.getByRole("button", { name: "Отлично" }).click();
   await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
 });
+
+// --- помощник «Как я восстановился?» ---
+
+const assistantChat = (page: Page) => page.getByRole("dialog", { name: "Помощник" });
+
+async function askRecovery(page: Page) {
+  await page.getByRole("button", { name: "Помощник" }).click();
+  await assistantChat(page).getByRole("button", { name: "Как я восстановился?" }).click();
+}
+
+test("помощник: без флага whoop кнопки нет", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addFlagUser("smart_coach", login);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Помощник" }).click();
+  await expect(assistantChat(page).getByRole("button", { name: "Как я восстановился?" })).toHaveCount(0);
+  await expect(assistantChat(page).getByRole("button", { name: "Застой — что делать?" })).toBeVisible();
+});
+
+test("помощник: WHOOP не подключён — ссылка на устройства", async ({ page }) => {
+  await flaggedUser(page).then(({ login }) => addFlagUser("smart_coach", login));
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("WHOOP не подключён");
+  await expect(assistantChat(page).getByRole("link", { name: "Браслеты и часы" })).toHaveAttribute("href", "/devices");
+});
+
+test("помощник: восстановление с цифрами и всеми советами", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  for (let i = 1; i <= 7; i++) await insertWhoopSleep(login, { end: sleptAt(1 + 24 * i), recoveryPct: 70, hrvMs: 50, restingHr: 50 });
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 78, hrvMs: 40, restingHr: 58, sleepMs: 7 * H + 20 * 60_000, performancePct: 86 });
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  const c = assistantChat(page);
+  await expect(c).toContainText("Восстановление 78 % — можно тяжело");
+  await expect(c).toContainText("HRV: 40 мс");
+  await expect(c).toContainText("Пульс покоя: 58 уд/мин");
+  await expect(c).toContainText("Сон: 7 ч 20 мин · 86 %");
+  await expect(c).toContainText("• Пульс покоя выше обычного на 8");
+  await expect(c).toContainText("• HRV ниже твоей нормы");
+  await expect(c.getByRole("button", { name: "Назад в меню" })).toBeVisible();
+});
+
+test("помощник: данных за сегодня нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("Данных за сегодня пока нет · вчера: 64 %");
+  await expect(assistantChat(page).getByRole("link", { name: "Кабинет" })).toHaveAttribute("href", "/dashboard");
+});
+
+test("помощник: нет доступа к восстановлению — ссылка на устройства", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setWhoopScopes(login, "read:workout read:profile offline");
+
+  await page.goto("/dashboard");
+  await askRecovery(page);
+  await expect(assistantChat(page)).toContainText("Разреши WHOOP передавать сон и восстановление");
+  await expect(assistantChat(page).getByRole("link", { name: "Браслеты и часы" })).toHaveAttribute("href", "/devices");
+});

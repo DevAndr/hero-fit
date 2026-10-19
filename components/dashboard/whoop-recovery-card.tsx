@@ -4,8 +4,7 @@ import { WhoopRefreshButton } from "@/components/dashboard/whoop-refresh-button"
 import { AllowRecoveryButton } from "@/components/whoop/allow-recovery-button";
 import { RecoveryRing } from "@/components/whoop/recovery-ring";
 import { buttonVariants } from "@/components/ui/button";
-import { formatDuration } from "@/lib/format";
-import { zoneText } from "@/lib/whoop/recovery";
+import { hrvText, restingHrText, sleepText, zoneText } from "@/lib/whoop/recovery";
 import type { WhoopRecoveryView } from "@/lib/whoop/queries";
 
 function Stat({ icon: Icon, label, value }: { icon: typeof Watch; label: string; value: string }) {
@@ -58,8 +57,6 @@ export function WhoopRecoveryCard({ view }: { view: WhoopRecoveryView }) {
 }
 
 function Data({ view }: { view: Extract<WhoopRecoveryView, { state: "data" }> }) {
-  const sleep =
-    view.sleepMs === null ? "—" : `${formatDuration(view.sleepMs / 1000)}${view.performancePct !== null ? ` · ${view.performancePct} %` : ""}`;
   return (
     <>
       <div className="flex items-center gap-4">
@@ -74,9 +71,9 @@ function Data({ view }: { view: Extract<WhoopRecoveryView, { state: "data" }> })
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <Stat icon={Activity} label="HRV" value={view.hrvMs === null ? "—" : `${Math.round(view.hrvMs)} мс`} />
-        <Stat icon={HeartPulse} label="Пульс покоя" value={view.restingHr === null ? "—" : `${view.restingHr} уд/мин`} />
-        <Stat icon={Moon} label="Сон" value={sleep} />
+        <Stat icon={Activity} label="HRV" value={hrvText(view.hrvMs)} />
+        <Stat icon={HeartPulse} label="Пульс покоя" value={restingHrText(view.restingHr)} />
+        <Stat icon={Moon} label="Сон" value={sleepText(view.sleepMs, view.performancePct)} />
       </div>
       {view.advice.length > 0 ? (
         <ul className="space-y-1.5">

@@ -5,6 +5,8 @@ import { requireUser, type CurrentUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
+import { getMuscleRecovery } from "@/lib/progress/recovery-queries";
+import { getWhoopRecovery, type WhoopRecoveryView } from "@/lib/whoop/queries";
 import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
 import { assistantAvailable } from "./access";
 import { getMissedPlan, getStallRows } from "./queries";
@@ -21,11 +23,13 @@ export type AssistantAnswer =
       ok: true;
       stall?: { exerciseId: string; name: string; weeks: number }[];
       missed?: { key: string; title: string; date: string; text: string; canStart: boolean } | null;
+      /** null — WHOOP не подключён или флаг выключен. */
+      whoop?: WhoopRecoveryView | null;
     }
   | { ok: false };
 
-/** Ответы помощника, которым нужны данные с сервера: застой и пропущенный план. */
-export async function askAssistantAction(topic: "stall" | "missed"): Promise<AssistantAnswer> {
+/** Ответы помощника, которым нужны данные с сервера: застой, пропущенный план и восстановление WHOOP. */
+export async function askAssistantAction(topic: "stall" | "missed" | "whoop"): Promise<AssistantAnswer> {
   const user = await requireUser();
   if (!(await available(user))) return { ok: false };
   if (topic === "stall") {
@@ -37,6 +41,10 @@ export async function askAssistantAction(topic: "stall" | "missed"): Promise<Ass
     const { today, hasActive, missed } = await getMissedPlan(user.id, safeTimeZone(user.timeZone));
     const advice = missedPlanAdvice(missed, today, hasActive);
     return { ok: true, missed: missed && advice ? { key: missed.key, title: missed.title, date: missed.date, ...advice } : null };
+  }
+  if (topic === "whoop") {
+    const muscles = await getMuscleRecovery(user.id);
+    return { ok: true, whoop: await getWhoopRecovery(user.id, safeTimeZone(user.timeZone), muscles) };
   }
   return { ok: false };
 }

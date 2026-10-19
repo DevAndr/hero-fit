@@ -94,7 +94,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {theme?.kind === "theme" ? <style>{themeStyle(theme)}</style> : null}
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
         {/* Умный помощник: флаг smart_coach и выключатель в /settings */}
-        <AssistantProvider available={assistantAvailable(flags.includes("smart_coach"), user.assistantEnabled)}>
+        <AssistantProvider available={assistantAvailable(flags.includes("smart_coach"), user.assistantEnabled)} whoop={flags.includes("whoop")}>
           {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
           {user.embedded ? <TelegramMiniApp>{shell}</TelegramMiniApp> : shell}
         </AssistantProvider>
