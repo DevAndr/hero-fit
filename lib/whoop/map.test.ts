@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { toWhoopWorkout } from "./map";
-import type { WhoopApiWorkout } from "./types";
+import { toWhoopRecovery, toWhoopSleep, toWhoopWorkout } from "./map";
+import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "./types";
 
 const full: WhoopApiWorkout = {
   id: "w1",
@@ -78,5 +78,103 @@ describe("toWhoopWorkout", () => {
     expect(toWhoopWorkout({ ...full, id: "" })).toBeNull();
     expect(toWhoopWorkout({ ...full, id: 5 } as unknown as WhoopApiWorkout)).toBeNull();
     expect(toWhoopWorkout(null as unknown as WhoopApiWorkout)).toBeNull();
+  });
+});
+
+const sleep: WhoopApiSleep = {
+  id: "sl-1",
+  cycle_id: 93845,
+  start: "2026-10-18T22:00:00.000Z",
+  end: "2026-10-19T06:00:00.000Z",
+  nap: false,
+  score_state: "SCORED",
+  score: {
+    stage_summary: {
+      total_light_sleep_time_milli: 10_000_000,
+      total_slow_wave_sleep_time_milli: 5_000_000,
+      total_rem_sleep_time_milli: 6_000_000,
+    },
+    sleep_needed: {
+      baseline_milli: 27_000_000,
+      need_from_sleep_debt_milli: 1_000_000,
+      need_from_recent_strain_milli: 2_000_000,
+      need_from_recent_nap_milli: 3_000_000,
+    },
+    sleep_performance_percentage: 87.6,
+  },
+};
+
+describe("toWhoopSleep", () => {
+  it("полный сон", () => {
+    const r = toWhoopSleep(sleep)!;
+    expect(r.id).toBe("sl-1");
+    expect(r.cycleId).toBe("93845");
+    expect(r.sleepMs).toBe(21_000_000);
+    expect(r.needMs).toBe(33_000_000);
+    expect(r.performancePct).toBe(88);
+    expect(r.sleepScoreState).toBe("SCORED");
+    expect(r.end.toISOString()).toBe("2026-10-19T06:00:00.000Z");
+  });
+
+  it("дневной сон, нет id, битый end, нет cycle_id — null", () => {
+    expect(toWhoopSleep({ ...sleep, nap: true })).toBeNull();
+    expect(toWhoopSleep({ ...sleep, id: "" })).toBeNull();
+    expect(toWhoopSleep({ ...sleep, end: "bad" })).toBeNull();
+    expect(toWhoopSleep({ ...sleep, cycle_id: undefined } as unknown as WhoopApiSleep)).toBeNull();
+    expect(toWhoopSleep({ ...sleep, cycle_id: "x" } as unknown as WhoopApiSleep)).toBeNull();
+  });
+
+  it("PENDING_SCORE без score — поля null", () => {
+    const r = toWhoopSleep({ ...sleep, score_state: "PENDING_SCORE", score: undefined })!;
+    expect(r.sleepScoreState).toBe("PENDING_SCORE");
+    expect(r.sleepMs).toBeNull();
+    expect(r.needMs).toBeNull();
+    expect(r.performancePct).toBeNull();
+  });
+
+  it("неизвестный score_state — UNSCORABLE", () => {
+    expect(toWhoopSleep({ ...sleep, score_state: "WAT" })!.sleepScoreState).toBe("UNSCORABLE");
+  });
+
+  it("строка вместо числа в стадии — sleepMs null", () => {
+    const bad = {
+      ...sleep,
+      score: { ...sleep.score!, stage_summary: { ...sleep.score!.stage_summary, total_rem_sleep_time_milli: "6" } },
+    } as unknown as WhoopApiSleep;
+    const r = toWhoopSleep(bad)!;
+    expect(r.sleepMs).toBeNull();
+    expect(r.needMs).toBe(33_000_000);
+  });
+});
+
+const recovery: WhoopApiRecovery = {
+  cycle_id: 93845,
+  sleep_id: "sl-1",
+  score_state: "SCORED",
+  score: { user_calibrating: false, recovery_score: 67.4, resting_heart_rate: 51.6, hrv_rmssd_milli: 38.27 },
+};
+
+describe("toWhoopRecovery", () => {
+  it("полное восстановление", () => {
+    const r = toWhoopRecovery(recovery)!;
+    expect(r.sleepId).toBe("sl-1");
+    expect(r.recoveryPct).toBe(67);
+    expect(r.restingHr).toBe(52);
+    expect(r.hrvMs).toBe(38.27);
+    expect(r.calibrating).toBe(false);
+    expect(r.recoveryScoreState).toBe("SCORED");
+  });
+
+  it("калибровка", () => {
+    expect(toWhoopRecovery({ ...recovery, score: { ...recovery.score!, user_calibrating: true } })!.calibrating).toBe(true);
+  });
+
+  it("нет sleep_id — null; PENDING_SCORE без score — null-поля", () => {
+    expect(toWhoopRecovery({ ...recovery, sleep_id: "" })).toBeNull();
+    const r = toWhoopRecovery({ ...recovery, score_state: "PENDING_SCORE", score: undefined })!;
+    expect(r.recoveryPct).toBeNull();
+    expect(r.restingHr).toBeNull();
+    expect(r.hrvMs).toBeNull();
+    expect(r.calibrating).toBe(false);
   });
 });
