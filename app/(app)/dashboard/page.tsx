@@ -33,6 +33,8 @@ import { getClubDashboard } from "@/lib/club/dashboard";
 import { getRaidView } from "@/lib/raid/queries";
 import { formatClock, plural } from "@/lib/format";
 import { StreakFlame } from "@/components/lottie/streak-flame";
+import { WhoopRecoveryCard } from "@/components/dashboard/whoop-recovery-card";
+import { getWhoopRecovery } from "@/lib/whoop/queries";
 import { BodyMap } from "@/components/progress/body-map";
 import { XpBar } from "@/components/progress/xp-bar";
 import { levelProgress } from "@/lib/progress/level";
@@ -129,12 +131,12 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, recovery, balance, boss, coach, guild, goals, club] = await Promise.all([
+  const [data, feed, plan, recap, [recovery, whoopRecovery], balance, boss, coach, guild, goals, club] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
     getOrCreateRecap(user.id, recapWeekFor(new Date(), userTz), userTz),
-    getMuscleRecovery(user.id),
+    getMuscleRecovery(user.id).then(async (r) => [r, await getWhoopRecovery(user.id, userTz, r)] as const),
     getMuscleBalance(user.id),
     getBossView(user.id, userTz),
     activeCoachOf(user.id),
@@ -270,6 +272,7 @@ export default async function DashboardPage() {
         </section>
       </div>
 
+      {whoopRecovery ? <WhoopRecoveryCard view={whoopRecovery} /> : null}
       <BodyMap recovery={recovery} balance={balance} />
 
       <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">

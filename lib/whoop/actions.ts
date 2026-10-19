@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import type { WhoopCardState } from "./card";
 import { revokeAccess } from "./client";
 import { getWhoopCard, whoopAvailable } from "./queries";
+import { syncSleepRange } from "./sleep-sync";
 import { syncRange } from "./sync";
 import { WhoopReauthError, WhoopUnavailableError } from "./tokens";
 
@@ -67,4 +68,35 @@ export async function refreshWhoopAction(workoutId: string): Promise<WhoopRefres
 
   const card = await getWhoopCard(user.id, workout);
   return card ? { status: "ok", card } : { status: "reauth" };
+}
+
+/** Сны и тренировки за последние дни — «Обновить» на карточке восстановления. */
+const RECOVERY_REFRESH_DAYS = 3;
+
+/** «Обновить» на дашборде: сны, восстановления и тренировки за 3 дня; ограничение общее с «Обновить» в сводке (lastSyncAt). */
+export async function refreshWhoopRecoveryAction(): Promise<{ status: "ok" | "throttled" | "unavailable" | "reauth" }> {
+  const user = await requireUser();
+  if (!(await whoopAvailable(user.id))) return { status: "unavailable" };
+
+  const conn = await db.whoopConnection.findUnique({ where: { userId: user.id }, select: { needsReauth: true } });
+  if (!conn || conn.needsReauth) return { status: "reauth" };
+
+  const now = new Date();
+  const { count } = await db.whoopConnection.updateMany({
+    where: { userId: user.id, OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: new Date(now.getTime() - REFRESH_THROTTLE_MS) } }] },
+    data: { lastSyncAt: now },
+  });
+  if (count === 0) return { status: "throttled" };
+
+  const from = new Date(now.getTime() - RECOVERY_REFRESH_DAYS * 86_400_000);
+  try {
+    await syncRange(user.id, from, now);
+    await syncSleepRange(user.id, from, now);
+  } catch (e) {
+    if (e instanceof WhoopReauthError) return { status: "reauth" };
+    if (!(e instanceof WhoopUnavailableError)) console.error("[whoop] refresh recovery", (e as Error).name);
+    return { status: "unavailable" };
+  }
+  revalidatePath("/dashboard");
+  return { status: "ok" };
 }

@@ -9,6 +9,7 @@ import {
   latestWorkout,
   resetWhoopSync,
   seedWorkouts,
+  setTimeZone,
   setWhoopScopes,
   whoopLastSyncAt,
   whoopNeedsReauth,
@@ -615,4 +616,89 @@ test("recovery.deleted очищает восстановление, сон ос�
   expect(row).not.toBeNull();
   expect(row?.restingHr).toBeNull();
   expect(row?.hrvMs).toBeNull();
+});
+
+// --- карточка «Восстановление» на дашборде ---
+
+const recoveryCard = (page: Page) => page.getByRole("region", { name: "Восстановление WHOOP" });
+/** Конец сна «сегодня» в поясе e2e: прогон стартует около 12:00 местного, час назад — то же утро. */
+const sleptAt = (hoursAgo: number) => new Date(Date.now() - hoursAgo * H);
+
+test("плашка у старого подключения → «Разрешить» открывает согласие", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setWhoopScopes(login, "read:workout read:profile offline");
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("WHOOP может показывать сон и восстановление");
+  await recoveryCard(page).getByRole("button", { name: "Разрешить" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("только вы");
+  await expect(dialog.getByRole("link", { name: "Продолжить" })).toBeDisabled();
+});
+
+test("карточка: восстановление посчитано", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 78, hrvMs: 58, restingHr: 52, sleepMs: 7 * H + 20 * 60_000, performancePct: 86 });
+
+  await page.goto("/dashboard");
+  const c = recoveryCard(page);
+  await expect(c).toContainText("78 %");
+  await expect(c).toContainText("58 мс");
+  await expect(c).toContainText("52 уд/мин");
+  await expect(c).toContainText("7 ч 20 мин · 86 %");
+  await expect(c).toContainText("можно тяжёлую тренировку");
+});
+
+test("карточка: WHOOP считает", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: null, sleepMs: 7 * H + 20 * 60_000 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("WHOOP считает…");
+  await expect(recoveryCard(page)).toContainText("7 ч 20 мин");
+});
+
+test("карточка: за сегодня данных нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("Данных за сегодня пока нет · вчера: 64 %");
+});
+
+test("карточка: совет про HRV", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  for (let i = 1; i <= 7; i++) await insertWhoopSleep(login, { end: sleptAt(1 + 24 * i), recoveryPct: 70, hrvMs: 50 });
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 70, hrvMs: 40 });
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("HRV ниже твоей нормы");
+});
+
+test("карточка: «Обновить» догружает сон, повтор — ограничение", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  const whoopId = await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
+  const sleepId = randomUUID();
+  await putSleeps(whoopId, { sleeps: [whoopSleepApi(sleepId, whoopId + 1, sleptAt(1))], recoveries: [whoopRecoveryApi(sleepId, whoopId + 1, 78)] });
+  await resetWhoopSync(login);
+
+  await page.goto("/dashboard");
+  await expect(recoveryCard(page)).toContainText("Данных за сегодня пока нет");
+  await recoveryCard(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(recoveryCard(page)).toContainText("78 %");
+  await expect(recoveryCard(page)).toContainText("52 уд/мин");
+
+  await recoveryCard(page).getByRole("button", { name: "Обновить" }).click();
+  await expect(page.getByText("Обновить можно через минуту")).toBeVisible();
 });

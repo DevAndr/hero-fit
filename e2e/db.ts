@@ -1234,7 +1234,7 @@ export async function whoopSleepCount(login: string): Promise<number> {
 /** Вставить сон WHOOP, закончившийся в `night.end`; остальные поля можно переопределить. */
 export async function insertWhoopSleep(
   login: string,
-  night: { end: Date; id?: string; sleepMs?: number; needMs?: number; recoveryPct?: number | null; restingHr?: number; hrvMs?: number; calibrating?: boolean },
+  night: { end: Date; id?: string; sleepMs?: number; needMs?: number; performancePct?: number; recoveryPct?: number | null; restingHr?: number; hrvMs?: number; calibrating?: boolean },
 ): Promise<string> {
   return withDb(async (db) => {
     const id = night.id ?? randomUUID();
@@ -1243,7 +1243,7 @@ export async function insertWhoopSleep(
     await db.query(
       `insert into "WhoopSleep" (id, "userId", "cycleId", start, "end", "sleepScoreState", "sleepMs", "needMs", "performancePct",
          "recoveryScoreState", "recoveryPct", "restingHr", "hrvMs", calibrating, "updatedAt")
-       values ($1, $2, $3, $4, $5, 'SCORED', $6, $7, 90, $8, $9, $10, $11, $12, now())`,
+       values ($1, $2, $3, $4, $5, 'SCORED', $6, $7, $13, $8, $9, $10, $11, $12, now())`,
       [
         id,
         await userId(db, login),
@@ -1257,6 +1257,7 @@ export async function insertWhoopSleep(
         night.restingHr ?? 55,
         night.hrvMs ?? 80,
         night.calibrating ?? false,
+        night.performancePct ?? 90,
       ],
     );
     return id;
