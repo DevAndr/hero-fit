@@ -1202,6 +1202,67 @@ export async function whoopWorkoutCount(login: string): Promise<number> {
   });
 }
 
+/** Выданные scope подключения WHOOP; null — не подключён. */
+export async function whoopScopes(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ s: string }>(
+      `select c.scopes as s from "WhoopConnection" c join "User" u on u.id = c."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0]?.s ?? null;
+  });
+}
+
+/** Подменить scope подключения WHOOP (старое подключение без сна и восстановления). */
+export async function setWhoopScopes(login: string, scopes: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(`update "WhoopConnection" c set scopes = $2 from "User" u where u.id = c."userId" and u.login = $1`, [login, scopes]);
+  });
+}
+
+/** Сколько снов WHOOP сохранено у пользователя. */
+export async function whoopSleepCount(login: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(
+      `select count(*)::int as n from "WhoopSleep" s join "User" u on u.id = s."userId" where u.login = $1`,
+      [login],
+    );
+    return rows[0].n;
+  });
+}
+
+/** Вставить сон WHOOP, закончившийся в `night.end`; остальные поля можно переопределить. */
+export async function insertWhoopSleep(
+  login: string,
+  night: { end: Date; id?: string; sleepMs?: number; needMs?: number; recoveryPct?: number | null; restingHr?: number; hrvMs?: number; calibrating?: boolean },
+): Promise<string> {
+  return withDb(async (db) => {
+    const id = night.id ?? randomUUID();
+    const recoveryPct = night.recoveryPct === undefined ? 70 : night.recoveryPct;
+    const sleepMs = night.sleepMs ?? 8 * 3_600_000;
+    await db.query(
+      `insert into "WhoopSleep" (id, "userId", "cycleId", start, "end", "sleepScoreState", "sleepMs", "needMs", "performancePct",
+         "recoveryScoreState", "recoveryPct", "restingHr", "hrvMs", calibrating, "updatedAt")
+       values ($1, $2, $3, $4, $5, 'SCORED', $6, $7, 90, $8, $9, $10, $11, $12, now())`,
+      [
+        id,
+        await userId(db, login),
+        String(Date.now()),
+        new Date(night.end.getTime() - sleepMs - 30 * 60_000),
+        night.end,
+        sleepMs,
+        night.needMs ?? 8 * 3_600_000,
+        recoveryPct === null ? null : "SCORED",
+        recoveryPct,
+        night.restingHr ?? 55,
+        night.hrvMs ?? 80,
+        night.calibrating ?? false,
+      ],
+    );
+    return id;
+  });
+}
+
 /** Последняя завершённая тренировка пользователя. */
 export async function latestWorkout(login: string): Promise<{ id: string; startedAt: Date; finishedAt: Date }> {
   return withDb(async (db) => {

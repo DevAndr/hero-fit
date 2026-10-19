@@ -4,7 +4,7 @@ import type { WhoopApiWorkout } from "../lib/whoop/types";
 
 /**
  * Фейковый WHOOP для e2e — третий webServer в playwright.config.ts (порт 3125, HTTP); `WHOOP_API_URL` сервера — сюда.
- * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code`; POST /oauth/oauth2/token — коды и refresh-ротация
+ * OAuth: GET /oauth/oauth2/auth сразу редиректит обратно с `code` (запрошенный `scope` запоминается и возвращается в ответе токена и при refresh); POST /oauth/oauth2/token — коды и refresh-ротация
  * (старые refresh и access недействительны сразу; `expires_in` по умолчанию 1 — каждый запрос приложения идёт через refresh).
  * API (под /developer): GET /v2/user/profile/basic, GET /v2/activity/workout (пересечение с [start, end), по убыванию
  * start, limit, nextToken = смещение), GET /v2/activity/workout/:id, DELETE /v2/user/access (как настоящий —
@@ -21,20 +21,20 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
   /** Новые user_id: от времени запуска — база e2e переживает прогоны, а `whoopUserId` уникален. */
   let nextUserId = Date.now();
   let reuseNext: number | null = null;
-  const codes = new Map<string, number>();
-  const accessTokens = new Map<string, { user: number; refresh: string }>();
-  const refreshTokens = new Map<string, { user: number; access: string }>();
+  const codes = new Map<string, { user: number; scope: string }>();
+  const accessTokens = new Map<string, { user: number; refresh: string; scope: string }>();
+  const refreshTokens = new Map<string, { user: number; access: string; scope: string }>();
   const workouts = new Map<number, WhoopApiWorkout[]>();
   const revoked = new Set<number>();
   let expiresIn = 1;
   let apiDelayMs = 0;
 
-  const issue = (user: number) => {
+  const issue = (user: number, scope: string) => {
     const access = `acc-${randomUUID()}`;
     const refresh = `ref-${randomUUID()}`;
-    accessTokens.set(access, { user, refresh });
-    refreshTokens.set(refresh, { user, access });
-    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope: "read:workout read:profile offline", token_type: "bearer" };
+    accessTokens.set(access, { user, refresh, scope });
+    refreshTokens.set(refresh, { user, access, scope });
+    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope, token_type: "bearer" };
   };
 
   const readBody = (req: IncomingMessage) =>
@@ -83,7 +83,7 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
       const redirect = url.searchParams.get("redirect_uri");
       if (!redirect) return json(400, { error: "invalid_request" });
       const code = randomUUID();
-      codes.set(code, reuseNext ?? nextUserId++);
+      codes.set(code, { user: reuseNext ?? nextUserId++, scope: url.searchParams.get("scope") ?? "" });
       reuseNext = null;
       const back = new URL(redirect);
       back.searchParams.set("code", code);
@@ -94,17 +94,17 @@ if (process.argv[1]?.endsWith("whoop-server.ts")) {
     if (req.method === "POST" && path === "/oauth/oauth2/token") {
       const form = new URLSearchParams(await readBody(req));
       if (form.get("grant_type") === "authorization_code") {
-        const user = codes.get(form.get("code") ?? "");
-        if (user === undefined) return json(400, { error: "invalid_grant" });
+        const granted = codes.get(form.get("code") ?? "");
+        if (granted === undefined) return json(400, { error: "invalid_grant" });
         codes.delete(form.get("code")!);
-        return json(200, issue(user));
+        return json(200, issue(granted.user, granted.scope));
       }
       if (form.get("grant_type") === "refresh_token") {
         const old = refreshTokens.get(form.get("refresh_token") ?? "");
         if (!old) return json(400, { error: "invalid_grant" });
         refreshTokens.delete(form.get("refresh_token")!);
         accessTokens.delete(old.access);
-        return json(200, issue(old.user));
+        return json(200, issue(old.user, old.scope));
       }
       return json(400, { error: "unsupported_grant_type" });
     }

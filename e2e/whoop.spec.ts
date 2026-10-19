@@ -5,10 +5,13 @@ import type { WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
   expireWhoopToken,
+  insertWhoopSleep,
   latestWorkout,
   resetWhoopSync,
   seedWorkouts,
   whoopNeedsReauth,
+  whoopScopes,
+  whoopSleepCount,
   whoopUserIdOf,
   whoopWorkoutCount,
 } from "./db";
@@ -163,6 +166,36 @@ test("чужой аккаунт WHOOP", async ({ page }) => {
   expect(await isRevoked(whoopId!)).toBe(true);
 });
 
+test("подключение сохраняет новые scope", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  const scopes = (await whoopScopes(login)) ?? "";
+  expect(scopes.split(" ")).toEqual(expect.arrayContaining(["read:recovery", "read:sleep", "read:workout", "offline"]));
+});
+
+test("переподключение другого аккаунта удаляет сны", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWhoop(page);
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  await insertWhoopSleep(login, { end: new Date() });
+  expect(await whoopSleepCount(login)).toBe(1);
+
+  // Тот же аккаунт WHOOP — сон остаётся
+  const same = (await whoopUserIdOf(login))!;
+  await reuseNext(same);
+  await page.goto("/api/whoop/connect?consent=1");
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  expect(await whoopSleepCount(login)).toBe(1);
+
+  // Другой аккаунт — сны прежнего удалены
+  await reuseNext(9_000_000_000_000 + Math.floor(Math.random() * 1e9));
+  await page.goto("/api/whoop/connect?consent=1");
+  await expect(page).toHaveURL(/\/devices\?whoop=connected$/);
+  expect(await whoopUserIdOf(login)).not.toBe(same);
+  expect(await whoopSleepCount(login)).toBe(0);
+});
+
 test("callback с чужим state — ошибка, подключения нет", async ({ page }) => {
   const { login } = await flaggedUser(page);
   // Настоящий state в cookie (как после «Продолжить»), но в callback пришёл другой
@@ -188,6 +221,7 @@ test("отключение удаляет данные", async ({ page }) => {
   expect(await whoopUserIdOf(login)).toBe(String(whoopId));
   // История грузится в after() — дождаться, чтобы загрузка не дописала строки после отключения
   await expect.poll(() => whoopWorkoutCount(login)).toBe(2);
+  await insertWhoopSleep(login, { end: new Date() });
 
   await card(page).getByRole("button", { name: "Отключить WHOOP" }).click();
   const confirm = page.getByRole("alertdialog");
@@ -195,6 +229,7 @@ test("отключение удаляет данные", async ({ page }) => {
   await confirm.getByRole("button", { name: "Отключить" }).click();
   await expect(card(page)).toContainText("Не подключён");
   expect(await whoopWorkoutCount(login)).toBe(0);
+  expect(await whoopSleepCount(login)).toBe(0);
   expect(await whoopUserIdOf(login)).toBeNull();
   expect(await isRevoked(whoopId)).toBe(true);
 });

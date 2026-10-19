@@ -25,6 +25,7 @@ export async function disconnectWhoopAction(): Promise<void> {
   await db.$transaction([
     db.whoopConnection.deleteMany({ where: { userId: user.id } }),
     db.whoopWorkout.deleteMany({ where: { userId: user.id } }),
+    db.whoopSleep.deleteMany({ where: { userId: user.id } }),
   ]);
   revalidatePath("/devices");
   revalidatePath("/settings");
