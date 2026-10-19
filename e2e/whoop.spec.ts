@@ -4,9 +4,15 @@ import { expect, test, type Page } from "@playwright/test";
 import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
+  coachAssignOnce,
+  coachTarget,
+  coachTemplate,
+  createUserRow,
+  enableCoach,
   expireWhoopToken,
   insertWhoopSleep,
   latestWorkout,
+  linkCoach,
   resetWhoopSync,
   seedWorkouts,
   setTimeZone,
@@ -20,6 +26,7 @@ import {
   whoopWorkoutCount,
 } from "./db";
 import { PASSWORD, registerUser } from "./helpers";
+import { E2E_TZ_OFFSET } from "./tz";
 import { WHOOP_FAKE_URL } from "./whoop-server";
 
 // У фейкового WHOOP глобальный /__control/reuse-next — параллельные тесты перехватили бы его
@@ -701,4 +708,80 @@ test("карточка: «Обновить» догружает сон, повт
 
   await recoveryCard(page).getByRole("button", { name: "Обновить" }).click();
   await expect(page.getByText("Обновить можно через минуту")).toBeVisible();
+});
+
+// --- зона на экране тренировки и «Облегчить» ---
+
+const SQUAT = "Приседания со штангой";
+const LEG_PRESS = "Жим ногами";
+const zoneLine = (page: Page) => page.getByRole("region", { name: "Восстановление WHOOP" });
+/** Дата в поясе e2e через n дней, «YYYY-MM-DD». */
+const localDate = (n: number) => new Date(Date.now() + E2E_TZ_OFFSET * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Три одинаковые тренировки с жимом ногами 100 кг — подсказка «Пора увеличить вес». */
+const seedLegPress = (login: string) =>
+  seedWorkouts(login, LEG_PRESS, [
+    { weight: 100, reps: 10, sets: 3 },
+    { weight: 100, reps: 10, sets: 3 },
+    { weight: 100, reps: 10, sets: 3 },
+  ], 4);
+
+test("тренировка: красная зона — строка, «Облегчить» не трогает задание тренера, «Вернуть»", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 21 });
+  await seedLegPress(login);
+  // Шаблон тренера: присед с заданием 60 кг и жим ногами без задания (вес — как в прошлый раз)
+  const coach = `e2e_whoopcoach_${randomUUID().slice(0, 8)}`;
+  await createUserRow(coach);
+  await enableCoach(coach, `wc_${randomUUID().slice(0, 8)}`);
+  const templateId = await coachTemplate(coach, "Ноги — база");
+  await linkCoach(coach, login);
+  await coachTarget(login, templateId, SQUAT, { weight: 60 });
+  await coachAssignOnce(coach, login, templateId, "Ноги — база", localDate(2));
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText(/Восстановление 21 % — лёгкий день/i);
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+  await page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
+
+  const squat = page.getByRole("region", { name: SQUAT });
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(zoneLine(page)).toContainText(/Восстановление 21 % — лёгкий день/i);
+  await expect(press.getByLabel("Вес, подход 1")).toHaveValue("100");
+  await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("60");
+  // Красная зона — как «устал»: прибавку не предлагаем
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+
+  await zoneLine(page).getByRole("button", { name: "Облегчить" }).click();
+  for (let i = 1; i <= 3; i++) await expect(press.getByLabel(`Вес, подход ${i}`)).toHaveValue("90");
+  await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("60");
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+
+  await expect(page.getByText("Облегчено")).toBeVisible();
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  for (let i = 1; i <= 3; i++) await expect(press.getByLabel(`Вес, подход ${i}`)).toHaveValue("100");
+
+  // Один раз за тренировку — и после перезагрузки
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
+  await page.reload();
+  await expect(zoneLine(page)).toBeVisible();
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: зелёная зона — подсказка прибавки видна, «Облегчить» нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 80 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText(/Восстановление 80 % — зелёная зона/i);
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
+  await expect(zoneLine(page)).toContainText("80 %");
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
 });

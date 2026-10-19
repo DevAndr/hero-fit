@@ -14,8 +14,21 @@ const TEXT: Record<RecoveryZone, string> = {
 
 const WIDTH = 8;
 
-/** Кольцо процента восстановления цветом зоны; без процента (WHOOP считает) — пустое кольцо с «—». */
-export function RecoveryRing({ pct, zone, size = 96 }: { pct: number | null; zone: RecoveryZone | null; size?: number }) {
+/**
+ * Кольцо процента восстановления цветом зоны; без процента (WHOOP считает) — пустое кольцо с «—».
+ * `textClassName` — размер цифры у маленького кольца (строка на экране тренировки).
+ */
+export function RecoveryRing({
+  pct,
+  zone,
+  size = 96,
+  textClassName,
+}: {
+  pct: number | null;
+  zone: RecoveryZone | null;
+  size?: number;
+  textClassName?: string;
+}) {
   const r = 50 - WIDTH / 2;
   const len = 2 * Math.PI * r;
   const filled = pct === null ? 0 : Math.min(100, Math.max(0, pct)) / 100;
@@ -38,7 +51,7 @@ export function RecoveryRing({ pct, zone, size = 96 }: { pct: number | null; zon
           />
         ) : null}
       </svg>
-      <span className={cn("absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums", zone ? TEXT[zone] : "text-muted-foreground")}>
+      <span className={cn("absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums", zone ? TEXT[zone] : "text-muted-foreground", textClassName)}>
         {pct === null ? "—" : `${pct} %`}
       </span>
     </div>

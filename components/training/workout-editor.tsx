@@ -51,6 +51,7 @@ import {
   initState,
   isCollapsed,
   lastWorkedKey,
+  lightenPlan,
   liveSets,
   nextStep,
   reducer,
@@ -71,6 +72,8 @@ import { prunePain, readPain } from "@/components/assistant/pain-store";
 import type { SwapSource } from "@/components/training/exercise-swap-dialog";
 import type { Wellbeing } from "@/lib/assistant/rules";
 import type { Target } from "@/lib/coach/targets";
+import { RecoveryLine, whoopZone } from "@/components/training/recovery-line";
+import type { WhoopRecoveryView } from "@/lib/whoop/queries";
 
 type Props = {
   workout: ActiveWorkout;
@@ -86,6 +89,8 @@ type Props = {
   /** Для помощника: задания тренера и цели своей прогрессии (exerciseId → цель). */
   targets?: Record<string, Target>;
   own?: Record<string, Target>;
+  /** Восстановление WHOOP: строка зоны, при красной — «Облегчить»; жёлтая/красная — как самочувствие «устал». */
+  whoop?: WhoopRecoveryView | null;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -177,7 +182,10 @@ const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-d
 
 const NO_TARGETS: Record<string, Target> = {};
 
-function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS }: Props) {
+/** «Облегчить» уже нажимали в этой тренировке — повторно не предлагаем (и после перезагрузки). */
+const lightenedKey = (workoutId: string) => `hf:lightened:${workoutId}`;
+
+function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS, whoop }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   // Выполненные упражнения сворачиваются (isCollapsed); ручной выбор — поверх правила (ключ упражнения → свёрнуто)
   const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -202,13 +210,17 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   // Помощник видит упражнения тренировки и меняет их через тот же редьюсер (автосохранение и офлайн — как обычно)
   const assistant = useAssistant();
   const [wellbeing, setWellbeing] = useState<Wellbeing | null>(workout.wellbeing ?? null);
+  // Жёлтая/красная зона WHOOP — как «устал» (без прибавки); явный выбор самочувствия важнее зоны
+  const zone = whoopZone(whoop)?.zone ?? null;
+  const feeling: Wellbeing | null = wellbeing ?? (zone === "yellow" || zone === "red" ? "TIRED" : null);
+  const tired = feeling === "TIRED";
   const { setWorkout } = assistant;
   useEffect(() => {
     if (!assistant.available) return;
     setWorkout({
       workoutId: workout.id,
       started: state.status === "IN_PROGRESS",
-      wellbeing,
+      wellbeing: feeling,
       exercises: state.exercises,
       dispatch,
       last,
@@ -218,7 +230,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
       catalog: exercises,
       setWellbeing,
     });
-  }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, wellbeing, last, hints, targets, own, exercises]);
+  }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, feeling, last, hints, targets, own, exercises]);
   useEffect(() => () => setWorkout(null), [setWorkout]);
   const draft = useMemo(() => toDraft(state), [state]);
   const [goblin, setGoblin] = useState(workout.goblin ?? null);
@@ -240,6 +252,37 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     setFinishOpen(true);
   };
   const [cancelOpen, setCancelOpen] = useState(false);
+
+  // «Облегчить» (красная зона): −10 % невыполненным рабочим подходам, кроме заданий тренера/программы; один раз
+  const [lightened, setLightened] = useState(true);
+  useEffect(() => {
+    // localStorage читается после монтирования (на сервере его нет)
+    let done = false;
+    try {
+      done = localStorage.getItem(lightenedKey(workout.id)) !== null;
+    } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLightened(done);
+  }, [workout.id]);
+  const lightenSkip = useMemo(() => new Set(Object.keys(targets)), [targets]);
+  const canLighten = zone === "red" && !lightened && lightenPlan(state, lightenSkip).length > 0;
+  const lighten = () => {
+    const changes = lightenPlan(state, lightenSkip);
+    try {
+      localStorage.setItem(lightenedKey(workout.id), "1");
+    } catch {}
+    setLightened(true);
+    if (!changes.length) return;
+    dispatch({ type: "setWeights", weights: changes.map((c) => ({ key: c.key, setKey: c.setKey, weight: c.to })) });
+    toast("Облегчено", {
+      action: {
+        label: "Вернуть",
+        // Вес, поправленный вручную после «Облегчить», не затирается
+        onClick: () =>
+          dispatch({ type: "setWeights", weights: changes.map((c) => ({ key: c.key, setKey: c.setKey, weight: c.from, expect: c.to })) }),
+      },
+    });
+  };
   // Отмена тренировки из плана по умолчанию пропускает и план на сегодня (иначе он так и висит «Сегодня по плану»)
   const [skipPlan, setSkipPlan] = useState(true);
 
@@ -407,6 +450,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
               </div>
             </div>
 
+            <RecoveryLine view={whoop} onLighten={canLighten ? lighten : undefined} />
+
             {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={liveSets(state)} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
@@ -427,7 +472,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                             index={index}
                             total={state.exercises.length}
                             last={last[item.exercise.id]}
-                            hint={hints[item.exercise.id]}
+                            hint={tired ? undefined : hints[item.exercise.id]}
                             coachTarget={coachTargets[item.exercise.id]}
                             onAsk={assistant.available && !isTimed(item.exercise.kind) ? () => assistant.openExercise(item.exercise.id) : undefined}
                             dispatch={dispatch}
