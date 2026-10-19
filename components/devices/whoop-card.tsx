@@ -19,7 +19,7 @@ import { disconnectWhoopAction } from "@/lib/whoop/actions";
 import type { WhoopNotice } from "@/lib/whoop/oauth";
 
 /** Статус для карточки: даты уже отформатированы на сервере в поясе пользователя. */
-export type WhoopCardStatus = { connected: false } | { connected: true; since: string; lastSync: string | null; needsReauth: boolean };
+export type WhoopCardStatus = { connected: false } | { connected: true; since: string; lastSync: string | null; needsReauth: boolean; recovery: boolean };
 
 const NOTICE_TEXT: Record<WhoopNotice, { text: string; ok: boolean }> = {
   connected: { text: "WHOOP подключён", ok: true },
@@ -57,7 +57,7 @@ export function WhoopCard({ status, notice, embedded = false }: { status: WhoopC
         <>
           <p className="text-sm font-medium">Не подключён</p>
           <p className="text-sm text-muted-foreground">
-            Средний и максимальный пульс, strain и калории из WHOOP появятся в сводке тренировки.
+            Пульс, strain и калории из WHOOP появятся в сводке тренировки, а сон и восстановление — на главной и в советах по нагрузке.
           </p>
           {embedded ? (
             <p className="text-sm font-medium">{BROWSER_ONLY}</p>
@@ -78,6 +78,9 @@ export function WhoopCard({ status, notice, embedded = false }: { status: WhoopC
           ) : (
             <p className="text-sm font-medium">Подключён с {status.since}</p>
           )}
+          <p className="text-sm text-muted-foreground">
+            Передаются: {status.recovery ? "тренировки, пульс, сон, восстановление" : "тренировки, пульс"}
+          </p>
           <p className="text-sm text-muted-foreground">Последняя синхронизация: {status.lastSync ?? "ещё не было"}</p>
           <div className="flex flex-wrap gap-2">
             {status.needsReauth && embedded ? <p className="w-full text-sm font-medium">{BROWSER_ONLY}</p> : null}
@@ -85,6 +88,12 @@ export function WhoopCard({ status, notice, embedded = false }: { status: WhoopC
               <Button onClick={() => setConsentOpen(true)}>
                 <Link2 />
                 Переподключить WHOOP
+              </Button>
+            ) : null}
+            {!status.needsReauth && !status.recovery && !embedded ? (
+              <Button onClick={() => setConsentOpen(true)}>
+                <Link2 />
+                Разрешить сон и восстановление
               </Button>
             ) : null}
             <DisconnectButton />

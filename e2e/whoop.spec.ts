@@ -892,3 +892,28 @@ test("помощник: нет доступа к восстановлению �
   await expect(assistantChat(page)).toContainText("Разреши WHOOP передавать сон и восстановление");
   await expect(assistantChat(page).getByRole("link", { name: "Браслеты и часы" })).toHaveAttribute("href", "/devices");
 });
+
+test("/devices: перечень данных и «Разрешить сон и восстановление» у старого подключения", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await page.goto("/devices");
+  await expect(card(page)).toContainText("Передаются: тренировки, пульс, сон, восстановление");
+  await expect(card(page).getByRole("button", { name: "Разрешить сон и восстановление" })).toHaveCount(0);
+
+  await setWhoopScopes(login, "read:workout read:profile offline");
+  await page.goto("/devices");
+  await expect(card(page)).toContainText("Передаются: тренировки, пульс");
+  await expect(card(page)).not.toContainText("сон, восстановление");
+  await card(page).getByRole("button", { name: "Разрешить сон и восстановление" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("вариабельность пульса (HRV)");
+  await expect(dialog).toContainText("тренеру и друзьям не передаётся");
+  await expect(dialog.getByRole("link", { name: "Продолжить" })).toBeDisabled();
+});
+
+test("согласие при подключении называет сон, восстановление и HRV", async ({ page }) => {
+  await flaggedUser(page);
+  await page.goto("/devices");
+  await page.getByRole("button", { name: "Подключить WHOOP" }).click();
+  await expect(page.getByRole("dialog")).toContainText("вариабельность пульса (HRV)");
+});

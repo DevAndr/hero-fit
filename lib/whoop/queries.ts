@@ -20,7 +20,7 @@ import type { WhoopScoreState, WhoopWorkoutRow } from "./types";
 
 export type WhoopStatus =
   | { connected: false }
-  | { connected: true; since: Date; needsReauth: boolean; lastSyncAt: Date | null };
+  | { connected: true; since: Date; needsReauth: boolean; lastSyncAt: Date | null; recovery: boolean };
 
 /** Интеграция доступна пользователю: WHOOP настроен на сервере и флаг `whoop` включён. */
 export async function whoopAvailable(userId: string): Promise<boolean> {
@@ -31,10 +31,17 @@ export async function whoopAvailable(userId: string): Promise<boolean> {
 export async function getWhoopStatus(userId: string): Promise<WhoopStatus> {
   const conn = await db.whoopConnection.findUnique({
     where: { userId },
-    select: { createdAt: true, needsReauth: true, lastSyncAt: true },
+    select: { createdAt: true, needsReauth: true, lastSyncAt: true, scopes: true },
   });
   if (!conn) return { connected: false };
-  return { connected: true, since: conn.createdAt, needsReauth: conn.needsReauth, lastSyncAt: conn.lastSyncAt };
+  return {
+    connected: true,
+    since: conn.createdAt,
+    needsReauth: conn.needsReauth,
+    lastSyncAt: conn.lastSyncAt,
+    // Сон и восстановление передаются, только если выданы оба scope
+    recovery: hasScope(conn.scopes, "read:recovery") && hasScope(conn.scopes, "read:sleep"),
+  };
 }
 
 /**

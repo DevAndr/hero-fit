@@ -27,13 +27,14 @@ export function ConsentDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
           <li>
             <span className="text-foreground">Какие данные:</span> тренировки WHOOP — время, вид спорта, средний и максимальный пульс,
-            strain, ккал, время в пульсовых зонах.
+            strain, ккал, время в пульсовых зонах; сон (длительность, потребность), восстановление, вариабельность пульса (HRV), пульс
+            покоя.
           </li>
           <li>
-            <span className="text-foreground">Зачем:</span> показ в сводке тренировки.
+            <span className="text-foreground">Зачем:</span> показ в сводке тренировки и советы по нагрузке в приложении.
           </li>
           <li>
-            <span className="text-foreground">Кто видит:</span> только вы.
+            <span className="text-foreground">Кто видит:</span> только вы — тренеру и друзьям не передаётся.
           </li>
           <li>
             <span className="text-foreground">Срок:</span> пока WHOOP подключён.

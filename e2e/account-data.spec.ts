@@ -29,6 +29,9 @@ import {
   respectCount,
   seedRecordWorkout,
   idOf,
+  insertWhoopConnection,
+  insertWhoopSleep,
+  whoopSleepCount,
   userExists,
   visitDays,
   withDb,
@@ -448,6 +451,24 @@ test("my data: favorite exercises are exported and go with the account", async (
   await deleteAccount(page, PASSWORD);
   await expect(page).toHaveURL(/deleted=1/);
   expect(await userExists(me.login)).toBe(false);
+});
+
+test("my data: whoop sleeps are exported and go with the account", async ({ page }) => {
+  const me = await registerUser(page);
+  await insertWhoopConnection(me.login);
+  const sleepId = await insertWhoopSleep(me.login, { end: new Date(), recoveryPct: 72, hrvMs: 81 });
+  expect(await whoopSleepCount(me.login)).toBe(1);
+
+  await page.goto("/settings");
+  const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.whoop.sleeps).toEqual([expect.objectContaining({ recoveryPct: 72, hrvMs: 81, calibrating: false })]);
+
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await userExists(me.login)).toBe(false);
+  // whoopSleepCount соединяется с User, которого уже нет, — считаем напрямую
+  expect(await withDb(async (db) => (await db.query(`select 1 from "WhoopSleep" where id = $1`, [sleepId])).rowCount)).toBe(0);
 });
 
 test("alert dismissal does not block deletion", async ({ page }) => {

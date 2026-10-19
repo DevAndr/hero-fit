@@ -1191,6 +1191,17 @@ export async function whoopUserIdOf(login: string): Promise<string | null> {
   });
 }
 
+/** Подключение WHOOP без обращения к API (токены-заглушки: расшифровка не удастся, отзыв при удалении проглатывается). */
+export async function insertWhoopConnection(login: string, scopes = "read:workout read:profile read:recovery read:sleep offline"): Promise<void> {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "WhoopConnection" ("userId", "whoopUserId", "accessToken", "refreshToken", "expiresAt", scopes, "consentAt")
+       values ($1, $2, 'x', 'x', now() + interval '1 hour', $3, now())`,
+      [await userId(db, login), String(9_100_000_000_000_000 + Math.floor(Math.random() * 1e12)), scopes],
+    );
+  });
+}
+
 /** Сколько активностей WHOOP сохранено у пользователя. */
 export async function whoopWorkoutCount(login: string): Promise<number> {
   return withDb(async (db) => {
