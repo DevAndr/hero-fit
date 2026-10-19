@@ -72,6 +72,18 @@ export function zoneText(zone: RecoveryZone): string {
   }
 }
 
+/** Короткий текст зоны для строки на экране тренировки: «Восстановление 78 % — можно тяжело». */
+export function zoneShort(zone: RecoveryZone): string {
+  switch (zone) {
+    case "green":
+      return "можно тяжело";
+    case "yellow":
+      return "держи текущие веса";
+    case "red":
+      return "лёгкий день";
+  }
+}
+
 /** Группы, чья метка стоит во множественном числе («Ноги», «Плечи»…). */
 const PLURAL_LABEL_GROUPS = new Set<string>(["LEGS", "SHOULDERS", "FOREARMS", "CALVES"]);
 

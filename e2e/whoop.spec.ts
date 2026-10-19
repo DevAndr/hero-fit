@@ -742,13 +742,13 @@ test("тренировка: красная зона — строка, «Обле
   await coachAssignOnce(coach, login, templateId, "Ноги — база", localDate(2));
 
   await page.goto("/training");
-  await expect(zoneLine(page)).toContainText(/Восстановление 21 % — лёгкий день/i);
+  await expect(zoneLine(page)).toContainText("Восстановление 21 % — лёгкий день");
   await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
   await page.getByRole("region", { name: "От тренера" }).getByRole("button", { name: "Начать «Ноги — база»" }).click();
 
   const squat = page.getByRole("region", { name: SQUAT });
   const press = page.getByRole("region", { name: LEG_PRESS });
-  await expect(zoneLine(page)).toContainText(/Восстановление 21 % — лёгкий день/i);
+  await expect(zoneLine(page)).toContainText("Восстановление 21 % — лёгкий день");
   await expect(press.getByLabel("Вес, подход 1")).toHaveValue("100");
   await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("60");
   // Красная зона — как «устал»: прибавку не предлагаем
@@ -778,10 +778,46 @@ test("тренировка: зелёная зона — подсказка пр�
   await seedLegPress(login);
 
   await page.goto("/training");
-  await expect(zoneLine(page)).toContainText(/Восстановление 80 % — зелёная зона/i);
+  await expect(zoneLine(page)).toContainText("Восстановление 80 % — можно тяжело");
   await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
   const press = page.getByRole("region", { name: LEG_PRESS });
   await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
   await expect(zoneLine(page)).toContainText("80 %");
   await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: жёлтая зона — держи веса, подсказки прибавки нет, «Облегчить» нет", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 50 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await expect(zoneLine(page)).toContainText("Восстановление 50 % — держи текущие веса");
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByLabel("Вес, подход 1")).toHaveValue("100");
+  await expect(zoneLine(page)).toContainText("Восстановление 50 % — держи текущие веса");
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+  await expect(zoneLine(page).getByRole("button", { name: "Облегчить" })).toHaveCount(0);
+});
+
+test("тренировка: красная зона, но в чек-ине «Отлично» — подсказка прибавки снова видна", async ({ page }) => {
+  const { login } = await flaggedUser(page);
+  await addFlagUser("smart_coach", login);
+  await connectWith(page, login, []);
+  await setTimeZone(login);
+  await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 21 });
+  await seedLegPress(login);
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Повторить «Seed»/ }).click();
+  const press = page.getByRole("region", { name: LEG_PRESS });
+  await expect(press.getByTestId("progression-hint")).toHaveCount(0);
+  await page.getByRole("button", { name: "Начать", exact: true }).click();
+  // Зона не отвечает за пользователя: чек-ин всё равно спрашивает, явный выбор важнее зоны
+  const checkin = page.getByRole("region", { name: "Как ты сегодня?" });
+  await checkin.getByRole("button", { name: "Отлично" }).click();
+  await expect(press.getByTestId("progression-hint")).toHaveText("Пора увеличить вес: 100 → 102,5 кг");
 });

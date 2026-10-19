@@ -1,7 +1,7 @@
 import { Feather } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RecoveryRing } from "@/components/whoop/recovery-ring";
-import { zoneText, type RecoveryZone } from "@/lib/whoop/recovery";
+import { zoneShort, type RecoveryZone } from "@/lib/whoop/recovery";
 import type { WhoopRecoveryView } from "@/lib/whoop/queries";
 
 /** Зона восстановления WHOOP за сегодня; null — показывать нечего (нет данных, считает, нужен доступ). */
@@ -9,8 +9,6 @@ export function whoopZone(view: WhoopRecoveryView | null | undefined): { zone: R
   if (view?.state !== "data" || !view.zone || view.recoveryPct === null) return null;
   return { zone: view.zone, pct: view.recoveryPct, advice: view.advice[0]?.text ?? null };
 }
-
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /**
  * Строка «Восстановление N % — …» на экране тренировки (старт и редактор): кольцо, текст зоны и самый важный совет.
@@ -24,7 +22,7 @@ export function RecoveryLine({ view, onLighten }: { view: WhoopRecoveryView | nu
       <RecoveryRing pct={z.pct} zone={z.zone} size={44} textClassName="text-[0.65rem]" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">
-          Восстановление {z.pct} % — {lowerFirst(zoneText(z.zone))}
+          Восстановление {z.pct} % — {zoneShort(z.zone)}
         </p>
         {z.advice ? <p className="text-xs text-muted-foreground">{z.advice}</p> : null}
       </div>

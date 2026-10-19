@@ -6,6 +6,7 @@ import {
   todaySleep,
   whoopAdvice,
   yesterdaySleep,
+  zoneShort,
   zoneText,
   type SleepNight,
 } from "./recovery";
@@ -96,6 +97,14 @@ describe("zoneText", () => {
     expect(zoneText("green")).toContain("можно тяжёлую тренировку");
     expect(zoneText("yellow")).toContain("держи текущие веса");
     expect(zoneText("red")).toContain("−10 % веса");
+  });
+});
+
+describe("zoneShort", () => {
+  it("короткие тексты зон для строки тренировки", () => {
+    expect(zoneShort("green")).toBe("можно тяжело");
+    expect(zoneShort("yellow")).toBe("держи текущие веса");
+    expect(zoneShort("red")).toBe("лёгкий день");
   });
 });
 

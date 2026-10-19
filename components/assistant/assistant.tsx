@@ -49,7 +49,10 @@ import { flushWellbeing, sendWellbeing } from "./wellbeing-queue";
 export type WorkoutBridge = {
   workoutId: string;
   started: boolean;
+  /** Выбор пользователя в чек-ине; null — не выбирал (тогда чек-ин показывается). */
   wellbeing: Wellbeing | null;
+  /** Самочувствие по восстановлению WHOOP (жёлтая/красная зона — «TIRED»), пока пользователь не выбрал сам. */
+  zoneWellbeing: Wellbeing | null;
   exercises: ExerciseState[];
   dispatch: Dispatch<Action>;
   last: LastPerformance;
@@ -419,7 +422,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
             hint: w.hints[ex.id] ?? null,
             coach: w.coach[ex.id] ?? null,
             own: w.own[ex.id] ?? null,
-            wellbeing,
+            wellbeing: wellbeing ?? w.zoneWellbeing,
             pain: painNow,
           }),
           item.sets.some((s) => s.completedAt),
@@ -511,7 +514,7 @@ function Chat({ start, workout, onClose }: { start: NodeId; workout: WorkoutBrid
         hint: w.hints[item.exercise.id] ?? null,
         coach: w.coach[item.exercise.id] ?? null,
         own: w.own[item.exercise.id] ?? null,
-        wellbeing,
+        wellbeing: wellbeing ?? w.zoneWellbeing,
         pain,
       });
       if (advice.kind !== "sets") return;

@@ -212,15 +212,16 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
   const [wellbeing, setWellbeing] = useState<Wellbeing | null>(workout.wellbeing ?? null);
   // Жёлтая/красная зона WHOOP — как «устал» (без прибавки); явный выбор самочувствия важнее зоны
   const zone = whoopZone(whoop)?.zone ?? null;
-  const feeling: Wellbeing | null = wellbeing ?? (zone === "yellow" || zone === "red" ? "TIRED" : null);
-  const tired = feeling === "TIRED";
+  const zoneWellbeing: Wellbeing | null = zone === "yellow" || zone === "red" ? "TIRED" : null;
+  const tired = (wellbeing ?? zoneWellbeing) === "TIRED";
   const { setWorkout } = assistant;
   useEffect(() => {
     if (!assistant.available) return;
     setWorkout({
       workoutId: workout.id,
       started: state.status === "IN_PROGRESS",
-      wellbeing: feeling,
+      wellbeing,
+      zoneWellbeing,
       exercises: state.exercises,
       dispatch,
       last,
@@ -230,7 +231,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
       catalog: exercises,
       setWellbeing,
     });
-  }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, feeling, last, hints, targets, own, exercises]);
+  }, [assistant.available, setWorkout, workout.id, state.status, state.exercises, wellbeing, zoneWellbeing, last, hints, targets, own, exercises]);
   useEffect(() => () => setWorkout(null), [setWorkout]);
   const draft = useMemo(() => toDraft(state), [state]);
   const [goblin, setGoblin] = useState(workout.goblin ?? null);
