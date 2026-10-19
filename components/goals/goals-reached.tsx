@@ -5,7 +5,7 @@ import type { FinishGoals } from "@/lib/goals/rules";
 /** Сводка тренировки: выполненные ею цели (с сундуком, пока не открыт) и прирост по остальным. */
 export function GoalsReached({ goals, unopened, readOnly }: { goals: FinishGoals; unopened: string[]; readOnly: boolean }) {
   return (
-    <section aria-label="Цели" className="space-y-2 rounded-xl border border-xp/40 bg-card p-4">
+    <section aria-label="Цели" className="mt-4 space-y-2 rounded-xl border border-xp/40 bg-card p-4">
       <h2 className="flex items-center gap-2 font-bold">
         <Target className="size-4 text-xp" />
         Цели

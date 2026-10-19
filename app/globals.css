@@ -194,6 +194,16 @@
   html {
     @apply font-sans;
   }
+  /* iOS Safari даёт нативным date/time свою минимальную ширину и игнорирует width — поле вылезает из колонки */
+  input[type="date"],
+  input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
   /* Список нативного <select> рисует браузер: у select фон прозрачный, опции наследуют только цвет текста */
   option,
   optgroup {
