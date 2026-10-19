@@ -144,6 +144,14 @@ describe("whoopAdvice", () => {
     const a = run({ recoveryPct: 20 }, { muscles: [legs("fatigued"), back] }).find((x) => x.id === "muscles")!;
     expect(a.text).toContain("Ноги, спина ещё восстанавливаются");
   });
+  it("глагол по числу", () => {
+    const text = (g: GroupRecovery["group"], extra: GroupRecovery[] = []) =>
+      run({ recoveryPct: 50 }, { muscles: [{ ...legs("fatigued"), group: g }, ...extra] }).find((x) => x.id === "muscles")!.text;
+    expect(text("BACK")).toContain("Спина ещё восстанавливается");
+    expect(text("ABS")).toContain("Пресс ещё восстанавливается");
+    expect(text("LEGS")).toContain("Ноги ещё восстанавливаются");
+    expect(text("BACK", [{ ...legs("fatigued"), group: "ABS" }])).toContain("Спина, пресс ещё восстанавливаются");
+  });
   it("хороший день", () => {
     const a = run({ recoveryPct: 80, performancePct: 92, hrvMs: 55 });
     expect(a).toHaveLength(1);

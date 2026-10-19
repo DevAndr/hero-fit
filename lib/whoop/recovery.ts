@@ -72,6 +72,9 @@ export function zoneText(zone: RecoveryZone): string {
   }
 }
 
+/** Группы, чья метка стоит во множественном числе («Ноги», «Плечи»…). */
+const PLURAL_LABEL_GROUPS = new Set<string>(["LEGS", "SHOULDERS", "FOREARMS", "CALVES"]);
+
 export type Advice = {
   id: "rhr" | "hrv" | "sleep" | "muscles" | "good-day";
   tone: "warn" | "good";
@@ -113,16 +116,15 @@ export function whoopAdvice(input: {
   }
   const zone = recoveryZone(today.recoveryPct);
   if (zone === "yellow" || zone === "red") {
-    const names = muscles
-      .filter((m) => m.state === "fatigued")
-      .slice(0, 2)
-      .map((m) => MUSCLE_GROUP_LABELS[m.group]);
+    const tired = muscles.filter((m) => m.state === "fatigued").slice(0, 2);
+    const names = tired.map((m) => MUSCLE_GROUP_LABELS[m.group]);
     if (names.length) {
+      const verb = tired.length === 1 && !PLURAL_LABEL_GROUPS.has(tired[0].group) ? "восстанавливается" : "восстанавливаются";
       const list = names.map((n, i) => (i === 0 ? n : n.toLowerCase())).join(", ");
       out.push({
         id: "muscles",
         tone: "warn",
-        text: `${list} ещё восстанавливаются — сегодня лучше другие группы мышц`,
+        text: `${list} ещё ${verb} — сегодня лучше другие группы мышц`,
       });
     }
   }
