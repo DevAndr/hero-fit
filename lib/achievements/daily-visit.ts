@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/dal";
 import { evaluateAchievements } from "@/lib/achievements/engine";
-import { dayKey, nextLoginStreak, safeTimeZone } from "@/lib/daily-login";
+import { dayKey, localHour, nextLoginStreak, safeTimeZone } from "@/lib/daily-login";
 
 export const TIMEZONE_COOKIE = "hf_tz";
 
@@ -20,6 +20,7 @@ export async function recordDailyVisit(
   if (timeZone && tz !== user.timeZone) {
     await db.user.update({ where: { id: user.id }, data: { timeZone: tz } });
   }
+  await recordVisitHour(user, tz);
   const today = dayKey(new Date(), tz);
   const lastDay = user.lastLoginDay?.toISOString().slice(0, 10) ?? null;
   const streak = nextLoginStreak(lastDay, today, user.loginStreak);
@@ -38,4 +39,25 @@ export async function recordDailyVisit(
     }
   });
   return { today, loginStreak: streak };
+}
+
+/**
+ * Журнал часов захода для графика «по времени суток» в админке. Сравнение с User.lastVisitHour — в памяти,
+ * запись — не чаще раза в час; условие по старому значению: из параллельных загрузок пишет одна.
+ */
+async function recordVisitHour(user: CurrentUser, tz: string) {
+  const now = localHour(new Date(), tz);
+  if (user.lastVisitHour === now.key) return;
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.user.updateMany({
+      where: { id: user.id, lastVisitHour: user.lastVisitHour },
+      data: { lastVisitHour: now.key },
+    });
+    if (count === 1) {
+      await tx.userVisitHour.createMany({
+        data: [{ userId: user.id, day: new Date(`${now.day}T00:00:00Z`), hour: now.hour }],
+        skipDuplicates: true,
+      });
+    }
+  });
 }
