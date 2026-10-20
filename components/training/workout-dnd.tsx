@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
   closestCenter,
   DndContext,
@@ -130,8 +130,11 @@ export function WorkoutDnd({
     setDropIndex(null);
   };
 
+  const dndId = useId();
   return (
     <DndContext
+      // Свой id: иначе aria-describedby берётся из глобального счётчика dnd-kit и на сервере расходится с клиентом (гидратация)
+      id={dndId}
       sensors={sensors}
       collisionDetection={collisionDetection}
       accessibility={{ announcements, screenReaderInstructions: instructions }}

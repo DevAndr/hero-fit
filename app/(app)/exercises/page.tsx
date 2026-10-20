@@ -75,7 +75,8 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
         }
       />
 
-      <div className="mb-6 space-y-3">
+      {/* На телефоне поиск и группы прилипают под шапкой (её высота — 3.5rem + безопасная зона Telegram) */}
+      <div className="sticky top-[calc(3.5rem+var(--tg-safe-top))] z-20 -mx-4 mb-6 space-y-3 border-b bg-background px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
         <form action="/exercises" className="relative max-w-md">
           {group ? <input type="hidden" name="group" value={group} /> : null}
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

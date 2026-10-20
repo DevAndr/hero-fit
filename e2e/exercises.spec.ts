@@ -114,3 +114,23 @@ test("user's exercises are private", async ({ page, browser }) => {
   await expect(otherPage.getByText("Ничего не найдено")).toBeVisible();
   await other.close();
 });
+
+test("mobile: search and groups stick under the header, picker filter stays after scrolling", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 1024, "липкие фильтры — на телефоне");
+  const search = page.getByPlaceholder("Поиск по названию");
+  const header = page.locator("header").first();
+  await page.getByRole("heading", { level: 3 }).last().scrollIntoViewIfNeeded();
+  await expect(search).toBeInViewport();
+  await expect(page.getByRole("link", { name: "Все", exact: true })).toBeInViewport();
+  // Не под шапкой
+  const headerBottom = (await header.boundingBox())!.y + (await header.boundingBox())!.height;
+  expect((await search.boundingBox())!.y).toBeGreaterThanOrEqual(headerBottom - 1);
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await page.getByRole("button", { name: "Добавить упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("list", { name: "Список упражнений" }).getByRole("listitem").last().scrollIntoViewIfNeeded();
+  await expect(dialog.getByLabel("Поиск упражнения")).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "Все", exact: true })).toBeInViewport();
+});
