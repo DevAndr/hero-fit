@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
+import { signupSourceOf } from "./db";
 import { registerUser } from "./helpers";
 
 async function srcCookie(context: BrowserContext) {
@@ -40,4 +41,24 @@ test("logged-out visitor with a live refresh token gets no hf_src", async ({ pag
   await context.clearCookies({ name: "hf_at" });
   await page.goto("/", { referer: "https://yandex.ru/" });
   expect(await srcCookie(context)).toBeUndefined();
+});
+
+test("registration saves the first-touch source and deletes the cookie", async ({ page, context }) => {
+  await page.goto("/training-programs/5x5", { referer: "https://yandex.ru/search?text=5x5" });
+  expect((await srcCookie(context))?.value).toBe("program.search");
+  const me = await registerUser(page);
+  expect(await signupSourceOf(me.login)).toEqual({ landing: "program", referrer: "search" });
+  expect(await srcCookie(context)).toBeUndefined();
+});
+
+test("registration without a cookie is other/direct", async ({ page, context }) => {
+  await context.clearCookies({ name: "hf_src" });
+  const me = await registerUser(page);
+  expect(await signupSourceOf(me.login)).toEqual({ landing: "other", referrer: "direct" });
+});
+
+test("forged hf_src does not break registration and counts as other/direct", async ({ page, context, baseURL }) => {
+  await context.addCookies([{ name: "hf_src", value: "evil.x", url: baseURL! }]);
+  const me = await registerUser(page);
+  expect(await signupSourceOf(me.login)).toEqual({ landing: "other", referrer: "direct" });
 });

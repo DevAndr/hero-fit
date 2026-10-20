@@ -37,6 +37,8 @@ export async function registerFromTelegram(user: TelegramUser, now = new Date())
     changelogSeen: latestReleaseId(RELEASES),
     notifyTelegram: true,
     privacyAcceptedAt: now,
+    signupLanding: "telegram",
+    signupReferrer: "telegram",
     onboardedAt: env.ONBOARDING_TOUR === "off" ? now : null,
   });
 

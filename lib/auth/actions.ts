@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { decodeSource, SOURCE_COOKIE } from "@/lib/analytics/source";
 import { queueGoal } from "@/lib/analytics/queue";
 import { safeRedirectPath } from "@/lib/auth/redirect";
 import { ensureCoachCode } from "@/lib/coach/queries";
@@ -89,10 +90,14 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
     };
   }
 
+  const jar = await cookies();
+  const source = decodeSource(jar.get(SOURCE_COOKIE)?.value) ?? { landing: "other", referrer: "direct" };
+
   let userId: string;
   try {
     const user = await db.user.create({
       data: { login, email, name, passwordHash: await hashPassword(password), privacyAcceptedAt: new Date(), ...coachProfile,
+        signupLanding: source.landing, signupReferrer: source.referrer,
         onboardedAt: env.ONBOARDING_TOUR === "off" ? new Date() : null,
         changelogSeen: latestReleaseId(RELEASES), // новому всё в новинку — без точки «Что нового»
       },
@@ -107,6 +112,7 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
     throw e;
   }
 
+  jar.delete(SOURCE_COOKIE);
   await startSession(userId);
   await queueGoal("signup");
   if (coach) {
