@@ -50,7 +50,11 @@ test("history: volume chart 7/30 days, counters, last workout, streak reminder",
   await page.reload();
 
   const chart = page.getByRole("region", { name: "Объём тренировок" });
-  await expect(chart).toContainText("5 700 кг · тренировок: 3");
+  await expect(chart).toContainText("5,7 т · тренировок: 3");
+  // Ось — тонны, без «тыс.»
+  const axis = chart.locator("svg.recharts-surface").first();
+  await expect(axis).toContainText(/\d т/);
+  await expect(axis).not.toContainText("тыс");
   await expect(chart.locator(".recharts-bar-rectangle")).toHaveCount(3); // столбцы только у дней с тренировками
   await expect(chart.locator("tbody tr")).toHaveCount(7);
   await expect(chart.locator("table")).toContainText("2 200 кг");
@@ -61,7 +65,7 @@ test("history: volume chart 7/30 days, counters, last workout, streak reminder",
     const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
     if (isMobile) await page.touchscreen.tap(x, y);
     else await page.mouse.move(x, y);
-    await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("2 200 кг", { timeout: 500 });
+    await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("2,2 т", { timeout: 500 });
   }).toPass({ timeout: 10_000 });
   await chart.getByRole("tab", { name: "30 дней" }).click();
   await expect(chart.locator("tbody tr")).toHaveCount(30);

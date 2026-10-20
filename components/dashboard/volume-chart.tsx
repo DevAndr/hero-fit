@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DayPoint } from "@/lib/dashboard/series";
+import { formatTonnage, formatTonnageAxis } from "@/lib/format";
 
 const config = { volume: { label: "Объём", color: "var(--chart-1)" } } satisfies ChartConfig;
 
@@ -15,7 +16,6 @@ const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "short", timeZone: "UTC" });
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-const compact = new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 });
 const kg = (n: number) => `${Math.round(n).toLocaleString("ru-RU")} кг`;
 
 function VolumeTooltip({ active, payload }: { active?: boolean; payload?: { payload: DayPoint }[] }) {
@@ -27,7 +27,7 @@ function VolumeTooltip({ active, payload }: { active?: boolean; payload?: { payl
       {point.workouts ? (
         <p className="mt-1 flex items-center gap-2">
           <span className="size-2 rounded-[2px] bg-chart-1" aria-hidden />
-          <span className="font-semibold tabular-nums">{kg(point.volume)}</span>
+          <span className="font-semibold tabular-nums">{formatTonnage(point.volume)}</span>
           <span className="text-muted-foreground">
             · тренировок: {point.workouts}
           </span>
@@ -51,7 +51,7 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
         <div>
           <h2 className="font-bold">Объём тренировок</h2>
           <p className="text-sm text-muted-foreground">
-            {kg(total)} · тренировок: {workouts}
+            {formatTonnage(total)} · тренировок: {workouts}
           </p>
         </div>
         <Tabs value={range} onValueChange={(v) => setRange(v as Range)}>
@@ -83,7 +83,7 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
               tickLine={false}
               axisLine={false}
               tickCount={4}
-              tickFormatter={(v: number) => compact.format(v)}
+              tickFormatter={formatTonnageAxis}
             />
             <ChartTooltip cursor={{ fillOpacity: 0.5 }} content={<VolumeTooltip />} />
             <Bar dataKey="volume" fill="var(--color-volume)" radius={[4, 4, 0, 0]} maxBarSize={24} />

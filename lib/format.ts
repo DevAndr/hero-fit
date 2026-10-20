@@ -34,3 +34,16 @@ export function plural(n: number, one: string, few: string, many: string) {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
   return many;
 }
+
+const tonneFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
+const kgFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+
+/** Поднятый вес: 850 → «850 кг», 15900 → «15,9 т», 15000 → «15 т». */
+export function formatTonnage(kg: number) {
+  return Math.round(kg) < 1000 ? `${kgFmt.format(kg)} кг` : `${tonneFmt.format(kg / 1000)} т`;
+}
+
+/** Подпись оси объёма: до тонны — просто число («500»), дальше — тонны («1,5 т»). */
+export function formatTonnageAxis(kg: number) {
+  return Math.round(kg) < 1000 ? kgFmt.format(kg) : `${tonneFmt.format(kg / 1000)} т`;
+}
