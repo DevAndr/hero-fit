@@ -16,7 +16,6 @@ const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "short", timeZone: "UTC" });
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-const kg = (n: number) => `${Math.round(n).toLocaleString("ru-RU")} кг`;
 
 function VolumeTooltip({ active, payload }: { active?: boolean; payload?: { payload: DayPoint }[] }) {
   const point = payload?.[0]?.payload;
@@ -43,6 +42,7 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
   const [range, setRange] = useState<Range>("7");
   const points = data.slice(-RANGES[range]);
   const total = points.reduce((sum, p) => sum + p.volume, 0);
+  const maxVolume = Math.max(0, ...points.map((p) => p.volume));
   const workouts = points.reduce((sum, p) => sum + p.workouts, 0);
 
   return (
@@ -83,7 +83,7 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
               tickLine={false}
               axisLine={false}
               tickCount={4}
-              tickFormatter={formatTonnageAxis}
+              tickFormatter={(v: number) => formatTonnageAxis(v, maxVolume)}
             />
             <ChartTooltip cursor={{ fillOpacity: 0.5 }} content={<VolumeTooltip />} />
             <Bar dataKey="volume" fill="var(--color-volume)" radius={[4, 4, 0, 0]} maxBarSize={24} />
@@ -106,7 +106,7 @@ export function VolumeChart({ data }: { data: DayPoint[] }) {
             {points.map((p) => (
               <tr key={p.day}>
                 <td>{dayMonth.format(toDate(p.day))}</td>
-                <td>{kg(p.volume)}</td>
+                <td>{formatTonnage(p.volume)}</td>
                 <td>{p.workouts}</td>
               </tr>
             ))}

@@ -26,6 +26,16 @@ const SOCIAL_DOMAINS = [
   "pikabu.ru",
 ];
 
+/** Почтовые поддомены (mail.google.com, mail.yandex.ru, e.mail.ru) — не поиск. */
+const MAIL_SUBDOMAINS = new Set(["mail", "e"]);
+
+/** Приглашения: гость уходит на /login?next=…, а первая точка входа — сама ссылка. */
+export function landingOfJoin(pathname: string): Landing | null {
+  if (pathname.startsWith("/coach/join/")) return "trainer";
+  if (pathname.startsWith("/clubs/join/")) return "club";
+  return null;
+}
+
 export function landingOf(pathname: string): Landing {
   if (pathname === "/") return "home";
   if (pathname === "/training-programs" || pathname.startsWith("/training-programs/")) return "program";
@@ -43,6 +53,13 @@ function matches(host: string, domains: readonly string[]): boolean {
   return domains.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
+/** google.com, google.ru, google.com.tr, google.co.uk: «google» первой меткой, дальше только домен страны. */
+function isGoogle(host: string): boolean {
+  const [first, ...rest] = host.split(".");
+  if (first !== "google") return false;
+  return rest.length === 1 || (rest.length === 2 && ["com", "co"].includes(rest[0]));
+}
+
 export function referrerOf(referer: string | null, ownHost: string): Referrer {
   if (!referer) return "direct";
   let host: string;
@@ -52,7 +69,8 @@ export function referrerOf(referer: string | null, ownHost: string): Referrer {
     return "direct";
   }
   if (!host || host === bareHost(ownHost)) return "direct";
-  if (matches(host, SEARCH_DOMAINS) || host.split(".").includes("google")) return "search";
+  if (MAIL_SUBDOMAINS.has(host.split(".")[0]) && host.includes(".")) return "site";
+  if (matches(host, SEARCH_DOMAINS) || isGoogle(host)) return "search";
   if (matches(host, SOCIAL_DOMAINS)) return "social";
   return "site";
 }

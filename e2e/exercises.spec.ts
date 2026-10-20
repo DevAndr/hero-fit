@@ -116,7 +116,7 @@ test("user's exercises are private", async ({ page, browser }) => {
 });
 
 test("mobile: search and groups stick under the header, picker filter stays after scrolling", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 1024, "липкие фильтры — на телефоне");
+  test.skip((page.viewportSize()?.width ?? 0) >= 640, "липкие фильтры — только уже sm");
   const search = page.getByPlaceholder("Поиск по названию");
   const header = page.locator("header").first();
   await page.getByRole("heading", { level: 3 }).last().scrollIntoViewIfNeeded();

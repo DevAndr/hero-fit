@@ -57,7 +57,7 @@ test("history: volume chart 7/30 days, counters, last workout, streak reminder",
   await expect(axis).not.toContainText("тыс");
   await expect(chart.locator(".recharts-bar-rectangle")).toHaveCount(3); // столбцы только у дней с тренировками
   await expect(chart.locator("tbody tr")).toHaveCount(7);
-  await expect(chart.locator("table")).toContainText("2 200 кг");
+  await expect(chart.locator("table")).toContainText("2,2 т");
   // Подсказка: наведение на десктопе, тап на телефоне (столбцы анимируются — повторяем до стабилизации)
   await chart.locator(".recharts-wrapper").scrollIntoViewIfNeeded();
   await expect(async () => {

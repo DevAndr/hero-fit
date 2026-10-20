@@ -52,9 +52,21 @@ test("registration saves the first-touch source and deletes the cookie", async (
 });
 
 test("registration without a cookie is other/direct", async ({ page, context }) => {
+  await page.goto("/register");
   await context.clearCookies({ name: "hf_src" });
   const me = await registerUser(page);
   expect(await signupSourceOf(me.login)).toEqual({ landing: "other", referrer: "direct" });
+});
+
+test("guest on a coach invite link gets trainer source on the redirect", async ({ request }) => {
+  const res = await request.get("/coach/join/ANYCODE1", { maxRedirects: 0, headers: { referer: "https://yandex.ru/" } });
+  expect(res.status()).toBeGreaterThanOrEqual(300);
+  expect(res.headers()["set-cookie"] ?? "").toContain("hf_src=trainer.search");
+});
+
+test("guest on a guild invite link is not tagged by the redirect", async ({ request }) => {
+  const res = await request.get("/guild/join/ANYCODE1", { maxRedirects: 0 });
+  expect(res.headers()["set-cookie"] ?? "").not.toContain("hf_src");
 });
 
 test("forged hf_src does not break registration and counts as other/direct", async ({ page, context, baseURL }) => {

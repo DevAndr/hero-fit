@@ -43,7 +43,8 @@ export function formatTonnage(kg: number) {
   return Math.round(kg) < 1000 ? `${kgFmt.format(kg)} кг` : `${tonneFmt.format(kg / 1000)} т`;
 }
 
-/** Подпись оси объёма: до тонны — просто число («500»), дальше — тонны («1,5 т»). */
-export function formatTonnageAxis(kg: number) {
-  return Math.round(kg) < 1000 ? kgFmt.format(kg) : `${tonneFmt.format(kg / 1000)} т`;
+/** Подпись оси объёма единообразно: максимум от тонны — все подписи в тоннах («0», «0,5 т», «1 т»), иначе в кг («0», «250 кг»). */
+export function formatTonnageAxis(kg: number, maxKg: number) {
+  if (Math.round(kg) === 0) return "0";
+  return Math.round(maxKg) >= 1000 ? `${tonneFmt.format(kg / 1000)} т` : `${kgFmt.format(kg)} кг`;
 }

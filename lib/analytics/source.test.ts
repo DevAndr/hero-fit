@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeSource, encodeSource, landingOf, referrerOf } from "./source";
+import { decodeSource, encodeSource, landingOf, landingOfJoin, referrerOf } from "./source";
 
 describe("landingOf", () => {
   it("классифицирует пути", () => {
@@ -11,6 +11,15 @@ describe("landingOf", () => {
     expect(landingOf("/gym/msk/iron")).toBe("club");
     expect(landingOf("/register")).toBe("other");
     expect(landingOf("/changelog")).toBe("other");
+  });
+});
+
+describe("landingOfJoin", () => {
+  it("приглашения тренера и клуба; гильдия и прочее — null", () => {
+    expect(landingOfJoin("/coach/join/ABC123")).toBe("trainer");
+    expect(landingOfJoin("/clubs/join/ABC123")).toBe("club");
+    expect(landingOfJoin("/guild/join/ABC123")).toBeNull();
+    expect(landingOfJoin("/dashboard")).toBeNull();
   });
 });
 
@@ -27,6 +36,14 @@ describe("referrerOf", () => {
     expect(referrerOf("https://google.com.tr/", "hero.fit")).toBe("search");
     expect(referrerOf("https://ya.ru/", "hero.fit")).toBe("search");
     expect(referrerOf("https://go.mail.ru/search", "hero.fit")).toBe("search");
+    expect(referrerOf("https://google.ru/", "hero.fit")).toBe("search");
+  });
+  it("не поиск: чужие google-поддомены, похожие домены и почта", () => {
+    expect(referrerOf("https://mail.google.com/", "hero.fit")).toBe("site");
+    expect(referrerOf("https://docs.google.com/", "hero.fit")).toBe("site");
+    expect(referrerOf("https://google.evil.com/", "hero.fit")).toBe("site");
+    expect(referrerOf("https://mail.yandex.ru/", "hero.fit")).toBe("site");
+    expect(referrerOf("https://e.mail.ru/", "hero.fit")).toBe("site");
   });
   it("social", () => {
     expect(referrerOf("https://m.vk.com/wall", "hero.fit")).toBe("social");

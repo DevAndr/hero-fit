@@ -31,9 +31,13 @@ describe("formatTonnage", () => {
 });
 
 describe("formatTonnageAxis", () => {
-  it("bare numbers below a tonne, tonnes above, never «тыс.»", () => {
-    const labels = [0, 500, 1000, 1500, 15900, 2500.4].map(formatTonnageAxis);
-    expect(labels).toEqual(["0", "500", "1 т", "1,5 т", "15,9 т", "2,5 т"]);
+  it("max from a tonne: every label in tonnes, never «тыс.»", () => {
+    const labels = [0, 500, 1000, 1500].map((v) => formatTonnageAxis(v, 1500));
+    expect(labels).toEqual(["0", "0,5 т", "1 т", "1,5 т"]);
     expect(labels.join(" ")).not.toMatch(/тыс|кг/);
+    expect(formatTonnageAxis(15900, 15900)).toBe("15,9 т");
+  });
+  it("max below a tonne: every label in kg", () => {
+    expect([0, 250, 500].map((v) => formatTonnageAxis(v, 500))).toEqual(["0", "250 кг", "500 кг"]);
   });
 });
