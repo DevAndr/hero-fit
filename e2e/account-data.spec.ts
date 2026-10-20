@@ -55,6 +55,8 @@ test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({
   const data = JSON.parse(text);
   expect(data.version).toBe(1);
   expect(data.profile.login).toBe(me.login);
+  expect(data.profile).toHaveProperty("signupLanding");
+  expect(data.profile).toHaveProperty("signupReferrer");
   expect(data.workouts[0].exercises[0].name).toBe("Жим штанги лёжа");
   expect(typeof data.shop.coins).toBe("number");
   expect(Array.isArray(data.shop.items)).toBe(true);

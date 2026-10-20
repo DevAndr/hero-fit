@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { cohortGrid, fillDays, fillHours, type CohortRow, type DayPoint, type HourPoint } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, fillHours, sourceRows, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
 
 /*
@@ -152,6 +152,37 @@ export async function getHourlyActivity(tz: string, range: 30 | 90): Promise<Hou
   `;
   const pick = (s: keyof HourlyActivity) => fillHours(rows.filter((r) => r.series === s).map(({ hour, value }) => ({ hour, value })));
   return { visits: pick("visits"), workouts: pick("workouts") };
+}
+
+/**
+ * Источники регистраций за range дней (день регистрации — в поясе админа, как ряд signups): первая тренировка — за всё
+ * время; активность на 2-й неделе — заход или завершённая тренировка в местные дни игрока 7–13 после его дня
+ * регистрации, только у зарегистрированных не позже чем 14 суток назад (eligible).
+ */
+export async function getSignupSources(tz: string, range: 30 | 90): Promise<SourceGroup[]> {
+  const from = addDays(dayKey(new Date(), tz), -(range - 1));
+  const signup = localDay(Prisma.sql`u."createdAt"`, tz);
+  const finished = localDay(Prisma.sql`w."finishedAt"`, Prisma.sql`s.tz`);
+  const rows = await db.$queryRaw<SourceRow[]>`
+    WITH s AS (
+      SELECT u.id, u."signupLanding" AS landing, u."signupReferrer" AS referrer, u."timeZone" AS tz,
+        ${localDay(Prisma.sql`u."createdAt"`, Prisma.sql`u."timeZone"`)} AS day,
+        u."createdAt" <= ${new Date(Date.now() - 14 * 86_400_000)} AS eligible
+      FROM "User" u WHERE u."createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date
+    )
+    SELECT landing, referrer, COUNT(*)::int AS signups,
+      COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Workout" w WHERE w."userId" = s.id AND w.status = 'COMPLETED'))::int AS "firstWorkout",
+      COUNT(*) FILTER (WHERE eligible)::int AS eligible,
+      COUNT(*) FILTER (WHERE eligible AND (
+        EXISTS (SELECT 1 FROM "UserVisit" v WHERE v."userId" = s.id AND v.day BETWEEN s.day + 7 AND s.day + 13)
+        OR EXISTS (
+          SELECT 1 FROM "Workout" w WHERE w."userId" = s.id AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL
+            AND ${finished} BETWEEN s.day + 7 AND s.day + 13
+        )
+      ))::int AS "activeWeek2"
+    FROM s GROUP BY 1, 2
+  `;
+  return sourceRows(rows);
 }
 
 /** Удержание: последние 8 недель регистрации (включая текущую) × недели 0…6 после неё. */

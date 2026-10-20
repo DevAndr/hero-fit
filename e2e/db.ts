@@ -1048,6 +1048,13 @@ export async function backdateUser(login: string, s: { createdAt: Date; timeZone
   });
 }
 
+/** Источник регистрации игрока (как его записала бы форма регистрации). */
+export async function setSignupSource(login: string, landing: string | null, referrer: string | null) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "signupLanding" = $2, "signupReferrer" = $3 where id = $1`, [await userId(db, login), landing, referrer]);
+  });
+}
+
 /**
  * База e2e живёт между прогонами: игроков, перенесённых в эту когорту прошлыми прогонами (`backdateUser`),
  * возвращаем в «сейчас», чтобы строка когорты считалась по одному игроку текущего прогона.
@@ -1692,4 +1699,15 @@ export async function seedFeedback(login: string, n: number, over: { status?: st
 /** Обращения с таким текстом (у всех пользователей). */
 export async function feedbackRows(body: string): Promise<{ page: string | null; version: string | null; status: string }[]> {
   return withDb(async (db) => (await db.query(`select page, version, status from "Feedback" where body = $1`, [body])).rows);
+}
+
+/** Источник регистрации пользователя (спека 2026-10-20-signup-sources). */
+export async function signupSourceOf(login: string): Promise<{ landing: string | null; referrer: string | null }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ signupLanding: string | null; signupReferrer: string | null }>(
+      `select "signupLanding", "signupReferrer" from "User" where login = $1`,
+      [login],
+    );
+    return { landing: rows[0].signupLanding, referrer: rows[0].signupReferrer };
+  });
 }

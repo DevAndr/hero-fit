@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortGrid, deltaPercent, fillDays, fillHours, parseRange } from "./metrics";
+import { cohortGrid, deltaPercent, fillDays, fillHours, parseRange, sourceRows, type SourceRow } from "./metrics";
 
 describe("deltaPercent", () => {
   it("рост и падение", () => {
@@ -77,5 +77,41 @@ describe("fillHours", () => {
 
   it("ignores hours outside 0–23", () => {
     expect(fillHours([{ hour: 24, value: 9 }, { hour: -1, value: 9 }]).every((p) => p.value === 0)).toBe(true);
+  });
+});
+
+describe("sourceRows", () => {
+  const row = (landing: string | null, referrer: string | null, signups: number, firstWorkout: number, eligible: number, activeWeek2: number): SourceRow => ({
+    landing,
+    referrer,
+    signups,
+    firstWorkout,
+    eligible,
+    activeWeek2,
+  });
+
+  it("итог по странице входа из сумм, дети по регистрациям, без eligible — null", () => {
+    const [group] = sourceRows([row("program", "direct", 5, 1, 0, 0), row("program", "search", 10, 6, 5, 2)]);
+    expect(group).toEqual({
+      landing: "program",
+      signups: 15,
+      firstWorkoutPct: 47,
+      activeWeek2Pct: 40,
+      children: [
+        { referrer: "search", signups: 10, firstWorkoutPct: 60, activeWeek2Pct: 40 },
+        { referrer: "direct", signups: 5, firstWorkoutPct: 20, activeWeek2Pct: null },
+      ],
+    });
+  });
+
+  it("landing null — отдельная группа; группы по регистрациям убыв.", () => {
+    const groups = sourceRows([row("tool", "social", 2, 0, 0, 0), row(null, null, 7, 7, 7, 7), row("home", "direct", 4, 2, 4, 1)]);
+    expect(groups.map((g) => g.landing)).toEqual([null, "home", "tool"]);
+    expect(groups[0]).toMatchObject({ signups: 7, firstWorkoutPct: 100, activeWeek2Pct: 100 });
+    expect(groups[2].activeWeek2Pct).toBeNull();
+  });
+
+  it("пусто → []", () => {
+    expect(sourceRows([])).toEqual([]);
   });
 });

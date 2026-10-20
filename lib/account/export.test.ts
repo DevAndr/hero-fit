@@ -16,6 +16,8 @@ const raw = (): ExportRaw => ({
     longestStreak: 5,
     hideWeights: false,
     shareActivity: true,
+    signupLanding: "program",
+    signupReferrer: "search",
     notifyRest: true,
     notifyGoal: false,
     passwordHash: "$argon2id$secret-hash",
@@ -109,6 +111,9 @@ describe("buildExport", () => {
   });
   it("профиль — whitelist + telegramLinked", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });
+  });
+  it("профиль содержит источник регистрации", () => {
+    expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search" });
   });
   it("друзья и тренер — только ники и даты", () => {
     expect(Object.keys(out.friends[0]).sort()).toEqual(["nickname", "since", "status"]);

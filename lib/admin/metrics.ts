@@ -60,3 +60,42 @@ export function cohortGrid(
       }),
     }));
 }
+
+/** Сырые счётчики по паре «страница входа × источник»: firstWorkout и activeWeek2 — пользователей, eligible — зарегистрированных ≥ 14 дней назад. */
+export type SourceRow = {
+  landing: string | null;
+  referrer: string | null;
+  signups: number;
+  firstWorkout: number;
+  activeWeek2: number;
+  eligible: number;
+};
+
+export type SourceStats = { signups: number; firstWorkoutPct: number; activeWeek2Pct: number | null };
+export type SourceGroup = SourceStats & { landing: string | null; children: (SourceStats & { referrer: string | null })[] };
+
+const pct = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 100));
+
+/** Доли от сумм; activeWeek2 — от eligible (нет таких пользователей — null). */
+function stats(rows: SourceRow[]): SourceStats {
+  const sum = (k: "signups" | "firstWorkout" | "activeWeek2" | "eligible") => rows.reduce((s, r) => s + r[k], 0);
+  const eligible = sum("eligible");
+  return {
+    signups: sum("signups"),
+    firstWorkoutPct: pct(sum("firstWorkout"), sum("signups")),
+    activeWeek2Pct: eligible === 0 ? null : pct(sum("activeWeek2"), eligible),
+  };
+}
+
+/** Итог по странице входа с вложенными источниками; группы и источники — по регистрациям убыв. */
+export function sourceRows(rows: SourceRow[]): SourceGroup[] {
+  const byLanding = new Map<string | null, SourceRow[]>();
+  for (const r of rows) byLanding.set(r.landing, [...(byLanding.get(r.landing) ?? []), r]);
+  return [...byLanding]
+    .map(([landing, group]) => ({
+      landing,
+      ...stats(group),
+      children: group.map((r) => ({ referrer: r.referrer, ...stats([r]) })).sort((a, b) => b.signups - a.signups),
+    }))
+    .sort((a, b) => b.signups - a.signups);
+}

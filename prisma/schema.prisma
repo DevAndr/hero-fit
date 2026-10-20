@@ -140,6 +140,9 @@ model User {
   timeZone          String    @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
   privacyAcceptedAt DateTime?
+  /// Первая точка входа и откуда пришёл (cookie hf_src при регистрации; telegram/telegram — Mini App); null — до учёта
+  signupLanding     String?
+  signupReferrer    String?
   /// Экскурсия по дашборду завершена (любым способом); null — показать на дашборде
   onboardedAt       DateTime?
 

@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { weeksText } from "@/lib/progress/streak-copy";
 import { countsText, kudosLabel, respectLabel, type FeedEntry, type FeedRecordGroup } from "@/lib/social/feed";
 import { loadFeedPageAction, toggleKudosAction, toggleRespectAction } from "@/lib/social/actions";
+import { formatTonnage } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
-const tonnes = (kg: number) => (kg >= 1000 ? `${fmt(kg / 1000)} т` : `${fmt(kg)} кг`);
 const minutes = (sec: number) => (sec >= 3600 ? `${Math.floor(sec / 3600)} ч ${Math.round((sec % 3600) / 60)} мин` : `${Math.max(1, Math.round(sec / 60))} мин`);
 const rtf = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
@@ -197,7 +197,7 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
         {entry.volume !== null ? (
           <span className="flex items-center gap-1.5" data-testid="feed-volume">
             <Weight className="size-4 text-muted-foreground" aria-hidden />
-            {tonnes(entry.volume)}
+            {formatTonnage(entry.volume)}
           </span>
         ) : null}
         <span className="text-muted-foreground">

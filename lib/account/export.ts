@@ -122,6 +122,8 @@ const PROFILE_FIELDS = [
   "timeZone",
   "createdAt",
   "privacyAcceptedAt",
+  "signupLanding",
+  "signupReferrer",
   "xp",
   "level",
   "currentStreak",
