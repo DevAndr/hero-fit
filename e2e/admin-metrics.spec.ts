@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays, visitHours } from "./db";
+import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
 
@@ -70,6 +70,27 @@ test.describe("admin metrics page", () => {
     const hour = new Intl.DateTimeFormat("en-GB", { timeZone: E2E_TZ, hour: "2-digit", hourCycle: "h23" }).format(new Date());
     const row = table.getByRole("row").filter({ has: page.getByRole("cell", { name: `${hour}:00`, exact: true }) });
     await expect(row.getByRole("cell").nth(1)).not.toHaveText("0");
+  });
+
+  test("signup sources: landing rows with nested referrers", async ({ page, browser }) => {
+    for (const [landing, referrer] of [
+      ["program", "search"],
+      ["tool", "social"],
+    ] as const) {
+      const ctx = await browser.newContext();
+      const user = await registerUser(await ctx.newPage());
+      await ctx.close();
+      await setSignupSource(user.login, landing, referrer);
+    }
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
+    await expect(table).toBeVisible();
+    for (const name of ["Программы", "Калькуляторы", "Поиск", "Соцсети"]) {
+      await expect(table.getByRole("rowheader", { name, exact: true }).first()).toBeVisible();
+    }
+    await expect(table.getByRole("columnheader", { name: "Активны на 2-й неделе, %" })).toBeVisible();
   });
 
   // Только этот сценарий сдвигает регистрацию в прошлое; следы прошлых прогонов в когорте 5 недель назад убирает clearCohort.

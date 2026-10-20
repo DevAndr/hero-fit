@@ -1048,6 +1048,13 @@ export async function backdateUser(login: string, s: { createdAt: Date; timeZone
   });
 }
 
+/** Источник регистрации игрока (как его записала бы форма регистрации). */
+export async function setSignupSource(login: string, landing: string | null, referrer: string | null) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "signupLanding" = $2, "signupReferrer" = $3 where id = $1`, [await userId(db, login), landing, referrer]);
+  });
+}
+
 /**
  * База e2e живёт между прогонами: игроков, перенесённых в эту когорту прошлыми прогонами (`backdateUser`),
  * возвращаем в «сейчас», чтобы строка когорты считалась по одному игроку текущего прогона.
