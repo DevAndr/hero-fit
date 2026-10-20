@@ -559,7 +559,7 @@ test("история снов при подключении", async ({ page }) =
 
   await expect.poll(() => whoopSleepCount(login)).toBe(2);
   await expect.poll(async () => (await whoopSleepRow(login, a))?.recoveryPct).toBe(82);
-  expect((await whoopSleepRow(login, b))?.recoveryPct).toBe(41);
+  await expect.poll(async () => (await whoopSleepRow(login, b))?.recoveryPct).toBe(41);
   expect((await whoopSleepRow(login, a))?.sleepMs).toBe(8 * H);
 });
 

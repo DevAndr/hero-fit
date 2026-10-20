@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays } from "./db";
+import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
-import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
+import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
 // makeAdmin переименовывает глобального админа — сценарии по очереди и только на desktop
 test.describe.configure({ mode: "serial" });
@@ -11,6 +11,19 @@ test("a visit writes one day to the visit log", async ({ page }) => {
   await page.goto("/dashboard");
   await page.reload();
   await expect.poll(() => visitDays({ login: me.login })).toHaveLength(1);
+});
+
+test("visits within one hour write one hour to the hour log, in the user's local time", async ({ page }) => {
+  const me = await registerUser(page);
+  await page.goto("/dashboard");
+  await page.reload();
+  await page.goto("/stats");
+  const now = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
+    .format(new Date())
+    .replace(", ", " ");
+  // Прогон стартует в 12:xx — граница часа между проверками маловероятна, но возможна: тогда записей две
+  await expect.poll(() => visitHours(me.login)).toContain(now);
+  expect((await visitHours(me.login)).length).toBeLessThanOrEqual(2);
 });
 
 test.describe("admin metrics page", () => {
@@ -46,7 +59,79 @@ test.describe("admin metrics page", () => {
     await expect(page.getByText(/за 90 дней$/).first()).toBeVisible();
   });
 
-  // Только этот сценарий сдвигает регистрацию в прошлое; следы прошлых прогонов в когорте 5 недель назад убирает clearCohort.
+  test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const card = page.getByRole("region", { name: "Время суток" });
+    await expect(card.getByRole("heading", { name: "Время суток", level: 2 })).toBeVisible();
+    const table = card.getByRole("table", { name: "Активность по часам за 30 дней" });
+    await expect(table.getByRole("row")).toHaveCount(25);
+    const hour = new Intl.DateTimeFormat("en-GB", { timeZone: E2E_TZ, hour: "2-digit", hourCycle: "h23" }).format(new Date());
+    const row = table.getByRole("row").filter({ has: page.getByRole("cell", { name: `${hour}:00`, exact: true }) });
+    await expect(row.getByRole("cell").nth(1)).not.toHaveText("0");
+  });
+
+  test("signup sources: landing rows with nested referrers", async ({ page, browser }) => {
+    for (const [landing, referrer] of [
+      ["program", "search"],
+      ["tool", "social"],
+    ] as const) {
+      const ctx = await browser.newContext();
+      const user = await registerUser(await ctx.newPage());
+      await ctx.close();
+      await setSignupSource(user.login, landing, referrer);
+    }
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
+    await expect(table).toBeVisible();
+    for (const name of ["Программы", "Калькуляторы", "Поиск", "Соцсети"]) {
+      await expect(table.getByRole("rowheader", { name, exact: true }).first()).toBeVisible();
+    }
+    await expect(table.getByRole("columnheader", { name: "Активны на 2-й неделе, %" })).toBeVisible();
+  });
+
+  test("signup sources: counts of first workout and week 2 activity", async ({ page }) => {
+    const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const reg = addDays(today, -20);
+    // Своя страница входа на прогон: строка группы считается только по игрокам этого сценария
+    const tag = `e2e-${Date.now().toString(36)}`;
+    const login = (s: string) => `src_${tag.slice(4)}_${s}`;
+    for (const s of ["a", "b", "c", "d"]) {
+      await createUserRow(login(s));
+      await setSignupSource(login(s), tag, "search");
+    }
+    // A — свежая регистрация (ещё не eligible) с тренировкой
+    await seedWorkouts(login("a"), "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [new Date()] });
+    // B — заход в день 7; C — заходы в дни 6 и 14 (вне окна)
+    await backdateUser(login("b"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 7)] });
+    await backdateUser(login("c"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 6), addDays(reg, 14)] });
+    // D — пояс далеко от админа; регистрация в день reg и по UTC, и в поясе игрока, а тренировка в местный день игрока
+    // reg+7 (восток) / reg+13 (запад) — в окне, по UTC — reg+6 / reg+14, вне окна
+    const east = E2E_TZ_OFFSET < 0;
+    const finishedAt = east ? new Date(`${addDays(reg, 7)}T00:30:00+14:00`) : new Date(`${addDays(reg, 13)}T23:00:00-12:00`);
+    await seedWorkouts(login("d"), "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [finishedAt] });
+    await backdateUser(login("d"), {
+      createdAt: east ? new Date(`${reg}T20:00:00+14:00`) : new Date(`${reg}T06:00:00-12:00`),
+      timeZone: east ? "Etc/GMT-14" : "Etc/GMT+12",
+      visitDays: [],
+    });
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await setTimeZone(E2E_ADMIN);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
+    const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
+    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible)
+    await expect(cells).toHaveText(["4", "50 %", "67 %"]);
+  });
+
+  // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)
+  // и сценарий значений источников (20 дней назад — другая когорта).
   test("visit and workout on the same local day count once, in the player's own day", async ({ page, browser }) => {
     const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { coachProfile, createTelegramUser, createUserRow, enableCoach, guildOf, linkTelegram, telegramChat, telegramLoginId, withDb } from "./db";
+import { coachProfile, createTelegramUser, createUserRow, enableCoach, guildOf, linkTelegram, signupSourceOf, telegramChat, telegramLoginId, withDb } from "./db";
 import { createGuild, guildName, player } from "./guild-helpers";
 import { PASSWORD, registerUser } from "./helpers";
 import { e2eInitData, mockTelegram } from "./telegram-webapp";
@@ -62,6 +62,7 @@ test("new person: consent → Начать → dashboard", async ({ page }) => {
   const rows = await telegramUserRows(id);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ login: `tg${id}`, email: null, passwordHash: null });
+  expect(await signupSourceOf(`tg${id}`)).toEqual({ landing: "telegram", referrer: "telegram" });
 });
 
 test("returning person goes straight to the dashboard", async ({ browser }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -99,8 +99,11 @@ export function WeekDnd({
     if (target.date !== e.date || target.time !== e.time) onMove(e, target);
   };
 
+  const dndId = useId();
   return (
     <DndContext
+      // Свой id: иначе aria-describedby берётся из глобального счётчика dnd-kit и на сервере расходится с клиентом (гидратация)
+      id={dndId}
       sensors={sensors}
       collisionDetection={collision}
       modifiers={[snapToSlots(slotPx)]}

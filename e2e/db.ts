@@ -1027,6 +1027,17 @@ export async function visitDays(user: { login?: string; id?: string }): Promise<
   });
 }
 
+/** Журнал часов захода пользователя: «YYYY-MM-DD HH» по порядку. */
+export async function visitHours(login: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ h: string }>(
+      `select to_char(day, 'YYYY-MM-DD') || ' ' || lpad(hour::text, 2, '0') as h from "UserVisitHour" where "userId" = $1 order by day, hour`,
+      [await userId(db, login)],
+    );
+    return rows.map((r) => r.h);
+  });
+}
+
 /** Перенести пользователя в прошлое для когорт: дата регистрации, пояс, журнал заходов заменяется данными днями. */
 export async function backdateUser(login: string, s: { createdAt: Date; timeZone: string; visitDays: string[] }) {
   await withDb(async (db) => {
@@ -1034,6 +1045,13 @@ export async function backdateUser(login: string, s: { createdAt: Date; timeZone
     await db.query(`update "User" set "createdAt" = $2, "timeZone" = $3 where id = $1`, [id, s.createdAt, s.timeZone]);
     await db.query(`delete from "UserVisit" where "userId" = $1`, [id]);
     for (const day of s.visitDays) await db.query(`insert into "UserVisit" ("userId", day) values ($1, $2::date)`, [id, day]);
+  });
+}
+
+/** Источник регистрации игрока (как его записала бы форма регистрации). */
+export async function setSignupSource(login: string, landing: string | null, referrer: string | null) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "signupLanding" = $2, "signupReferrer" = $3 where id = $1`, [await userId(db, login), landing, referrer]);
   });
 }
 
@@ -1681,4 +1699,15 @@ export async function seedFeedback(login: string, n: number, over: { status?: st
 /** Обращения с таким текстом (у всех пользователей). */
 export async function feedbackRows(body: string): Promise<{ page: string | null; version: string | null; status: string }[]> {
   return withDb(async (db) => (await db.query(`select page, version, status from "Feedback" where body = $1`, [body])).rows);
+}
+
+/** Источник регистрации пользователя (спека 2026-10-20-signup-sources). */
+export async function signupSourceOf(login: string): Promise<{ landing: string | null; referrer: string | null }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ signupLanding: string | null; signupReferrer: string | null }>(
+      `select "signupLanding", "signupReferrer" from "User" where login = $1`,
+      [login],
+    );
+    return { landing: rows[0].signupLanding, referrer: rows[0].signupReferrer };
+  });
 }
