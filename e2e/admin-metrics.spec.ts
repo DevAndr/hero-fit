@@ -109,12 +109,13 @@ test.describe("admin metrics page", () => {
     // B — заход в день 7; C — заходы в дни 6 и 14 (вне окна)
     await backdateUser(login("b"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 7)] });
     await backdateUser(login("c"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 6), addDays(reg, 14)] });
-    // D — пояс далеко от админа: тренировка на краю окна в местный день игрока, по UTC — вне окна
+    // D — пояс далеко от админа; регистрация в день reg и по UTC, и в поясе игрока, а тренировка в местный день игрока
+    // reg+7 (восток) / reg+13 (запад) — в окне, по UTC — reg+6 / reg+14, вне окна
     const east = E2E_TZ_OFFSET < 0;
     const finishedAt = east ? new Date(`${addDays(reg, 7)}T00:30:00+14:00`) : new Date(`${addDays(reg, 13)}T23:00:00-12:00`);
     await seedWorkouts(login("d"), "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [finishedAt] });
     await backdateUser(login("d"), {
-      createdAt: east ? new Date(`${reg}T12:00:00+14:00`) : new Date(`${reg}T06:00:00-12:00`),
+      createdAt: east ? new Date(`${reg}T20:00:00+14:00`) : new Date(`${reg}T06:00:00-12:00`),
       timeZone: east ? "Etc/GMT-14" : "Etc/GMT+12",
       visitDays: [],
     });
