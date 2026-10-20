@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays } from "./db";
+import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
 
@@ -11,6 +11,19 @@ test("a visit writes one day to the visit log", async ({ page }) => {
   await page.goto("/dashboard");
   await page.reload();
   await expect.poll(() => visitDays({ login: me.login })).toHaveLength(1);
+});
+
+test("visits within one hour write one hour to the hour log, in the user's local time", async ({ page }) => {
+  const me = await registerUser(page);
+  await page.goto("/dashboard");
+  await page.reload();
+  await page.goto("/stats");
+  const now = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
+    .format(new Date())
+    .replace(", ", " ");
+  // Прогон стартует в 12:xx — граница часа между проверками маловероятна, но возможна: тогда записей две
+  await expect.poll(() => visitHours(me.login)).toContain(now);
+  expect((await visitHours(me.login)).length).toBeLessThanOrEqual(2);
 });
 
 test.describe("admin metrics page", () => {
@@ -44,6 +57,19 @@ test.describe("admin metrics page", () => {
     await expect(page).toHaveURL(/\/admin\?range=90$/);
     await expect(page.getByRole("link", { name: "90 дней" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByText(/за 90 дней$/).first()).toBeVisible();
+  });
+
+  test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const card = page.getByRole("region", { name: "Время суток" });
+    await expect(card.getByRole("heading", { name: "Время суток", level: 2 })).toBeVisible();
+    const table = card.getByRole("table", { name: "Активность по часам за 30 дней" });
+    await expect(table.getByRole("row")).toHaveCount(25);
+    const hour = new Intl.DateTimeFormat("en-GB", { timeZone: E2E_TZ, hour: "2-digit", hourCycle: "h23" }).format(new Date());
+    const row = table.getByRole("row").filter({ has: page.getByRole("cell", { name: `${hour}:00`, exact: true }) });
+    await expect(row.getByRole("cell").nth(1)).not.toHaveText("0");
   });
 
   // Только этот сценарий сдвигает регистрацию в прошлое; следы прошлых прогонов в когорте 5 недель назад убирает clearCohort.

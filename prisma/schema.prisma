@@ -175,6 +175,8 @@ model User {
   // Ежедневный вход
   loginStreak    Int       @default(0)
   lastLoginDay   DateTime? @db.Date
+  /// последний записанный час захода «YYYY-MM-DDTHH» в поясе пользователя (журнал UserVisitHour)
+  lastVisitHour  String?
   /// день, за который открыт ежедневный сундук (lib/progress/daily-chest.ts)
   chestOpenedDay DateTime? @db.Date
 
@@ -222,6 +224,7 @@ model User {
   scheduledPushes     ScheduledPush[]
   streakCoverWeeks    StreakCoverWeek[]
   visits              UserVisit[]
+  visitHours          UserVisitHour[]
   alertDismissals     SystemAlertDismissal[]
   feedback            Feedback[]
   bossWeeks           BossWeek[]
@@ -1197,6 +1200,18 @@ model UserVisit {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
+  @@index([day])
+}
+
+/// Журнал часов захода — для графика «по времени суток» в админке: местный день и час 0–23 в поясе игрока.
+/// Пишется не чаще раза в час на пользователя (User.lastVisitHour), каскад от User, в выгрузку не входит (как UserVisit).
+model UserVisitHour {
+  userId String
+  day    DateTime @db.Date
+  hour   Int
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day, hour])
   @@index([day])
 }
 

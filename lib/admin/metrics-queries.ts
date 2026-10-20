@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { cohortGrid, fillDays, type CohortRow, type DayPoint } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, fillHours, type CohortRow, type DayPoint, type HourPoint } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
 
 /*
@@ -129,6 +129,29 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
       today,
     );
   return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts") };
+}
+
+export type HourlyActivity = { visits: HourPoint[]; workouts: HourPoint[] };
+
+/**
+ * Время суток за период: заходы (журнал часов, «пользователь × час», копится с релиза 0.16) и начатые
+ * тренировки — по местному часу игрока. Период — дни в поясе админа, как у дневных графиков.
+ */
+export async function getHourlyActivity(tz: string, range: 30 | 90): Promise<HourlyActivity> {
+  const from = addDays(dayKey(new Date(), tz), -(range - 1));
+  const startedHour = Prisma.sql`extract(hour FROM ((w."startedAt" AT TIME ZONE 'UTC') AT TIME ZONE u."timeZone"))::int`;
+  const rows = await db.$queryRaw<{ series: keyof HourlyActivity; hour: number; value: number }[]>`
+    SELECT 'visits' AS series, hour, COUNT(*)::int AS value
+    FROM "UserVisitHour" WHERE day >= ${from}::date GROUP BY 2
+    UNION ALL
+    SELECT 'workouts', ${startedHour}, COUNT(*)::int
+    FROM "Workout" w JOIN "User" u ON u.id = w."userId"
+    WHERE w."startedAt" IS NOT NULL AND w.status IN ('IN_PROGRESS', 'COMPLETED')
+      AND w."startedAt" >= ${utcFloor(from)} AND ${localDay(Prisma.sql`w."startedAt"`, Prisma.sql`u."timeZone"`)} >= ${from}::date
+    GROUP BY 2
+  `;
+  const pick = (s: keyof HourlyActivity) => fillHours(rows.filter((r) => r.series === s).map(({ hour, value }) => ({ hour, value })));
+  return { visits: pick("visits"), workouts: pick("workouts") };
 }
 
 /** Удержание: последние 8 недель регистрации (включая текущую) × недели 0…6 после неё. */
