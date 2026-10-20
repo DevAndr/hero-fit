@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
-import type { DailySeries } from "@/lib/admin/metrics-queries";
+import type { DailySeries, HourlyActivity } from "@/lib/admin/metrics-queries";
 
 const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -152,7 +152,88 @@ function ActiveCard({ series, range }: { series: DailySeries; range: number }) {
   );
 }
 
-export function MetricsCharts({ series, range }: { series: DailySeries; range: 30 | 90 }) {
+/** Серии «по времени суток»: цвета — те же, что у «Заходили»/«Тренировались». */
+const HOURLY = [
+  { key: "visits", label: "Заходы", color: "var(--series-1)" },
+  { key: "workouts", label: "Начато тренировок", color: "var(--series-2)" },
+] as const;
+
+type HourRow = { hour: number; visits: number; workouts: number };
+
+const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
+function HourTooltip({ active, payload }: { active?: boolean; payload?: { payload: HourRow }[] }) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-medium">
+        {hourLabel(point.hour)}–{hourLabel((point.hour + 1) % 24)}
+      </p>
+      {HOURLY.map((r) => (
+        <p key={r.key} className="mt-1 flex items-center gap-2">
+          <span className="size-2 rounded-[2px]" style={{ background: r.color }} aria-hidden />
+          <span className="text-muted-foreground">{r.label}:</span>
+          <span className="font-semibold tabular-nums">{point[r.key]}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function HourlyCard({ hourly, range }: { hourly: HourlyActivity; range: number }) {
+  const data: HourRow[] = hourly.visits.map((p, i) => ({ hour: p.hour, visits: p.value, workouts: hourly.workouts[i]?.value ?? 0 }));
+  const config = Object.fromEntries(HOURLY.map((a) => [a.key, { label: a.label, color: a.color }])) satisfies ChartConfig;
+  return (
+    <Card
+      title="Время суток"
+      summary={`По местному времени пользователей, за ${range} дней. Заходы — один пользователь раз в час`}
+      table={
+        <table>
+          <caption>Активность по часам за {range} дней</caption>
+          <thead>
+            <tr>
+              <th>Час</th>
+              <th>Заходы</th>
+              <th>Начато тренировок</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((p) => (
+              <tr key={p.hour}>
+                <td>{hourLabel(p.hour)}</td>
+                <td>{p.visits}</td>
+                <td>{p.workouts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      }
+    >
+      <ul className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground" aria-hidden>
+        {HOURLY.map((a) => (
+          <li key={a.key} className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-[2px]" style={{ background: a.color }} />
+            {a.label}
+          </li>
+        ))}
+      </ul>
+      <ChartContainer config={config} className="mt-2 aspect-auto h-48 w-full">
+        <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }} barCategoryGap={3} barGap={1}>
+          <CartesianGrid vertical={false} strokeWidth={1} />
+          <XAxis dataKey="hour" tickLine={false} axisLine={false} tickMargin={8} interval={2} tickFormatter={hourLabel} />
+          <YAxis width={40} tickLine={false} axisLine={false} tickCount={4} allowDecimals={false} />
+          <ChartTooltip cursor={{ fillOpacity: 0.5 }} content={<HourTooltip />} />
+          {HOURLY.map((a) => (
+            <Bar key={a.key} dataKey={a.key} fill={a.color} radius={[3, 3, 0, 0]} maxBarSize={14} isAnimationActive={false} />
+          ))}
+        </BarChart>
+      </ChartContainer>
+    </Card>
+  );
+}
+
+export function MetricsCharts({ series, hourly, range }: { series: DailySeries; hourly: HourlyActivity; range: 30 | 90 }) {
   return (
     <div className="space-y-4">
       <nav aria-label="Период графиков" className="flex gap-2">
@@ -176,6 +257,9 @@ export function MetricsCharts({ series, range }: { series: DailySeries; range: 3
         </div>
         <BarCard title="Регистрации" label="Новых" points={series.signups} range={range} />
         <BarCard title="Тренировки" label="Завершено" points={series.workouts} range={range} />
+        <div className="lg:col-span-2">
+          <HourlyCard hourly={hourly} range={range} />
+        </div>
       </div>
     </div>
   );

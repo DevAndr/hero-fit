@@ -20,6 +20,7 @@ export type CurrentUser = {
   currentStreak: number;
   loginStreak: number;
   lastLoginDay: Date | null;
+  lastVisitHour: string | null;
   chestOpenedDay: Date | null;
   lastStreakWeek: string | null;
   streakFreezes: number;
@@ -74,6 +75,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           currentStreak: true,
           loginStreak: true,
           lastLoginDay: true,
+          lastVisitHour: true,
           chestOpenedDay: true,
           lastStreakWeek: true,
           streakFreezes: true,
