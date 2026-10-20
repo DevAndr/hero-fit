@@ -167,7 +167,7 @@ export async function getSignupSources(tz: string, range: 30 | 90): Promise<Sour
     WITH s AS (
       SELECT u.id, u."signupLanding" AS landing, u."signupReferrer" AS referrer, u."timeZone" AS tz,
         ${localDay(Prisma.sql`u."createdAt"`, Prisma.sql`u."timeZone"`)} AS day,
-        u."createdAt" <= now() - interval '14 days' AS eligible
+        u."createdAt" <= ${new Date(Date.now() - 14 * 86_400_000)} AS eligible
       FROM "User" u WHERE u."createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date
     )
     SELECT landing, referrer, COUNT(*)::int AS signups,

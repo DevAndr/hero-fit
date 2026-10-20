@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setTimeZone, visitDays, visitHours } from "./db";
+import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
-import { E2E_TZ, E2E_TZ_OFFSET } from "./tz";
+import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
 // makeAdmin переименовывает глобального админа — сценарии по очереди и только на desktop
 test.describe.configure({ mode: "serial" });
@@ -93,7 +93,44 @@ test.describe("admin metrics page", () => {
     await expect(table.getByRole("columnheader", { name: "Активны на 2-й неделе, %" })).toBeVisible();
   });
 
-  // Только этот сценарий сдвигает регистрацию в прошлое; следы прошлых прогонов в когорте 5 недель назад убирает clearCohort.
+  test("signup sources: counts of first workout and week 2 activity", async ({ page }) => {
+    const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const reg = addDays(today, -20);
+    // Своя страница входа на прогон: строка группы считается только по игрокам этого сценария
+    const tag = `e2e-${Date.now().toString(36)}`;
+    const login = (s: string) => `src_${tag.slice(4)}_${s}`;
+    for (const s of ["a", "b", "c", "d"]) {
+      await createUserRow(login(s));
+      await setSignupSource(login(s), tag, "search");
+    }
+    // A — свежая регистрация (ещё не eligible) с тренировкой
+    await seedWorkouts(login("a"), "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [new Date()] });
+    // B — заход в день 7; C — заходы в дни 6 и 14 (вне окна)
+    await backdateUser(login("b"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 7)] });
+    await backdateUser(login("c"), { createdAt: localAt(reg, "12:00"), timeZone: E2E_TZ, visitDays: [addDays(reg, 6), addDays(reg, 14)] });
+    // D — пояс далеко от админа: тренировка на краю окна в местный день игрока, по UTC — вне окна
+    const east = E2E_TZ_OFFSET < 0;
+    const finishedAt = east ? new Date(`${addDays(reg, 7)}T00:30:00+14:00`) : new Date(`${addDays(reg, 13)}T23:00:00-12:00`);
+    await seedWorkouts(login("d"), "Жим штанги лёжа", [{ weight: 50, reps: 5, sets: 1 }], 1, { finishedAt: [finishedAt] });
+    await backdateUser(login("d"), {
+      createdAt: east ? new Date(`${reg}T12:00:00+14:00`) : new Date(`${reg}T06:00:00-12:00`),
+      timeZone: east ? "Etc/GMT-14" : "Etc/GMT+12",
+      visitDays: [],
+    });
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await setTimeZone(E2E_ADMIN);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
+    const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
+    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible)
+    await expect(cells).toHaveText(["4", "50 %", "67 %"]);
+  });
+
+  // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)
+  // и сценарий значений источников (20 дней назад — другая когорта).
   test("visit and workout on the same local day count once, in the player's own day", async ({ page, browser }) => {
     const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
