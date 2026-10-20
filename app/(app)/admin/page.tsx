@@ -6,7 +6,7 @@ import { FeatureUsage } from "@/components/admin/feature-usage";
 import { MetricTiles } from "@/components/admin/metric-tiles";
 import { MetricsCharts } from "@/components/admin/metrics-charts";
 import { parseRange } from "@/lib/admin/metrics";
-import { getCohorts, getDailySeries, getFeatureUsage, getOverview } from "@/lib/admin/metrics-queries";
+import { getCohorts, getDailySeries, getFeatureUsage, getHourlyActivity, getOverview } from "@/lib/admin/metrics-queries";
 import { requireAdmin } from "@/lib/auth/admin";
 import { catalogAllowed } from "@/lib/catalog/access";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,9 +17,10 @@ export const metadata: Metadata = { title: "Метрики" };
 export default async function AdminMetricsPage({ searchParams }: PageProps<"/admin">) {
   const me = await requireAdmin();
   const range = parseRange((await searchParams).range);
-  const [overview, series, cohorts, usage, catalogOn] = await Promise.all([
+  const [overview, series, hourly, cohorts, usage, catalogOn] = await Promise.all([
     getOverview(me.timeZone),
     getDailySeries(me.timeZone, range),
+    getHourlyActivity(me.timeZone, range),
     getCohorts(me.timeZone),
     getFeatureUsage(),
     catalogAllowed(me.id),
@@ -33,7 +34,7 @@ export default async function AdminMetricsPage({ searchParams }: PageProps<"/adm
         </Link>
       ) : null}
       <MetricTiles overview={overview} />
-      <MetricsCharts series={series} range={range} />
+      <MetricsCharts series={series} hourly={hourly} range={range} />
       <CohortTable rows={cohorts} />
       <FeatureUsage usage={usage} />
     </div>

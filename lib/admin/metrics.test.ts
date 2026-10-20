@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortGrid, deltaPercent, fillDays, parseRange } from "./metrics";
+import { cohortGrid, deltaPercent, fillDays, fillHours, parseRange } from "./metrics";
 
 describe("deltaPercent", () => {
   it("рост и падение", () => {
@@ -62,5 +62,20 @@ describe("cohortGrid", () => {
       current,
     );
     expect(rows.map((r) => r.week)).toEqual(["2026-10-05", "2026-09-28"]);
+  });
+});
+
+describe("fillHours", () => {
+  it("returns 24 hours with zeros where there is no data", () => {
+    const out = fillHours([{ hour: 7, value: 3 }, { hour: 19, value: 5 }]);
+    expect(out).toHaveLength(24);
+    expect(out[0]).toEqual({ hour: 0, value: 0 });
+    expect(out[7]).toEqual({ hour: 7, value: 3 });
+    expect(out[19]).toEqual({ hour: 19, value: 5 });
+    expect(out[23]).toEqual({ hour: 23, value: 0 });
+  });
+
+  it("ignores hours outside 0–23", () => {
+    expect(fillHours([{ hour: 24, value: 9 }, { hour: -1, value: 9 }]).every((p) => p.value === 0)).toBe(true);
   });
 });

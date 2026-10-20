@@ -1027,6 +1027,17 @@ export async function visitDays(user: { login?: string; id?: string }): Promise<
   });
 }
 
+/** Журнал часов захода пользователя: «YYYY-MM-DD HH» по порядку. */
+export async function visitHours(login: string): Promise<string[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ h: string }>(
+      `select to_char(day, 'YYYY-MM-DD') || ' ' || lpad(hour::text, 2, '0') as h from "UserVisitHour" where "userId" = $1 order by day, hour`,
+      [await userId(db, login)],
+    );
+    return rows.map((r) => r.h);
+  });
+}
+
 /** Перенести пользователя в прошлое для когорт: дата регистрации, пояс, журнал заходов заменяется данными днями. */
 export async function backdateUser(login: string, s: { createdAt: Date; timeZone: string; visitDays: string[] }) {
   await withDb(async (db) => {

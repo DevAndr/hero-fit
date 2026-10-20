@@ -3,6 +3,7 @@
 import { addDays } from "@/lib/dates";
 
 export type DayPoint = { day: string; value: number };
+export type HourPoint = { hour: number; value: number };
 
 export type CohortRow = {
   /** понедельник недели регистрации */
@@ -31,6 +32,12 @@ export function fillDays(rows: DayPoint[], from: string, to: string): DayPoint[]
   const out: DayPoint[] = [];
   for (let day = from; day <= to; day = addDays(day, 1)) out.push({ day, value: byDay.get(day) ?? 0 });
   return out;
+}
+
+/** Часы 0–23 по порядку; часов без данных — 0. */
+export function fillHours(rows: HourPoint[]): HourPoint[] {
+  const byHour = new Map(rows.map((r) => [r.hour, r.value]));
+  return Array.from({ length: 24 }, (_, hour) => ({ hour, value: byHour.get(hour) ?? 0 }));
 }
 
 /** Сетка удержания: когорта × неделя после регистрации, новые когорты сверху. */
