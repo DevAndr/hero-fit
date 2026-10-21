@@ -22,22 +22,30 @@ type Client = Prisma.TransactionClient;
 
 type Message = { type: NotificationType; title: string; body: string; url?: string };
 
+/** channels — куда доставлять запись очереди (по умолчанию оба канала); лента приложения не зависит от каналов. */
+type NotifyOptions = { push: boolean; channels?: { push: boolean; telegram: boolean } };
+
+const channelData = (channels?: { push: boolean; telegram: boolean }) => ({
+  push: channels?.push ?? true,
+  telegram: channels?.telegram ?? true,
+});
+
 /**
  * Уведомление в ленту приложения и (опционально) в очередь push. Можно вызывать внутри транзакции:
  * push уйдёт фоновой задачей уже после коммита.
  */
-export async function notify(client: Client, userId: string, message: Message, { push }: { push: boolean }) {
+export async function notify(client: Client, userId: string, message: Message, { push, channels }: NotifyOptions) {
   await client.notification.create({ data: { userId, ...message } });
-  if (push) await client.scheduledPush.create({ data: { userId, ...message, sendAt: new Date() } });
+  if (push) await client.scheduledPush.create({ data: { userId, ...message, ...channelData(channels), sendAt: new Date() } });
 }
 
 /** Пачка уведомлений одному пользователю — два INSERT вместо двух на каждое (важно внутри транзакции). */
-export async function notifyMany(client: Client, userId: string, messages: Message[], { push }: { push: boolean }) {
+export async function notifyMany(client: Client, userId: string, messages: Message[], { push, channels }: NotifyOptions) {
   if (messages.length === 0) return;
   await client.notification.createMany({ data: messages.map((m) => ({ userId, ...m })) });
   if (push) {
     const sendAt = new Date();
-    await client.scheduledPush.createMany({ data: messages.map((m) => ({ userId, ...m, sendAt })) });
+    await client.scheduledPush.createMany({ data: messages.map((m) => ({ userId, ...m, ...channelData(channels), sendAt })) });
   }
 }
 
@@ -71,7 +79,7 @@ export async function cancelRestPush(userId: string) {
 
 /** Отправить всё, у чего наступил sendAt. SKIP LOCKED — несколько воркеров не отправят дважды. */
 export async function processDuePushes(now = new Date()) {
-  const due = await db.$queryRaw<{ id: string; userId: string; type: NotificationType; title: string; body: string; url: string | null }[]>`
+  const due = await db.$queryRaw<{ id: string; userId: string; type: NotificationType; title: string; body: string; url: string | null; push: boolean; telegram: boolean }[]>`
     UPDATE "ScheduledPush" SET "sentAt" = ${now}
     WHERE id IN (
       SELECT id FROM "ScheduledPush"
@@ -80,10 +88,13 @@ export async function processDuePushes(now = new Date()) {
       LIMIT 100
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, "userId", type::text AS type, title, body, url
+    RETURNING id, "userId", type::text AS type, title, body, url, push, telegram
   `;
   // Параллельно: медленный push-сервис одного пользователя не задерживает остальных. Telegram — второй канал.
-  await Promise.allSettled(due.flatMap((p) => [sendPushToUser(p.userId, p), sendTelegramToUser(p.userId, p)]));
+  await Promise.allSettled(due.flatMap((p) => [
+      ...(p.push ? [sendPushToUser(p.userId, p)] : []),
+      ...(p.telegram ? [sendTelegramToUser(p.userId, p)] : []),
+    ]));
   return due.length;
 }
 

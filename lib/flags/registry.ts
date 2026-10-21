@@ -36,6 +36,10 @@ export const FLAGS = {
     description: "Каталог программ тренеров: публикация и самостоятельный запуск",
     expires: "2027-04-30",
   },
+  campaigns: {
+    description: "Рассылки «вернись в зал» по условиям из админки",
+    expires: "2027-04-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

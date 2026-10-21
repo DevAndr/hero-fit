@@ -29,6 +29,7 @@ const TAGS: Record<NotificationType, string> = {
   COACH: "hero-fit-coach",
   GOAL: "hero-fit-goal",
   FEEDBACK: "hero-fit-feedback",
+  COMEBACK: "hero-fit-comeback",
 };
 
 /** Шлёт push на все устройства пользователя; подписки, которых больше нет (404/410), удаляет. */
