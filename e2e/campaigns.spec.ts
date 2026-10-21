@@ -6,7 +6,9 @@ import {
   campaignSends,
   createCampaign,
   createUserRow,
+  E2E_ADMIN,
   linkTelegram,
+  makeAdmin,
   mondayWeeksAgo,
   notificationTitles,
   notificationUrls,
@@ -259,4 +261,140 @@ test("lastLoginDay null counts from the registration day; under 24 h — not a c
   await runTick(request, localAt(TODAY, "21:05"));
   expect(await episodes(twoDays)).toEqual([shift(TODAY, -2)]);
   expect(await campaignSends(newbie)).toHaveLength(0);
+});
+
+test.describe("admin pages", () => {
+  /** Новый админ (логин e2e_flag_admin) с флагом campaigns. */
+  async function admin(page: Page, o: { flag?: boolean } = {}) {
+    const { login } = await registerUser(page);
+    await makeAdmin(login);
+    if (o.flag ?? true) await addFlagUser("campaigns", E2E_ADMIN);
+    return E2E_ADMIN;
+  }
+  const row = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
+
+  test("create a draft, audience, test send to myself", async ({ page }) => {
+    const name = `Админка ${tag()}`;
+    const title = `Заголовок ${tag()}`;
+    await player({ lastLogin: shift(TODAY, -5) });
+    const me = await admin(page);
+
+    await page.goto("/admin/campaigns");
+    await page.getByRole("button", { name: "Меню профиля" }).click();
+    await expect(page.getByRole("menuitem", { name: "Рассылки" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("link", { name: "Создать" }).click();
+    await page.getByLabel("Название").fill(name);
+    await page.getByLabel("Условие").selectOption({ label: "Не заходил" });
+    await page.getByLabel("Дней без захода").fill("3");
+    await page.getByLabel("Заголовок").fill(title);
+    await page.getByLabel("Текст").fill("Три дня без зала");
+    await page.getByLabel("Ссылка").fill("/dashboard");
+    await page.getByLabel("Час отправки").fill("20");
+    await page.getByRole("button", { name: "Сохранить" }).click();
+
+    await expect(page).toHaveURL(/\/admin\/campaigns$/);
+    const r = row(page, name);
+    await expect(r).toContainText("Не заходил 3 дня");
+    await expect(r.getByText("Черновик", { exact: true })).toBeVisible();
+
+    await r.getByRole("link", { name }).click();
+    await page.getByRole("button", { name: "Кто попадёт сейчас" }).click();
+    const audience = page.getByRole("status").filter({ hasText: "Сейчас подходят" });
+    await expect(audience).toBeVisible();
+    expect(Number((await audience.innerText()).match(/\d+/)?.[0])).toBeGreaterThanOrEqual(1);
+
+    await page.getByRole("button", { name: "Отправить себе" }).click();
+    await expect(page.getByText("Отправлено вам")).toBeVisible();
+    expect(await campaignSends(me)).toHaveLength(0);
+    expect(await notificationTitles(me)).toContain(title);
+  });
+
+  test("launch, condition lock on a running campaign, pause and edit", async ({ page }) => {
+    const name = `Запуск ${tag()}`;
+    const id = await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name, status: "DRAFT" });
+    await player({ lastLogin: shift(TODAY, -5) });
+    await admin(page);
+
+    await page.goto(`/admin/campaigns/${id}`);
+    await page.getByRole("button", { name: "Запустить" }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByText("Запустить рассылку?")).toBeVisible();
+    await expect(dialog).toContainText(/Сейчас подходят \d+/);
+    await dialog.getByRole("button", { name: "Запустить" }).click();
+    await expect(page.getByText("Идёт", { exact: true })).toBeVisible();
+
+    await page.getByLabel("Дней без захода").fill("4");
+    await page.getByRole("button", { name: "Сохранить" }).click();
+    await expect(page.getByText("Условие меняется только у черновика или на паузе")).toBeVisible();
+
+    await page.getByRole("button", { name: "Пауза" }).click();
+    await expect(page.getByText("На паузе", { exact: true })).toBeVisible();
+    await page.getByLabel("Дней без захода").fill("4");
+    await page.getByRole("button", { name: "Сохранить" }).click();
+    await expect(page.getByText("Сохранено")).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Дней без захода")).toHaveValue("4");
+  });
+
+  test("list shows sent and returned counts", async ({ page, request }) => {
+    const name = `Статистика ${tag()}`;
+    await setFlag("campaigns", { enabled: true, logins: [] });
+    await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name, status: "ACTIVE" });
+    const login = await player({ lastLogin: shift(TODAY, -5) });
+    await runTick(request, localAt(TODAY, "21:05"));
+    expect(await campaignSends(login)).toHaveLength(1);
+    await withDb((db) => db.query(`update "CampaignSend" set "returnedAt" = now() where "userId" = (select id from "User" where login = $1)`, [login]));
+    await admin(page);
+
+    await page.goto("/admin/campaigns");
+    const r = row(page, name);
+    await expect(r.getByText("Идёт", { exact: true })).toBeVisible();
+    await expect(r).toContainText("Отправлено 1");
+    await expect(r).toContainText("Вернулись 1 · 100 %");
+  });
+
+  test("archive moves a row to the end without delete; a draft can be deleted", async ({ page }) => {
+    const running = `Идущая ${tag()}`;
+    const draft = `Черновик ${tag()}`;
+    const runningId = await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name: running, status: "ACTIVE" });
+    const draftId = await createCampaign({ condition: "INACTIVE", days: 5, hour: 20, name: draft, status: "DRAFT" });
+    await admin(page);
+
+    await page.goto(`/admin/campaigns/${runningId}`);
+    await page.getByRole("button", { name: "В архив" }).click();
+    await expect(page.getByText("Архив", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Удалить" })).toHaveCount(0);
+
+    await page.goto("/admin/campaigns");
+    const rows = page.getByRole("listitem");
+    const names = await rows.allInnerTexts();
+    const at = (n: string) => names.findIndex((t) => t.includes(n));
+    expect(at(draft)).toBeGreaterThanOrEqual(0);
+    expect(at(running)).toBeGreaterThan(at(draft));
+    await expect(row(page, running).getByText("Архив", { exact: true })).toBeVisible();
+
+    await page.goto(`/admin/campaigns/${draftId}`);
+    await page.getByRole("button", { name: "Удалить" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Удалить" }).click();
+    await expect(page).toHaveURL(/\/admin\/campaigns$/);
+    await expect(row(page, draft)).toHaveCount(0);
+  });
+
+  test("non-admin gets 404; admin without the flag gets 404 and no menu item", async ({ page, browser }) => {
+    await setFlag("campaigns", { enabled: true, logins: [] });
+    const ctx = await browser.newContext();
+    const other = await ctx.newPage();
+    await registerUser(other);
+    expect((await other.goto("/admin/campaigns"))?.status()).toBe(404);
+    await ctx.close();
+
+    await admin(page, { flag: false });
+    expect((await page.goto("/admin/campaigns"))?.status()).toBe(404);
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Меню профиля" }).click();
+    await expect(page.getByRole("menuitem", { name: "Метрики" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Рассылки" })).toHaveCount(0);
+  });
 });
