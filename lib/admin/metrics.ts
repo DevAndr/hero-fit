@@ -61,10 +61,13 @@ export function cohortGrid(
     }));
 }
 
-/** Сырые счётчики по паре «страница входа × источник»: firstWorkout и activeWeek2 — пользователей, eligible — зарегистрированных ≥ 14 дней назад. */
+/**
+ * Сырые счётчики по паре «группа × вложенная строка» («страница входа × источник» или «utm_source × utm_campaign»):
+ * firstWorkout и activeWeek2 — пользователей, eligible — зарегистрированных ≥ 14 дней назад.
+ */
 export type SourceRow = {
-  landing: string | null;
-  referrer: string | null;
+  group: string | null;
+  child: string | null;
   signups: number;
   firstWorkout: number;
   activeWeek2: number;
@@ -72,7 +75,7 @@ export type SourceRow = {
 };
 
 export type SourceStats = { signups: number; firstWorkoutPct: number; activeWeek2Pct: number | null };
-export type SourceGroup = SourceStats & { landing: string | null; children: (SourceStats & { referrer: string | null })[] };
+export type SourceGroup = SourceStats & { key: string | null; children: (SourceStats & { key: string | null })[] };
 
 const pct = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 100));
 
@@ -87,15 +90,15 @@ function stats(rows: SourceRow[]): SourceStats {
   };
 }
 
-/** Итог по странице входа с вложенными источниками; группы и источники — по регистрациям убыв. */
+/** Итог по группе с вложенными строками; группы и строки — по регистрациям убыв. */
 export function sourceRows(rows: SourceRow[]): SourceGroup[] {
-  const byLanding = new Map<string | null, SourceRow[]>();
-  for (const r of rows) byLanding.set(r.landing, [...(byLanding.get(r.landing) ?? []), r]);
-  return [...byLanding]
-    .map(([landing, group]) => ({
-      landing,
+  const byGroup = new Map<string | null, SourceRow[]>();
+  for (const r of rows) byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), r]);
+  return [...byGroup]
+    .map(([key, group]) => ({
+      key,
       ...stats(group),
-      children: group.map((r) => ({ referrer: r.referrer, ...stats([r]) })).sort((a, b) => b.signups - a.signups),
+      children: group.map((r) => ({ key: r.child, ...stats([r]) })).sort((a, b) => b.signups - a.signups),
     }))
     .sort((a, b) => b.signups - a.signups);
 }

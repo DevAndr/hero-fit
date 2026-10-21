@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setTimeZone, visitDays, visitHours } from "./db";
+import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -128,6 +128,29 @@ test.describe("admin metrics page", () => {
     const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
     // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible)
     await expect(cells).toHaveText(["4", "50 %", "67 %"]);
+  });
+
+  test("signup campaigns: utm_source rows with nested campaigns", async ({ page, browser }) => {
+    // Свой utm_source и кампания на прогон: строки — только по игрокам этого сценария
+    const tag = `e2e-${Date.now().toString(36)}`;
+    for (const campaign of [`${tag}-c`, `${tag}-c`, null]) {
+      const ctx = await browser.newContext();
+      const user = await registerUser(await ctx.newPage());
+      await ctx.close();
+      await setSignupUtm(user.login, tag, campaign);
+    }
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Рекламные метки за 30 дней" });
+    const group = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) });
+    await expect(group.getByRole("cell").first()).toHaveText("3");
+    // вложенные строки идут за строкой группы по убыванию регистраций
+    const child = (n: number) => group.locator(`xpath=following-sibling::tr[${n}]`);
+    await expect(child(1).getByRole("rowheader")).toHaveText(`${tag}-c`);
+    await expect(child(1).getByRole("cell").first()).toHaveText("2");
+    await expect(child(2).getByRole("rowheader")).toHaveText("без кампании");
+    await expect(child(2).getByRole("cell").first()).toHaveText("1");
   });
 
   // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)

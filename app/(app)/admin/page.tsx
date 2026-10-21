@@ -5,9 +5,9 @@ import { CohortTable } from "@/components/admin/cohort-table";
 import { FeatureUsage } from "@/components/admin/feature-usage";
 import { MetricTiles } from "@/components/admin/metric-tiles";
 import { MetricsCharts } from "@/components/admin/metrics-charts";
-import { SignupSources } from "@/components/admin/signup-sources";
+import { SignupCampaigns, SignupSources } from "@/components/admin/signup-sources";
 import { parseRange } from "@/lib/admin/metrics";
-import { getCohorts, getDailySeries, getFeatureUsage, getHourlyActivity, getOverview, getSignupSources } from "@/lib/admin/metrics-queries";
+import { getCohorts, getDailySeries, getFeatureUsage, getHourlyActivity, getOverview, getSignupCampaigns, getSignupSources } from "@/lib/admin/metrics-queries";
 import { requireAdmin } from "@/lib/auth/admin";
 import { catalogAllowed } from "@/lib/catalog/access";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,11 +18,12 @@ export const metadata: Metadata = { title: "Метрики" };
 export default async function AdminMetricsPage({ searchParams }: PageProps<"/admin">) {
   const me = await requireAdmin();
   const range = parseRange((await searchParams).range);
-  const [overview, series, hourly, sources, cohorts, usage, catalogOn] = await Promise.all([
+  const [overview, series, hourly, sources, campaigns, cohorts, usage, catalogOn] = await Promise.all([
     getOverview(me.timeZone),
     getDailySeries(me.timeZone, range),
     getHourlyActivity(me.timeZone, range),
     getSignupSources(me.timeZone, range),
+    getSignupCampaigns(me.timeZone, range),
     getCohorts(me.timeZone),
     getFeatureUsage(),
     catalogAllowed(me.id),
@@ -38,6 +39,7 @@ export default async function AdminMetricsPage({ searchParams }: PageProps<"/adm
       <MetricTiles overview={overview} />
       <MetricsCharts series={series} hourly={hourly} range={range} />
       <SignupSources groups={sources} range={range} />
+      <SignupCampaigns groups={campaigns} range={range} />
       <CohortTable rows={cohorts} />
       <FeatureUsage usage={usage} />
     </div>
