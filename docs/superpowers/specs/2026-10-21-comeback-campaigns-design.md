@@ -82,7 +82,7 @@ Telegram), но с `push = false` — `ScheduledPush.push Boolean @default(true)
 
 | Условие | Отбор | Ключ серии `episode` |
 | --- | --- | --- |
-| `INACTIVE N` | `lastLoginDay ≤ today − N` | `lastLoginDay` (YYYY-MM-DD) |
+| `INACTIVE N` | `coalesce(lastLoginDay, местный день регистрации) ≤ today − N` | этот день (YYYY-MM-DD) |
 | `NO_WORKOUT N` | `lastLoginDay > today − N` и последняя `COMPLETED` тренировка (местный день `finishedAt`) `≤ today − N`; тренировок нет — не попадает (это `NEVER_TRAINED`) | день последней тренировки |
 | `NEVER_TRAINED N` | местный день регистрации `≤ today − N`, `COMPLETED` тренировок нет | `never` |
 | `STREAK_LOST` | грубо в SQL: `currentStreak ≥ 2`, `lastStreakWeek` не null; точно — `restoreOffer(user, now, tz) !== null` | неделя сгорания (`lastStreakWeek + заморозки + 2`) |
