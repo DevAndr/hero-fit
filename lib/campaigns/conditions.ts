@@ -2,8 +2,11 @@ import "server-only";
 import { Prisma, type Campaign } from "@/generated/prisma/client";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { flagOn } from "@/lib/flags/eval";
 import { getFlagStates } from "@/lib/flags/server";
+import { pushEnabled } from "@/lib/notifications/push";
+import { telegramEnabled } from "@/lib/telegram/format";
 import { CAMPAIGN_LAST_HOUR } from "@/lib/campaigns/rules";
 import { addWeeks, availableFreezes, restoreOffer } from "@/lib/progress/weekly-streak";
 
@@ -12,6 +15,13 @@ export type Candidate = { userId: string; episode: string };
 type CampaignInput = Pick<Campaign, "id" | "condition" | "days" | "push" | "telegram" | "hour">;
 
 const DAY_MS = 86_400_000;
+
+/** Каналы, настроенные на сервере (VAPID, бот). Канал без настройки игроку не засчитывается. */
+export type ServerChannels = { push: boolean; telegram: boolean };
+
+export function serverChannels(): ServerChannels {
+  return { push: pushEnabled(), telegram: telegramEnabled(env) };
+}
 
 type StreakRow = {
   userId: string;
@@ -28,23 +38,28 @@ type StreakRow = {
 /**
  * Кандидаты кампании — один SQL. Все дни — местные по User.timeZone; столбцы timestamp хранят UTC.
  * Фильтры отправки (спека, «Отправка», шаг 3) — в том же WHERE: notifyComeback, местный час, регистрация ≥ 24 ч назад
- * (кроме NEVER_TRAINED), канал кампании, нет отправки с тем же эпизодом. ignoreHour/ignoreSent — для «Кто попадёт сейчас».
- * Флаг campaigns здесь не проверяется (это делают processCampaigns и campaignAudience).
+ * (кроме NEVER_TRAINED), канал кампании (только настроенный на сервере — server), нет отправки с тем же эпизодом.
+ * Эскалация: эпизод закрыт и отправкой кампании с тем же условием и days ≥ N — после «14 дней» не уйдёт «3 дня».
+ * ignoreHour/ignoreSent — для «Кто попадёт сейчас». Флаг campaigns здесь не проверяется (это делают processCampaigns
+ * и campaignAudience).
  */
 export async function campaignCandidates(
   c: CampaignInput,
   now: Date,
-  opts: { ignoreHour?: boolean; ignoreSent?: boolean } = {},
+  opts: { ignoreHour?: boolean; ignoreSent?: boolean; server?: ServerChannels } = {},
 ): Promise<Candidate[]> {
   if (c.condition !== "STREAK_LOST" && (c.days === null || c.days < 1)) return [];
-  if (!c.push && !c.telegram) return [];
+  const server = opts.server ?? serverChannels();
+  const usePush = c.push && server.push;
+  const useTelegram = c.telegram && server.telegram;
+  if (!usePush && !useTelegram) return [];
 
   const local = Prisma.sql`(${now}::timestamptz AT TIME ZONE u."timeZone")`;
   const today = Prisma.sql`${local}::date`;
   const regDay = Prisma.sql`((u."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE u."timeZone")::date`;
   const channels = [
-    ...(c.push ? [Prisma.sql`EXISTS (SELECT 1 FROM "PushSubscription" p WHERE p."userId" = u.id)`] : []),
-    ...(c.telegram ? [Prisma.sql`(u."telegramChatId" IS NOT NULL AND u."notifyTelegram")`] : []),
+    ...(usePush ? [Prisma.sql`EXISTS (SELECT 1 FROM "PushSubscription" p WHERE p."userId" = u.id)`] : []),
+    ...(useTelegram ? [Prisma.sql`(u."telegramChatId" IS NOT NULL AND u."notifyTelegram")`] : []),
   ];
   const base = [
     Prisma.sql`u."notifyComeback"`,
@@ -94,15 +109,21 @@ export async function campaignCandidates(
       )}`;
   }
 
+  // Своя отправка или отправка кампании того же условия с days ≥ N в этом эпизоде (эскалация 3 → 7 → 14, не обратно)
   const notSent = opts.ignoreSent
     ? Prisma.empty
     : Prisma.sql`WHERE NOT EXISTS (
-        SELECT 1 FROM "CampaignSend" s WHERE s."campaignId" = ${c.id} AND s."userId" = x."userId" AND s.episode = x.episode
+        SELECT 1 FROM "CampaignSend" s JOIN "Campaign" c2 ON c2.id = s."campaignId"
+        WHERE s."userId" = x."userId" AND s.episode = x.episode
+          AND (s."campaignId" = ${c.id} OR (c2.condition::text = ${c.condition} AND c2.days >= ${n}::int))
       )`;
   return db.$queryRaw<Candidate[]>`SELECT x."userId", x.episode FROM (${inner}) x ${notSent}`;
 }
 
-/** STREAK_LOST: грубо в SQL, точно — restoreOffer; эпизод — неделя сгорания (lastStreakWeek + заморозки + 2). */
+/**
+ * STREAK_LOST: грубо в SQL, точно — restoreOffer; эпизод — неделя сгорания (lastStreakWeek + заморозки + 2).
+ * Эскалации нет: days = null, кампании этого условия равноценны — «уже отправлено» только по своей.
+ */
 async function streakLostCandidates(c: CampaignInput, now: Date, base: Prisma.Sql[], ignoreSent: boolean): Promise<Candidate[]> {
   const rows = await db.$queryRaw<StreakRow[]>`
     SELECT u.id AS "userId", u."timeZone", u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts",

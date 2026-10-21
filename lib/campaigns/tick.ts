@@ -1,6 +1,6 @@
 import "server-only";
 import { NotificationType } from "@/generated/prisma/enums";
-import { campaignCandidates } from "@/lib/campaigns/conditions";
+import { campaignCandidates, serverChannels } from "@/lib/campaigns/conditions";
 import { CAMPAIGN_BATCH, CAMPAIGN_INTERVAL_MS, pickCampaigns, withinCap, type CampaignLite } from "@/lib/campaigns/rules";
 import { db } from "@/lib/db";
 import { flagOn } from "@/lib/flags/eval";
@@ -26,12 +26,15 @@ export async function processCampaigns(now: Date, { force }: { force: boolean })
 
   const campaigns = await db.campaign.findMany({ where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" } });
   if (campaigns.length === 0) return 0;
+  // Каналы сервера — раз на проход: без VAPID/бота канал игроку не засчитывается
+  const server = serverChannels();
+  if (!server.push && !server.telegram) return 0;
   const byId = new Map(campaigns.map((c) => [c.id, c]));
 
   const byUser = new Map<string, CampaignLite[]>();
   const episodes = new Map<string, string>(); // `${campaignId}:${userId}` → эпизод
   for (const c of campaigns) {
-    for (const { userId, episode } of await campaignCandidates(c, now)) {
+    for (const { userId, episode } of await campaignCandidates(c, now, { server })) {
       if (!flagOn("campaigns", state, userId)) continue;
       const list = byUser.get(userId) ?? [];
       list.push({ id: c.id, condition: c.condition, days: c.days, createdAt: c.createdAt });
@@ -67,7 +70,7 @@ export async function processCampaigns(now: Date, { force }: { force: boolean })
           tx,
           userId,
           { type: NotificationType.COMEBACK, title: c.title, body: c.body, url: c.url },
-          { push: true, channels: { push: c.push, telegram: c.telegram } },
+          { push: true, channels: { push: c.push && server.push, telegram: c.telegram && server.telegram } },
         );
         sent++;
       });

@@ -28,6 +28,8 @@ export async function recordDailyVisit(
   const streak = nextLoginStreak(lastDay, today, user.loginStreak);
   if (streak === null) return { today, loginStreak: user.loginStreak };
 
+  // Флаг — до транзакции: на промахе кэша это запрос через db, не держим соединение транзакции
+  const campaignsOn = await isEnabled("campaigns", user.id);
   await db.$transaction(async (tx) => {
     // Условие по старому значению: два параллельных запроса не увеличат серию дважды.
     const { count } = await tx.user.updateMany({
@@ -39,7 +41,7 @@ export async function recordDailyVisit(
       await tx.userVisit.createMany({ data: [{ userId: user.id, day: new Date(`${today}T00:00:00Z`) }], skipDuplicates: true });
       await evaluateAchievements(tx, user.id);
       // Рассылки «вернись в зал»: засчитанный заход в течение 48 ч после отправки — игрок вернулся
-      if (await isEnabled("campaigns", user.id)) {
+      if (campaignsOn) {
         const now = new Date();
         await tx.campaignSend.updateMany({
           where: { userId: user.id, returnedAt: null, sentAt: { gte: new Date(now.getTime() - RETURN_WINDOW_MS) } },
