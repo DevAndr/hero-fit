@@ -1815,3 +1815,8 @@ export async function setStreakState(
     ),
   );
 }
+
+/** Сколько отправок у кампании (после удаления аккаунта — должно быть 0). */
+export async function campaignSendCount(campaignId: string): Promise<number> {
+  return withDb(async (db) => Number((await db.query(`select count(*) from "CampaignSend" where "campaignId" = $1`, [campaignId])).rows[0].count));
+}

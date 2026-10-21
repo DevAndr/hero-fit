@@ -263,6 +263,37 @@ test("lastLoginDay null counts from the registration day; under 24 h — not a c
   expect(await campaignSends(newbie)).toHaveLength(0);
 });
 
+test("settings: the switch turns campaigns off for the player; without the flag there is no switch", async ({ page, request }) => {
+  await createCampaign({ condition: "INACTIVE", days: 3, hour: 20 });
+  const { login } = await registerUser(page);
+  await setUserTimeZone(login, E2E_TZ);
+  await withDb((db) => db.query(`update "User" set "createdAt" = $2 where login = $1`, [login, new Date(Date.now() - 30 * DAY)]));
+  await subscribe(login);
+
+  // Без флага переключателя нет
+  await page.goto("/settings");
+  await expect(page.getByRole("switch", { name: "Не потеряй streak" })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Напоминания вернуться" })).toHaveCount(0);
+
+  // Во флаге — есть, включён по умолчанию; выключили — настройка сохранилась и рассылка не уходит
+  await addFlagUser("campaigns", login);
+  await page.reload();
+  const toggle = page.getByRole("switch", { name: "Напоминания вернуться" });
+  await expect(toggle).toBeChecked();
+  await expect(page.getByText("Если давно не заходили или не тренировались")).toBeVisible();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await expect
+    .poll(() => withDb(async (db) => (await db.query(`select "notifyComeback" from "User" where login = $1`, [login])).rows[0].notifyComeback))
+    .toBe(false);
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "Напоминания вернуться" })).not.toBeChecked();
+
+  await setLastLoginDay(login, shift(TODAY, -5));
+  await runTick(request, localAt(TODAY, "21:05"));
+  expect(await campaignSends(login)).toHaveLength(0);
+});
+
 test.describe("admin pages", () => {
   /** Новый админ (логин e2e_flag_admin) с флагом campaigns. */
   async function admin(page: Page, o: { flag?: boolean } = {}) {
