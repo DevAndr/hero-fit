@@ -8,7 +8,18 @@ import {
 } from "@/lib/auth/cookies";
 import { rotateRefreshToken } from "@/lib/auth/session";
 import { verifyAccessToken } from "@/lib/auth/tokens";
-import { encodeSource, landingOf, landingOfJoin, referrerOf, SOURCE_COOKIE, SOURCE_MAX_AGE, type Landing } from "@/lib/analytics/source";
+import {
+  encodeSource,
+  encodeUtm,
+  landingOf,
+  landingOfJoin,
+  referrerOf,
+  SOURCE_COOKIE,
+  SOURCE_MAX_AGE,
+  UTM_COOKIE,
+  utmOf,
+  type Landing,
+} from "@/lib/analytics/source";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
 const PUBLIC_PAGES = ["/", "/privacy", "/changelog", "/reset-password", "/tools/1rm", "/tools/plates", "/tools/dots-wilks", "/training-programs", "/tg", ...AUTH_PAGES];
@@ -60,7 +71,7 @@ export default async function proxy(req: NextRequest) {
       const redirect = NextResponse.redirect(url);
       // Ссылка-приглашение — тоже первая точка входа (иначе на /login поставится other)
       const joinLanding = landingOfJoin(pathname);
-      if (joinLanding && canTagSource()) setSource(redirect, joinLanding);
+      if (joinLanding) tagSource(redirect, joinLanding);
       return redirect;
     }
 
@@ -69,26 +80,22 @@ export default async function proxy(req: NextRequest) {
     }
 
     const response = passThrough();
-    if (shouldTagSource()) setSource(response, landingOf(pathname));
+    if (PUBLIC_PAGES.includes(pathname) || PAGE_PREFIXES.some((p) => pathname.startsWith(p))) tagSource(response, landingOf(pathname));
     return response;
   }
 
-  function setSource(res: NextResponse, landing: Landing) {
-    res.cookies.set(
-      SOURCE_COOKIE,
-      encodeSource({ landing, referrer: referrerOf(req.headers.get("referer"), req.nextUrl.host) }),
-      { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SOURCE_MAX_AGE },
-    );
-  }
-
-  /** Гость, GET документа (не RSC-навигация), cookie ещё нет. */
-  function canTagSource() {
-    return req.method === "GET" && !authed && !req.headers.has("rsc") && !req.cookies.has(SOURCE_COOKIE);
-  }
-
-  /** Первая точка входа: canTagSource + публичная страница (не файлы вроде /pwa-icon/ и /opengraph-image). */
-  function shouldTagSource() {
-    return canTagSource() && (PUBLIC_PAGES.includes(pathname) || PAGE_PREFIXES.some((p) => pathname.startsWith(p)));
+  /**
+   * Гость, GET документа (не RSC-навигация): первая точка входа — если cookie ещё нет; рекламная метка — каждый
+   * переход с ней (последний до регистрации). Только публичные страницы, не файлы вроде /pwa-icon/ и /opengraph-image.
+   */
+  function tagSource(res: NextResponse, landing: Landing) {
+    if (req.method !== "GET" || authed || req.headers.has("rsc")) return;
+    const opts = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SOURCE_MAX_AGE } as const;
+    if (!req.cookies.has(SOURCE_COOKIE)) {
+      res.cookies.set(SOURCE_COOKIE, encodeSource({ landing, referrer: referrerOf(req.headers.get("referer"), req.nextUrl.host) }), opts);
+    }
+    const utm = utmOf(req.nextUrl.searchParams);
+    if (utm) res.cookies.set(UTM_COOKIE, encodeUtm(utm), opts);
   }
 
   /** Новые токены кладём и в текущий запрос — Server Components увидят их сразу. */

@@ -1055,6 +1055,13 @@ export async function setSignupSource(login: string, landing: string | null, ref
   });
 }
 
+/** Рекламная метка регистрации игрока (как её записала бы форма регистрации из cookie hf_utm). */
+export async function setSignupUtm(login: string, source: string | null, campaign: string | null) {
+  await withDb(async (db) => {
+    await db.query(`update "User" set "signupUtmSource" = $2, "signupUtmCampaign" = $3 where id = $1`, [await userId(db, login), source, campaign]);
+  });
+}
+
 /**
  * База e2e живёт между прогонами: игроков, перенесённых в эту когорту прошлыми прогонами (`backdateUser`),
  * возвращаем в «сейчас», чтобы строка когорты считалась по одному игроку текущего прогона.
@@ -1709,5 +1716,16 @@ export async function signupSourceOf(login: string): Promise<{ landing: string |
       [login],
     );
     return { landing: rows[0].signupLanding, referrer: rows[0].signupReferrer };
+  });
+}
+
+/** Рекламная метка регистрации пользователя. */
+export async function signupUtmOf(login: string): Promise<{ source: string | null; campaign: string | null }> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ signupUtmSource: string | null; signupUtmCampaign: string | null }>(
+      `select "signupUtmSource", "signupUtmCampaign" from "User" where login = $1`,
+      [login],
+    );
+    return { source: rows[0].signupUtmSource, campaign: rows[0].signupUtmCampaign };
   });
 }

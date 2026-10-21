@@ -87,3 +87,47 @@ export function decodeSource(raw: string | undefined): { landing: Landing; refer
   if (!LANDINGS.includes(landing as Landing) || !REFERRERS.includes(referrer as Referrer)) return null;
   return { landing: landing as Landing, referrer: referrer as Referrer };
 }
+
+/** Рекламная метка ссылки (utm_source/utm_campaign): последний переход с меткой до регистрации, 30 дней. */
+export const UTM_COOKIE = "hf_utm";
+export type Utm = { source: string; campaign: string | null };
+
+const UTM_MAX = 64;
+
+/** Нижний регистр; всё, кроме латиницы, кириллицы, цифр и «._-», — в «_»; пусто → null. */
+export function cleanUtm(raw: string | null): string | null {
+  if (!raw) return null;
+  const v = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё._-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, UTM_MAX);
+  return v || null;
+}
+
+/** Без utm_source, но с yclid — автоматическая разметка Директа (кампанию знает только Метрика). */
+export function utmOf(params: URLSearchParams): Utm | null {
+  const campaign = cleanUtm(params.get("utm_campaign"));
+  const source = cleanUtm(params.get("utm_source")) ?? (params.has("yclid") ? "yandex_direct" : null);
+  return source ? { source, campaign } : null;
+}
+
+export function encodeUtm(u: Utm): string {
+  return `${encodeURIComponent(u.source)}|${encodeURIComponent(u.campaign ?? "")}`;
+}
+
+/** Значение должно совпасть с собственной чисткой — подделанная cookie игнорируется. */
+export function decodeUtm(raw: string | undefined): Utm | null {
+  if (!raw) return null;
+  const parts = raw.split("|");
+  if (parts.length !== 2) return null;
+  let source: string, campaign: string;
+  try {
+    [source, campaign] = parts.map(decodeURIComponent);
+  } catch {
+    return null;
+  }
+  if (!source || cleanUtm(source) !== source || (campaign && cleanUtm(campaign) !== campaign)) return null;
+  return { source, campaign: campaign || null };
+}

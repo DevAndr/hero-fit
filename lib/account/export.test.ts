@@ -18,6 +18,8 @@ const raw = (): ExportRaw => ({
     shareActivity: true,
     signupLanding: "program",
     signupReferrer: "search",
+    signupUtmSource: "blogger",
+    signupUtmCampaign: "ivan_fit",
     notifyRest: true,
     notifyGoal: false,
     passwordHash: "$argon2id$secret-hash",
@@ -113,7 +115,7 @@ describe("buildExport", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });
   });
   it("профиль содержит источник регистрации", () => {
-    expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search" });
+    expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });
   });
   it("друзья и тренер — только ники и даты", () => {
     expect(Object.keys(out.friends[0]).sort()).toEqual(["nickname", "since", "status"]);

@@ -124,6 +124,8 @@ const PROFILE_FIELDS = [
   "privacyAcceptedAt",
   "signupLanding",
   "signupReferrer",
+  "signupUtmSource",
+  "signupUtmCampaign",
   "xp",
   "level",
   "currentStreak",
