@@ -1,9 +1,13 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
-import { signupSourceOf } from "./db";
+import { signupSourceOf, signupUtmOf } from "./db";
 import { registerUser } from "./helpers";
 
 async function srcCookie(context: BrowserContext) {
   return (await context.cookies()).find((c) => c.name === "hf_src");
+}
+
+async function utmCookie(context: BrowserContext) {
+  return (await context.cookies()).find((c) => c.name === "hf_utm");
 }
 
 test("guest first touch sets hf_src and keeps it on later visits", async ({ page, context }) => {
@@ -73,4 +77,49 @@ test("forged hf_src does not break registration and counts as other/direct", asy
   await context.addCookies([{ name: "hf_src", value: "evil.x", url: baseURL! }]);
   const me = await registerUser(page);
   expect(await signupSourceOf(me.login)).toEqual({ landing: "other", referrer: "direct" });
+});
+
+test("utm link sets hf_utm, a later utm link overwrites it, a plain visit keeps it", async ({ page, context }) => {
+  await page.goto("/?utm_source=blogger&utm_campaign=Ivan%20Fit");
+  const first = await utmCookie(context);
+  expect(first?.httpOnly).toBe(true);
+  expect(decodeURIComponent(first!.value)).toBe("blogger|ivan_fit");
+  expect((await srcCookie(context))?.value).toBe("home.direct");
+
+  await page.goto("/training-programs?utm_source=blogger&utm_campaign=masha");
+  expect(decodeURIComponent((await utmCookie(context))!.value)).toBe("blogger|masha");
+  expect((await srcCookie(context))?.value).toBe("home.direct");
+
+  await page.goto("/tools/1rm");
+  expect(decodeURIComponent((await utmCookie(context))!.value)).toBe("blogger|masha");
+});
+
+test("registration saves the utm label and deletes hf_utm", async ({ page, context }) => {
+  await page.goto("/training-programs/5x5?utm_source=yandex&utm_campaign=Маша");
+  const me = await registerUser(page);
+  expect(await signupUtmOf(me.login)).toEqual({ source: "yandex", campaign: "маша" });
+  expect(await utmCookie(context)).toBeUndefined();
+});
+
+test("yclid without utm is yandex_direct; no label is null", async ({ page, browser }) => {
+  await page.goto("/?yclid=12345");
+  const direct = await registerUser(page);
+  expect(await signupUtmOf(direct.login)).toEqual({ source: "yandex_direct", campaign: null });
+
+  const ctx = await browser.newContext();
+  const plain = await registerUser(await ctx.newPage());
+  await ctx.close();
+  expect(await signupUtmOf(plain.login)).toEqual({ source: null, campaign: null });
+});
+
+test("authenticated user gets no hf_utm", async ({ page, context }) => {
+  await registerUser(page);
+  await page.goto("/?utm_source=blogger&utm_campaign=x");
+  expect(await utmCookie(context)).toBeUndefined();
+});
+
+test("forged hf_utm is ignored at registration", async ({ page, context, baseURL }) => {
+  await context.addCookies([{ name: "hf_utm", value: "Evil%20Value|x", url: baseURL! }]);
+  const me = await registerUser(page);
+  expect(await signupUtmOf(me.login)).toEqual({ source: null, campaign: null });
 });

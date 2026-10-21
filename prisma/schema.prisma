@@ -143,6 +143,9 @@ model User {
   /// Первая точка входа и откуда пришёл (cookie hf_src при регистрации; telegram/telegram — Mini App); null — до учёта
   signupLanding     String?
   signupReferrer    String?
+  /// Рекламная метка последнего перехода до регистрации (utm_source/utm_campaign, cookie hf_utm); null — без метки
+  signupUtmSource   String?
+  signupUtmCampaign String?
   /// Экскурсия по дашборду завершена (любым способом); null — показать на дашборде
   onboardedAt       DateTime?
 

@@ -160,17 +160,28 @@ export async function getHourlyActivity(tz: string, range: 30 | 90): Promise<Hou
  * регистрации, только у зарегистрированных не позже чем 14 суток назад (eligible).
  */
 export async function getSignupSources(tz: string, range: 30 | 90): Promise<SourceGroup[]> {
+  return sourceRows(await sourceCounts(tz, range, Prisma.sql`u."signupLanding"`, Prisma.sql`u."signupReferrer"`, Prisma.empty));
+}
+
+/** То же по рекламным меткам: utm_source × utm_campaign, только регистрации с меткой. */
+export async function getSignupCampaigns(tz: string, range: 30 | 90): Promise<SourceGroup[]> {
+  return sourceRows(
+    await sourceCounts(tz, range, Prisma.sql`u."signupUtmSource"`, Prisma.sql`u."signupUtmCampaign"`, Prisma.sql`AND u."signupUtmSource" IS NOT NULL`),
+  );
+}
+
+function sourceCounts(tz: string, range: 30 | 90, group: Prisma.Sql, child: Prisma.Sql, where: Prisma.Sql) {
   const from = addDays(dayKey(new Date(), tz), -(range - 1));
   const signup = localDay(Prisma.sql`u."createdAt"`, tz);
   const finished = localDay(Prisma.sql`w."finishedAt"`, Prisma.sql`s.tz`);
-  const rows = await db.$queryRaw<SourceRow[]>`
+  return db.$queryRaw<SourceRow[]>`
     WITH s AS (
-      SELECT u.id, u."signupLanding" AS landing, u."signupReferrer" AS referrer, u."timeZone" AS tz,
+      SELECT u.id, ${group} AS "group", ${child} AS child, u."timeZone" AS tz,
         ${localDay(Prisma.sql`u."createdAt"`, Prisma.sql`u."timeZone"`)} AS day,
         u."createdAt" <= ${new Date(Date.now() - 14 * 86_400_000)} AS eligible
-      FROM "User" u WHERE u."createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date
+      FROM "User" u WHERE u."createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date ${where}
     )
-    SELECT landing, referrer, COUNT(*)::int AS signups,
+    SELECT "group", child, COUNT(*)::int AS signups,
       COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Workout" w WHERE w."userId" = s.id AND w.status = 'COMPLETED'))::int AS "firstWorkout",
       COUNT(*) FILTER (WHERE eligible)::int AS eligible,
       COUNT(*) FILTER (WHERE eligible AND (
@@ -182,7 +193,6 @@ export async function getSignupSources(tz: string, range: 30 | 90): Promise<Sour
       ))::int AS "activeWeek2"
     FROM s GROUP BY 1, 2
   `;
-  return sourceRows(rows);
 }
 
 /** Удержание: последние 8 недель регистрации (включая текущую) × недели 0…6 после неё. */
