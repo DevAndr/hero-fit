@@ -1729,3 +1729,89 @@ export async function signupUtmOf(login: string): Promise<{ source: string | nul
     return { source: rows[0].signupUtmSource, campaign: rows[0].signupUtmCampaign };
   });
 }
+
+export type CampaignSeed = {
+  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST";
+  days?: number | null;
+  name?: string;
+  title?: string;
+  body?: string;
+  url?: string;
+  push?: boolean;
+  telegram?: boolean;
+  hour?: number;
+  status?: "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
+  createdAt?: Date;
+};
+
+/** Кампания рассылки минуя админку; по умолчанию активная, час 20, оба канала. */
+export async function createCampaign(c: CampaignSeed): Promise<string> {
+  const id = randomUUID();
+  await withDb((db) =>
+    db.query(
+      `insert into "Campaign" (id, name, condition, days, title, body, url, push, telegram, hour, status, "createdAt", "updatedAt")
+       values ($1, $2, $3::"CampaignCondition", $4, $5, $6, $7, $8, $9, $10, $11::"CampaignStatus", $12, now())`,
+      [
+        id,
+        c.name ?? `e2e ${c.condition}`,
+        c.condition,
+        c.days ?? null,
+        c.title ?? "Вернись в зал",
+        c.body ?? "Мы скучаем",
+        c.url ?? "/training",
+        c.push ?? true,
+        c.telegram ?? true,
+        c.hour ?? 20,
+        c.status ?? "ACTIVE",
+        c.createdAt ?? new Date(),
+      ],
+    ),
+  );
+  return id;
+}
+
+/** Все кампании — в архив (тесты не видят кампаний соседних тестов и прошлых прогонов). */
+export async function archiveAllCampaigns() {
+  await withDb((db) => db.query(`update "Campaign" set status = 'ARCHIVED' where status <> 'ARCHIVED'`));
+}
+
+/** Отправки рассылок пользователю по порядку отправки. */
+export async function campaignSends(login: string): Promise<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null }[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null }>(
+      `select s."campaignId", s.episode, s."sentAt", s."returnedAt" from "CampaignSend" s join "User" u on u.id = s."userId"
+       where u.login = $1 order by s."sentAt", s.episode`,
+      [login],
+    );
+    return rows;
+  });
+}
+
+/** Сдвинуть время всех отправок рассылок пользователю. */
+export async function setCampaignSentAt(login: string, sentAt: Date) {
+  await withDb(async (db) => db.query(`update "CampaignSend" set "sentAt" = $2 where "userId" = $1`, [await userId(db, login), sentAt]));
+}
+
+/** Последний засчитанный день захода (YYYY-MM-DD, местный) или null. */
+export async function setLastLoginDay(login: string, day: string | null) {
+  await withDb((db) => db.query(`update "User" set "lastLoginDay" = $2::date where login = $1`, [login, day]));
+}
+
+export async function setNotifyComeback(login: string, on: boolean) {
+  await withDb((db) => db.query(`update "User" set "notifyComeback" = $2 where login = $1`, [login, on]));
+}
+
+/** Состояние недельной серии напрямую (недели — понедельники YYYY-MM-DD). */
+export async function setStreakState(
+  login: string,
+  s: { currentStreak: number; lastStreakWeek: string | null; streakFreezes: number; freezeGrantedAt: Date | null },
+) {
+  await withDb((db) =>
+    db.query(
+      `update "User" set "currentStreak" = $2, "longestStreak" = greatest("longestStreak", $2), "lastStreakWeek" = $3,
+         "streakFreezes" = $4, "freezeGrantedAt" = $5, "streakRestoredAt" = null, "weekWorkouts" = 0, "weekWorkoutsKey" = null
+       where login = $1`,
+      [login, s.currentStreak, s.lastStreakWeek, s.streakFreezes, s.freezeGrantedAt],
+    ),
+  );
+}

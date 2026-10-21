@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/dal";
 import { evaluateAchievements } from "@/lib/achievements/engine";
 import { dayKey, localHour, nextLoginStreak, safeTimeZone } from "@/lib/daily-login";
+import { RETURN_WINDOW_MS } from "@/lib/campaigns/rules";
+import { isEnabled } from "@/lib/flags/server";
 
 export const TIMEZONE_COOKIE = "hf_tz";
 
@@ -36,6 +38,14 @@ export async function recordDailyVisit(
       // Журнал заходов — для метрик активности в админке
       await tx.userVisit.createMany({ data: [{ userId: user.id, day: new Date(`${today}T00:00:00Z`) }], skipDuplicates: true });
       await evaluateAchievements(tx, user.id);
+      // Рассылки «вернись в зал»: засчитанный заход в течение 48 ч после отправки — игрок вернулся
+      if (await isEnabled("campaigns", user.id)) {
+        const now = new Date();
+        await tx.campaignSend.updateMany({
+          where: { userId: user.id, returnedAt: null, sentAt: { gte: new Date(now.getTime() - RETURN_WINDOW_MS) } },
+          data: { returnedAt: now },
+        });
+      }
     }
   });
   return { today, loginStreak: streak };
