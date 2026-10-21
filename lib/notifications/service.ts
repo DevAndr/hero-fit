@@ -17,27 +17,36 @@ import { processCoachRecaps } from "@/lib/coach/recap-tick";
 import { processProgramReminders } from "@/lib/coach/program-tick";
 import { processRaidReminders } from "@/lib/raid/tick";
 import { processGoals } from "@/lib/goals/tick";
+import { processCampaigns } from "@/lib/campaigns/tick";
 
 type Client = Prisma.TransactionClient;
 
 type Message = { type: NotificationType; title: string; body: string; url?: string };
 
+/** channels — куда доставлять запись очереди (по умолчанию оба канала); лента приложения не зависит от каналов. */
+type NotifyOptions = { push: boolean; channels?: { push: boolean; telegram: boolean } };
+
+const channelData = (channels?: { push: boolean; telegram: boolean }) => ({
+  push: channels?.push ?? true,
+  telegram: channels?.telegram ?? true,
+});
+
 /**
  * Уведомление в ленту приложения и (опционально) в очередь push. Можно вызывать внутри транзакции:
  * push уйдёт фоновой задачей уже после коммита.
  */
-export async function notify(client: Client, userId: string, message: Message, { push }: { push: boolean }) {
+export async function notify(client: Client, userId: string, message: Message, { push, channels }: NotifyOptions) {
   await client.notification.create({ data: { userId, ...message } });
-  if (push) await client.scheduledPush.create({ data: { userId, ...message, sendAt: new Date() } });
+  if (push) await client.scheduledPush.create({ data: { userId, ...message, ...channelData(channels), sendAt: new Date() } });
 }
 
 /** Пачка уведомлений одному пользователю — два INSERT вместо двух на каждое (важно внутри транзакции). */
-export async function notifyMany(client: Client, userId: string, messages: Message[], { push }: { push: boolean }) {
+export async function notifyMany(client: Client, userId: string, messages: Message[], { push, channels }: NotifyOptions) {
   if (messages.length === 0) return;
   await client.notification.createMany({ data: messages.map((m) => ({ userId, ...m })) });
   if (push) {
     const sendAt = new Date();
-    await client.scheduledPush.createMany({ data: messages.map((m) => ({ userId, ...m, sendAt })) });
+    await client.scheduledPush.createMany({ data: messages.map((m) => ({ userId, ...m, ...channelData(channels), sendAt })) });
   }
 }
 
@@ -71,7 +80,7 @@ export async function cancelRestPush(userId: string) {
 
 /** Отправить всё, у чего наступил sendAt. SKIP LOCKED — несколько воркеров не отправят дважды. */
 export async function processDuePushes(now = new Date()) {
-  const due = await db.$queryRaw<{ id: string; userId: string; type: NotificationType; title: string; body: string; url: string | null }[]>`
+  const due = await db.$queryRaw<{ id: string; userId: string; type: NotificationType; title: string; body: string; url: string | null; push: boolean; telegram: boolean }[]>`
     UPDATE "ScheduledPush" SET "sentAt" = ${now}
     WHERE id IN (
       SELECT id FROM "ScheduledPush"
@@ -80,10 +89,13 @@ export async function processDuePushes(now = new Date()) {
       LIMIT 100
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, "userId", type::text AS type, title, body, url
+    RETURNING id, "userId", type::text AS type, title, body, url, push, telegram
   `;
   // Параллельно: медленный push-сервис одного пользователя не задерживает остальных. Telegram — второй канал.
-  await Promise.allSettled(due.flatMap((p) => [sendPushToUser(p.userId, p), sendTelegramToUser(p.userId, p)]));
+  await Promise.allSettled(due.flatMap((p) => [
+      ...(p.push ? [sendPushToUser(p.userId, p)] : []),
+      ...(p.telegram ? [sendTelegramToUser(p.userId, p)] : []),
+    ]));
   return due.length;
 }
 
@@ -206,13 +218,17 @@ export async function processPlanReminders(now = new Date()) {
 
 let lastErrorsPrune = 0;
 
-/** now — только для тестовых часов (E2E_TEST_CLOCK): влияет на выбор напоминаний, не на очередь push. */
-export async function runNotificationTick(now = new Date()) {
+/**
+ * now — только для тестовых часов (E2E_TEST_CLOCK, ?now=): влияет на выбор напоминаний, не на очередь push.
+ * Передан явно — шаг рассылок идёт без ограничения «раз в 10 минут».
+ */
+export async function runNotificationTick(now?: Date) {
+  const at = now ?? new Date();
   // Сначала срочное (таймер отдыха и уже готовые push), итоги недели — после: их генерация не задерживает доставку
   let pushes = await processDuePushes();
-  let reminders = (await processStreakReminders(now)) + (await processPlanReminders(now));
+  let reminders = (await processStreakReminders(at)) + (await processPlanReminders(at));
   try {
-    const recaps = await processWeeklyRecaps(now);
+    const recaps = await processWeeklyRecaps(at);
     reminders += recaps;
     if (recaps) pushes += await processDuePushes();
   } catch (e) {
@@ -220,7 +236,7 @@ export async function runNotificationTick(now = new Date()) {
   }
   try {
     // Сигналы клиентов тренерам: раз в день с 10:00 по времени тренера
-    const signals = await processCoachSignals(now);
+    const signals = await processCoachSignals(at);
     reminders += signals;
     if (signals) pushes += await processDuePushes();
   } catch (e) {
@@ -228,7 +244,7 @@ export async function runNotificationTick(now = new Date()) {
   }
   try {
     // Итоги недели клиентов тренеру: снимок и push в понедельник с 09:00 по времени тренера
-    const coachRecaps = await processCoachRecaps(now);
+    const coachRecaps = await processCoachRecaps(at);
     reminders += coachRecaps;
     if (coachRecaps) pushes += await processDuePushes();
   } catch (e) {
@@ -236,13 +252,13 @@ export async function runNotificationTick(now = new Date()) {
   }
   try {
     // Программы: «заканчивается через неделю» — тренеру (из каталога — самому пользователю), один раз
-    reminders += await processProgramReminders(now);
+    reminders += await processProgramReminders(at);
   } catch (e) {
     console.error("[coach-programs] шаг напоминаний упал", e);
   }
   try {
     // Рейд гильдии: в четверг с 12:00 по времени главы — «не хватает урона»
-    const raids = await processRaidReminders(now);
+    const raids = await processRaidReminders(at);
     reminders += raids;
     if (raids) pushes += await processDuePushes();
   } catch (e) {
@@ -250,17 +266,25 @@ export async function runNotificationTick(now = new Date()) {
   }
   try {
     // Цели: напоминание за 7 дней до срока и провал по сроку
-    const goals = await processGoals(now);
+    const goals = await processGoals(at);
     reminders += goals;
     if (goals) pushes += await processDuePushes();
   } catch (e) {
     console.error("[goals] шаг сроков целей упал", e);
   }
   try {
+    // Рассылки по условиям («вернись в зал»): не чаще раза в 10 минут, с тестовыми часами — каждый тик
+    const campaigns = await processCampaigns(at, { force: now !== undefined });
+    reminders += campaigns;
+    if (campaigns) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[campaigns] шаг рассылок упал", e);
+  }
+  try {
     // Журнал ошибок: раз в сутки — чистка старше 30 дней
-    if (now.getTime() - lastErrorsPrune >= 86_400_000) {
-      lastErrorsPrune = now.getTime();
-      await pruneErrors(now);
+    if (at.getTime() - lastErrorsPrune >= 86_400_000) {
+      lastErrorsPrune = at.getTime();
+      await pruneErrors(at);
     }
   } catch (e) {
     console.error("[errors] чистка журнала упала", e);

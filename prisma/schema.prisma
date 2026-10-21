@@ -88,6 +88,7 @@ enum NotificationType {
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
   GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
   FEEDBACK // обратная связь: обращение сделано или отклонено
+  COMEBACK // рассылки «вернись»
 }
 
 enum FriendshipStatus {
@@ -194,6 +195,7 @@ model User {
   notifyPlan         Boolean   @default(true)
   notifyRecap        Boolean   @default(true)
   notifyGoal         Boolean   @default(true)
+  notifyComeback     Boolean   @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
   /// вход в Telegram Mini App (id пользователя Telegram) — отдельно от уведомлений: /stop, «Отключить» и 403 его не трогают;
@@ -274,6 +276,7 @@ model User {
   recordRespects      RecordRespect[]
   favoriteExercises   FavoriteExercise[]
   goals               Goal[]
+  campaignSends       CampaignSend[]
   bodyWeights         BodyWeightEntry[]
   errorEvents         ErrorEvent[]
   goblinEncounters    GoblinEncounter[]
@@ -707,6 +710,9 @@ model ScheduledPush {
   title       String
   body        String
   url         String?
+  /// каналы доставки: push и Telegram (у рассылок бывает выключен один из них)
+  push        Boolean          @default(true)
+  telegram    Boolean          @default(true)
   sendAt      DateTime
   sentAt      DateTime?
   cancelledAt DateTime?
@@ -1692,4 +1698,52 @@ model WhoopSleep {
   updatedAt          DateTime @updatedAt
 
   @@index([userId, end])
+}
+
+// ───────────────────────────── Рассылки по условиям ─────────────────────────────
+
+enum CampaignCondition {
+  INACTIVE // не заходил N дней
+  NO_WORKOUT // заходит, но не тренировался N дней
+  NEVER_TRAINED // N дней с регистрации, завершённых тренировок нет
+  STREAK_LOST // серия сгорела, выкуп ещё доступен
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Campaign {
+  id        String            @id @default(cuid())
+  name      String // для админки, ≤ 80
+  condition CampaignCondition
+  days      Int? // N: 1…90; у STREAK_LOST — null
+  title     String // ≤ 60
+  body      String // ≤ 300
+  url       String // только «/путь» (safeHref из lib/alerts/rules.ts)
+  push      Boolean           @default(true)
+  telegram  Boolean           @default(true)
+  hour      Int               @default(18) // местный час игрока, 8…21
+  status    CampaignStatus    @default(DRAFT)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  sends     CampaignSend[]
+}
+
+model CampaignSend {
+  id         String    @id @default(cuid())
+  campaignId String
+  userId     String
+  episode    String // ключ серии
+  sentAt     DateTime  @default(now())
+  returnedAt DateTime? // первый заход в течение 48 ч после sentAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId, episode])
+  @@index([userId, sentAt])
 }

@@ -28,6 +28,7 @@ export async function getNotificationSettings(userId: string) {
       notifyRecap: true,
       notifyCoachRecap: true,
       notifyGoal: true,
+      notifyComeback: true,
       planReminderMin: true,
       nickname: true,
       shareActivity: true,

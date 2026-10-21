@@ -7,6 +7,8 @@ import {
   createAlert,
   dismissAlertFor,
   feedbackRows,
+  campaignSendCount,
+  createCampaign,
   seedFeedback,
   coachRecapCounts,
   linkCoach,
@@ -502,3 +504,28 @@ test("feedback: export lists it without the admin note; deletion removes it", as
   expect(await feedbackRows(body)).toHaveLength(0);
 });
 
+
+test("campaigns: export lists sends without ids, deletion removes them", async ({ page }) => {
+  const me = await registerUser(page);
+  const name = `Выгрузка ${randomUUID().slice(0, 6)}`;
+  const campaignId = await createCampaign({ name, condition: "INACTIVE", days: 3, hour: 20, status: "ARCHIVED" });
+  await withDb((db) =>
+    db.query(`insert into "CampaignSend" (id, "campaignId", "userId", episode, "sentAt") select $1, $2, id, '2026-10-17', now() from "User" where login = $3`, [
+      randomUUID(),
+      campaignId,
+      me.login,
+    ]),
+  );
+  await page.goto("/settings");
+  const block = page.getByRole("region", { name: "Мои данные" });
+  const [json] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const text = await readFile((await json.path())!, "utf8");
+  const data = JSON.parse(text);
+  expect(data.campaignSends).toEqual([{ campaign: name, sentAt: expect.any(String), returnedAt: null }]);
+  expect(data.profile.notifications.notifyComeback).toBe(true);
+  expect(text).not.toContain(campaignId);
+
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await campaignSendCount(campaignId)).toBe(0);
+});

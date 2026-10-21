@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   }
   // Тестовые часы — только в e2e (E2E_TEST_CLOCK=1), в обычной работе ?now= игнорируется.
   const at = env.E2E_TEST_CLOCK === "1" ? req.nextUrl.searchParams.get("now") : null;
-  const now = at && !Number.isNaN(Date.parse(at)) ? new Date(at) : new Date();
+  // Тестовые часы передаём только явно: без них тик идёт по реальному времени (и с обычными ограничениями частоты).
+  const now = at && !Number.isNaN(Date.parse(at)) ? new Date(at) : undefined;
   return NextResponse.json(await runNotificationTick(now));
 }
