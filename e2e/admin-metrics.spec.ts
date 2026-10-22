@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
+import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -40,10 +40,17 @@ test.describe("admin metrics page", () => {
   test("admin sees tiles, charts, cohorts and features; range switches to 90 days", async ({ page }) => {
     const admin = await registerUser(page);
     await makeAdmin(admin.login);
+    await enableCoach(E2E_ADMIN, `adm${Date.now().toString(36)}`);
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Метрики", level: 1 })).toBeVisible();
     const tiles = page.getByRole("region", { name: "Сводка" });
     await expect(tiles.getByText("Пользователей")).toBeVisible();
+    // Тренеры и обычные — из того же снимка, что и общее число
+    const users = tiles.locator("div").filter({ has: page.getByText("Пользователей", { exact: true }) }).last();
+    const count = async (label: string) => Number((await users.getByText(`${label}:`).locator("..").innerText()).replace(/\D/g, ""));
+    const total = Number((await users.locator("p.text-2xl").innerText()).replace(/\D/g, ""));
+    expect((await count("Тренеры")) + (await count("Обычные"))).toBe(total);
+    expect(await count("Тренеры")).toBeGreaterThanOrEqual(1);
     await expect(tiles.getByText("Активные", { exact: true })).toBeVisible();
     for (const name of ["Регистрации", "Активные", "Тренировки"]) {
       await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
