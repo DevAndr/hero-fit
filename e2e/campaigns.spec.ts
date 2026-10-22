@@ -34,6 +34,11 @@ test.describe.configure({ mode: "serial" });
 const DAY = 86_400_000;
 const shift = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const TODAY = new Date(Date.now() + E2E_TZ_OFFSET * 3_600_000).toISOString().slice(0, 10);
+/**
+ * День тика через n дней, но не понедельник: тик в понедельник после 09:00 собирает «Итоги недели» по всей базе e2e
+ * (секунды, под нагрузкой полного прогона — дольше таймаута запроса). Условия — «прошло ≥ N дней», лишний день не мешает.
+ */
+const tickDay = (n: number) => (new Date(`${shift(TODAY, n)}T00:00:00Z`).getUTCDay() === 1 ? shift(TODAY, n + 1) : shift(TODAY, n));
 const tag = () => Math.random().toString(36).slice(2, 7);
 
 let push: Awaited<ReturnType<typeof startPushService>>;
@@ -105,7 +110,7 @@ test("INACTIVE 3: once per series, again after a new visit and a new gap", async
 
   // Зашёл сегодня и снова пропал на 3 дня — новая серия
   await setLastLoginDay(login, TODAY);
-  await runTick(request, localAt(TODAY, "21:05", 3));
+  await runTick(request, localAt(tickDay(3), "21:05"));
   expect(await episodes(login)).toEqual([shift(TODAY, -3), TODAY]);
 
   // Лента колокольчика (сегодня уже засчитан — заход ничего не меняет)
@@ -161,9 +166,10 @@ test("NEVER_TRAINED 2: registered 3 days ago without workouts", async ({ request
 test("STREAK_LOST: only while the restore offer is open", async ({ request }) => {
   const title = `Серия сгорела ${tag()}`;
   await createCampaign({ condition: "STREAK_LOST", days: null, hour: 20, title, url: "/dashboard" });
-  // Неделя сгорания — текущая (прошлая пропущена, заморозок нет); тик — в понедельник вечером, окно выкупа — до чт 00:00
+  // Неделя сгорания — текущая (прошлая пропущена, заморозок нет); тик — во вторник вечером (не в понедельник: там
+  // тик собирает «Итоги недели» по всей базе), окно выкупа — до чт 00:00
   const monday = mondayWeeksAgo(0);
-  const at = localAt(monday, "21:05");
+  const at = localAt(shift(monday, 1), "21:05");
   const lost = await player({ createdAt: new Date(at.getTime() - 60 * DAY), lastLogin: shift(monday, -8) });
   await setStreakState(lost, { currentStreak: 3, lastStreakWeek: shift(monday, -14), streakFreezes: 0, freezeGrantedAt: localAt(monday, "10:00") });
   // Сгорела ещё на прошлой неделе — выкуп уже недоступен
@@ -177,7 +183,7 @@ test("STREAK_LOST: only while the restore offer is open", async ({ request }) =>
   expect(await campaignSends(late)).toHaveLength(0);
 
   // Повторный тик — уже отправлено в эту неделю сгорания
-  await runTick(request, localAt(monday, "21:30"));
+  await runTick(request, localAt(shift(monday, 1), "21:30"));
   expect(await episodes(lost)).toEqual([monday]);
 });
 
@@ -194,7 +200,7 @@ test("cap: one campaign per pass (larger N), the next one not earlier than in 24
   await runTick(request, localAt(TODAY, "21:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([seven]);
 
-  await runTick(request, localAt(TODAY, "21:10", 1));
+  await runTick(request, localAt(tickDay(1), "21:10"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([seven, never]);
 });
 
@@ -208,8 +214,8 @@ test("escalation: a long gap gets only the largest N, smaller ones do not follow
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([fourteen]);
 
   // Лимит 24 ч уже не держит — держит эскалация: «7» и «3» в этом эпизоде не уходят
-  await runTick(request, localAt(TODAY, "21:05", 1));
-  await runTick(request, localAt(TODAY, "21:05", 2));
+  await runTick(request, localAt(tickDay(1), "21:05"));
+  await runTick(request, localAt(tickDay(2), "21:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([fourteen]);
 });
 
@@ -224,11 +230,11 @@ test("escalation: 3 → 7 → 14 as the gap grows in one series", async ({ reque
   expect(await ids()).toEqual([three]);
 
   // День 7 без захода
-  await runTick(request, localAt(TODAY, "21:05", 4));
+  await runTick(request, localAt(tickDay(4), "21:05"));
   expect(await ids()).toEqual([three, seven]);
 
   // День 14 без захода
-  await runTick(request, localAt(TODAY, "21:05", 11));
+  await runTick(request, localAt(tickDay(11), "21:05"));
   expect(await ids()).toEqual([three, seven, fourteen]);
   expect(await episodes(login)).toEqual([shift(TODAY, -3), shift(TODAY, -3), shift(TODAY, -3)]);
 });
