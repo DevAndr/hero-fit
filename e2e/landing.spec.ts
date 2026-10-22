@@ -118,3 +118,17 @@ test("header fits: no horizontal scroll on wide screens", async ({ page }) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `ширина ${width}`).toBe(0);
   }
 });
+
+test("favicon: ICO plus a 120×120 PNG for search engines (Yandex recommends 120×120)", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page.locator('head link[rel="icon"][type="image/x-icon"]')).toHaveCount(1);
+  const big = page.locator('head link[rel="icon"][sizes="120x120"][type="image/png"]');
+  await expect(big).toHaveAttribute("href", "/pwa-icon/120");
+
+  const icon = await request.get("/pwa-icon/120");
+  expect(icon.ok()).toBe(true);
+  expect(icon.headers()["content-type"]).toBe("image/png");
+  // PNG: ширина и высота — байты 16…23 заголовка IHDR
+  const png = await icon.body();
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([120, 120]);
+});

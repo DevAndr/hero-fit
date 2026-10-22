@@ -41,7 +41,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
   formatDetection: { telephone: false, email: false, address: false },
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "black-translucent" },
-  icons: { apple: "/pwa-icon/180" },
+  // favicon.ico (16/32/48) — файлом app/favicon.ico; 120×120 — рекомендованный Яндексом размер для выдачи
+  icons: { icon: [{ url: "/pwa-icon/120", sizes: "120x120", type: "image/png" }], apple: "/pwa-icon/180" },
 };
 
 export const viewport: Viewport = {
