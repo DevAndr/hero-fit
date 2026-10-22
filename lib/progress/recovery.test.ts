@@ -22,9 +22,9 @@ describe("recoveryHours", () => {
 });
 
 describe("muscleRecovery", () => {
-  it("все 10 групп; без тренировок — «давно не тренировалась», дней нет", () => {
+  it("все 11 групп; без тренировок — «давно не тренировалась», дней нет", () => {
     const all = muscleRecovery([], [], NOW);
-    expect(all).toHaveLength(10);
+    expect(all).toHaveLength(11);
     expect(all.every((r) => r.state === "neglected" && r.daysSince === null)).toBe(true);
   });
 
@@ -64,11 +64,13 @@ describe("recoveryHint", () => {
         { group: "BACK", sets: 6, at: hoursAgo(43) },
         { group: "CHEST", sets: 6, at: hoursAgo(80) },
         { group: "LEGS", sets: 6, at: hoursAgo(9 * 24) },
+        { group: "GLUTES", sets: 6, at: hoursAgo(9 * 24) },
       ],
     );
     expect(recoveryHint(r.get("BACK")!)).toBe("Спина: восстановление 60 %, ещё ~29 ч");
     expect(recoveryHint(r.get("CHEST")!)).toBe("Грудь: можно нагружать");
     expect(recoveryHint(r.get("LEGS")!)).toBe("Ноги отдыхают 9 дней");
+    expect(recoveryHint(r.get("GLUTES")!)).toBe("Ягодицы отдыхают 9 дней");
     expect(recoveryHint(r.get("ABS")!)).toBe("Пресс: ещё не тренировали");
   });
 });

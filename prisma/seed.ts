@@ -36,15 +36,18 @@ const EXERCISES: SeedExercise[] = [
   { name: "Отжимания на брусьях", muscleGroups: ["CHEST", "TRICEPS"], restSec: 90, bodyweight: true },
   { name: "Сведение рук в кроссовере", muscleGroups: ["CHEST"], restSec: 60 },
   // Спина
-  { name: "Становая тяга", muscleGroups: ["BACK", "LEGS", "TRAPS", "FOREARMS"], restSec: 180 },
+  { name: "Становая тяга", muscleGroups: ["BACK", "LEGS", "GLUTES", "TRAPS", "FOREARMS"], restSec: 180 },
   { name: "Подтягивания", muscleGroups: ["BACK", "BICEPS"], restSec: 90, bodyweight: true },
   { name: "Тяга штанги в наклоне", muscleGroups: ["BACK", "BICEPS"], restSec: 90 },
   { name: "Тяга верхнего блока", muscleGroups: ["BACK", "BICEPS"], restSec: 75 },
   // Ноги
-  { name: "Приседания со штангой", muscleGroups: ["LEGS", "ABS"], restSec: 180 },
-  { name: "Жим ногами", muscleGroups: ["LEGS"], restSec: 120 },
-  { name: "Румынская тяга", muscleGroups: ["LEGS", "BACK"], restSec: 120 },
-  { name: "Выпады с гантелями", muscleGroups: ["LEGS"], restSec: 90 },
+  { name: "Приседания со штангой", muscleGroups: ["LEGS", "GLUTES", "ABS"], restSec: 180 },
+  { name: "Жим ногами", muscleGroups: ["LEGS", "GLUTES"], restSec: 120 },
+  { name: "Румынская тяга", muscleGroups: ["LEGS", "GLUTES", "BACK"], restSec: 120 },
+  { name: "Выпады с гантелями", muscleGroups: ["LEGS", "GLUTES"], restSec: 90 },
+  // Ягодицы
+  { name: "Ягодичный мост со штангой", muscleGroups: ["GLUTES", "LEGS"], restSec: 90 },
+  { name: "Отведение ноги в кроссовере", muscleGroups: ["GLUTES"], restSec: 60 },
   // Плечи
   { name: "Жим штанги стоя", muscleGroups: ["SHOULDERS", "TRICEPS"], restSec: 120 },
   { name: "Махи гантелями в стороны", muscleGroups: ["SHOULDERS"], restSec: 60 },

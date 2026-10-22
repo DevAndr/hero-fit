@@ -97,6 +97,7 @@ const DEMO_RECOVERY: Record<MuscleGroup, RecoveryState> = {
   FOREARMS: "ready",
   ABS: "ready",
   LEGS: "neglected",
+  GLUTES: "neglected",
   CALVES: "neglected",
 };
 const FILL: Record<RecoveryState, string> = {

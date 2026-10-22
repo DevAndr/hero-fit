@@ -3,6 +3,7 @@ import type { MuscleGroup } from "@/generated/prisma/enums";
 export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   CHEST: "Грудь",
   LEGS: "Ноги",
+  GLUTES: "Ягодицы",
   SHOULDERS: "Плечи",
   FOREARMS: "Предплечья",
   CALVES: "Икры",
