@@ -18,6 +18,18 @@ test("built-in exercises are grouped by primary muscle and read-only", async ({ 
   await expect(card(page, "Жим штанги лёжа").getByRole("button", { name: "Действия" })).toHaveCount(0);
 });
 
+test("glutes: own section for hip exercises, compound leg lifts found by the secondary group", async ({ page }) => {
+  await expect(section(page, "Ягодицы").getByRole("heading", { name: "Ягодичный мост со штангой" })).toBeVisible();
+  await expect(section(page, "Ягодицы").getByRole("heading", { name: "Отведение ноги в кроссовере" })).toBeVisible();
+  await expect(card(page, "Ягодичный мост со штангой").getByText("Ягодицы", { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "Ягодицы", exact: true }).click();
+  await expect(page).toHaveURL(/group=GLUTES/);
+  for (const name of ["Приседания со штангой", "Румынская тяга", "Выпады с гантелями", "Жим ногами", "Становая тяга"]) {
+    await expect(page.getByRole("heading", { name, exact: true }).first()).toBeVisible();
+  }
+});
+
 test("filter by muscle group and search", async ({ page }) => {
   await page.getByRole("link", { name: "Икры" }).click();
   await expect(page).toHaveURL(/group=CALVES/);

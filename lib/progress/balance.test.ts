@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { imbalanceHint, muscleBalance } from "./balance";
 
 describe("muscleBalance", () => {
-  it("все 10 групп, уровень 0…4 от максимума, нетронутые — отдельно", () => {
+  it("все 11 групп, уровень 0…4 от максимума, нетронутые — отдельно", () => {
     const b = muscleBalance([
       { group: "CHEST", sets: 12 },
       { group: "BACK", sets: 6 },
       { group: "BICEPS", sets: 1 },
     ]);
-    expect(b.groups).toHaveLength(10);
+    expect(b.groups).toHaveLength(11);
     const level = Object.fromEntries(b.groups.map((g) => [g.group, g.level]));
     expect(level).toMatchObject({ CHEST: 4, BACK: 2, BICEPS: 1, LEGS: 0 });
-    expect(b.untouched).toEqual(["LEGS", "SHOULDERS", "FOREARMS", "CALVES", "TRICEPS", "TRAPS", "ABS"]);
+    expect(b.untouched).toEqual(["LEGS", "GLUTES", "SHOULDERS", "FOREARMS", "CALVES", "TRICEPS", "TRAPS", "ABS"]);
   });
 
   it("перекос в паре — от 6 подходов и вдвое больше", () => {

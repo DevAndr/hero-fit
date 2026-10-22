@@ -8,6 +8,7 @@ import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
  */
 const BASE_HOURS: Record<MuscleGroup, number> = {
   LEGS: 72,
+  GLUTES: 72,
   BACK: 72,
   CHEST: 72,
   SHOULDERS: 60,
@@ -89,7 +90,7 @@ export const RECOVERY_STATE_LABELS: Record<RecoveryState, string> = {
   neglected: "Давно не было",
 };
 
-const PLURAL_GROUPS = new Set<MuscleGroup>(["LEGS", "SHOULDERS", "FOREARMS", "CALVES"]);
+const PLURAL_GROUPS = new Set<MuscleGroup>(["LEGS", "GLUTES", "SHOULDERS", "FOREARMS", "CALVES"]);
 
 export function recoveryHint(r: GroupRecovery) {
   const name = MUSCLE_GROUP_LABELS[r.group];
