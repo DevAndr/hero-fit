@@ -22,16 +22,21 @@ import { selectOnFocus } from "@/components/ui/select-on-focus";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFlag } from "@/components/flags/flags-provider";
+import { NewTemplateDialog } from "@/components/coach/new-template-dialog";
 import { publishProgramAction } from "@/lib/catalog/actions";
 import { CATALOG_DESCRIPTION_MAX } from "@/lib/catalog/rules";
 import { deleteProgramAction, saveProgramAction } from "@/lib/coach/program-actions";
 import { programPreview, type ProgramRule } from "@/lib/coach/program";
 import type { ProgramView } from "@/lib/coach/program-queries";
+import type { ExerciseItem } from "@/lib/exercises/queries";
 import { WEEKDAYS_SHORT } from "@/lib/plans/view";
 import { cn } from "@/lib/utils";
 
 type Template = { id: string; name: string };
 type Day = { weekday: number; templateId: string; time: string };
+
+/** Пункт списка шаблонов дня «+ Новый шаблон…» — открывает редактор, а не выбирает шаблон. */
+const NEW_TEMPLATE = "__new__";
 
 const num = (v: string) => Number(v.replace(",", "."));
 const kg = (n: number) => `${n.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} кг`;
@@ -50,7 +55,20 @@ export function ProgramPreview({ rule, base = 100 }: { rule: ProgramRule; base?:
   );
 }
 
-function ProgramDialog({ program, templates, onClose }: { program: ProgramView | null; templates: Template[]; onClose: () => void }) {
+function ProgramDialog({
+  program,
+  templates: initialTemplates,
+  exercises,
+  onClose,
+}: {
+  program: ProgramView | null;
+  templates: Template[];
+  exercises: ExerciseItem[];
+  onClose: () => void;
+}) {
+  // Созданные здесь шаблоны сразу доступны во всех днях
+  const [templates, setTemplates] = useState(initialTemplates);
+  const [newTemplateDay, setNewTemplateDay] = useState<number | null>(null);
   const [name, setName] = useState(program?.name ?? "");
   const [weeks, setWeeks] = useState(String(program?.rule.weeks ?? 8));
   const [stepKind, setStepKind] = useState<"PERCENT" | "KG">(program?.rule.stepKind ?? "PERCENT");
@@ -170,11 +188,15 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
               );
             })}
           </div>
-          {templates.length === 0 ? <p className="text-sm text-muted-foreground">Сначала создайте шаблон тренировки в разделе «Шаблоны».</p> : null}
+          {templates.length === 0 ? <p className="text-sm text-muted-foreground">Шаблонов пока нет — создайте его в списке дня.</p> : null}
           {days.map((d) => (
             <div key={d.weekday} className="grid grid-cols-[2.5rem_1fr_6.5rem] items-center gap-2">
               <span className="text-sm font-medium">{WEEKDAYS_SHORT[d.weekday]}</span>
-              <Select items={templates.map((t) => ({ value: t.id, label: t.name }))} value={d.templateId || null} onValueChange={(v: string | null) => patchDay(d.weekday, { templateId: v ?? "" })}>
+              <Select
+                items={[...templates.map((t) => ({ value: t.id, label: t.name })), { value: NEW_TEMPLATE, label: "+ Новый шаблон…" }]}
+                value={d.templateId || null}
+                onValueChange={(v: string | null) => (v === NEW_TEMPLATE ? setNewTemplateDay(d.weekday) : patchDay(d.weekday, { templateId: v ?? "" }))}
+              >
                 <SelectTrigger aria-label={`Шаблон, ${WEEKDAYS_SHORT[d.weekday]}`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -184,12 +206,25 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
                       {t.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value={NEW_TEMPLATE} className="text-primary">
+                    + Новый шаблон…
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <Input type="time" step={900} aria-label={`Время, ${WEEKDAYS_SHORT[d.weekday]}`} value={d.time} onChange={(e) => patchDay(d.weekday, { time: e.target.value })} />
             </div>
           ))}
         </fieldset>
+        <NewTemplateDialog
+          open={newTemplateDay !== null}
+          exercises={exercises}
+          onOpenChange={(open) => !open && setNewTemplateDay(null)}
+          onSaved={(t) => {
+            setTemplates((cur) => [...cur, t].sort((a, b) => a.name.localeCompare(b.name, "ru")));
+            if (newTemplateDay !== null) patchDay(newTemplateDay, { templateId: t.id });
+            setNewTemplateDay(null);
+          }}
+        />
         {catalog ? (
           <fieldset className="grid gap-2 rounded-lg border p-3">
             <legend className="px-1 text-sm font-medium">Каталог программ</legend>
@@ -239,7 +274,7 @@ function ProgramDialog({ program, templates, onClose }: { program: ProgramView |
 }
 
 /** Библиотека программ: список, создание, правка, удаление. */
-export function ProgramLibrary({ programs, templates }: { programs: ProgramView[]; templates: Template[] }) {
+export function ProgramLibrary({ programs, templates, exercises }: { programs: ProgramView[]; templates: Template[]; exercises: ExerciseItem[] }) {
   const [editing, setEditing] = useState<ProgramView | "new" | null>(null);
   const [removing, setRemoving] = useState<ProgramView | null>(null);
   const [pending, startTransition] = useTransition();
@@ -294,7 +329,9 @@ export function ProgramLibrary({ programs, templates }: { programs: ProgramView[
           ))}
         </ul>
       )}
-      {editing ? <ProgramDialog program={editing === "new" ? null : editing} templates={templates} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        <ProgramDialog program={editing === "new" ? null : editing} templates={templates} exercises={exercises} onClose={() => setEditing(null)} />
+      ) : null}
       <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
