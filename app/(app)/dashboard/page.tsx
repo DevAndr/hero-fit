@@ -5,6 +5,7 @@ import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } 
 import { GoalCard } from "@/components/achievements/goal-card";
 import { OnboardingTour } from "@/components/onboarding/tour";
 import { BossCard } from "@/components/boss/boss-card";
+import { MyCoachCard } from "@/components/dashboard/my-coach-card";
 import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { TodayPlan } from "@/components/dashboard/today-plan";
 import { RecapCard } from "@/components/recap/recap-card";
@@ -15,6 +16,7 @@ import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
+import { getMyCoachCard } from "@/lib/coach/my-coach";
 import { safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getBossView } from "@/lib/boss/queries";
@@ -145,7 +147,7 @@ export default async function DashboardPage() {
     getClubDashboard(user.id, userTz),
   ]);
   const programOf = await programWeekLabels([...plan.today, plan.next, plan.missedYesterday].map((p) => p?.seriesId ?? null));
-  const raid = guild ? await getRaidView(guild.id, user.id, userTz) : null;
+  const [raid, coachCard] = await Promise.all([guild ? getRaidView(guild.id, user.id, userTz) : null, getMyCoachCard(user.id, coach, userTz)]);
   // Экскурсия — пока не пройдена (ONBOARDING_TOUR влияет только на регистрацию)
   const programs = user.onboardedAt === null ? await getOnboardingPrograms() : null;
   const friendsRecent = feed.entries.filter((e) => !e.me).slice(0, 3);
@@ -183,6 +185,7 @@ export default async function DashboardPage() {
         activePlanKey={plan.activePlanKey}
         coachName={coach ? clientDisplayName(coach) : null}
       />
+      {coachCard ? <MyCoachCard card={coachCard} /> : null}
       {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
