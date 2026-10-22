@@ -33,6 +33,8 @@ const activitySql = (from: string) => Prisma.sql`
 
 export type Overview = {
   users: number;
+  /** Пользователи с режимом тренера (isCoach); обычные — users − coaches. */
+  coaches: number;
   newToday: number;
   new7: number;
   new7Prev: number;
@@ -71,6 +73,7 @@ export async function getOverview(tz: string): Promise<Overview> {
     )
     SELECT
       (SELECT COUNT(*) FROM "User")::int AS users,
+      (SELECT COUNT(*) FROM "User" WHERE "isCoach")::int AS coaches,
       (SELECT COUNT(*) FROM u WHERE day = ${today}::date)::int AS "newToday",
       (SELECT COUNT(*) FROM u WHERE day >= ${d7}::date)::int AS new7,
       (SELECT COUNT(*) FROM u WHERE day >= ${d14}::date AND day < ${d7}::date)::int AS "new7Prev",
