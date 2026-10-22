@@ -30,6 +30,25 @@ test("glutes: own section for hip exercises, compound leg lifts found by the sec
   }
 });
 
+test("popular gym basics are in the built-in base, each under its primary group", async ({ page }) => {
+  const expected: [string, string][] = [
+    ["Грудь", "Жим гантелей лёжа"],
+    ["Грудь", "Отжимания"],
+    ["Спина", "Тяга гантели в наклоне"],
+    ["Спина", "Гиперэкстензия"],
+    ["Ноги", "Разгибание ног в тренажёре"],
+    ["Ноги", "Сгибание ног в тренажёре"],
+    ["Ноги", "Болгарские сплит-приседания"],
+    ["Плечи", "Жим гантелей сидя"],
+    ["Бицепс", "Подъём гантелей на бицепс"],
+    ["Трицепс", "Жим лёжа узким хватом"],
+    ["Пресс", "Ролик для пресса"],
+  ];
+  for (const [group, name] of expected) {
+    await expect(section(page, group).getByRole("heading", { name, exact: true, level: 3 })).toBeVisible();
+  }
+});
+
 test("filter by muscle group and search", async ({ page }) => {
   await page.getByRole("link", { name: "Икры" }).click();
   await expect(page).toHaveURL(/group=CALVES/);
@@ -41,7 +60,7 @@ test("filter by muscle group and search", async ({ page }) => {
 
   await page.getByRole("link", { name: "Все" }).click();
   await expect(page).toHaveURL(/\/exercises$/);
-  await page.getByPlaceholder("Поиск по названию").fill("присед");
+  await page.getByPlaceholder("Поиск по названию").fill("приседания со");
   await page.getByPlaceholder("Поиск по названию").press("Enter");
   await expect(page).toHaveURL(/q=%D0%BF/);
   await expect(page.getByRole("heading", { level: 3 })).toHaveCount(1);
@@ -156,6 +175,7 @@ test("a long exercise name is truncated and does not widen the card or the page"
   await dialog.getByRole("button", { name: "Добавить" }).click();
 
   const own = card(page, name).first();
+  await own.scrollIntoViewIfNeeded();
   await expect(own).toBeVisible();
   const list = (await section(page, "Грудь").boundingBox())!;
   const box = (await own.boundingBox())!;
