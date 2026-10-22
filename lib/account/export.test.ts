@@ -70,6 +70,7 @@ const raw = (): ExportRaw => ({
   feedback: [
     { kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z"), id: "fb_secret", adminNote: "заметка_админа", userAgent: "UA_secret" },
   ],
+  campaignSends: [{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null, id: "cs_secret", campaignId: "c_secret", userId: "u_secret", episode: "2026-10-17" }],
   programs: [
     {
       name: "Сила",
@@ -183,6 +184,15 @@ describe("export — feedback", () => {
     expect(EXPORT_SECTIONS).toContain("feedback");
     expect(o.feedback).toEqual([{ kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z") }]);
     expect(JSON.stringify(o)).not.toMatch(/fb_secret|заметка_админа|UA_secret/);
+  });
+});
+
+describe("export — campaign sends", () => {
+  it("рассылки — название кампании и даты; без id и ключа серии", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("campaignSends");
+    expect(o.campaignSends).toEqual([{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null }]);
+    expect(JSON.stringify(o)).not.toMatch(/cs_secret|c_secret|u_secret|2026-10-17"/);
   });
 });
 

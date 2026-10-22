@@ -131,7 +131,7 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
                   {title}
                   <span className="text-sm font-normal text-muted-foreground">{items.length}</span>
                 </h2>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {items.map((exercise) => (
                     <ExerciseCard key={exercise.id} exercise={exercise} />
                   ))}

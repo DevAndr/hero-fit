@@ -9,6 +9,7 @@ import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireClientOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { getWorkoutComments } from "@/lib/coach/comments-queries";
+import { safeTimeZone } from "@/lib/daily-login";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
 
 export const metadata: Metadata = { title: "Тренировка клиента" };
@@ -40,6 +41,7 @@ export default async function CoachClientWorkoutPage({ params }: PageProps<"/coa
     <WorkoutSummaryView
       workout={workout}
       owner={client}
+      timeZone={safeTimeZone(coach.timeZone)}
       title={workout.name}
       readOnly
       bossTaken

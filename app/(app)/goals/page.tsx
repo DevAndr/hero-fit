@@ -40,7 +40,7 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
       <NewGoal key={againId ?? "new"} form={form} activeCount={activeCount} suggestions={page.suggestions} again={again} />
 
       {page.active.length ? (
-        <section aria-label="Активные цели" className="grid gap-3 md:grid-cols-2">
+        <section aria-label="Активные цели" className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {page.active.map((g) => (
             <GoalCard key={g.id} goal={g} today={form.today} />
           ))}

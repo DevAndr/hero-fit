@@ -121,7 +121,7 @@ export function grantFreeze(state: WeeklyStreakState, now: Date): WeeklyStreakSt
  * Заморозки «на сейчас» — вместе с плановой, которую выдаст следующая тренировка: иначе статус
  * прыгал бы «сгорела» → «спасёт заморозка» после первой же тренировки, а выкуп оказался бы лишним.
  */
-function availableFreezes(user: { streakFreezes: number; freezeGrantedAt: Date | null }, now: Date) {
+export function availableFreezes(user: { streakFreezes: number; freezeGrantedAt: Date | null }, now: Date) {
   return freezeDue(user.freezeGrantedAt, now) ? withPlannedFreeze(user.streakFreezes) : user.streakFreezes;
 }
 
