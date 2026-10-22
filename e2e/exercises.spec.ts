@@ -134,3 +134,21 @@ test("mobile: search and groups stick under the header, picker filter stays afte
   await expect(dialog.getByLabel("Поиск упражнения")).toBeInViewport();
   await expect(dialog.getByRole("button", { name: "Все", exact: true })).toBeInViewport();
 });
+
+test("a long exercise name is truncated and does not widen the card or the page", async ({ page }) => {
+  const name = "Новое упражнение с очень длинным названием, которое не помещается в карточку";
+  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Название").fill(name);
+  await dialog.getByRole("button", { name: "Грудь", exact: true }).click();
+  await dialog.getByRole("button", { name: "Добавить" }).click();
+
+  const own = card(page, name).first();
+  await expect(own).toBeVisible();
+  const list = (await section(page, "Грудь").boundingBox())!;
+  const box = (await own.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(list.x + list.width + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  // Название обрезано многоточием, бейдж «моё» виден целиком
+  await expect(own.getByText("моё", { exact: true })).toBeInViewport({ ratio: 1 });
+});
