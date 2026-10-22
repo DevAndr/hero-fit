@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-const SIZES = new Set([96, 180, 192, 512]);
+const SIZES = new Set([96, 120, 180, 192, 512]);
 
 /** PNG-иконки приложения (манифест, push, iOS) — рисуются из того же знака, что и логотип. */
 export async function GET(_req: Request, ctx: RouteContext<"/pwa-icon/[size]">) {
