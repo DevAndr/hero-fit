@@ -31,7 +31,7 @@ export default async function TemplatesPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Мои шаблоны</h2>
         {mine.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {mine.map((t) => (
               <TemplateCard key={t.id} template={t} assignedClients={assigned[t.id] ?? 0} />
             ))}
@@ -51,7 +51,7 @@ export default async function TemplatesPage() {
         {[...byProgram].map(([program, items]) => (
           <section key={program} className="space-y-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{program}</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {items.map((t) => (
                 <TemplateCard key={t.id} template={t} />
               ))}

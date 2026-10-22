@@ -185,7 +185,7 @@ export default async function DashboardPage() {
       />
       {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="size-4 text-xp" />
@@ -222,7 +222,7 @@ export default async function DashboardPage() {
 
       <GoalsCard goals={goals.goals} total={goals.total} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <VolumeChart data={data.volume} />
         </div>
@@ -287,7 +287,7 @@ export default async function DashboardPage() {
       </section>
 
       {club ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <GuildCard guild={guild} raid={raid} />
           <ClubCard data={club} />
         </div>
@@ -303,7 +303,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
         {friendsRecent.length ? (
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
             {friendsRecent.map((entry) => (
               <FeedCard key={entry.id} entry={entry} compact />
             ))}

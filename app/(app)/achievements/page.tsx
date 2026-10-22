@@ -63,7 +63,7 @@ function AchievementsTab({ earned, goals }: Awaited<ReturnType<typeof getAchieve
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Ближайшие цели</h2>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {goals.map((g) => (
             <GoalCard key={g.code} goal={g} />
           ))}
@@ -84,7 +84,7 @@ function AchievementsTab({ earned, goals }: Awaited<ReturnType<typeof getAchieve
             return (
               <div key={category} className="space-y-2">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{CATEGORY_LABELS[category]}</h3>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {byCategory.get(category)!.map((a) => (
                     <article key={a.id} aria-label={a.title} className="flex items-center gap-3 rounded-xl border bg-card p-3">
                       <AchievementIcon code={a.code} size={64} />
