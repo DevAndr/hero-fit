@@ -136,8 +136,8 @@ describe("earnedAchievements", () => {
   it("variety: distinct exercises, per muscle group, all groups in a week, own exercise", () => {
     expect(codesOf("exercises", { distinctExercises: 26 })).toEqual(["exercises:10", "exercises:25"]);
     expect(codesOf("muscle", { muscleWorkouts: { CHEST: 52, CALVES: 9 } })).toEqual(["muscle:CHEST:10", "muscle:CHEST:50"]);
-    expect(codesOf("allgroups", { maxGroupsInWeek: 9 })).toEqual([]);
-    expect(codesOf("allgroups", { maxGroupsInWeek: 10 })).toEqual(["allgroups:10"]);
+    expect(codesOf("allgroups", { maxGroupsInWeek: 10 })).toEqual([]);
+    expect(codesOf("allgroups", { maxGroupsInWeek: 11 })).toEqual(["allgroups:11"]);
     expect(codesOf("custom-exercise", { customExercises: 2 })).toEqual(["custom-exercise:1"]);
   });
 
@@ -265,7 +265,7 @@ describe("nextGoals", () => {
     expect(goals.find((g) => g.code === "hours:10")).toMatchObject({ current: 4, unit: " ч" });
     expect(goals.filter((g) => g.code.startsWith("muscle:")).map((g) => g.code)).toEqual(["muscle:CHEST:10"]);
     // «Все группы за неделю» — прогресс по текущей неделе
-    expect(goals.find((g) => g.code === "allgroups:10")).toMatchObject({ current: 6, target: 10 });
+    expect(goals.find((g) => g.code === "allgroups:11")).toMatchObject({ current: 6, target: 11 });
     expect(goals.some((g) => /^(marathon|express|comeback|freeze|prday|early|late|template|custom-exercise):/.test(g.code))).toBe(
       false,
     );

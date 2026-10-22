@@ -72,6 +72,9 @@ describe("weightAdvice", () => {
 describe("painRelated", () => {
   it("любая группа упражнения в наборе места, «другое» — никогда", () => {
     expect(painRelated(["CHEST", "TRICEPS"], ["shoulder"])).toBe(true);
+    // Ягодицы — нагрузка на поясницу и колени (мост, приседания)
+    expect(painRelated(["GLUTES"], ["lowerBack"])).toBe(true);
+    expect(painRelated(["GLUTES"], ["knee"])).toBe(true);
     expect(painRelated(["BACK"], ["lowerBack"])).toBe(true);
     expect(painRelated(["BICEPS"], ["knee"])).toBe(false);
     expect(painRelated(["LEGS"], ["other"])).toBe(false);

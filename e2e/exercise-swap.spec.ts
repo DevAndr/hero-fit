@@ -148,12 +148,15 @@ test("chained swaps keep one undo toast, and it returns the previous one", async
   let dialog = await openSwap(page, SQUAT);
   await dialog.getByRole("button", { name: new RegExp(`^${LUNGE}`) }).click();
   dialog = await openSwap(page, LUNGE);
-  await dialog.getByRole("button", { name: /^Жим ногами/ }).click();
-  await expect(page.getByText("Заменено: Жим ногами")).toBeVisible();
+  // Любое из похожих: какие три попадут в список — зависит от базы упражнений
+  const next = dialog.getByRole("list", { name: "Похожие упражнения" }).getByRole("button").first();
+  const nextName = (await next.locator("span.font-medium").innerText()).trim();
+  await next.click();
+  await expect(page.getByText(`Заменено: ${nextName}`)).toBeVisible();
   // Тост прошлой замены закрыт — его «Вернуть» уже не сработало бы
   // Мгновенно, без ожидания: старый тост через 4 с исчез бы и сам
-  expect(await page.locator("[data-sonner-toast]").allTextContents()).toEqual(["Заменено: Жим ногамиВернуть"]);
+  expect(await page.locator("[data-sonner-toast]").allTextContents()).toEqual([`Заменено: ${nextName}Вернуть`]);
   await page.getByRole("button", { name: "Вернуть" }).click();
   await expect(page.getByRole("region", { name: LUNGE })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Жим ногами" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: nextName })).toHaveCount(0);
 });

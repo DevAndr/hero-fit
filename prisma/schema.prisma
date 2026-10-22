@@ -12,6 +12,7 @@ datasource db {
 enum MuscleGroup {
   CHEST // Грудь
   LEGS // Ноги
+  GLUTES // Ягодицы
   SHOULDERS // Плечи
   FOREARMS // Предплечья
   CALVES // Икры

@@ -19,7 +19,7 @@ test("muscle recovery: dashboard map and recovery dots in the workout filter", a
   await expect(map.getByTestId("recovery-LEGS")).toHaveAttribute("data-state", "neglected");
   await expect(map.getByTestId("recovery-LEGS")).toContainText("9 дн.");
   await expect(map.getByTestId("recovery-BICEPS")).toContainText("не было");
-  await expect(map.getByTestId("recovery-hint")).toContainText("Давно не было: ноги (9 дн.), пресс (9 дн.)");
+  await expect(map.getByTestId("recovery-hint")).toContainText("Давно не было: ноги (9 дн.), ягодицы (9 дн.), пресс (9 дн.)");
   // Силуэт раскрашен по тем же состояниям
   await expect(map.locator('polygon[data-group="CHEST"]').first()).toHaveAttribute("data-state", "fatigued");
 
@@ -59,7 +59,7 @@ test("RIR 0 lengthens recovery; balance tab shows lopsided pairs", async ({ page
   await expect(map.getByTestId("recovery-TRICEPS")).toContainText("3 подх.");
   await expect(map.getByTestId("recovery-CHEST")).toHaveAttribute("data-state", "level-4");
   await expect(map.getByTestId("recovery-hint")).toContainText("Грудь: 6 подходов, спина — ни одного — добавьте тяги");
-  await expect(map.getByTestId("recovery-hint")).toContainText("Ни разу за 30 дней: ноги, предплечья, икры, бицепс, спина, трапеция, пресс");
+  await expect(map.getByTestId("recovery-hint")).toContainText("Ни разу за 30 дней: ноги, ягодицы, предплечья, икры, бицепс, спина, трапеция, пресс");
 });
 
 test("build a workout from recovery: rested groups first, own exercises with last weights", async ({ page }) => {
@@ -70,11 +70,11 @@ test("build a workout from recovery: rested groups first, own exercises with las
   await page.goto("/training");
   // Ноги и пресс отдыхают 9 дней, остальные не тренировались; грудь (жим вчера) — нет
   await expect(page.getByTestId("recovery-plan-preview")).toHaveText(
-    "Ноги · Пресс · Предплечья · Икры · Бицепс — 6 упражнений",
+    "Ноги · Ягодицы · Пресс · Предплечья · Икры — 6 упражнений",
   );
   await page.getByRole("button", { name: /Собрать по восстановлению/ }).click();
 
-  await expect(page.getByLabel("Название тренировки")).toHaveValue("По восстановлению: ноги, пресс, предплечья, икры, бицепс");
+  await expect(page.getByLabel("Название тренировки")).toHaveValue("По восстановлению: ноги, ягодицы, пресс, предплечья, икры");
   const squat = page.getByRole("region", { name: "Приседания со штангой" });
   await expect(squat.getByLabel("Вес, подход 1")).toHaveValue("80");
   await expect(squat.getByLabel("Повторы, подход 5")).toHaveValue("5");

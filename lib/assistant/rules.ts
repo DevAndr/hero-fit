@@ -26,8 +26,8 @@ export const PAIN_GROUPS: Record<PainSpot, MuscleGroup[]> = {
   shoulder: ["SHOULDERS", "CHEST", "TRICEPS"],
   elbow: ["BICEPS", "TRICEPS", "FOREARMS"],
   wrist: ["FOREARMS", "BICEPS", "CHEST"],
-  lowerBack: ["BACK", "LEGS"],
-  knee: ["LEGS", "CALVES"],
+  lowerBack: ["BACK", "LEGS", "GLUTES"],
+  knee: ["LEGS", "GLUTES", "CALVES"],
   neck: ["TRAPS", "SHOULDERS"],
   other: [],
 };

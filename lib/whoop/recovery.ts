@@ -91,7 +91,7 @@ export const sleepText = (sleepMs: number | null, performancePct: number | null)
   sleepMs === null ? "—" : `${formatDuration(sleepMs / 1000)}${performancePct !== null ? ` · ${performancePct} %` : ""}`;
 
 /** Группы, чья метка стоит во множественном числе («Ноги», «Плечи»…). */
-const PLURAL_LABEL_GROUPS = new Set<string>(["LEGS", "SHOULDERS", "FOREARMS", "CALVES"]);
+const PLURAL_LABEL_GROUPS = new Set<string>(["LEGS", "GLUTES", "SHOULDERS", "FOREARMS", "CALVES"]);
 
 export type Advice = {
   id: "rhr" | "hrv" | "sleep" | "muscles" | "good-day";

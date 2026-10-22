@@ -39,7 +39,10 @@ function Line({ label, value, children }: { label: string; value: number | strin
 export function MetricTiles({ overview: o }: { overview: Overview }) {
   return (
     <section aria-label="Сводка" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <Tile label="Пользователей" value={fmt(o.users)} />
+      <Tile label="Пользователей" value={fmt(o.users)}>
+        <Line label="Тренеры" value={o.coaches} />
+        <Line label="Обычные" value={o.users - o.coaches} />
+      </Tile>
       <Tile label="Новые" value={fmt(o.newToday)}>
         <p className="text-muted-foreground">сегодня</p>
         <Line label="7 дн" value={o.new7}>

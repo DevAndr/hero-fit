@@ -7,7 +7,7 @@ const groups = (parts: typeof BODY_FRONT) => new Set(parts.map((p) => p.group).f
 describe("body map data", () => {
   it("вид спереди — без мышц спины, вид сзади — без груди и пресса", () => {
     expect([...groups(BODY_FRONT)].sort()).toEqual(["ABS", "BICEPS", "CALVES", "CHEST", "FOREARMS", "LEGS", "SHOULDERS", "TRICEPS"]);
-    expect([...groups(BODY_BACK)].sort()).toEqual(["BACK", "CALVES", "FOREARMS", "LEGS", "SHOULDERS", "TRAPS", "TRICEPS"]);
+    expect([...groups(BODY_BACK)].sort()).toEqual(["BACK", "CALVES", "FOREARMS", "GLUTES", "LEGS", "SHOULDERS", "TRAPS", "TRICEPS"]);
   });
 
   it("каждая группа видна хотя бы на одном виде", () => {
