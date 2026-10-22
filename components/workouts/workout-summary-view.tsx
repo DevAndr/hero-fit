@@ -42,7 +42,9 @@ const RECORD_LABELS: Record<RecordType, string> = {
 
 const kg = (n: number) => `${Math.round(n * 10) / 10} кг`;
 const recordValue = (type: RecordType, v: number) => (type === "MAX_REPS" ? `${v} повт.` : isTimedRecord(type) ? formatRecord(type, v) : kg(v));
-const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+/** Время завершения — в поясе смотрящего: страница рендерится на сервере, а у него свой пояс (в проде UTC). */
+const finishedLabel = (date: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone }).format(date);
 
 function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
   return (
@@ -61,6 +63,7 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string;
 export function WorkoutSummaryView({
   workout,
   owner,
+  timeZone,
   title,
   actions,
   footer,
@@ -77,6 +80,8 @@ export function WorkoutSummaryView({
   workout: WorkoutSummary;
   /** Владелец тренировки: опыт и серия, если у тренировки нет события завершения. */
   owner: { xp: number; currentStreak: number };
+  /** Пояс смотрящего (IANA, safeTimeZone) — для времени завершения. */
+  timeZone: string;
   title: string;
   actions?: ReactNode;
   footer?: ReactNode;
@@ -114,7 +119,7 @@ export function WorkoutSummaryView({
     <div className="mx-auto max-w-3xl">
       {/* Тренировка на сервере завершена — её черновик на устройстве больше не нужен */}
       {readOnly ? null : <OfflineCleanup workoutId={workout.id} />}
-      <PageHeader title={title} description={workout.finishedAt ? dateFormat.format(workout.finishedAt) : undefined} actions={actions} />
+      <PageHeader title={title} description={workout.finishedAt ? finishedLabel(workout.finishedAt, timeZone) : undefined} actions={actions} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={cn("rounded-xl border p-4", leveledUp ? "border-xp/50 bg-xp/10" : "bg-card")}>

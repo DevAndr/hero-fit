@@ -50,6 +50,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
     <WorkoutSummaryView
       workout={workout}
       owner={user}
+      timeZone={safeTimeZone(user.timeZone)}
       title={`${workout.name} — готово!`}
       readOnly={false}
       bossTaken={bossTaken}
