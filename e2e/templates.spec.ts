@@ -97,3 +97,25 @@ test("exercises added during a workout can be saved back into the template", asy
   await expect(card(page, "Мой 5×5")).toContainText("Приседания со штангой");
   await expect(card(page, "Мой 5×5")).not.toContainText("Шраги"); // не выполняли — в историю и шаблон не попали
 });
+
+test("a template with a long exercise name does not widen the card or the page", async ({ page }) => {
+  const exercise = "Жим с очень длинным названием, которое не помещается в карточку шаблона";
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Название").fill(exercise);
+  await dialog.getByRole("button", { name: "Грудь", exact: true }).click();
+  await dialog.getByRole("button", { name: "Добавить" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.goto("/templates");
+  await page.getByRole("link", { name: "Новый шаблон" }).click();
+  await page.getByLabel("Название").fill("Длинный");
+  await pick(page, [exercise]);
+  await page.getByRole("button", { name: "Сохранить шаблон" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+
+  const box = (await card(page, "Длинный").boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
