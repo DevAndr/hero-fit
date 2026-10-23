@@ -133,8 +133,8 @@ test.describe("admin metrics page", () => {
     await page.goto("/admin");
     const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
     const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
-    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible)
-    await expect(cells).toHaveText(["4", "50 %", "67 %"]);
+    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible), посетители и конверсия (заходов по метке нет)
+    await expect(cells).toHaveText(["4", "50 %", "67 %", "—", "—"]);
   });
 
   test("signup campaigns: utm_source rows with nested campaigns", async ({ page, browser }) => {

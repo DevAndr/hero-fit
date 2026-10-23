@@ -7,7 +7,7 @@ import { MetricTiles } from "@/components/admin/metric-tiles";
 import { MetricsCharts } from "@/components/admin/metrics-charts";
 import { SignupCampaigns, SignupSources } from "@/components/admin/signup-sources";
 import { parseRange } from "@/lib/admin/metrics";
-import { getCohorts, getDailySeries, getFeatureUsage, getHourlyActivity, getOverview, getSignupCampaigns, getSignupSources } from "@/lib/admin/metrics-queries";
+import { getCohorts, getDailySeries, getFeatureUsage, getHourlyActivity, getOverview, getSignupCampaigns, getSignupSources, getVisitsSince, periodStart } from "@/lib/admin/metrics-queries";
 import { requireAdmin } from "@/lib/auth/admin";
 import { catalogAllowed } from "@/lib/catalog/access";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,16 +18,18 @@ export const metadata: Metadata = { title: "Метрики" };
 export default async function AdminMetricsPage({ searchParams }: PageProps<"/admin">) {
   const me = await requireAdmin();
   const range = parseRange((await searchParams).range);
-  const [overview, series, hourly, sources, campaigns, cohorts, usage, catalogOn] = await Promise.all([
+  const [overview, series, hourly, sources, campaigns, visitsSince, cohorts, usage, catalogOn] = await Promise.all([
     getOverview(me.timeZone),
     getDailySeries(me.timeZone, range),
     getHourlyActivity(me.timeZone, range),
     getSignupSources(me.timeZone, range),
     getSignupCampaigns(me.timeZone, range),
+    getVisitsSince(me.timeZone),
     getCohorts(me.timeZone),
     getFeatureUsage(),
     catalogAllowed(me.id),
   ]);
+  const periodFrom = periodStart(me.timeZone, range);
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader title="Метрики" description={`Рост, активность и удержание. Дни — в поясе ${me.timeZone}.`} />
@@ -38,8 +40,8 @@ export default async function AdminMetricsPage({ searchParams }: PageProps<"/adm
       ) : null}
       <MetricTiles overview={overview} />
       <MetricsCharts series={series} hourly={hourly} range={range} />
-      <SignupSources groups={sources} range={range} />
-      <SignupCampaigns groups={campaigns} range={range} />
+      <SignupSources groups={sources} range={range} visitsSince={visitsSince} periodFrom={periodFrom} />
+      <SignupCampaigns groups={campaigns} range={range} visitsSince={visitsSince} periodFrom={periodFrom} />
       <CohortTable rows={cohorts} />
       <FeatureUsage usage={usage} />
     </div>

@@ -255,8 +255,11 @@ export function MetricsCharts({ series, hourly, range }: { series: DailySeries; 
         <div className="lg:col-span-2">
           <ActiveCard series={series} range={range} />
         </div>
+        <BarCard title="Новые посетители" label="Посетителей" points={series.visitors} range={range} />
         <BarCard title="Регистрации" label="Новых" points={series.signups} range={range} />
-        <BarCard title="Тренировки" label="Завершено" points={series.workouts} range={range} />
+        <div className="lg:col-span-2">
+          <BarCard title="Тренировки" label="Завершено" points={series.workouts} range={range} />
+        </div>
         <div className="lg:col-span-2">
           <HourlyCard hourly={hourly} range={range} />
         </div>
