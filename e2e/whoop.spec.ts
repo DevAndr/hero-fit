@@ -4,6 +4,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { WhoopApiRecovery, WhoopApiSleep, WhoopApiWorkout } from "../lib/whoop/types";
 import {
   addFlagUser,
+  enableAssistant,
   coachAssignOnce,
   coachTarget,
   coachTemplate,
@@ -809,6 +810,7 @@ test("тренировка: жёлтая зона — держи веса, по�
 
 test("тренировка: красная зона, но в чек-ине «Отлично» — подсказка прибавки снова видна", async ({ page }) => {
   const { login } = await flaggedUser(page);
+  await enableAssistant(login);
   await connectWith(page, login, []);
   await setTimeZone(login);
   await insertWhoopSleep(login, { end: sleptAt(1), recoveryPct: 21 });
@@ -835,7 +837,8 @@ async function askRecovery(page: Page) {
 }
 
 test("помощник: без флага whoop кнопки нет", async ({ page }) => {
-  await registerUser(page);
+  const { login } = await registerUser(page);
+  await enableAssistant(login);
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Помощник" }).click();
   await expect(assistantChat(page).getByRole("button", { name: "Как я восстановился?" })).toHaveCount(0);
@@ -843,7 +846,7 @@ test("помощник: без флага whoop кнопки нет", async ({ p
 });
 
 test("помощник: WHOOP не подключён — ссылка на устройства", async ({ page }) => {
-  await flaggedUser(page);
+  await flaggedUser(page).then(({ login }) => enableAssistant(login));
   await page.goto("/dashboard");
   await askRecovery(page);
   await expect(assistantChat(page)).toContainText("WHOOP не подключён");
@@ -852,6 +855,7 @@ test("помощник: WHOOP не подключён — ссылка на ус
 
 test("помощник: восстановление с цифрами и всеми советами", async ({ page }) => {
   const { login } = await flaggedUser(page);
+  await enableAssistant(login);
   await connectWith(page, login, []);
   await setTimeZone(login);
   for (let i = 1; i <= 7; i++) await insertWhoopSleep(login, { end: sleptAt(1 + 24 * i), recoveryPct: 70, hrvMs: 50, restingHr: 50 });
@@ -871,6 +875,7 @@ test("помощник: восстановление с цифрами и все
 
 test("помощник: данных за сегодня нет", async ({ page }) => {
   const { login } = await flaggedUser(page);
+  await enableAssistant(login);
   await connectWith(page, login, []);
   await setTimeZone(login);
   await insertWhoopSleep(login, { end: sleptAt(25), recoveryPct: 64 });
@@ -883,6 +888,7 @@ test("помощник: данных за сегодня нет", async ({ page 
 
 test("помощник: нет доступа к восстановлению — ссылка на устройства", async ({ page }) => {
   const { login } = await flaggedUser(page);
+  await enableAssistant(login);
   await connectWith(page, login, []);
   await setWhoopScopes(login, "read:workout read:profile offline");
 
