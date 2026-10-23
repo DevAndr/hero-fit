@@ -159,6 +159,8 @@ model User {
   // Режим тренера: раздел «Клиенты» и личный код приглашения (формат как у friendCode)
   isCoach   Boolean @default(false)
   coachCode String? @unique
+  /// «Первые шаги тренера» на /coach скрыты вручную; null — показывать, пока не выполнены все шаги
+  coachGuideHiddenAt DateTime?
   titleCode String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
 
   // Лента активности: видят только друзья. Настройки применяются при чтении — действуют и на прошлые тренировки.
