@@ -29,7 +29,8 @@ import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 // Флаг campaigns глобальный (список игроков переписывается в beforeAll) — файл идёт по очереди и только на desktop.
 // Кампании — с часом 20/21, тик — тестовыми часами около 21:00 по местному: фоновый воркер сервера идёт по
 // реальному времени (в e2e местное ≈ 12:xx) и эти кампании не отправит.
-test.describe.configure({ mode: "serial" });
+// Тики идут по всей e2e-базе: под полной параллельной нагрузкой тест с 3 тиками доходил до 30 с (как test.slow())
+test.describe.configure({ mode: "serial", timeout: 90_000 });
 
 const DAY = 86_400_000;
 const shift = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
