@@ -132,6 +132,33 @@ test("«Клиенты» in the menu only for coaches", async ({ page }) => {
   await expect(page.getByRole("menuitem", { name: "Клиенты" })).toBeVisible();
 });
 
+test("«Клиенты» stand out for coaches: right after «Кабинет» on desktop, in the bottom bar on phones", async ({ page, isMobile }) => {
+  const { login } = await registerUser(page);
+  await enableCoach(login, nickOf(login, "Nav"));
+  await page.goto("/dashboard");
+  const nav = isMobile ? page.getByRole("navigation").last() : page.getByRole("complementary").getByRole("navigation");
+  const labels = (await nav.getByRole("link").allInnerTexts()).map((t) => t.trim());
+  if (isMobile) {
+    expect(labels).toEqual(["Кабинет", "Тренировка", "Клиенты", "Календарь", "Ачивки"]);
+    // Упражнения — в меню профиля
+    await page.getByRole("button", { name: "Меню профиля" }).click();
+    await expect(page.getByRole("menuitem", { name: "Упражнения" })).toBeVisible();
+  } else {
+    expect(labels.slice(0, 2)).toEqual(["Кабинет", "Клиенты"]);
+  }
+  await expect(nav.getByRole("link", { name: "Клиенты" })).toHaveClass(/coach-nav/);
+  await nav.getByRole("link", { name: "Клиенты" }).click();
+  await expect(page).toHaveURL(/\/coach$/);
+});
+
+test("players without coach mode keep the usual bottom bar", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "нижняя панель — только на телефоне");
+  await registerUser(page);
+  await page.goto("/dashboard");
+  const labels = (await page.getByRole("navigation").last().getByRole("link").allInnerTexts()).map((t) => t.trim());
+  expect(labels).toEqual(["Кабинет", "Тренировка", "Календарь", "Упражнения", "Ачивки"]);
+});
+
 async function setHideWeights(login: string) {
   await withDb((db) => db.query(`update "User" set "shareActivity" = true, "hideWeights" = true where login = $1`, [login]));
 }

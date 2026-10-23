@@ -23,46 +23,60 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
     if (item.href === "/guild" && clubs) return [item, CLUB_NAV_ITEM];
     return [item];
   });
-  const items = isCoach ? [...base, COACH_NAV_ITEM] : base;
+  // Тренеру «Клиенты» — сразу после «Кабинета»
+  const items = isCoach ? [base[0], COACH_NAV_ITEM, ...base.slice(1)] : base;
   return (
     <nav className="flex flex-col gap-1" data-tour="nav">
-      {items.map(({ href, label, icon: Icon }) => (
-        <Link
-          key={href}
-          href={href}
-          aria-current={isActive(href) ? "page" : undefined}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            isActive(href) && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
-          )}
-        >
-          <Icon className="size-4" />
-          {label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
-export function BottomNav() {
-  const isActive = useIsActive();
-  return (
-    <nav data-tour="nav" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[calc(env(safe-area-inset-bottom)+var(--tg-safe-bottom))] backdrop-blur lg:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5">
-        {NAV_ITEMS.filter((item) => item.mobile).map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => {
+        const coach = href === COACH_NAV_ITEM.href;
+        return (
           <Link
             key={href}
             href={href}
             aria-current={isActive(href) ? "page" : undefined}
             className={cn(
-              "flex flex-col items-center gap-1 py-2 text-[11px] font-medium text-muted-foreground",
-              isActive(href) && "text-primary",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              isActive(href) && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
+              coach && "coach-nav",
             )}
           >
-            <Icon className="size-5" />
-            {label}
+            <Icon className="size-4" />
+            <span className={cn(coach && "coach-nav-label")}>{label}</span>
           </Link>
-        ))}
+        );
+      })}
+    </nav>
+  );
+}
+
+export function BottomNav({ isCoach }: { isCoach: boolean }) {
+  const isActive = useIsActive();
+  const mobile = NAV_ITEMS.filter((item) => item.mobile);
+  // Тренеру «Клиенты» — в центре вместо «Упражнений» (они — в меню профиля)
+  const items = isCoach
+    ? [...mobile.slice(0, 2), COACH_NAV_ITEM, ...mobile.slice(2).filter((item) => item.href !== "/exercises")]
+    : mobile;
+  return (
+    <nav data-tour="nav" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[calc(env(safe-area-inset-bottom)+var(--tg-safe-bottom))] backdrop-blur lg:hidden">
+      <div className="mx-auto grid max-w-md grid-cols-5">
+        {items.map(({ href, label, icon: Icon }) => {
+          const coach = href === COACH_NAV_ITEM.href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={isActive(href) ? "page" : undefined}
+              className={cn(
+                "flex flex-col items-center gap-1 py-2 text-[11px] font-medium text-muted-foreground",
+                isActive(href) && "text-primary",
+                coach && "coach-nav rounded-lg",
+              )}
+            >
+              <Icon className="size-5" />
+              <span className={cn(coach && "coach-nav-label")}>{label}</span>
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );
