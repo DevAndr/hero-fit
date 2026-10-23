@@ -6,7 +6,7 @@ import {
   campaignSends,
   createCampaign,
   createUserRow,
-  E2E_ADMIN,
+  E2E_CAMPAIGNS_ADMIN,
   linkTelegram,
   makeAdmin,
   mondayWeeksAgo,
@@ -347,12 +347,12 @@ test("settings: the switch turns campaigns off for the player; without the flag 
 });
 
 test.describe("admin pages", () => {
-  /** Новый админ (логин e2e_flag_admin) с флагом campaigns. */
+  /** Новый админ (свой логин E2E_CAMPAIGNS_ADMIN) с флагом campaigns. */
   async function admin(page: Page, o: { flag?: boolean } = {}) {
     const { login } = await registerUser(page);
-    await makeAdmin(login);
-    if (o.flag ?? true) await addFlagUser("campaigns", E2E_ADMIN);
-    return E2E_ADMIN;
+    await makeAdmin(login, E2E_CAMPAIGNS_ADMIN);
+    if (o.flag ?? true) await addFlagUser("campaigns", E2E_CAMPAIGNS_ADMIN);
+    return E2E_CAMPAIGNS_ADMIN;
   }
   const row = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
 
