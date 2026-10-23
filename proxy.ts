@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import {
   ACCESS_COOKIE,
   clearAuthCookies,
@@ -20,6 +20,8 @@ import {
   utmOf,
   type Landing,
 } from "@/lib/analytics/source";
+import { isBot } from "@/lib/analytics/bots";
+import { recordFirstVisit, recordUtmVisit } from "@/lib/analytics/visits";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
 const PUBLIC_PAGES = ["/", "/privacy", "/changelog", "/reset-password", "/tools/1rm", "/tools/plates", "/tools/dots-wilks", "/training-programs", "/tg", ...AUTH_PAGES];
@@ -32,7 +34,7 @@ const PAGE_PREFIXES = ["/trainer/", "/gym/", "/training-programs/"];
  * Оптимистичная проверка по cookie + тихий refresh, когда access истёк.
  * Окончательная проверка сессии (blacklist) — в lib/auth/dal.ts.
  */
-export default async function proxy(req: NextRequest) {
+export default async function proxy(req: NextRequest, event: NextFetchEvent) {
   const { pathname, search } = req.nextUrl;
 
   let authed = Boolean(await verifyAccessToken(req.cookies.get(ACCESS_COOKIE)?.value));
@@ -95,11 +97,18 @@ export default async function proxy(req: NextRequest) {
     const background = req.headers.has("rsc") || req.headers.has("next-url") || (dest !== null && dest !== "document" && dest !== "iframe");
     if (req.method !== "GET" || authed || background) return;
     const opts = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SOURCE_MAX_AGE } as const;
+    // Счётчики заходов для админки — фоном, ответ БД не ждёт; ботам cookie ставим, но не считаем
+    const counted = !isBot(req.headers.get("user-agent"));
     if (!req.cookies.has(SOURCE_COOKIE)) {
-      res.cookies.set(SOURCE_COOKIE, encodeSource({ landing, referrer: referrerOf(req.headers.get("referer"), req.nextUrl.host) }), opts);
+      const referrer = referrerOf(req.headers.get("referer"), req.nextUrl.host);
+      res.cookies.set(SOURCE_COOKIE, encodeSource({ landing, referrer }), opts);
+      if (counted) event.waitUntil(recordFirstVisit(landing, referrer));
     }
     const utm = utmOf(req.nextUrl.searchParams);
-    if (utm) res.cookies.set(UTM_COOKIE, encodeUtm(utm), opts);
+    if (utm) {
+      res.cookies.set(UTM_COOKIE, encodeUtm(utm), opts);
+      if (counted) event.waitUntil(recordUtmVisit(utm));
+    }
   }
 
   /** Новые токены кладём и в текущий запрос — Server Components увидят их сразу. */

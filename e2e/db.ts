@@ -740,6 +740,8 @@ export async function goalRewardXp(login: string) {
 export const E2E_ADMIN = "e2e_flag_admin";
 /** Свой логин у спеки рассылок: makeAdmin соседних спек забирает E2E_ADMIN себе, и админка рассылок отвечала 404. */
 export const E2E_CAMPAIGNS_ADMIN = "e2e_campaigns_admin";
+/** Свой логин у спеки метрик: её сценарии часто переназначают админа и отбирали E2E_ADMIN у модерации клубов. */
+export const E2E_METRICS_ADMIN = "e2e_metrics_admin";
 
 /** Сделать пользователя админом: логин admin освобождается у прежнего владельца (прошлые тесты и прогоны). */
 export async function makeAdmin(login: string, admin = E2E_ADMIN) {
@@ -1821,4 +1823,31 @@ export async function setStreakState(
 /** Сколько отправок у кампании (после удаления аккаунта — должно быть 0). */
 export async function campaignSendCount(campaignId: string): Promise<number> {
   return withDb(async (db) => Number((await db.query(`select count(*) from "CampaignSend" where "campaignId" = $1`, [campaignId])).rows[0].count));
+}
+
+/** Новые посетители лендинга по паре страница входа × источник — за всё время (счётчики LandingVisit). */
+export async function landingVisits(landing: string, referrer: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(`select coalesce(sum(count), 0)::int as n from "LandingVisit" where landing = $1 and referrer = $2`, [landing, referrer]);
+    return rows[0].n;
+  });
+}
+
+/** Переходы по ссылкам с меткой utm_source — за всё время (счётчики LandingUtmVisit). */
+export async function landingUtmVisits(source: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(`select coalesce(sum(count), 0)::int as n from "LandingUtmVisit" where source = $1`, [source]);
+    return rows[0].n;
+  });
+}
+
+/** Счётчик новых посетителей за час (минуя proxy) — для проверки дня в поясе админа. */
+export async function addLandingVisit(hour: Date, landing: string, referrer: string, count: number) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "LandingVisit" (hour, landing, referrer, count) values ($1, $2, $3, $4)
+       on conflict (hour, landing, referrer) do update set count = "LandingVisit".count + $4`,
+      [hour, landing, referrer, count],
+    );
+  });
 }

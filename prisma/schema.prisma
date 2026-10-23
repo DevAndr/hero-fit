@@ -1230,6 +1230,29 @@ model UserVisitHour {
   @@index([day])
 }
 
+// ───────────────────────────── Заходы на лендинг ─────────────────────────────
+// Спека: docs/superpowers/specs/2026-10-23-landing-visits-design.md
+
+/// Новые посетители (первая точка входа, cookie hf_src) — счётчик за час UTC; метрики админки. Без персональных данных.
+model LandingVisit {
+  hour     DateTime @db.Timestamptz(3) /// начало часа UTC
+  landing  String
+  referrer String
+  count    Int
+
+  @@id([hour, landing, referrer])
+}
+
+/// Переходы гостей по ссылкам с меткой (cookie hf_utm) — счётчик за час UTC; campaign "" — без кампании.
+model LandingUtmVisit {
+  hour     DateTime @db.Timestamptz(3)
+  source   String
+  campaign String
+  count    Int
+
+  @@id([hour, source, campaign])
+}
+
 // ───────────────────────────── Системные оповещения ─────────────────────────────
 // Спека: docs/superpowers/specs/2026-10-18-system-alerts-design.md
 
