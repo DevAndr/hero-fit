@@ -740,6 +740,8 @@ export async function goalRewardXp(login: string) {
 export const E2E_ADMIN = "e2e_flag_admin";
 /** Свой логин у спеки рассылок: makeAdmin соседних спек забирает E2E_ADMIN себе, и админка рассылок отвечала 404. */
 export const E2E_CAMPAIGNS_ADMIN = "e2e_campaigns_admin";
+/** Свой логин у спеки метрик: её сценарии часто переназначают админа и отбирали E2E_ADMIN у модерации клубов. */
+export const E2E_METRICS_ADMIN = "e2e_metrics_admin";
 
 /** Сделать пользователя админом: логин admin освобождается у прежнего владельца (прошлые тесты и прогоны). */
 export async function makeAdmin(login: string, admin = E2E_ADMIN) {
