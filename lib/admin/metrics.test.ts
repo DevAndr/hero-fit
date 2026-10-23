@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortGrid, deltaPercent, fillDays, fillHours, parseRange, sourceRows, type SourceRow } from "./metrics";
+import { cohortGrid, deltaPercent, fillDays, fillHours, OTHER_KEY, parseBreakdown, parseRange, sourceRows, stackSeries, type SourceRow, type VisitRow } from "./metrics";
 
 describe("deltaPercent", () => {
   it("рост и падение", () => {
@@ -97,9 +97,11 @@ describe("sourceRows", () => {
       signups: 15,
       firstWorkoutPct: 47,
       activeWeek2Pct: 40,
+      visitors: null,
+      conversionPct: null,
       children: [
-        { key: "search", signups: 10, firstWorkoutPct: 60, activeWeek2Pct: 40 },
-        { key: "direct", signups: 5, firstWorkoutPct: 20, activeWeek2Pct: null },
+        { key: "search", signups: 10, firstWorkoutPct: 60, activeWeek2Pct: 40, visitors: null, conversionPct: null },
+        { key: "direct", signups: 5, firstWorkoutPct: 20, activeWeek2Pct: null, visitors: null, conversionPct: null },
       ],
     });
   });
@@ -113,5 +115,93 @@ describe("sourceRows", () => {
 
   it("пусто → []", () => {
     expect(sourceRows([])).toEqual([]);
+  });
+  describe("посетители", () => {
+    const visit = (group: string | null, child: string | null, visits: number): VisitRow => ({ group, child, visits });
+
+    it("конверсия = регистрации / посетители; итог группы — сумма детей", () => {
+      const [group] = sourceRows([row("home", "search", 3, 0, 0, 0), row("home", "direct", 1, 0, 0, 0)], [visit("home", "search", 12), visit("home", "direct", 8)]);
+      expect(group).toMatchObject({ key: "home", signups: 4, visitors: 20, conversionPct: 20 });
+      expect(group.children[0]).toMatchObject({ key: "search", visitors: 12, conversionPct: 25 });
+    });
+
+    it("посетители без регистраций — группа и строка с нулями", () => {
+      const groups = sourceRows([row("home", "direct", 2, 0, 0, 0)], [visit("tool", "search", 5)]);
+      const tool = groups.find((g) => g.key === "tool");
+      expect(tool).toMatchObject({ signups: 0, firstWorkoutPct: 0, activeWeek2Pct: null, visitors: 5, conversionPct: 0 });
+      expect(tool?.children).toEqual([{ key: "search", signups: 0, firstWorkoutPct: 0, activeWeek2Pct: null, visitors: 5, conversionPct: 0 }]);
+    });
+
+    it("группа «До учёта» без посетителей — null", () => {
+      const groups = sourceRows([row(null, null, 7, 0, 0, 0), row("home", "direct", 1, 0, 0, 0)], [visit("home", "direct", 3)]);
+      expect(groups.find((g) => g.key === null)).toMatchObject({ visitors: null, conversionPct: null });
+    });
+
+    it("итог группы: в числителе только регистрации пар с учётом заходов", () => {
+      const [group] = sourceRows([row("home", "direct", 1, 0, 0, 0), row("home", "search", 10, 0, 0, 0)], [visit("home", "direct", 4)]);
+      expect(group).toMatchObject({ signups: 11, visitors: 4, conversionPct: 25 });
+      expect(group.children.find((c) => c.key === "search")).toMatchObject({ visitors: null, conversionPct: null });
+    });
+
+    it("конверсия больше 100 % — как есть", () => {
+      const [group] = sourceRows([row("home", "direct", 6, 0, 0, 0)], [visit("home", "direct", 4)]);
+      expect(group.conversionPct).toBe(150);
+    });
+
+    it("сортировка: регистрации, затем посетители", () => {
+      const groups = sourceRows([row("home", "direct", 2, 0, 0, 0)], [visit("tool", "search", 5), visit("program", "social", 9), visit("home", "direct", 1)]);
+      expect(groups.map((g) => g.key)).toEqual(["home", "program", "tool"]);
+    });
+  });
+});
+
+describe("parseBreakdown", () => {
+  it("известные режимы", () => {
+    for (const m of ["referrer", "source", "campaign"] as const) expect(parseBreakdown(m)).toBe(m);
+  });
+  it("иное → referrer", () => {
+    for (const r of [undefined, "x", ["source", "campaign"]]) expect(parseBreakdown(r)).toBe("referrer");
+  });
+});
+
+describe("stackSeries", () => {
+  const r = (day: string, key: string | null, value: number) => ({ day, key, value });
+
+  it("ряды по убыванию итога, дни без данных — нули", () => {
+    const s = stackSeries([r("2026-10-02", "vk", 3), r("2026-10-01", "tg", 5), r("2026-10-02", "tg", 1)], "2026-10-01", "2026-10-03");
+    expect(s.series).toEqual([
+      { key: "tg", total: 6 },
+      { key: "vk", total: 3 },
+    ]);
+    expect(s.points).toEqual([
+      { day: "2026-10-01", values: [5, 0] },
+      { day: "2026-10-02", values: [1, 3] },
+      { day: "2026-10-03", values: [0, 0] },
+    ]);
+  });
+
+  it("сверх top — в «прочие» последним рядом; null — обычный ключ", () => {
+    const rows = [r("2026-10-01", "a", 9), r("2026-10-01", "b", 8), r("2026-10-01", null, 7), r("2026-10-01", "c", 2), r("2026-10-01", "d", 1)];
+    const s = stackSeries(rows, "2026-10-01", "2026-10-01", 3);
+    expect(s.series).toEqual([
+      { key: "a", total: 9 },
+      { key: "b", total: 8 },
+      { key: null, total: 7 },
+      { key: OTHER_KEY, total: 3 },
+    ]);
+    expect(s.points[0].values).toEqual([9, 8, 7, 3]);
+  });
+
+  it("ключ OTHER_KEY из данных сливается с «прочими» и всегда последний", () => {
+    const s = stackSeries([r("2026-10-01", OTHER_KEY, 50), r("2026-10-01", "a", 1)], "2026-10-01", "2026-10-01");
+    expect(s.series).toEqual([
+      { key: "a", total: 1 },
+      { key: OTHER_KEY, total: 50 },
+    ]);
+  });
+
+  it("равные итоги — по ключу; пусто — без рядов", () => {
+    expect(stackSeries([r("2026-10-01", "b", 1), r("2026-10-01", "a", 1)], "2026-10-01", "2026-10-01").series.map((x) => x.key)).toEqual(["a", "b"]);
+    expect(stackSeries([], "2026-10-01", "2026-10-02")).toEqual({ series: [], points: [{ day: "2026-10-01", values: [] }, { day: "2026-10-02", values: [] }] });
   });
 });

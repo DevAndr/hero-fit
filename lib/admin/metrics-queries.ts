@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { cohortGrid, fillDays, fillHours, sourceRows, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
 
 /*
@@ -15,6 +15,9 @@ const COHORTS = 8;
 
 /** Местный день метки времени (столбцы timestamp хранят UTC). */
 const localDay = (col: Prisma.Sql, tz: string | Prisma.Sql) => Prisma.sql`((${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date`;
+
+/** Местный день часа заходов на лендинг: hour — timestamptz, ему одного AT TIME ZONE достаточно (localDay сдвинул бы дважды). */
+const visitDay = (tz: string, col = Prisma.sql`hour`) => Prisma.sql`(${col} AT TIME ZONE ${tz})::date`;
 
 /** Местный день тренировки w в поясе её владельца u. */
 const playerDay = localDay(Prisma.sql`w."finishedAt"`, Prisma.sql`u."timeZone"`);
@@ -103,13 +106,14 @@ export async function getOverview(tz: string): Promise<Overview> {
   };
 }
 
-export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[] };
+export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[]; visitors: DayPoint[] };
 
 /** Ряды по дням за range дней, включая сегодня. */
 export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailySeries> {
   const today = dayKey(new Date(), tz);
   const from = addDays(today, -(range - 1));
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
+  const visitHour = visitDay(tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
   const rows = await db.$queryRaw<{ series: keyof DailySeries; day: string; value: number }[]>`
     SELECT 'signups' AS series, to_char(${signup}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS value
@@ -124,6 +128,9 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
     UNION ALL
     SELECT 'workouts', to_char(${finished}, 'YYYY-MM-DD'), COUNT(*)::int
     FROM "Workout" WHERE status = 'COMPLETED' AND "finishedAt" >= ${utcFloor(from)} AND ${finished} >= ${from}::date GROUP BY 2
+    UNION ALL
+    SELECT 'visitors', to_char(${visitHour}, 'YYYY-MM-DD'), SUM(count)::int
+    FROM "LandingVisit" WHERE hour >= ${utcFloor(from)} AND ${visitHour} >= ${from}::date GROUP BY 2
   `;
   const pick = (s: keyof DailySeries) =>
     fillDays(
@@ -131,7 +138,7 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
       from,
       today,
     );
-  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts") };
+  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts"), visitors: pick("visitors") };
 }
 
 export type HourlyActivity = { visits: HourPoint[]; workouts: HourPoint[] };
@@ -163,14 +170,79 @@ export async function getHourlyActivity(tz: string, range: 30 | 90): Promise<Hou
  * регистрации, только у зарегистрированных не позже чем 14 суток назад (eligible).
  */
 export async function getSignupSources(tz: string, range: 30 | 90): Promise<SourceGroup[]> {
-  return sourceRows(await sourceCounts(tz, range, Prisma.sql`u."signupLanding"`, Prisma.sql`u."signupReferrer"`, Prisma.empty));
+  const [rows, visits] = await Promise.all([
+    sourceCounts(tz, range, Prisma.sql`u."signupLanding"`, Prisma.sql`u."signupReferrer"`, Prisma.empty),
+    visitCounts(tz, range, Prisma.sql`"LandingVisit"`, Prisma.sql`landing`, Prisma.sql`referrer`),
+  ]);
+  return sourceRows(rows, visits);
 }
 
-/** То же по рекламным меткам: utm_source × utm_campaign, только регистрации с меткой. */
+/** То же по рекламным меткам: utm_source × utm_campaign, только регистрации с меткой; заходы — переходы по ссылкам с меткой. */
 export async function getSignupCampaigns(tz: string, range: 30 | 90): Promise<SourceGroup[]> {
-  return sourceRows(
-    await sourceCounts(tz, range, Prisma.sql`u."signupUtmSource"`, Prisma.sql`u."signupUtmCampaign"`, Prisma.sql`AND u."signupUtmSource" IS NOT NULL`),
-  );
+  const [rows, visits] = await Promise.all([
+    sourceCounts(tz, range, Prisma.sql`u."signupUtmSource"`, Prisma.sql`u."signupUtmCampaign"`, Prisma.sql`AND u."signupUtmSource" IS NOT NULL`),
+    visitCounts(tz, range, Prisma.sql`"LandingUtmVisit"`, Prisma.sql`source`, Prisma.sql`NULLIF(campaign, '')`),
+  ]);
+  return sourceRows(rows, visits);
+}
+
+/** Сколько utm_source показывать чипами в разбивке по кампаниям. */
+const SOURCE_CHIPS = 10;
+
+export type VisitBreakdown = { mode: Breakdown; stacked: Stacked; sources: string[]; source: string | null };
+
+/**
+ * «Откуда приходят» по дням за период: referrer — новые посетители по типу источника; source — переходы с меткой
+ * по utm_source; campaign — переходы выбранного utm_source (без переходов за период — самый крупный) по utm_campaign.
+ */
+export async function getVisitBreakdown(tz: string, range: 30 | 90, mode: Breakdown, utm?: string): Promise<VisitBreakdown> {
+  const from = periodStart(tz, range);
+  const to = dayKey(new Date(), tz);
+  const day = visitDay(tz);
+  const rows = (table: Prisma.Sql, key: Prisma.Sql, where = Prisma.empty) => db.$queryRaw<KeyDayRow[]>`
+    SELECT to_char(${day}, 'YYYY-MM-DD') AS day, ${key} AS key, SUM(count)::int AS value
+    FROM ${table} WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date ${where} GROUP BY 1, 2
+  `;
+  if (mode === "referrer") {
+    return { mode, stacked: stackSeries(await rows(Prisma.sql`"LandingVisit"`, Prisma.sql`referrer`), from, to), sources: [], source: null };
+  }
+  if (mode === "source") return { mode, stacked: stackSeries(await rows(Prisma.sql`"LandingUtmVisit"`, Prisma.sql`source`), from, to), sources: [], source: null };
+  // Выбрать можно любой источник с переходами за период; в чипах — крупнейшие и выбранный
+  const all = await db.$queryRaw<{ source: string }[]>`
+    SELECT source FROM "LandingUtmVisit" WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date AND source <> ${OTHER_KEY}
+    GROUP BY source ORDER BY SUM(count) DESC, source
+  `;
+  const names = all.map((r) => r.source);
+  const source = utm && names.includes(utm) ? utm : (names[0] ?? null);
+  const top = names.slice(0, SOURCE_CHIPS);
+  const sources = source && !top.includes(source) ? [...top, source] : top;
+  const stacked = source
+    ? stackSeries(await rows(Prisma.sql`"LandingUtmVisit"`, Prisma.sql`NULLIF(campaign, '')`, Prisma.sql`AND source = ${source}`), from, to)
+    : stackSeries([], from, to);
+  return { mode, stacked, sources, source };
+}
+
+/** Первый день учёта заходов на лендинг (в поясе админа); null — заходов ещё нет. */
+export async function getVisitsSince(tz: string): Promise<string | null> {
+  const [row] = await db.$queryRaw<{ day: string | null }[]>`
+    SELECT to_char(${visitDay(tz, Prisma.sql`MIN(hour)`)}, 'YYYY-MM-DD') AS day FROM "LandingVisit"
+  `;
+  return row?.day ?? null;
+}
+
+/** Первый день периода range дней (включая сегодня) в поясе админа. */
+export function periodStart(tz: string, range: 30 | 90): string {
+  return addDays(dayKey(new Date(), tz), -(range - 1));
+}
+
+/** Заходы на лендинг за период по паре group × child (счётчики за час UTC, день — в поясе админа). */
+function visitCounts(tz: string, range: 30 | 90, table: Prisma.Sql, group: Prisma.Sql, child: Prisma.Sql) {
+  const from = periodStart(tz, range);
+  const day = visitDay(tz);
+  return db.$queryRaw<VisitRow[]>`
+    SELECT ${group} AS "group", ${child} AS child, SUM(count)::int AS visits
+    FROM ${table} WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date GROUP BY 1, 2
+  `;
 }
 
 function sourceCounts(tz: string, range: 30 | 90, group: Prisma.Sql, child: Prisma.Sql, where: Prisma.Sql) {

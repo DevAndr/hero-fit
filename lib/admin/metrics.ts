@@ -74,31 +74,107 @@ export type SourceRow = {
   eligible: number;
 };
 
-export type SourceStats = { signups: number; firstWorkoutPct: number; activeWeek2Pct: number | null };
+/** Заходы на лендинг по той же паре group × child (новые посетители или переходы с меткой). */
+export type VisitRow = { group: string | null; child: string | null; visits: number };
+
+export type SourceStats = {
+  signups: number;
+  firstWorkoutPct: number;
+  activeWeek2Pct: number | null;
+  /** null — для пары нет учёта заходов (нет строк визитов) */
+  visitors: number | null;
+  conversionPct: number | null;
+};
 export type SourceGroup = SourceStats & { key: string | null; children: (SourceStats & { key: string | null })[] };
+
+type Merged = SourceRow & { visits: number | null };
 
 const pct = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 100));
 
-/** Доли от сумм; activeWeek2 — от eligible (нет таких пользователей — null). */
-function stats(rows: SourceRow[]): SourceStats {
+/**
+ * Доли от сумм; activeWeek2 — от eligible (нет таких пользователей — null); конверсия — регистрации / посетители,
+ * в числителе только пары с учётом заходов (иначе регистрации от гостей до запуска счётчика завышают итог группы).
+ */
+function stats(rows: Merged[]): SourceStats {
   const sum = (k: "signups" | "firstWorkout" | "activeWeek2" | "eligible") => rows.reduce((s, r) => s + r[k], 0);
   const eligible = sum("eligible");
+  const counted = rows.filter((r) => r.visits !== null);
+  const visitors = counted.length === 0 ? null : counted.reduce((s, r) => s + (r.visits ?? 0), 0);
   return {
     signups: sum("signups"),
     firstWorkoutPct: pct(sum("firstWorkout"), sum("signups")),
     activeWeek2Pct: eligible === 0 ? null : pct(sum("activeWeek2"), eligible),
+    visitors,
+    conversionPct: visitors ? pct(counted.reduce((s, r) => s + r.signups, 0), visitors) : null,
   };
 }
 
-/** Итог по группе с вложенными строками; группы и строки — по регистрациям убыв. */
-export function sourceRows(rows: SourceRow[]): SourceGroup[] {
-  const byGroup = new Map<string | null, SourceRow[]>();
-  for (const r of rows) byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), r]);
+/** Регистрации, затем посетители (null — как 0), по убыванию. */
+const bySignups = (a: SourceStats, b: SourceStats) => b.signups - a.signups || (b.visitors ?? 0) - (a.visitors ?? 0);
+
+/** Строки регистраций + заходы по тем же парам; пары только с заходами — с нулевыми регистрациями. */
+function mergeVisits(rows: SourceRow[], visits: VisitRow[]): Merged[] {
+  const key = (r: { group: string | null; child: string | null }) => JSON.stringify([r.group, r.child]);
+  const byKey = new Map<string, Merged>(rows.map((r) => [key(r), { ...r, visits: null }]));
+  for (const v of visits) {
+    const r = byKey.get(key(v));
+    if (r) r.visits = (r.visits ?? 0) + v.visits;
+    else byKey.set(key(v), { group: v.group, child: v.child, signups: 0, firstWorkout: 0, activeWeek2: 0, eligible: 0, visits: v.visits });
+  }
+  return [...byKey.values()];
+}
+
+/** Итог по группе с вложенными строками; группы и строки — по регистрациям, затем по посетителям убыв. */
+export function sourceRows(rows: SourceRow[], visits: VisitRow[] = []): SourceGroup[] {
+  const byGroup = new Map<string | null, Merged[]>();
+  for (const r of mergeVisits(rows, visits)) byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), r]);
   return [...byGroup]
     .map(([key, group]) => ({
       key,
       ...stats(group),
-      children: group.map((r) => ({ key: r.child, ...stats([r]) })).sort((a, b) => b.signups - a.signups),
+      children: group.map((r) => ({ key: r.child, ...stats([r]) })).sort(bySignups),
     }))
-    .sort((a, b) => b.signups - a.signups);
+    .sort(bySignups);
+}
+
+/** Разбивка графика «Откуда приходят»: тип источника у новых посетителей, utm_source или utm_campaign у переходов. */
+export type Breakdown = "referrer" | "source" | "campaign";
+
+export function parseBreakdown(raw: string | string[] | undefined): Breakdown {
+  return raw === "source" || raw === "campaign" ? raw : "referrer";
+}
+
+/** Ряд «прочие» — то же имя, что у меток сверх суточного лимита (lib/analytics/visits.ts): они сливаются. */
+export const OTHER_KEY = "(прочие)";
+
+export type KeyDayRow = { day: string; key: string | null; value: number };
+export type Stacked = { series: { key: string | null; total: number }[]; points: { day: string; values: number[] }[] };
+
+/**
+ * Столбики с накоплением: top рядов по итогу (равные — по ключу), остальное — «прочие» последним рядом;
+ * values в точке — в порядке series, дни без данных — нули.
+ */
+export function stackSeries(rows: KeyDayRow[], from: string, to: string, top = 5): Stacked {
+  const totals = new Map<string | null, number>();
+  for (const r of rows) totals.set(r.key, (totals.get(r.key) ?? 0) + r.value);
+  const ranked = [...totals]
+    .filter(([key]) => key !== OTHER_KEY)
+    .sort(([a, x], [b, y]) => y - x || String(a ?? "").localeCompare(String(b ?? "")));
+  const kept = ranked.slice(0, top);
+  const other = ranked.slice(top).reduce((s, [, v]) => s + v, totals.get(OTHER_KEY) ?? 0);
+  const series = [...kept.map(([key, total]) => ({ key, total })), ...(other > 0 ? [{ key: OTHER_KEY, total: other }] : [])];
+
+  const index = new Map(series.map((s, i) => [s.key, i]));
+  const otherIndex = index.get(OTHER_KEY);
+  const byDay = new Map<string, number[]>();
+  for (const r of rows) {
+    const i = index.get(r.key) ?? otherIndex;
+    if (i === undefined) continue;
+    const values = byDay.get(r.day) ?? series.map(() => 0);
+    values[i] += r.value;
+    byDay.set(r.day, values);
+  }
+  const points: Stacked["points"] = [];
+  for (let day = from; day <= to; day = addDays(day, 1)) points.push({ day, values: byDay.get(day) ?? series.map(() => 0) });
+  return { series, points };
 }

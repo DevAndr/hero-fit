@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
+import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -39,8 +39,8 @@ test.describe("admin metrics page", () => {
 
   test("admin sees tiles, charts, cohorts and features; range switches to 90 days", async ({ page }) => {
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
-    await enableCoach(E2E_ADMIN, `adm${Date.now().toString(36)}`);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await enableCoach(E2E_METRICS_ADMIN, `adm${Date.now().toString(36)}`);
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Метрики", level: 1 })).toBeVisible();
     const tiles = page.getByRole("region", { name: "Сводка" });
@@ -68,7 +68,7 @@ test.describe("admin metrics page", () => {
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
     await page.goto("/admin");
     const card = page.getByRole("region", { name: "Время суток" });
     await expect(card.getByRole("heading", { name: "Время суток", level: 2 })).toBeVisible();
@@ -90,7 +90,7 @@ test.describe("admin metrics page", () => {
       await setSignupSource(user.login, landing, referrer);
     }
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
     await page.goto("/admin");
     const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
     await expect(table).toBeVisible();
@@ -128,13 +128,13 @@ test.describe("admin metrics page", () => {
     });
 
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
-    await setTimeZone(E2E_ADMIN);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await setTimeZone(E2E_METRICS_ADMIN);
     await page.goto("/admin");
     const table = page.getByRole("table", { name: "Источники регистраций за 30 дней" });
     const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
-    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible)
-    await expect(cells).toHaveText(["4", "50 %", "67 %"]);
+    // ячейки: регистраций, первая тренировка, активны на 2-й неделе (B и D из трёх eligible), посетители и конверсия (заходов по метке нет)
+    await expect(cells).toHaveText(["4", "50 %", "67 %", "—", "—"]);
   });
 
   test("signup campaigns: utm_source rows with nested campaigns", async ({ page, browser }) => {
@@ -147,7 +147,7 @@ test.describe("admin metrics page", () => {
       await setSignupUtm(user.login, tag, campaign);
     }
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
     await page.goto("/admin");
     const table = page.getByRole("table", { name: "Рекламные метки за 30 дней" });
     const group = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) });
@@ -158,6 +158,67 @@ test.describe("admin metrics page", () => {
     await expect(child(1).getByRole("cell").first()).toHaveText("2");
     await expect(child(2).getByRole("rowheader")).toHaveText("без кампании");
     await expect(child(2).getByRole("cell").first()).toHaveText("1");
+  });
+
+  test("utm clicks and conversion in signup campaigns", async ({ page, browser }) => {
+    const tag = `e2e-v-${Date.now().toString(36)}`;
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    await guestPage.goto(`/?utm_source=${tag}&utm_campaign=${tag}-c`);
+    await expect.poll(() => landingUtmVisits(tag)).toBe(1);
+    await registerUser(guestPage);
+    await guest.close();
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Рекламные метки за 30 дней" });
+    await expect(table.getByRole("columnheader", { name: "Переходы" })).toBeVisible();
+    const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
+    // регистраций, первая тренировка, активны на 2-й неделе, переходы, конверсия
+    await expect(cells).toHaveText(["1", "0 %", "—", "1", "100 %"]);
+    await expect(page.getByRole("heading", { name: "Новые посетители" })).toBeVisible();
+  });
+
+  test("visit breakdown: campaigns of a chosen utm_source, referrer types", async ({ page, browser }) => {
+    const tag = `e2e-b-${Date.now().toString(36)}`;
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    for (const c of ["a", "a", "b"]) await guestPage.goto(`/?utm_source=${tag}&utm_campaign=${tag}-${c}`);
+    await expect.poll(() => landingUtmVisits(tag)).toBe(3);
+    await guest.close();
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await setTimeZone(E2E_METRICS_ADMIN);
+    await page.goto(`/admin?visits=campaign&utm=${tag}`);
+    const card = page.getByRole("region", { name: "Откуда приходят" });
+    await expect(card.getByRole("navigation", { name: "utm_source" }).getByRole("link", { name: tag })).toHaveAttribute("aria-current", "page");
+    const table = card.getByRole("table", { name: `Кампании ${tag} по дням за 30 дней` });
+    await expect(table.getByRole("columnheader")).toHaveText(["Дата", `${tag}-a`, `${tag}-b`]);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`));
+    await expect(table.getByRole("row").filter({ has: page.getByRole("cell", { name: label, exact: true }) }).getByRole("cell")).toHaveText([label, "2", "1"]);
+
+    await card.getByRole("navigation", { name: "Разбивка" }).getByRole("link", { name: "Источники" }).click();
+    await expect(card.getByRole("table", { name: "Откуда приходят по дням за 30 дней" }).getByRole("columnheader", { name: "Прямой заход" })).toBeAttached();
+  });
+
+  test("new visitors fall on the admin's local day", async ({ page }) => {
+    // Час у края местных суток: к востоку от UTC — полночь, к западу — 23:00; ошибка пояса уводит его во вчера или завтра
+    // Сегодняшние посетители растут и от соседних тестов (каждый гость в e2e считается) — сравниваем дельту
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await setTimeZone(E2E_METRICS_ADMIN);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Новые посетители по дням за 30 дней" });
+    const label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`));
+    const cell = table.getByRole("row").filter({ has: page.getByRole("cell", { name: label, exact: true }) }).getByRole("cell").nth(1);
+    const before = Number(await cell.textContent());
+    await addLandingVisit(localAt(today, E2E_TZ_OFFSET > 0 ? "00:00" : "23:00"), "e2e", "e2e", 500);
+    await page.reload();
+    expect(Number(await cell.textContent())).toBeGreaterThanOrEqual(before + 500);
   });
 
   // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)
@@ -186,8 +247,8 @@ test.describe("admin metrics page", () => {
     });
 
     const admin = await registerUser(page);
-    await makeAdmin(admin.login);
-    await setTimeZone(E2E_ADMIN);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await setTimeZone(E2E_METRICS_ADMIN);
     await page.goto("/admin");
     const label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${cohort}T12:00:00Z`));
     const row = page.getByRole("table", { name: "Удержание по неделям регистрации" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: label, exact: true }) });
