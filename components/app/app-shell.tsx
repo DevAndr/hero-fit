@@ -125,7 +125,7 @@ export function AppShell({
         <main className="flex-1 px-4 pt-6 pb-[calc(6rem+var(--tg-safe-bottom))] lg:px-8 lg:pb-10">{children}</main>
       </div>
 
-      <BottomNav />
+      <BottomNav isCoach={user.isCoach} />
     </div>
   );
 }

@@ -196,3 +196,37 @@ test("early end keeps today's workout; a new program the same day takes the day 
     await client.context.close();
   }
 });
+
+test("a new template can be made right from the program dialog and is picked for that day", async ({ page }) => {
+  const coach = await registerUser(page, "Тренер");
+  await enableCoach(coach.login, nickOf(coach.login, "Coach"));
+  await page.goto("/coach/programs");
+  await page.getByRole("button", { name: "Новая программа" }).click();
+  const program = page.getByRole("dialog", { name: "Новая программа" });
+  await program.getByLabel("Название").fill("Сила с нуля");
+  await program.getByRole("button", { name: "Пн", exact: true }).click();
+
+  // Шаблонов ещё нет — создаём из выпадающего списка дня
+  await program.getByRole("combobox", { name: "Шаблон, Пн" }).click();
+  await page.getByRole("option", { name: "+ Новый шаблон…" }).click();
+  const editor = page.getByRole("dialog", { name: "Новый шаблон" });
+  await editor.getByLabel("Название").fill("Ноги — понедельник");
+  await editor.getByRole("button", { name: "Добавить упражнение" }).click();
+  const picker = page.getByRole("dialog").last();
+  await picker.getByLabel("Поиск упражнения").fill(SQUAT);
+  await picker.getByRole("button", { name: new RegExp(`^${SQUAT}`) }).click();
+  await picker.getByRole("button", { name: /^Добавить \(/ }).click();
+  await editor.getByRole("button", { name: "Сохранить шаблон" }).click();
+  await expect(editor).toBeHidden();
+
+  // Шаблон выбран для понедельника, введённое в программе на месте
+  await expect(program.getByRole("combobox", { name: "Шаблон, Пн" })).toContainText("Ноги — понедельник");
+  await expect(program.getByLabel("Название")).toHaveValue("Сила с нуля");
+  await program.getByRole("button", { name: "Сохранить" }).click();
+  await expect(program).toBeHidden();
+  await expect(page.getByRole("listitem", { name: "Сила с нуля" })).toContainText("Пн — Ноги — понедельник");
+
+  // Шаблон — обычный, виден в «Шаблонах»
+  await page.goto("/templates");
+  await expect(page.getByRole("article", { name: "Ноги — понедельник" })).toContainText(SQUAT);
+});

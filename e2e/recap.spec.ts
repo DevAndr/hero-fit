@@ -86,9 +86,9 @@ test("monday tick creates recap and one notification", async ({ page, request })
   const me = await registerUser(page);
   await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 0 }), press({ day: 3 })]);
   const now = localAt(TICK_MONDAY, "09:30");
-  await runTick(request, now);
-  await runTick(request, now);
-  await Promise.all([runTick(request, now), runTick(request, now)]);
+  await runTick(request, now, "recaps");
+  await runTick(request, now, "recaps");
+  await Promise.all([runTick(request, now, "recaps"), runTick(request, now, "recaps")]);
   const list = await recapNotifications(me.login);
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({ title: "Итоги недели 📊", url: `/recap/${RECAP_WEEK}` });
@@ -106,11 +106,11 @@ test("before 09:00 no push; seen recap → no push", async ({ page, request }) =
   const week = mondayWeeksAgo(6);
   const me = await registerUser(page);
   await seedRecapWeek(me.login, week, [press({ day: 1 })]);
-  await runTick(request, localAt(tickMonday, "08:30"));
+  await runTick(request, localAt(tickMonday, "08:30"), "recaps");
   expect(await recapNotifications(me.login)).toHaveLength(0);
   await page.goto(`/recap/${week}`);
   await expect(page.getByTestId("recap-total-workouts")).toHaveText("1");
-  await runTick(request, localAt(tickMonday, "09:30"));
+  await runTick(request, localAt(tickMonday, "09:30"), "recaps");
   expect(await recapNotifications(me.login)).toHaveLength(0);
 });
 
@@ -119,9 +119,9 @@ test("fresh start nudge once", async ({ page, request }) => {
   const me = await registerUser(page);
   await seedRecapWeek(me.login, mondayWeeksAgo(9), [press({ day: 2 })]);
   const now = localAt(mondayWeeksAgo(7), "09:30");
-  await runTick(request, now);
-  await runTick(request, now);
-  await runTick(request, localAt(mondayWeeksAgo(6), "09:30"));
+  await runTick(request, now, "recaps");
+  await runTick(request, now, "recaps");
+  await runTick(request, localAt(mondayWeeksAgo(6), "09:30"), "recaps");
   const list = await recapNotifications(me.login);
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({ title: "Новая неделя — новый старт 💪", url: "/training" });
@@ -134,7 +134,7 @@ test("notifyRecap off: recap is created, no notification", async ({ page, reques
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
-  await runTick(request, localAt(TICK_MONDAY, "09:30"));
+  await runTick(request, localAt(TICK_MONDAY, "09:30"), "recaps");
   expect(await recapNotifications(me.login)).toHaveLength(0);
   const recaps = await withDb(async (db) => {
     const { rows } = await db.query(`select 1 from "WeeklyRecap" where "userId" = $1 and week = $2`, [await userId(db, me.login), RECAP_WEEK]);
@@ -149,7 +149,7 @@ test("recap push reaches the push service", async ({ page, request }) => {
     const me = await registerUser(page);
     await addSubscription(me.login, push);
     await seedRecapWeek(me.login, RECAP_WEEK, [press({ day: 1 })]);
-    await runTick(request, localAt(TICK_MONDAY, "09:30"));
+    await runTick(request, localAt(TICK_MONDAY, "09:30"), "recaps");
     await expect.poll(() => push.received.length).toBe(1);
     expect(push.received[0].payload).toMatchObject({ type: "RECAP", title: "Итоги недели 📊", url: `/recap/${RECAP_WEEK}` });
   } finally {

@@ -16,7 +16,7 @@ export function InviteCard({ url, code, telegramUrl }: { url: string; code: stri
   };
 
   return (
-    <section aria-label="Пригласить клиента" className="space-y-3 rounded-xl border bg-card p-4">
+    <section id="invite" aria-label="Пригласить клиента" className="scroll-mt-20 space-y-3 rounded-xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-bold">
         <Link2 className="size-4 text-primary" />
         Пригласить клиента

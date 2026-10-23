@@ -129,6 +129,7 @@ const PROFILE_FIELDS = [
   "signupReferrer",
   "signupUtmSource",
   "signupUtmCampaign",
+  "coachGuideHiddenAt",
   "xp",
   "level",
   "currentStreak",

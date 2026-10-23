@@ -10,12 +10,15 @@ import { GroupFilter } from "@/components/coach/group-filter";
 import { GroupsButton } from "@/components/coach/groups-dialog";
 import { RecapAnnounce } from "@/components/coach/recap/recap-announce";
 import { InviteCard } from "@/components/coach/invite-card";
+import { CoachGuide, ShowCoachGuide } from "@/components/coach/coach-guide";
 import { buttonVariants } from "@/components/ui/button";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { getUnseenAchievements } from "@/lib/achievements/queries";
 import { quietly } from "@/lib/achievements/quietly";
 import { requireCoach } from "@/lib/coach/access";
 import { clientPickLabels } from "@/lib/coach/assign";
+import { coachGuide } from "@/lib/coach/guide";
+import { getCoachGuideFacts } from "@/lib/coach/guide-queries";
 import { sortClients } from "@/lib/coach/clients";
 import { getCoachGroups } from "@/lib/coach/group-queries";
 import { inGroup } from "@/lib/coach/groups";
@@ -48,7 +51,12 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
     unseenCoachRecap(coach.id, tz, now),
   ]);
   const sorted = sortClients(clients);
-  const programs = await programBadges(coach.id, clients, now);
+  const [programs, guideData] = await Promise.all([
+    programBadges(coach.id, clients, now),
+    // Ссылки «Назначить» и «Прокомментировать» — на первого клиента списка
+    getCoachGuideFacts(coach.id, sorted[0]?.id ?? null),
+  ]);
+  const guide = coachGuide(guideData.facts);
   const picker = clientPickLabels(sorted.map((c) => ({ id: c.id, name: c.name, linkedDay: dayKey(c.linkedAt, tz) })));
   // Нет такой группы (удалена, чужая) — все клиенты
   const active = groups.find((g) => g.id === query.group) ?? null;
@@ -79,6 +87,7 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
           </>
         }
       />
+      {guide.complete || guideData.hidden ? null : <CoachGuide guide={guide} />}
       {recap ? <RecapAnnounce week={recap.week} totals={recap.totals} /> : null}
       {/* Группы правятся и без клиентов: иначе оставшийся фильтр «Утро (0)» не убрать */}
       {clients.length || groups.length ? (
@@ -104,6 +113,11 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
         code={pretty(code)}
         telegramUrl={telegramEnabled(env) ? telegramJoinUrl(code, env.TELEGRAM_BOT_USERNAME) : null}
       />
+      {guideData.hidden && !guide.complete ? (
+        <div className="text-center">
+          <ShowCoachGuide />
+        </div>
+      ) : null}
       {unseen.length > 0 && <AchievementToaster achievements={unseen} />}
     </div>
   );

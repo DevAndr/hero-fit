@@ -118,16 +118,16 @@ test("thursday reminder: guild is short of damage, once per raid", async ({ brow
     // Только напоминания этого рейда (HP 5000): в реальный четверг воркер напомнит и про рейд текущей недели
     const reminders = async (login: string) => (await notificationBodies(login)).filter((t) => t.includes("не хватает 5000")).length;
 
-    await runTick(request, localAt(week, "11:00", 3));
+    await runTick(request, localAt(week, "11:00", 3), "raids");
     expect(await reminders(a.login)).toBe(0);
 
-    await runTick(request, localAt(week, "12:30", 3));
+    await runTick(request, localAt(week, "12:30", 3), "raids");
     for (const p of [a, b]) {
       expect(await notificationBodies(p.login)).toContain("Гильдии не хватает 5000 урона — до конца рейда 4 дня");
       expect(await reminders(p.login)).toBe(1);
     }
 
-    await runTick(request, localAt(week, "13:00", 3));
+    await runTick(request, localAt(week, "13:00", 3), "raids");
     expect(await reminders(a.login)).toBe(1);
     expect(await reminders(b.login)).toBe(1);
   } finally {

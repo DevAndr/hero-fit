@@ -80,7 +80,14 @@ function NumberCell({
   );
 }
 
-export function TemplateEditor(props: { template?: TemplateForEdit; exercises: ExerciseItem[] }) {
+type EditorProps = {
+  template?: TemplateForEdit;
+  exercises: ExerciseItem[];
+  /** Сохранён — вызвать вместо перехода в «Шаблоны» (редактор в окне, например в программе тренера). */
+  onSaved?: (template: { id: string; name: string }) => void;
+};
+
+export function TemplateEditor(props: EditorProps) {
   return (
     <FavoritesProvider exercises={props.exercises}>
       <Editor {...props} />
@@ -88,7 +95,7 @@ export function TemplateEditor(props: { template?: TemplateForEdit; exercises: E
   );
 }
 
-function Editor({ template, exercises }: { template?: TemplateForEdit; exercises: ExerciseItem[] }) {
+function Editor({ template, exercises, onSaved }: EditorProps) {
   const router = useRouter();
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
@@ -145,7 +152,8 @@ function Editor({ template, exercises }: { template?: TemplateForEdit; exercises
       });
       if (result.ok) {
         toast.success(template ? "Шаблон сохранён" : "Шаблон создан");
-        router.push("/templates");
+        if (onSaved) onSaved({ id: result.id, name: name.trim() });
+        else router.push("/templates");
       } else {
         setErrors(result.errors ?? {});
         if (result.error) toast.error(result.error);

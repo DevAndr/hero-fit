@@ -736,14 +736,16 @@ export async function goalRewardXp(login: string) {
   });
 }
 
-/** Логин админа в e2e (ADMIN_LOGINS в playwright.config.ts). */
+/** Логины админа в e2e (ADMIN_LOGINS в playwright.config.ts). */
 export const E2E_ADMIN = "e2e_flag_admin";
+/** Свой логин у спеки рассылок: makeAdmin соседних спек забирает E2E_ADMIN себе, и админка рассылок отвечала 404. */
+export const E2E_CAMPAIGNS_ADMIN = "e2e_campaigns_admin";
 
-/** Сделать пользователя админом: логин E2E_ADMIN освобождается у прежнего владельца (прошлые прогоны). */
-export async function makeAdmin(login: string) {
+/** Сделать пользователя админом: логин admin освобождается у прежнего владельца (прошлые тесты и прогоны). */
+export async function makeAdmin(login: string, admin = E2E_ADMIN) {
   await withDb(async (db) => {
-    await db.query(`update "User" set login = 'e2e_old_' || id where login = $1`, [E2E_ADMIN]);
-    await db.query(`update "User" set login = $2 where login = $1`, [login, E2E_ADMIN]);
+    await db.query(`update "User" set login = 'e2e_old_' || id where login = $1`, [admin]);
+    await db.query(`update "User" set login = $2 where login = $1`, [login, admin]);
   });
 }
 
