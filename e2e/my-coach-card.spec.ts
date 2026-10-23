@@ -6,7 +6,7 @@ test("client sees «Мой тренер»: page link, time together, program wee
   const ctx = await browser.newContext();
   const coach = await registerUser(await ctx.newPage());
   await ctx.close();
-  const nick = `coach${Date.now().toString(36)}`;
+  const nick = `coach${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   await enableCoach(coach.login, nick);
   await coachProfile(coach.login, { about: "Тренирую силовые и помогаю не бросить зал. ".repeat(3), publish: true });
 
@@ -15,6 +15,9 @@ test("client sees «Мой тренер»: page link, time together, program wee
   await seedCoachAssignment(coach.login, client.login, "Сила");
   await quickWorkout(page, "Жим штанги лёжа", [{ weight: "50", reps: "5" }]);
   const workoutId = new URL(page.url()).pathname.split("/").pop()!;
+  // Сводка при открытии сама вызывает server actions, а их перерисовка помечает комментарии прочитанными:
+  // ждём их до комментария, иначе под нагрузкой он сразу «прочитан»
+  await page.waitForLoadState("networkidle");
   await coachCommentOn(coach.login, client.login, workoutId);
 
   await page.goto("/dashboard");
