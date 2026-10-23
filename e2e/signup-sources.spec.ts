@@ -32,7 +32,14 @@ test("redirect from a closed path does not set the cookie", async ({ request }) 
   expect(res.headers()["set-cookie"] ?? "").not.toContain("hf_src");
 });
 
-test("authenticated user gets no hf_src", async ({ page, context }) => {
+test("background fetch of a page (RSC prefetch) does not set the cookie", async ({ request }) => {
+  // Так prefetch главной доходит до proxy: Next.js срезает rsc и next-router-prefetch, остаются Sec-Fetch-Dest и next-url
+  const res = await request.get("/", { headers: { "next-url": "/register", "sec-fetch-dest": "empty" } });
+  expect(res.ok()).toBe(true);
+  expect(res.headers()["set-cookie"] ?? "").not.toContain("hf_src");
+});
+
+test("authenticated user gets no hf_src",async ({ page, context }) => {
   await registerUser(page);
   await context.clearCookies({ name: "hf_src" });
   await page.goto("/", { referer: "https://yandex.ru/" });

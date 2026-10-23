@@ -89,7 +89,11 @@ export default async function proxy(req: NextRequest) {
    * переход с ней (последний до регистрации). Только публичные страницы, не файлы вроде /pwa-icon/ и /opengraph-image.
    */
   function tagSource(res: NextResponse, landing: Landing) {
-    if (req.method !== "GET" || authed || req.headers.has("rsc")) return;
+    // Заголовок rsc до proxy доходит не всегда (у prefetch Next.js его срезает): фоновый запрос браузера — Sec-Fetch-Dest
+    // не «document» (и не «iframe» — Mini App в веб-Telegram), запрос роутера — с next-url
+    const dest = req.headers.get("sec-fetch-dest");
+    const background = req.headers.has("rsc") || req.headers.has("next-url") || (dest !== null && dest !== "document" && dest !== "iframe");
+    if (req.method !== "GET" || authed || background) return;
     const opts = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SOURCE_MAX_AGE } as const;
     if (!req.cookies.has(SOURCE_COOKIE)) {
       res.cookies.set(SOURCE_COOKIE, encodeSource({ landing, referrer: referrerOf(req.headers.get("referer"), req.nextUrl.host) }), opts);
