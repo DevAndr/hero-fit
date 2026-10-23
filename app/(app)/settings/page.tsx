@@ -19,7 +19,6 @@ import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/no
 import { TelegramCard } from "@/components/notifications/telegram-settings";
 import { SiteLoginForm } from "@/components/auth/site-login-form";
 import { AssistantSettings } from "@/components/assistant/assistant-settings";
-import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
@@ -32,14 +31,13 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, assistant, deletion, whoop] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
     db.coachProfile.findFirst({ where: { userId: user.id, publishedAt: { not: null } }, select: { userId: true } }),
     getTelegramStatus(user.id),
     db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } }).then((u) => u.passwordHash !== null),
-    isEnabled("smart_coach", user.id),
     getDeletionInput(user.id),
     // null — браслеты недоступны (флаг whoop / WHOOP не настроен), иначе — подключён ли WHOOP
     whoopAvailable(user.id).then(async (ok) => (ok ? (await getWhoopStatus(user.id)).connected : null)),
@@ -68,7 +66,7 @@ export default async function SettingsPage() {
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </Link>
       )}
-      {assistant ? <AssistantSettings initial={user.assistantEnabled} /> : null}
+      <AssistantSettings initial={user.assistantEnabled} />
       <NotificationPrefs initial={prefs} isCoach={user.isCoach} />
       <RestartTourButton />
       <Link href="/feedback?from=%2Fsettings" className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50">

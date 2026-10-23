@@ -129,7 +129,7 @@ model User {
   whoopWorkouts     WhoopWorkout[]
   whoopSleeps       WhoopSleep[]
   items             UserItem[]
-  /// умный помощник (флаг smart_coach): выключается в /settings
+  /// умный помощник: выключается в /settings
   assistantEnabled  Boolean   @default(true)
   id                String    @id @default(cuid())
   login             String    @unique
