@@ -1822,3 +1822,19 @@ export async function setStreakState(
 export async function campaignSendCount(campaignId: string): Promise<number> {
   return withDb(async (db) => Number((await db.query(`select count(*) from "CampaignSend" where "campaignId" = $1`, [campaignId])).rows[0].count));
 }
+
+/** Новые посетители лендинга по паре страница входа × источник — за всё время (счётчики LandingVisit). */
+export async function landingVisits(landing: string, referrer: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(`select coalesce(sum(count), 0)::int as n from "LandingVisit" where landing = $1 and referrer = $2`, [landing, referrer]);
+    return rows[0].n;
+  });
+}
+
+/** Переходы по ссылкам с меткой utm_source — за всё время (счётчики LandingUtmVisit). */
+export async function landingUtmVisits(source: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(`select coalesce(sum(count), 0)::int as n from "LandingUtmVisit" where source = $1`, [source]);
+    return rows[0].n;
+  });
+}

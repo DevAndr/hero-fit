@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
+import { backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -158,6 +158,26 @@ test.describe("admin metrics page", () => {
     await expect(child(1).getByRole("cell").first()).toHaveText("2");
     await expect(child(2).getByRole("rowheader")).toHaveText("без кампании");
     await expect(child(2).getByRole("cell").first()).toHaveText("1");
+  });
+
+  test("utm clicks and conversion in signup campaigns", async ({ page, browser }) => {
+    const tag = `e2e-v-${Date.now().toString(36)}`;
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    await guestPage.goto(`/?utm_source=${tag}&utm_campaign=${tag}-c`);
+    await expect.poll(() => landingUtmVisits(tag)).toBe(1);
+    await registerUser(guestPage);
+    await guest.close();
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Рекламные метки за 30 дней" });
+    await expect(table.getByRole("columnheader", { name: "Переходы" })).toBeVisible();
+    const cells = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: tag, exact: true }) }).getByRole("cell");
+    // регистраций, первая тренировка, активны на 2-й неделе, переходы, конверсия
+    await expect(cells).toHaveText(["1", "0 %", "—", "1", "100 %"]);
+    await expect(page.getByRole("heading", { name: "Новые посетители" })).toBeVisible();
   });
 
   // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)
