@@ -110,14 +110,14 @@ test.describe("ticks with the test clock", () => {
     const url = `/coach/recap/${week}`;
     // Чужие тики (другие понедельники) шлют тренеру итоги других недель — считаем только эту
     const sentFor = async () => (await coachRecapNotifications(coach.login)).filter((n) => n.url === url);
-    await runTick(request, localAt(tick, "08:30"));
+    await runTick(request, localAt(tick, "08:30"), "coachRecaps");
     expect(await sentFor()).toHaveLength(0);
     expect((await coachRecapRows(coach.login)).map((r) => r.week)).not.toContain(week);
 
     const at = localAt(tick, "09:30");
-    await runTick(request, at);
-    await runTick(request, at);
-    await Promise.all([runTick(request, at), runTick(request, at)]);
+    await runTick(request, at, "coachRecaps");
+    await runTick(request, at, "coachRecaps");
+    await Promise.all([runTick(request, at, "coachRecaps"), runTick(request, at, "coachRecaps")]);
     const sent = await sentFor();
     expect(sent).toHaveLength(1);
     expect(sent[0].title).toBe("Итоги недели клиентов 📋");
@@ -174,7 +174,7 @@ test.describe("ticks with the test clock", () => {
     const [row] = (await coachRecapRows(coach.login)).filter((r) => r.week === week);
     expect(row.seenAt).not.toBeNull();
 
-    await runTick(request, localAt(mondayWeeksAgo(3), "09:30"));
+    await runTick(request, localAt(mondayWeeksAgo(3), "09:30"), "coachRecaps");
     expect((await coachRecapNotifications(coach.login)).filter((n) => n.url === `/coach/recap/${week}`)).toHaveLength(0);
     expect((await coachRecapRows(coach.login)).find((r) => r.week === week)?.pushedAt).toBeNull();
 
@@ -196,7 +196,7 @@ test.describe("ticks with the test clock", () => {
     const client = await clientRow("Lee");
     await linkBefore(coach.login, client.login, week);
     await seedRecapWeek(client.login, week, [press({ day: 3 })]);
-    await runTick(request, localAt(mondayWeeksAgo(11), "09:30"));
+    await runTick(request, localAt(mondayWeeksAgo(11), "09:30"), "coachRecaps");
 
     expect((await coachRecapRows(coach.login)).map((r) => r.week)).toContain(week);
     expect((await coachRecapNotifications(coach.login)).filter((n) => n.url === `/coach/recap/${week}`)).toHaveLength(0);
@@ -209,7 +209,7 @@ test.describe("ticks with the test clock", () => {
     const client = await clientRow("New");
     // Связь — сейчас: ни одна прошедшая неделя её не застала
     await linkCoach(coach.login, client.login);
-    await runTick(request, localAt(mondayWeeksAgo(14), "09:30"));
+    await runTick(request, localAt(mondayWeeksAgo(14), "09:30"), "coachRecaps");
 
     expect(await coachRecapRows(coach.login)).toEqual([]);
     await page.goto("/coach/recap");
@@ -235,10 +235,10 @@ test.describe("ticks with the test clock", () => {
     await linkCoach(coach.login, client.login, new Date(Date.parse(`${week}T00:00:00${isoOffset(coachOffset)}`) - 86_400_000));
 
     // У клиента ещё воскресенье 23:30 — снимок рано
-    await runTick(request, at("09:30"));
+    await runTick(request, at("09:30"), "coachRecaps");
     expect((await coachRecapRows(coach.login)).map((r) => r.week)).not.toContain(week);
     // У клиента понедельник 00:30 — неделя кончилась у всех
-    await runTick(request, at("10:30"));
+    await runTick(request, at("10:30"), "coachRecaps");
     expect((await coachRecapRows(coach.login)).map((r) => r.week)).toContain(week);
     const sent = (await coachRecapNotifications(coach.login)).filter((n) => n.url === `/coach/recap/${week}`);
     expect(sent).toHaveLength(1);

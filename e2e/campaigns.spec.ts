@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import {
   addFlagUser,
   addSubscription,
@@ -25,6 +25,9 @@ import {
 import { registerUser, runTick, uniqueLogin } from "./helpers";
 import { startPushService } from "./push-server";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
+
+/** Только шаг рассылок: тик с часами на дни вперёд по всем шагам задевал соседние тесты (сигналы тренеру) и шёл по всей базе. */
+const tick = (request: APIRequestContext, now: Date) => runTick(request, now, "campaigns");
 
 // Флаг campaigns глобальный (список игроков переписывается в beforeAll) — файл идёт по очереди и только на desktop.
 // Кампании — с часом 20/21, тик — тестовыми часами около 21:00 по местному: фоновый воркер сервера идёт по
@@ -100,18 +103,18 @@ test("INACTIVE 3: once per series, again after a new visit and a new gap", async
   await addFlagUser("campaigns", login);
   await setLastLoginDay(login, shift(TODAY, -3));
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(login)).toEqual([shift(TODAY, -3)]);
   await expect.poll(() => push.received.filter((r) => r.payload.title === title).length).toBe(1);
   expect(push.received.find((r) => r.payload.title === title)?.payload).toMatchObject({ type: "COMEBACK", url: "/training" });
 
   // Повторный тик — без повтора
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(login)).toEqual([shift(TODAY, -3)]);
 
   // Зашёл сегодня и снова пропал на 3 дня — новая серия
   await setLastLoginDay(login, TODAY);
-  await runTick(request, localAt(tickDay(3), "21:05"));
+  await tick(request, localAt(tickDay(3), "21:05"));
   expect(await episodes(login)).toEqual([shift(TODAY, -3), TODAY]);
 
   // Лента колокольчика (сегодня уже засчитан — заход ничего не меняет)
@@ -124,16 +127,16 @@ test("INACTIVE 3: once per series, again after a new visit and a new gap", async
 test("before the campaign hour and after 22:00 nothing is sent", async ({ request }) => {
   await createCampaign({ condition: "INACTIVE", days: 3, hour: 20 });
   const login = await player({ lastLogin: shift(TODAY, -5) });
-  await runTick(request, localAt(TODAY, "19:05"));
+  await tick(request, localAt(TODAY, "19:05"));
   expect(await campaignSends(login)).toHaveLength(0);
 
   // Положительный контроль: в окне тот же игрок получает
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(login)).toEqual([shift(TODAY, -5)]);
 
   // Верхняя граница: в 22:05 новый эпизод нового игрока не уходит
   const late = await player({ lastLogin: shift(TODAY, -5) });
-  await runTick(request, localAt(TODAY, "22:05"));
+  await tick(request, localAt(TODAY, "22:05"));
   expect(await campaignSends(late)).toHaveLength(0);
 });
 
@@ -146,7 +149,7 @@ test("NO_WORKOUT 5: visits but no workout for 5 days", async ({ request }) => {
   await seedWorkouts(fresh, "Жим штанги лёжа", [{ weight: 40, reps: 10, sets: 3 }], 0, { finishedAt: [localAt(shift(TODAY, -2), "10:00")] });
   const none = await player({ lastLogin: shift(TODAY, -1) });
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(old)).toEqual([shift(TODAY, -6)]);
   expect(await notificationTitles(old)).toContain(title);
   expect(await campaignSends(fresh)).toHaveLength(0);
@@ -159,7 +162,7 @@ test("NEVER_TRAINED 2: registered 3 days ago without workouts", async ({ request
   const trained = await player({ createdAt: localAt(shift(TODAY, -3), "10:00"), lastLogin: shift(TODAY, -1) });
   await seedWorkouts(trained, "Жим штанги лёжа", [{ weight: 40, reps: 10, sets: 3 }], 0, { finishedAt: [localAt(shift(TODAY, -1), "10:00")] });
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(idle)).toEqual(["never"]);
   expect(await campaignSends(trained)).toHaveLength(0);
 });
@@ -177,14 +180,14 @@ test("STREAK_LOST: only while the restore offer is open", async ({ request }) =>
   const late = await player({ createdAt: new Date(at.getTime() - 60 * DAY), lastLogin: shift(monday, -8) });
   await setStreakState(late, { currentStreak: 3, lastStreakWeek: shift(monday, -21), streakFreezes: 0, freezeGrantedAt: localAt(monday, "10:00") });
 
-  await runTick(request, at);
+  await tick(request, at);
   expect(await episodes(lost)).toEqual([monday]);
   expect(await notificationTitles(lost)).toContain(title);
   expect(await notificationUrls(lost)).toContain("/dashboard");
   expect(await campaignSends(late)).toHaveLength(0);
 
   // Повторный тик — уже отправлено в эту неделю сгорания
-  await runTick(request, localAt(shift(monday, 1), "21:30"));
+  await tick(request, localAt(shift(monday, 1), "21:30"));
   expect(await episodes(lost)).toEqual([monday]);
 });
 
@@ -194,14 +197,14 @@ test("cap: one campaign per pass (larger N), the next one not earlier than in 24
   const seven = await createCampaign({ condition: "INACTIVE", days: 7, hour: 20 });
   const login = await player({ lastLogin: shift(TODAY, -8) });
 
-  await runTick(request, localAt(TODAY, "20:05"));
+  await tick(request, localAt(TODAY, "20:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([seven]);
 
   // Окно отправки — 20:00…22:00, поэтому «через пару часов» — через час
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([seven]);
 
-  await runTick(request, localAt(tickDay(1), "21:10"));
+  await tick(request, localAt(tickDay(1), "21:10"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([seven, never]);
 });
 
@@ -211,12 +214,12 @@ test("escalation: a long gap gets only the largest N, smaller ones do not follow
   const fourteen = await createCampaign({ condition: "INACTIVE", days: 14, hour: 20 });
   const login = await player({ lastLogin: shift(TODAY, -30) });
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([fourteen]);
 
   // Лимит 24 ч уже не держит — держит эскалация: «7» и «3» в этом эпизоде не уходят
-  await runTick(request, localAt(tickDay(1), "21:05"));
-  await runTick(request, localAt(tickDay(2), "21:05"));
+  await tick(request, localAt(tickDay(1), "21:05"));
+  await tick(request, localAt(tickDay(2), "21:05"));
   expect((await campaignSends(login)).map((s) => s.campaignId)).toEqual([fourteen]);
 });
 
@@ -227,15 +230,15 @@ test("escalation: 3 → 7 → 14 as the gap grows in one series", async ({ reque
   const login = await player({ lastLogin: shift(TODAY, -3) });
   const ids = async () => (await campaignSends(login)).map((s) => s.campaignId);
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await ids()).toEqual([three]);
 
   // День 7 без захода
-  await runTick(request, localAt(tickDay(4), "21:05"));
+  await tick(request, localAt(tickDay(4), "21:05"));
   expect(await ids()).toEqual([three, seven]);
 
   // День 14 без захода
-  await runTick(request, localAt(tickDay(11), "21:05"));
+  await tick(request, localAt(tickDay(11), "21:05"));
   expect(await ids()).toEqual([three, seven, fourteen]);
   expect(await episodes(login)).toEqual([shift(TODAY, -3), shift(TODAY, -3), shift(TODAY, -3)]);
 });
@@ -248,7 +251,7 @@ test("opted out, no channels and channel mismatch: nothing sent", async ({ reque
   const telegramOnly = await player({ lastLogin: shift(TODAY, -5), push: false });
   await linkTelegram(telegramOnly, `9${Date.now()}`.slice(0, 15));
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(optedOut)).toHaveLength(0);
   expect(await campaignSends(noChannels)).toHaveLength(0);
   expect(await notificationTitles(noChannels)).toHaveLength(0);
@@ -257,7 +260,7 @@ test("opted out, no channels and channel mismatch: nothing sent", async ({ reque
   // Кампания с Telegram — дойдёт до игрока только с Telegram
   await archiveAllCampaigns();
   await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, push: false, telegram: true });
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(telegramOnly)).toHaveLength(1);
   expect(await campaignSends(noChannels)).toHaveLength(0);
 });
@@ -265,12 +268,12 @@ test("opted out, no channels and channel mismatch: nothing sent", async ({ reque
 test("player without the flag and a paused campaign: nothing sent", async ({ request }) => {
   await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, status: "PAUSED" });
   const flagged = await player({ lastLogin: shift(TODAY, -5) });
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(flagged)).toHaveLength(0);
 
   await createCampaign({ condition: "INACTIVE", days: 3, hour: 20 });
   const unflagged = await player({ lastLogin: shift(TODAY, -5), flag: false });
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(unflagged)).toHaveLength(0);
   expect(await campaignSends(flagged)).toHaveLength(1);
 });
@@ -285,7 +288,7 @@ test("returned: a counted visit within 48 h marks the send, an older send stays 
 
   // Отправка старше 48 ч — заход её не отмечает
   await setLastLoginDay(login, shift(TODAY, -3));
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(login)).toHaveLength(1);
   await setCampaignSentAt(login, new Date(Date.now() - 49 * 3_600_000));
   await setLastLoginDay(login, shift(TODAY, -1));
@@ -297,7 +300,7 @@ test("returned: a counted visit within 48 h marks the send, an older send stays 
   await createCampaign({ condition: "INACTIVE", days: 3, hour: 20 });
   // Другой эпизод: тот же эпизод закрыт отправкой архивной кампании того же условия (эскалация)
   await setLastLoginDay(login, shift(TODAY, -4));
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(login)).toHaveLength(2);
   await setLastLoginDay(login, shift(TODAY, -1));
   await page.goto("/dashboard");
@@ -311,7 +314,7 @@ test("lastLoginDay null counts from the registration day; under 24 h — not a c
   const twoDays = await player({ createdAt: localAt(shift(TODAY, -2), "10:00"), lastLogin: null });
   const newbie = await player({ createdAt: localAt(shift(TODAY, -1), "23:00"), lastLogin: null });
 
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(twoDays)).toEqual([shift(TODAY, -2)]);
   expect(await campaignSends(newbie)).toHaveLength(0);
 });
@@ -343,7 +346,7 @@ test("settings: the switch turns campaigns off for the player; without the flag 
   await expect(page.getByRole("switch", { name: "Напоминания вернуться" })).not.toBeChecked();
 
   await setLastLoginDay(login, shift(TODAY, -5));
-  await runTick(request, localAt(TODAY, "21:05"));
+  await tick(request, localAt(TODAY, "21:05"));
   expect(await campaignSends(login)).toHaveLength(0);
 });
 
@@ -427,7 +430,7 @@ test.describe("admin pages", () => {
     await setFlag("campaigns", { enabled: true, logins: [] });
     await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name, status: "ACTIVE" });
     const login = await player({ lastLogin: shift(TODAY, -5) });
-    await runTick(request, localAt(TODAY, "21:05"));
+    await tick(request, localAt(TODAY, "21:05"));
     expect(await campaignSends(login)).toHaveLength(1);
     await withDb((db) => db.query(`update "CampaignSend" set "returnedAt" = now() where "userId" = (select id from "User" where login = $1)`, [login]));
     await admin(page);
