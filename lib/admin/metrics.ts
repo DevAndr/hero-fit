@@ -136,3 +136,45 @@ export function sourceRows(rows: SourceRow[], visits: VisitRow[] = []): SourceGr
     }))
     .sort(bySignups);
 }
+
+/** Разбивка графика «Откуда приходят»: тип источника у новых посетителей, utm_source или utm_campaign у переходов. */
+export type Breakdown = "referrer" | "source" | "campaign";
+
+export function parseBreakdown(raw: string | string[] | undefined): Breakdown {
+  return raw === "source" || raw === "campaign" ? raw : "referrer";
+}
+
+/** Ряд «прочие» — то же имя, что у меток сверх суточного лимита (lib/analytics/visits.ts): они сливаются. */
+export const OTHER_KEY = "(прочие)";
+
+export type KeyDayRow = { day: string; key: string | null; value: number };
+export type Stacked = { series: { key: string | null; total: number }[]; points: { day: string; values: number[] }[] };
+
+/**
+ * Столбики с накоплением: top рядов по итогу (равные — по ключу), остальное — «прочие» последним рядом;
+ * values в точке — в порядке series, дни без данных — нули.
+ */
+export function stackSeries(rows: KeyDayRow[], from: string, to: string, top = 5): Stacked {
+  const totals = new Map<string | null, number>();
+  for (const r of rows) totals.set(r.key, (totals.get(r.key) ?? 0) + r.value);
+  const ranked = [...totals]
+    .filter(([key]) => key !== OTHER_KEY)
+    .sort(([a, x], [b, y]) => y - x || String(a ?? "").localeCompare(String(b ?? "")));
+  const kept = ranked.slice(0, top);
+  const other = ranked.slice(top).reduce((s, [, v]) => s + v, totals.get(OTHER_KEY) ?? 0);
+  const series = [...kept.map(([key, total]) => ({ key, total })), ...(other > 0 ? [{ key: OTHER_KEY, total: other }] : [])];
+
+  const index = new Map(series.map((s, i) => [s.key, i]));
+  const otherIndex = index.get(OTHER_KEY);
+  const byDay = new Map<string, number[]>();
+  for (const r of rows) {
+    const i = index.get(r.key) ?? otherIndex;
+    if (i === undefined) continue;
+    const values = byDay.get(r.day) ?? series.map(() => 0);
+    values[i] += r.value;
+    byDay.set(r.day, values);
+  }
+  const points: Stacked["points"] = [];
+  for (let day = from; day <= to; day = addDays(day, 1)) points.push({ day, values: byDay.get(day) ?? series.map(() => 0) });
+  return { series, points };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortGrid, deltaPercent, fillDays, fillHours, parseRange, sourceRows, type SourceRow, type VisitRow } from "./metrics";
+import { cohortGrid, deltaPercent, fillDays, fillHours, OTHER_KEY, parseBreakdown, parseRange, sourceRows, stackSeries, type SourceRow, type VisitRow } from "./metrics";
 
 describe("deltaPercent", () => {
   it("рост и падение", () => {
@@ -152,5 +152,56 @@ describe("sourceRows", () => {
       const groups = sourceRows([row("home", "direct", 2, 0, 0, 0)], [visit("tool", "search", 5), visit("program", "social", 9), visit("home", "direct", 1)]);
       expect(groups.map((g) => g.key)).toEqual(["home", "program", "tool"]);
     });
+  });
+});
+
+describe("parseBreakdown", () => {
+  it("известные режимы", () => {
+    for (const m of ["referrer", "source", "campaign"] as const) expect(parseBreakdown(m)).toBe(m);
+  });
+  it("иное → referrer", () => {
+    for (const r of [undefined, "x", ["source", "campaign"]]) expect(parseBreakdown(r)).toBe("referrer");
+  });
+});
+
+describe("stackSeries", () => {
+  const r = (day: string, key: string | null, value: number) => ({ day, key, value });
+
+  it("ряды по убыванию итога, дни без данных — нули", () => {
+    const s = stackSeries([r("2026-10-02", "vk", 3), r("2026-10-01", "tg", 5), r("2026-10-02", "tg", 1)], "2026-10-01", "2026-10-03");
+    expect(s.series).toEqual([
+      { key: "tg", total: 6 },
+      { key: "vk", total: 3 },
+    ]);
+    expect(s.points).toEqual([
+      { day: "2026-10-01", values: [5, 0] },
+      { day: "2026-10-02", values: [1, 3] },
+      { day: "2026-10-03", values: [0, 0] },
+    ]);
+  });
+
+  it("сверх top — в «прочие» последним рядом; null — обычный ключ", () => {
+    const rows = [r("2026-10-01", "a", 9), r("2026-10-01", "b", 8), r("2026-10-01", null, 7), r("2026-10-01", "c", 2), r("2026-10-01", "d", 1)];
+    const s = stackSeries(rows, "2026-10-01", "2026-10-01", 3);
+    expect(s.series).toEqual([
+      { key: "a", total: 9 },
+      { key: "b", total: 8 },
+      { key: null, total: 7 },
+      { key: OTHER_KEY, total: 3 },
+    ]);
+    expect(s.points[0].values).toEqual([9, 8, 7, 3]);
+  });
+
+  it("ключ OTHER_KEY из данных сливается с «прочими» и всегда последний", () => {
+    const s = stackSeries([r("2026-10-01", OTHER_KEY, 50), r("2026-10-01", "a", 1)], "2026-10-01", "2026-10-01");
+    expect(s.series).toEqual([
+      { key: "a", total: 1 },
+      { key: OTHER_KEY, total: 50 },
+    ]);
+  });
+
+  it("равные итоги — по ключу; пусто — без рядов", () => {
+    expect(stackSeries([r("2026-10-01", "b", 1), r("2026-10-01", "a", 1)], "2026-10-01", "2026-10-01").series.map((x) => x.key)).toEqual(["a", "b"]);
+    expect(stackSeries([], "2026-10-01", "2026-10-02")).toEqual({ series: [], points: [{ day: "2026-10-01", values: [] }, { day: "2026-10-02", values: [] }] });
   });
 });
