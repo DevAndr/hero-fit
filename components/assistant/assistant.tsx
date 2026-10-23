@@ -99,8 +99,8 @@ function markCheckin(workoutId: string) {
 }
 
 /**
- * Умный помощник (спека 2026-10-12-smart-coach): плавающая кнопка и чат на сценариях. `available` — флаг
- * smart_coach и выключатель в /settings (считает layout; сервер в действиях проверяет сам).
+ * Умный помощник (спека 2026-10-12-smart-coach): плавающая кнопка и чат на сценариях. `available` — выключатель
+ * в /settings (считает layout; сервер в действиях проверяет сам).
  */
 export function AssistantProvider({ available, whoop = false, children }: { available: boolean; whoop?: boolean; children: ReactNode }) {
   const [workout, setWorkout] = useState<WorkoutBridge | null>(null);

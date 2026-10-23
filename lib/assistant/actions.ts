@@ -4,18 +4,17 @@ import { revalidatePath } from "next/cache";
 import { requireUser, type CurrentUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
 import { getMuscleRecovery } from "@/lib/progress/recovery-queries";
 import { getWhoopRecovery, type WhoopRecoveryView } from "@/lib/whoop/queries";
 import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
-import { assistantAvailable } from "./access";
 import { getMissedPlan, getStallRows } from "./queries";
 import { missedPlanAdvice, stalledExercises, type Wellbeing } from "./rules";
 
 const WELLBEING: Wellbeing[] = ["GREAT", "OK", "TIRED"];
 
-async function available(user: CurrentUser) {
-  return assistantAvailable(await isEnabled("smart_coach", user.id), user.assistantEnabled);
+/** Помощник доступен всем, кто не выключил его в /settings. */
+function available(user: CurrentUser) {
+  return user.assistantEnabled;
 }
 
 export type AssistantAnswer =
