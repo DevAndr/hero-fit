@@ -91,7 +91,10 @@ type Merged = SourceRow & { visits: number | null };
 
 const pct = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 100));
 
-/** Доли от сумм; activeWeek2 — от eligible (нет таких пользователей — null); конверсия — регистрации / посетители. */
+/**
+ * Доли от сумм; activeWeek2 — от eligible (нет таких пользователей — null); конверсия — регистрации / посетители,
+ * в числителе только пары с учётом заходов (иначе регистрации от гостей до запуска счётчика завышают итог группы).
+ */
 function stats(rows: Merged[]): SourceStats {
   const sum = (k: "signups" | "firstWorkout" | "activeWeek2" | "eligible") => rows.reduce((s, r) => s + r[k], 0);
   const eligible = sum("eligible");
@@ -102,7 +105,7 @@ function stats(rows: Merged[]): SourceStats {
     firstWorkoutPct: pct(sum("firstWorkout"), sum("signups")),
     activeWeek2Pct: eligible === 0 ? null : pct(sum("activeWeek2"), eligible),
     visitors,
-    conversionPct: visitors ? pct(sum("signups"), visitors) : null,
+    conversionPct: visitors ? pct(counted.reduce((s, r) => s + r.signups, 0), visitors) : null,
   };
 }
 

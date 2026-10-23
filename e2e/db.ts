@@ -1838,3 +1838,14 @@ export async function landingUtmVisits(source: string) {
     return rows[0].n;
   });
 }
+
+/** Счётчик новых посетителей за час (минуя proxy) — для проверки дня в поясе админа. */
+export async function addLandingVisit(hour: Date, landing: string, referrer: string, count: number) {
+  await withDb(async (db) => {
+    await db.query(
+      `insert into "LandingVisit" (hour, landing, referrer, count) values ($1, $2, $3, $4)
+       on conflict (hour, landing, referrer) do update set count = "LandingVisit".count + $4`,
+      [hour, landing, referrer, count],
+    );
+  });
+}

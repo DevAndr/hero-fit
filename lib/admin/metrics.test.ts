@@ -137,6 +137,12 @@ describe("sourceRows", () => {
       expect(groups.find((g) => g.key === null)).toMatchObject({ visitors: null, conversionPct: null });
     });
 
+    it("итог группы: в числителе только регистрации пар с учётом заходов", () => {
+      const [group] = sourceRows([row("home", "direct", 1, 0, 0, 0), row("home", "search", 10, 0, 0, 0)], [visit("home", "direct", 4)]);
+      expect(group).toMatchObject({ signups: 11, visitors: 4, conversionPct: 25 });
+      expect(group.children.find((c) => c.key === "search")).toMatchObject({ visitors: null, conversionPct: null });
+    });
+
     it("конверсия больше 100 % — как есть", () => {
       const [group] = sourceRows([row("home", "direct", 6, 0, 0, 0)], [visit("home", "direct", 4)]);
       expect(group.conversionPct).toBe(150);

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
+import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -178,6 +178,23 @@ test.describe("admin metrics page", () => {
     // регистраций, первая тренировка, активны на 2-й неделе, переходы, конверсия
     await expect(cells).toHaveText(["1", "0 %", "—", "1", "100 %"]);
     await expect(page.getByRole("heading", { name: "Новые посетители" })).toBeVisible();
+  });
+
+  test("new visitors fall on the admin's local day", async ({ page }) => {
+    // Час у края местных суток: к востоку от UTC — полночь, к западу — 23:00; ошибка пояса уводит его во вчера или завтра
+    // Сегодняшние посетители растут и от соседних тестов (каждый гость в e2e считается) — сравниваем дельту
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await setTimeZone(E2E_ADMIN);
+    await page.goto("/admin");
+    const table = page.getByRole("table", { name: "Новые посетители по дням за 30 дней" });
+    const label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`));
+    const cell = table.getByRole("row").filter({ has: page.getByRole("cell", { name: label, exact: true }) }).getByRole("cell").nth(1);
+    const before = Number(await cell.textContent());
+    await addLandingVisit(localAt(today, E2E_TZ_OFFSET > 0 ? "00:00" : "23:00"), "e2e", "e2e", 500);
+    await page.reload();
+    expect(Number(await cell.textContent())).toBeGreaterThanOrEqual(before + 500);
   });
 
   // Регистрацию в прошлое сдвигают этот сценарий (когорта 5 недель назад; следы прошлых прогонов убирает clearCohort)

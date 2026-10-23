@@ -5,6 +5,7 @@ import { registerUser } from "./helpers";
 
 // Счётчики пишутся фоном после ответа — проверяем поллингом; «не посчитано» — выждав, что запись успела бы дойти
 const settle = () => new Promise((r) => setTimeout(r, 1500));
+const CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const tag = () => `e2e_${randomUUID().slice(0, 8)}`;
 
 test("utm click counts on every visit", async ({ page }) => {
@@ -37,12 +38,25 @@ test("bots are not counted", async ({ browser }) => {
   await ctx.close();
 });
 
-test("logged-in user and background prefetch are not counted", async ({ page }) => {
+test("logged-in user is not counted", async ({ page }) => {
   const src = tag();
   await registerUser(page);
   await page.goto(`/?utm_source=${src}`);
-  const res = await page.request.get(`/?utm_source=${src}`, { headers: { "next-url": "/register", "sec-fetch-dest": "empty" } });
-  expect(res.ok()).toBe(true);
   await settle();
   expect(await landingUtmVisits(src)).toBe(0);
+});
+
+test("guest background prefetch is not counted, a document request is", async ({ playwright }) => {
+  // Отдельный контекст без cookie — гость; UA обычного Chrome, чтобы не отсечь как бота
+  const guest = await playwright.request.newContext({ baseURL: test.info().project.use.baseURL, userAgent: CHROME_UA });
+  const prefetch = tag();
+  const res = await guest.get(`/?utm_source=${prefetch}`, { headers: { "next-url": "/", "sec-fetch-dest": "empty" } });
+  expect(res.ok()).toBe(true);
+  expect(res.headers()["set-cookie"] ?? "").not.toContain("hf_utm");
+
+  const doc = tag();
+  await guest.get(`/?utm_source=${doc}`, { headers: { "sec-fetch-dest": "document" } });
+  await expect.poll(() => landingUtmVisits(doc)).toBe(1);
+  expect(await landingUtmVisits(prefetch)).toBe(0);
+  await guest.dispose();
 });

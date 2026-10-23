@@ -16,6 +16,9 @@ const COHORTS = 8;
 /** Местный день метки времени (столбцы timestamp хранят UTC). */
 const localDay = (col: Prisma.Sql, tz: string | Prisma.Sql) => Prisma.sql`((${col} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date`;
 
+/** Местный день часа заходов на лендинг: hour — timestamptz, ему одного AT TIME ZONE достаточно (localDay сдвинул бы дважды). */
+const visitDay = (tz: string, col = Prisma.sql`hour`) => Prisma.sql`(${col} AT TIME ZONE ${tz})::date`;
+
 /** Местный день тренировки w в поясе её владельца u. */
 const playerDay = localDay(Prisma.sql`w."finishedAt"`, Prisma.sql`u."timeZone"`);
 
@@ -110,7 +113,7 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
   const today = dayKey(new Date(), tz);
   const from = addDays(today, -(range - 1));
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
-  const visitHour = localDay(Prisma.sql`hour`, tz);
+  const visitHour = visitDay(tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
   const rows = await db.$queryRaw<{ series: keyof DailySeries; day: string; value: number }[]>`
     SELECT 'signups' AS series, to_char(${signup}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS value
@@ -186,7 +189,7 @@ export async function getSignupCampaigns(tz: string, range: 30 | 90): Promise<So
 /** Первый день учёта заходов на лендинг (в поясе админа); null — заходов ещё нет. */
 export async function getVisitsSince(tz: string): Promise<string | null> {
   const [row] = await db.$queryRaw<{ day: string | null }[]>`
-    SELECT to_char(${localDay(Prisma.sql`MIN(hour)`, tz)}, 'YYYY-MM-DD') AS day FROM "LandingVisit"
+    SELECT to_char(${visitDay(tz, Prisma.sql`MIN(hour)`)}, 'YYYY-MM-DD') AS day FROM "LandingVisit"
   `;
   return row?.day ?? null;
 }
@@ -199,7 +202,7 @@ export function periodStart(tz: string, range: 30 | 90): string {
 /** Заходы на лендинг за период по паре group × child (счётчики за час UTC, день — в поясе админа). */
 function visitCounts(tz: string, range: 30 | 90, table: Prisma.Sql, group: Prisma.Sql, child: Prisma.Sql) {
   const from = periodStart(tz, range);
-  const day = localDay(Prisma.sql`hour`, tz);
+  const day = visitDay(tz);
   return db.$queryRaw<VisitRow[]>`
     SELECT ${group} AS "group", ${child} AS child, SUM(count)::int AS visits
     FROM ${table} WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date GROUP BY 1, 2
