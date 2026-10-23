@@ -218,23 +218,28 @@ export async function processPlanReminders(now = new Date()) {
 
 let lastErrorsPrune = 0;
 
+/** Шаги тика, которые e2e может запустить по одному (`?only=`): тик с тестовыми часами в будущем иначе прогоняет все шаги по всей тестовой базе и задевает соседние тесты. */
+export const TICK_STEPS = ["reminders", "recaps", "signals", "coachRecaps", "programs", "raids", "goals", "campaigns"] as const;
+export type TickStep = (typeof TICK_STEPS)[number];
+
 /**
  * now — только для тестовых часов (E2E_TEST_CLOCK, ?now=): влияет на выбор напоминаний, не на очередь push.
- * Передан явно — шаг рассылок идёт без ограничения «раз в 10 минут».
+ * Передан явно — шаг рассылок идёт без ограничения «раз в 10 минут». only — только этот шаг (тоже лишь в e2e).
  */
-export async function runNotificationTick(now?: Date) {
+export async function runNotificationTick(now?: Date, only?: TickStep) {
   const at = now ?? new Date();
+  const step = (s: TickStep) => !only || only === s;
   // Сначала срочное (таймер отдыха и уже готовые push), итоги недели — после: их генерация не задерживает доставку
   let pushes = await processDuePushes();
-  let reminders = (await processStreakReminders(at)) + (await processPlanReminders(at));
-  try {
+  let reminders = step("reminders") ? (await processStreakReminders(at)) + (await processPlanReminders(at)) : 0;
+  if (step("recaps")) try {
     const recaps = await processWeeklyRecaps(at);
     reminders += recaps;
     if (recaps) pushes += await processDuePushes();
   } catch (e) {
     console.error("[recap] шаг итогов недели упал", e);
   }
-  try {
+  if (step("signals")) try {
     // Сигналы клиентов тренерам: раз в день с 10:00 по времени тренера
     const signals = await processCoachSignals(at);
     reminders += signals;
@@ -242,7 +247,7 @@ export async function runNotificationTick(now?: Date) {
   } catch (e) {
     console.error("[coach-signals] шаг сигналов упал", e);
   }
-  try {
+  if (step("coachRecaps")) try {
     // Итоги недели клиентов тренеру: снимок и push в понедельник с 09:00 по времени тренера
     const coachRecaps = await processCoachRecaps(at);
     reminders += coachRecaps;
@@ -250,13 +255,13 @@ export async function runNotificationTick(now?: Date) {
   } catch (e) {
     console.error("[coach-recap] шаг итогов недели тренера упал", e);
   }
-  try {
+  if (step("programs")) try {
     // Программы: «заканчивается через неделю» — тренеру (из каталога — самому пользователю), один раз
     reminders += await processProgramReminders(at);
   } catch (e) {
     console.error("[coach-programs] шаг напоминаний упал", e);
   }
-  try {
+  if (step("raids")) try {
     // Рейд гильдии: в четверг с 12:00 по времени главы — «не хватает урона»
     const raids = await processRaidReminders(at);
     reminders += raids;
@@ -264,7 +269,7 @@ export async function runNotificationTick(now?: Date) {
   } catch (e) {
     console.error("[raid] шаг напоминаний рейда упал", e);
   }
-  try {
+  if (step("goals")) try {
     // Цели: напоминание за 7 дней до срока и провал по сроку
     const goals = await processGoals(at);
     reminders += goals;
@@ -272,7 +277,7 @@ export async function runNotificationTick(now?: Date) {
   } catch (e) {
     console.error("[goals] шаг сроков целей упал", e);
   }
-  try {
+  if (step("campaigns")) try {
     // Рассылки по условиям («вернись в зал»): не чаще раза в 10 минут, с тестовыми часами — каждый тик
     const campaigns = await processCampaigns(at, { force: now !== undefined });
     reminders += campaigns;
@@ -280,7 +285,7 @@ export async function runNotificationTick(now?: Date) {
   } catch (e) {
     console.error("[campaigns] шаг рассылок упал", e);
   }
-  try {
+  if (!only) try {
     // Журнал ошибок: раз в сутки — чистка старше 30 дней
     if (at.getTime() - lastErrorsPrune >= 86_400_000) {
       lastErrorsPrune = at.getTime();

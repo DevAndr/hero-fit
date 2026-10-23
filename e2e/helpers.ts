@@ -76,11 +76,16 @@ export async function pickOption(page: Page, trigger: Locator, option: string) {
 }
 
 /**
- * Тик уведомлений; now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts).
+ * Тик уведомлений; now — тестовые часы сервера (E2E_TEST_CLOCK=1 в playwright.config.ts), only — только этот шаг
+ * (`TICK_STEPS` в lib/notifications/service.ts): тик с часами в будущем по всем шагам задевает соседние тесты.
  * Нужен CRON_SECRET (в .env, в CI — env в ci.yml); без него ручка отвечает 401 — падаем сразу, а не таймаутом ожидания push.
  */
-export async function runTick(request: APIRequestContext, now?: Date) {
-  const res = await request.get(`/api/cron/notifications${now ? `?now=${now.toISOString()}` : ""}`, {
+export async function runTick(request: APIRequestContext, now?: Date, only?: string) {
+  const params = new URLSearchParams();
+  if (now) params.set("now", now.toISOString());
+  if (only) params.set("only", only);
+  const query = params.toString();
+  const res = await request.get(`/api/cron/notifications${query ? `?${query}` : ""}`, {
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   });
   expect(res.status(), "тик уведомлений: задан ли CRON_SECRET?").toBe(200);
