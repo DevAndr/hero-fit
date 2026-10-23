@@ -10,7 +10,7 @@ const LANDING: Record<string, string> = {
   telegram: "Telegram",
 };
 
-const REFERRER: Record<string, string> = {
+export const REFERRER: Record<string, string> = {
   search: "Поиск",
   social: "Соцсети",
   direct: "Прямой заход",

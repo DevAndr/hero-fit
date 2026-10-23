@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { db } from "@/lib/db";
-import { cohortGrid, fillDays, fillHours, sourceRows, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
+import { cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
 
 /*
@@ -184,6 +184,42 @@ export async function getSignupCampaigns(tz: string, range: 30 | 90): Promise<So
     visitCounts(tz, range, Prisma.sql`"LandingUtmVisit"`, Prisma.sql`source`, Prisma.sql`NULLIF(campaign, '')`),
   ]);
   return sourceRows(rows, visits);
+}
+
+/** Сколько utm_source показывать чипами в разбивке по кампаниям. */
+const SOURCE_CHIPS = 10;
+
+export type VisitBreakdown = { mode: Breakdown; stacked: Stacked; sources: string[]; source: string | null };
+
+/**
+ * «Откуда приходят» по дням за период: referrer — новые посетители по типу источника; source — переходы с меткой
+ * по utm_source; campaign — переходы выбранного utm_source (без переходов за период — самый крупный) по utm_campaign.
+ */
+export async function getVisitBreakdown(tz: string, range: 30 | 90, mode: Breakdown, utm?: string): Promise<VisitBreakdown> {
+  const from = periodStart(tz, range);
+  const to = dayKey(new Date(), tz);
+  const day = visitDay(tz);
+  const rows = (table: Prisma.Sql, key: Prisma.Sql, where = Prisma.empty) => db.$queryRaw<KeyDayRow[]>`
+    SELECT to_char(${day}, 'YYYY-MM-DD') AS day, ${key} AS key, SUM(count)::int AS value
+    FROM ${table} WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date ${where} GROUP BY 1, 2
+  `;
+  if (mode === "referrer") {
+    return { mode, stacked: stackSeries(await rows(Prisma.sql`"LandingVisit"`, Prisma.sql`referrer`), from, to), sources: [], source: null };
+  }
+  if (mode === "source") return { mode, stacked: stackSeries(await rows(Prisma.sql`"LandingUtmVisit"`, Prisma.sql`source`), from, to), sources: [], source: null };
+  // Выбрать можно любой источник с переходами за период; в чипах — крупнейшие и выбранный
+  const all = await db.$queryRaw<{ source: string }[]>`
+    SELECT source FROM "LandingUtmVisit" WHERE hour >= ${utcFloor(from)} AND ${day} >= ${from}::date AND source <> ${OTHER_KEY}
+    GROUP BY source ORDER BY SUM(count) DESC, source
+  `;
+  const names = all.map((r) => r.source);
+  const source = utm && names.includes(utm) ? utm : (names[0] ?? null);
+  const top = names.slice(0, SOURCE_CHIPS);
+  const sources = source && !top.includes(source) ? [...top, source] : top;
+  const stacked = source
+    ? stackSeries(await rows(Prisma.sql`"LandingUtmVisit"`, Prisma.sql`NULLIF(campaign, '')`, Prisma.sql`AND source = ${source}`), from, to)
+    : stackSeries([], from, to);
+  return { mode, stacked, sources, source };
 }
 
 /** Первый день учёта заходов на лендинг (в поясе админа); null — заходов ещё нет. */

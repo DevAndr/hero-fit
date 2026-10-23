@@ -180,6 +180,30 @@ test.describe("admin metrics page", () => {
     await expect(page.getByRole("heading", { name: "Новые посетители" })).toBeVisible();
   });
 
+  test("visit breakdown: campaigns of a chosen utm_source, referrer types", async ({ page, browser }) => {
+    const tag = `e2e-b-${Date.now().toString(36)}`;
+    const guest = await browser.newContext();
+    const guestPage = await guest.newPage();
+    for (const c of ["a", "a", "b"]) await guestPage.goto(`/?utm_source=${tag}&utm_campaign=${tag}-${c}`);
+    await expect.poll(() => landingUtmVisits(tag)).toBe(3);
+    await guest.close();
+
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    await setTimeZone(E2E_METRICS_ADMIN);
+    await page.goto(`/admin?visits=campaign&utm=${tag}`);
+    const card = page.getByRole("region", { name: "Откуда приходят" });
+    await expect(card.getByRole("navigation", { name: "utm_source" }).getByRole("link", { name: tag })).toHaveAttribute("aria-current", "page");
+    const table = card.getByRole("table", { name: `Кампании ${tag} по дням за 30 дней` });
+    await expect(table.getByRole("columnheader")).toHaveText(["Дата", `${tag}-a`, `${tag}-b`]);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ }).format(new Date());
+    const label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`));
+    await expect(table.getByRole("row").filter({ has: page.getByRole("cell", { name: label, exact: true }) }).getByRole("cell")).toHaveText([label, "2", "1"]);
+
+    await card.getByRole("navigation", { name: "Разбивка" }).getByRole("link", { name: "Источники" }).click();
+    await expect(card.getByRole("table", { name: "Откуда приходят по дням за 30 дней" }).getByRole("columnheader", { name: "Прямой заход" })).toBeAttached();
+  });
+
   test("new visitors fall on the admin's local day", async ({ page }) => {
     // Час у края местных суток: к востоку от UTC — полночь, к западу — 23:00; ошибка пояса уводит его во вчера или завтра
     // Сегодняшние посетители растут и от соседних тестов (каждый гость в e2e считается) — сравниваем дельту

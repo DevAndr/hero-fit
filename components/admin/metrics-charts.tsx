@@ -6,9 +6,9 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/
 import { cn } from "@/lib/utils";
 import type { DailySeries, HourlyActivity } from "@/lib/admin/metrics-queries";
 
-const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
-const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
-const fullDate = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "long", timeZone: "UTC" });
+export const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
+export const dayMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
+export const fullDate = new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "long", timeZone: "UTC" });
 
 /** Линии «Активные»: цвет закреплён за рядом (проверенная палитра --series-*). */
 const ACTIVE = [
@@ -35,7 +35,7 @@ function Tooltip({ active, payload, rows }: { active?: boolean; payload?: { payl
   );
 }
 
-function Card({ title, summary, children, table }: { title: string; summary: string; children: React.ReactNode; table: React.ReactNode }) {
+export function Card({ title, summary, children, table }: { title: string; summary: string; children: React.ReactNode; table: React.ReactNode }) {
   return (
     <section aria-label={title} className="rounded-xl border bg-card p-4">
       <h2 className="font-bold">{title}</h2>
@@ -47,7 +47,7 @@ function Card({ title, summary, children, table }: { title: string; summary: str
   );
 }
 
-const axisX = (range: number) => ({
+export const axisX = (range: number) => ({
   dataKey: "day",
   tickLine: false,
   axisLine: false,
@@ -233,14 +233,15 @@ function HourlyCard({ hourly, range }: { hourly: HourlyActivity; range: number }
   );
 }
 
-export function MetricsCharts({ series, hourly, range }: { series: DailySeries; hourly: HourlyActivity; range: 30 | 90 }) {
+/** keep — параметры других блоков страницы (разбивка «Откуда приходят»), их сохраняет переключатель периода. */
+export function MetricsCharts({ series, hourly, range, keep = "" }: { series: DailySeries; hourly: HourlyActivity; range: 30 | 90; keep?: string }) {
   return (
     <div className="space-y-4">
       <nav aria-label="Период графиков" className="flex gap-2">
         {([30, 90] as const).map((r) => (
           <Link
             key={r}
-            href={`/admin?range=${r}`}
+            href={`/admin?range=${r}${keep}`}
             aria-current={r === range ? "page" : undefined}
             className={cn(
               "rounded-lg border px-3 py-1.5 text-sm font-medium",
