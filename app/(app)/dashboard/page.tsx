@@ -11,6 +11,10 @@ import { TodayPlan } from "@/components/dashboard/today-plan";
 import { RecapCard } from "@/components/recap/recap-card";
 import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
+import { DashboardV2 } from "@/components/dashboard-v2/dashboard-v2";
+import { WeekHero } from "@/components/dashboard-v2/week-hero";
+import { balanceSlices, weekHeadline } from "@/lib/dashboard/v2";
+import { getDashboardV2 } from "@/lib/dashboard/v2-queries";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
@@ -157,6 +161,134 @@ export default async function DashboardPage() {
   const status = streakStatus(data.streak, now, streakTz);
   const offer = restoreOffer(data.streak, now, streakTz);
 
+  // Блоки, общие для прежнего дашборда и v2 (флаг dashboard_v2)
+  const todayPlan = (
+    <TodayPlan
+      today={plan.today.map((p) => ({ ...p, program: programOf(p.seriesId, p.date) }))}
+      next={plan.next && { ...plan.next, program: programOf(plan.next.seriesId, plan.next.date) }}
+      missedYesterday={plan.missedYesterday && { ...plan.missedYesterday, program: programOf(plan.missedYesterday.seriesId, plan.missedYesterday.date) }}
+      activePlanKey={plan.activePlanKey}
+      coachName={coach ? clientDisplayName(coach) : null}
+    />
+  );
+  const coachBlock = coachCard ? <MyCoachCard card={coachCard} /> : null;
+  const recapBlock = recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null;
+  const nearestGoal = (
+    <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm text-muted-foreground">Ближайшая ачивка</h2>
+        <Link href="/achievements" className="text-xs text-primary hover:underline">
+          Все ачивки
+        </Link>
+      </div>
+      {data.nearestGoal ? <GoalCard goal={data.nearestGoal} /> : null}
+    </section>
+  );
+  const whoopBlock = whoopRecovery ? <WhoopRecoveryCard view={whoopRecovery} embedded={user.embedded} /> : null;
+  const guildClub = club ? (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <GuildCard guild={guild} raid={raid} />
+      <ClubCard data={club} />
+    </div>
+  ) : (
+    <GuildCard guild={guild} raid={raid} />
+  );
+  const friends = (
+    <section aria-label="Друзья недавно" className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold">Друзья недавно</h2>
+        <Link href="/friends" className="text-xs text-primary hover:underline">
+          Вся лента
+        </Link>
+      </div>
+      {friendsRecent.length ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {friendsRecent.map((entry) => (
+            <FeedCard key={entry.id} entry={entry} compact />
+          ))}
+        </div>
+      ) : (
+        <Link
+          href="/friends"
+          className="flex items-center gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-primary/50"
+        >
+          <Users className="size-5 shrink-0 text-primary" />
+          {feed.friends
+            ? "Друзья пока не тренировались — поддержите их 👊, когда начнут."
+            : "Тренируйтесь вместе: пригласите друга — увидите его тренировки и соревнуйтесь в недельной лиге."}
+        </Link>
+      )}
+    </section>
+  );
+  const footer = (
+    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+      <Clock className="size-3.5" />
+      Дни считаются по часовому поясу {timeZone}
+    </p>
+  );
+
+  if (await isEnabled("dashboard_v2", user.id)) {
+    const v2 = await getDashboardV2({ id: user.id, timeZone: userTz }, now);
+    const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
+    const headline = data.activeWorkout
+      ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
+      : isStreakUrgent(status)
+        ? "Тренировка сегодня спасёт серию недели"
+        : weekHeadline(weekCount, streakValue(status));
+    const last = data.lastWorkout?.finishedAt && now.getTime() - data.lastWorkout.finishedAt.getTime() <= 14 * 24 * 60 * 60 * 1000 ? data.lastWorkout : null;
+    return (
+      <>
+        {programs ? <OnboardingTour programs={programs} /> : null}
+        <DashboardV2
+          hero={
+            <WeekHero
+              name={user.name ?? user.login}
+              headline={headline}
+              activeWorkout={Boolean(data.activeWorkout)}
+              strip={v2.strip}
+              level={{ level: level.level, percent: level.percent }}
+              streak={streakValue(status)}
+              freezes={data.streak.streakFreezes}
+              offer={offer}
+              offerText={offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, streakTz)}` : null}
+              levelXp={level.current}
+              lastWorkout={last && last.finishedAt ? { id: last.id, name: last.name, finishedAt: last.finishedAt } : null}
+            />
+          }
+          today={
+            <>
+              {todayPlan}
+              {whoopBlock}
+              {coachBlock}
+              {recapBlock}
+            </>
+          }
+          data={v2}
+          balance={balanceSlices(balance.groups)}
+          recovery={recovery}
+          game={
+            <>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <BossCard boss={boss} />
+                </div>
+                {nearestGoal}
+              </div>
+              <GoalsCard goals={goals.goals} total={goals.total} />
+            </>
+          }
+          community={
+            <>
+              {guildClub}
+              {friends}
+            </>
+          }
+          footer={footer}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       {programs ? <OnboardingTour programs={programs} /> : null}
@@ -178,15 +310,9 @@ export default async function DashboardPage() {
         </Link>
       </section>
 
-      <TodayPlan
-        today={plan.today.map((p) => ({ ...p, program: programOf(p.seriesId, p.date) }))}
-        next={plan.next && { ...plan.next, program: programOf(plan.next.seriesId, plan.next.date) }}
-        missedYesterday={plan.missedYesterday && { ...plan.missedYesterday, program: programOf(plan.missedYesterday.seriesId, plan.missedYesterday.date) }}
-        activePlanKey={plan.activePlanKey}
-        coachName={coach ? clientDisplayName(coach) : null}
-      />
-      {coachCard ? <MyCoachCard card={coachCard} /> : null}
-      {recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null}
+      {todayPlan}
+      {coachBlock}
+      {recapBlock}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
@@ -210,15 +336,7 @@ export default async function DashboardPage() {
           timeZone={streakTz}
         />
 
-        <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm text-muted-foreground">Ближайшая ачивка</h2>
-            <Link href="/achievements" className="text-xs text-primary hover:underline">
-              Все ачивки
-            </Link>
-          </div>
-          {data.nearestGoal ? <GoalCard goal={data.nearestGoal} /> : null}
-        </section>
+        {nearestGoal}
       </div>
 
       <BossCard boss={boss} />
@@ -275,7 +393,7 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      {whoopRecovery ? <WhoopRecoveryCard view={whoopRecovery} embedded={user.embedded} /> : null}
+      {whoopBlock}
       <BodyMap recovery={recovery} balance={balance} />
 
       <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -289,45 +407,11 @@ export default async function DashboardPage() {
         />
       </section>
 
-      {club ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <GuildCard guild={guild} raid={raid} />
-          <ClubCard data={club} />
-        </div>
-      ) : (
-        <GuildCard guild={guild} raid={raid} />
-      )}
+      {guildClub}
 
-      <section aria-label="Друзья недавно" className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold">Друзья недавно</h2>
-          <Link href="/friends" className="text-xs text-primary hover:underline">
-            Вся лента
-          </Link>
-        </div>
-        {friendsRecent.length ? (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-            {friendsRecent.map((entry) => (
-              <FeedCard key={entry.id} entry={entry} compact />
-            ))}
-          </div>
-        ) : (
-          <Link
-            href="/friends"
-            className="flex items-center gap-3 rounded-xl border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-primary/50"
-          >
-            <Users className="size-5 shrink-0 text-primary" />
-            {feed.friends
-              ? "Друзья пока не тренировались — поддержите их 👊, когда начнут."
-              : "Тренируйтесь вместе: пригласите друга — увидите его тренировки и соревнуйтесь в недельной лиге."}
-          </Link>
-        )}
-      </section>
+      {friends}
 
-      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Clock className="size-3.5" />
-        Дни считаются по часовому поясу {timeZone}
-      </p>
+      {footer}
     </div>
   );
 }

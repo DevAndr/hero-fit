@@ -5,11 +5,10 @@ import { addDays, weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { getCalendar } from "@/lib/plans/queries";
-import { getMuscleBalance } from "@/lib/progress/recovery-queries";
 import { getTrends, type Trends } from "@/lib/stats/queries";
 import type { StrengthTrend } from "@/lib/stats/strength";
 import { getMonthCompare } from "@/lib/stats/strength-queries";
-import { balanceSlices, weekCompare, weekStrip, type Slice, type StripDay, type WeekCompareView, type WeekTotals } from "./v2";
+import { weekCompare, weekStrip, type StripDay, type WeekCompareView, type WeekTotals } from "./v2";
 
 /** Дашборд v2 (спека docs/superpowers/specs/2026-10-24-dashboard-v2-design.md): запросы новых виджетов. */
 
@@ -73,18 +72,26 @@ export async function getWorkoutDays(userId: string, tz: string, monday: string,
 
 export type RecentRecord = { exerciseId: string; name: string; type: RecordType; value: number; prev: number | null; achievedAt: Date };
 
-/** Последние рекорды за 30 дней с прошлым значением того же упражнения и типа (темп — «меньше лучше» — не показываем). */
+/**
+ * Последние рекорды за 30 дней с прошлым значением того же упражнения и типа: по одному на упражнение — самый свежий,
+ * при равенстве 1RM → вес → повторы → время → дистанция (темп — «меньше лучше» — не показываем).
+ */
 export async function getRecentRecords(userId: string, limit = 3): Promise<RecentRecord[]> {
   return db.$queryRaw<RecentRecord[]>`
-    SELECT * FROM (
-      SELECT r."exerciseId", e.name, r.type, r.value,
-             LAG(r.value) OVER (PARTITION BY r."exerciseId", r.type ORDER BY r."achievedAt") AS prev,
-             r."achievedAt"
-      FROM "PersonalRecord" r JOIN "Exercise" e ON e.id = r."exerciseId"
-      WHERE r."userId" = ${userId} AND r.type <> 'BEST_PACE'
-    ) t
-    WHERE t."achievedAt" >= ${new Date(Date.now() - RECORDS_DAYS * DAY_MS)}
-    ORDER BY t."achievedAt" DESC
+    SELECT "exerciseId", name, type, value, prev, "achievedAt" FROM (
+      SELECT DISTINCT ON (t."exerciseId") t.*
+      FROM (
+        SELECT r."exerciseId", e.name, r.type, r.value,
+               LAG(r.value) OVER (PARTITION BY r."exerciseId", r.type ORDER BY r."achievedAt") AS prev,
+               r."achievedAt"
+        FROM "PersonalRecord" r JOIN "Exercise" e ON e.id = r."exerciseId"
+        WHERE r."userId" = ${userId} AND r.type <> 'BEST_PACE'
+      ) t
+      WHERE t."achievedAt" >= ${new Date(Date.now() - RECORDS_DAYS * DAY_MS)}
+      ORDER BY t."exerciseId", t."achievedAt" DESC,
+        array_position(ARRAY['ONE_RM', 'MAX_WEIGHT', 'MAX_REPS', 'MAX_DURATION', 'MAX_DISTANCE']::text[], t.type::text)
+    ) best
+    ORDER BY "achievedAt" DESC
     LIMIT ${limit}
   `;
 }
@@ -94,22 +101,20 @@ export type DashboardV2Data = {
   week: WeekCompareView;
   records: RecentRecord[];
   trends: Trends;
-  balance: Slice[];
   strength: StrengthTrend | null;
 };
 
-/** Данные новых виджетов одним пакетом; остальное (серия, план, игра) страница берёт из прежних запросов. */
+/** Данные новых виджетов одним пакетом; остальное (серия, план, баланс мышц, игра) страница берёт из прежних запросов. */
 export async function getDashboardV2(user: { id: string; timeZone: string }, now = new Date()): Promise<DashboardV2Data> {
   const today = dayKey(now, user.timeZone);
   const monday = weekStart(today);
   const sunday = addDays(monday, 6);
-  const [days, calendar, totals, records, trends, balance, strength] = await Promise.all([
+  const [days, calendar, totals, records, trends, strength] = await Promise.all([
     getWorkoutDays(user.id, user.timeZone, monday, sunday),
     getCalendar(user.id, monday, sunday, user.timeZone, now),
     getWeekTotals(user.id, user.timeZone, now),
     getRecentRecords(user.id),
     getTrends(user.id, user.timeZone),
-    getMuscleBalance(user.id, now),
     isEnabled("strength_analytics", user.id).then(async (on) => (on ? (await getMonthCompare(user.id, user.timeZone, now)).strength : null)),
   ]);
   return {
@@ -117,7 +122,6 @@ export async function getDashboardV2(user: { id: string; timeZone: string }, now
     week: weekCompare(totals.cur, totals.prev),
     records,
     trends,
-    balance: balanceSlices(balance.groups),
     strength,
   };
 }
