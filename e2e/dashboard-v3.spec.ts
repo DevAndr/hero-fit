@@ -1,23 +1,22 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, seedWorkouts, setTimeZone } from "./db";
+import { seedWorkouts, setTimeZone } from "./db";
 import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 import { E2E_TZ, localAt } from "./tz";
 
-// Флаг dashboard_v3 — списком на пользователя (addFlagUser): спеки идут параллельно, прежний дашборд у остальных
+// Кабинет v3 — у всех (флаг dashboard_v3 удалён в 0.23.0)
 
 async function v3User(page: Page) {
   const me = await registerUser(page);
   await setTimeZone(me.login);
-  await addFlagUser("dashboard_v3", me.login);
   return me;
 }
 
 const strip = (page: Page) => page.getByRole("list", { name: "Неделя" }).getByRole("listitem");
 
-test("new widgets join the old dashboard", async ({ page }) => {
+test("week widgets join the cabinet blocks", async ({ page }) => {
   await v3User(page);
   await page.goto("/dashboard");
-  // Прежнее приветствие заменено героем недели — не дублируется (вторая кнопка — в боковой панели оболочки)
+  // Приветствие — одно, в герое недели (вторая кнопка — в боковой панели оболочки)
   const main = page.getByRole("main");
   await expect(main.getByRole("heading", { name: /^Привет,/ })).toHaveCount(1);
   await expect(main.getByRole("link", { name: "Начать тренировку" })).toHaveCount(1);
@@ -75,14 +74,6 @@ test("a first result is not a record; an active workout keeps the day open", asy
   await page.goto("/dashboard");
   await expect(page.getByRole("main").getByRole("link", { name: "Продолжить тренировку" })).toBeVisible();
   await expect(page.locator("li[aria-label$=': тренировка']")).toHaveCount(1);
-});
-
-test("without the flag the old dashboard stays", async ({ page }) => {
-  await registerUser(page);
-  await page.goto("/dashboard");
-  await expect(page.getByText("Тренировок всего")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Прогресс", exact: true })).toHaveCount(0);
 });
 
 test("no horizontal scroll on a phone", async ({ page, isMobile }) => {
