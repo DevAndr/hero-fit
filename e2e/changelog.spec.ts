@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { setChangelogSeen } from "./db";
+import { addFlagUser, setChangelogSeen } from "./db";
 import { registerUser } from "./helpers";
 import { RELEASES } from "../lib/changelog/releases";
 import pkg from "../package.json";
@@ -46,7 +46,11 @@ test("opening «Что нового» from the profile menu clears the dot witho
 });
 
 test("app version is shown in settings and on release cards", async ({ page }) => {
-  await registerUser(page);
+  const me = await registerUser(page);
+  // Релиз из одних пунктов под флагом виден только с флагом — включаем флаги верхней записи этому пользователю
+  const top = RELEASES[0];
+  const flags = new Set([...top.new, ...(top.improved ?? []), ...(top.fixed ?? [])].flatMap((i) => (i.flag ? [i.flag] : [])));
+  for (const flag of flags) await addFlagUser(flag, me.login);
   await page.goto("/settings");
   // Локальная сборка без GIT_SHA — только версия
   await expect(page.getByText(`Hero Fit v${pkg.version}`)).toBeVisible();
