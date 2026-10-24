@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { signInitData } from "../lib/telegram/init-data";
 
 /** Токен бота e2e-сервера (playwright.config.ts) — им подписан initData заглушки. */
@@ -112,3 +112,17 @@ export const tgCalls = (page: Page) => page.evaluate(() => (window as unknown as
 export const tgEmit = (page: Page, event: string, patch?: object) =>
   page.evaluate(([e, p]) => (window as unknown as Stub).__tgEmit(e as string, p as object | undefined), [event, patch] as const);
 export const tgBack = (page: Page) => page.evaluate(() => (window as unknown as Stub).__tgBack());
+
+/** Уникальный Telegram id на тест (база общая для воркеров). */
+const newTelegramId = () => String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+
+/** Новый человек из Mini App → дашборд; заглушка SDK остаётся на всех следующих страницах. Возвращает Telegram id. */
+export async function openMiniApp(page: Page, opts: { colorScheme?: "light" | "dark"; version?: string; safeBottom?: number } = {}) {
+  const id = newTelegramId();
+  await mockTelegram(page, { id, firstName: "Маша", ...opts });
+  await page.goto("/tg");
+  await page.getByRole("checkbox", { name: /Согласен с политикой обработки персональных данных/ }).check();
+  await page.getByRole("button", { name: "Начать" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  return id;
+}

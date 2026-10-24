@@ -20,9 +20,10 @@ import { userChangelog } from "@/lib/changelog/view";
 import { db } from "@/lib/db";
 import { quietly } from "@/lib/achievements/quietly";
 import { ensureRetroCoins } from "@/lib/shop/retro-db";
-import { itemByCode } from "@/lib/shop/catalog";
+import { itemByCode, isSkin } from "@/lib/shop/catalog";
 import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { themeStyle } from "@/lib/shop/theme-style";
+import { ThemeModeLock } from "@/components/shop/theme-mode-lock";
 import { env } from "@/lib/env";
 import { enabledFlags } from "@/lib/flags/server";
 import { pendingClubCount } from "@/lib/club/queries";
@@ -91,6 +92,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <FlagsProvider flags={flags}>
       {theme?.kind === "theme" ? <style>{themeStyle(theme)}</style> : null}
+      {/* Скин — со своим режимом: держим его класс на <html>, пока скин надет */}
+      {theme?.kind === "theme" && isSkin(theme) ? <ThemeModeLock mode={theme.mode} /> : null}
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
         {/* Умный помощник: выключатель в /settings */}
         <AssistantProvider available={user.assistantEnabled} whoop={flags.includes("whoop")}>

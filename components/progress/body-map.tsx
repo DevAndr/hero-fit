@@ -9,21 +9,9 @@ import { BALANCE_DAYS, imbalanceHint, type GroupBalance, type Imbalance } from "
 import { plural } from "@/lib/format";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { RECOVERY_STATE_LABELS, recoveryHint, type GroupRecovery, type RecoveryState } from "@/lib/progress/recovery";
+import { RECOVERY_DOT, RECOVERY_FILL } from "@/lib/progress/recovery-colors";
 import { cn } from "@/lib/utils";
 
-/** Цвет состояния — заливка мышцы на силуэте и точка в списке / фильтре. */
-export const RECOVERY_FILL: Record<RecoveryState, string> = {
-  fatigued: "fill-streak",
-  recovering: "fill-xp",
-  ready: "fill-primary",
-  neglected: "fill-muted-foreground/30",
-};
-export const RECOVERY_DOT: Record<RecoveryState, string> = {
-  fatigued: "bg-streak",
-  recovering: "bg-xp",
-  ready: "bg-primary",
-  neglected: "bg-muted-foreground/40",
-};
 const ORDER: RecoveryState[] = ["fatigued", "recovering", "ready", "neglected"];
 
 /** Баланс: 0 — ни разу за период, 1…4 — доля от самой нагруженной группы. */
