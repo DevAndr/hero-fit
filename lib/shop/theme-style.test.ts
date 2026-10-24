@@ -16,7 +16,7 @@ describe("themeStyle", () => {
 
   it("скин — все токены в обоих селекторах и color-scheme", () => {
     const skins = SHOP_ITEMS.filter(isSkin);
-    expect(skins).toHaveLength(4);
+    expect(skins).toHaveLength(8);
     for (const skin of skins) {
       const css = themeStyle(skin);
       expect(css, skin.code).toContain(":root:root{");

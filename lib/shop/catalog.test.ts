@@ -23,8 +23,17 @@ describe("каталог", () => {
     expect(of("avatar").filter((i) => i.acquire === "free")).toHaveLength(3);
     expect(of("frame")).toHaveLength(6);
     expect(of("nickColor")).toHaveLength(8);
-    expect(of("theme")).toHaveLength(15);
-    expect(of("theme").filter(isSkin).map((i) => i.code)).toEqual(["theme:cyberpunk", "theme:abyss", "theme:forge", "theme:sepia"]);
+    expect(of("theme")).toHaveLength(19);
+    expect(of("theme").filter(isSkin).map((i) => i.code)).toEqual([
+      "theme:cyberpunk",
+      "theme:abyss",
+      "theme:forge",
+      "theme:sepia",
+      "theme:arctic",
+      "theme:jungle",
+      "theme:vintage",
+      "theme:sakura",
+    ]);
     expect(of("theme").map((i) => i.code)).toEqual(
       expect.arrayContaining(["theme:teal", "theme:graphite", "theme:indigo", "theme:amber", "theme:fuchsia", "theme:lime"]),
     );
@@ -75,7 +84,7 @@ describe("каталог", () => {
       expect(i.acquire, i.code).toBe("coins");
       for (const [key, value] of Object.entries(i.palette)) expect(value, `${i.code} ${key}`).toMatch(/^#[0-9a-f]{6}$/);
     }
-    expect(skins.map((i) => i.mode)).toEqual(["dark", "dark", "dark", "light"]);
+    expect(skins.map((i) => i.mode)).toEqual(["dark", "dark", "dark", "light", "light", "dark", "dark", "light"]);
   });
 
   it("скины: контраст", () => {
@@ -102,6 +111,13 @@ describe("каталог", () => {
       for (const [name, hex] of Object.entries(SEMANTIC_HEX[i.mode])) {
         expect(contrast(hex, p.card), `${i.code} ${name}/card`).toBeGreaterThanOrEqual(3);
       }
+    }
+  });
+
+  it("скины: «восстановление» и «нужен отдых» различимы по яркости — и при дальтонизме", () => {
+    // xp и streak красят соседние состояния на карте мышц; оттенок дальтоник может не различить, яркость — различит
+    for (const i of SHOP_ITEMS.filter(isSkin)) {
+      expect(contrast(i.palette.xp, i.palette.streak), i.code).toBeGreaterThanOrEqual(1.5);
     }
   });
 
