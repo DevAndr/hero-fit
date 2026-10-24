@@ -59,19 +59,20 @@ test("taking the skin off returns the user's own mode", async ({ page }) => {
 });
 
 test("Telegram theme change does not beat the skin", async ({ page }) => {
-  const telegramId = await openMiniApp(page, { colorScheme: "light" });
+  // Telegram в тёмной схеме, потом переключается на светлую — next-themes реально меняет тему, замок её перебивает
+  const telegramId = await openMiniApp(page, { colorScheme: "dark" });
   const login = await withDb(async (db) => {
     const { rows } = await db.query<{ login: string }>(`select login from "User" where "telegramId" = $1`, [telegramId]);
     return rows[0].login;
   });
   await addFlagUser("shop", login);
-  await equipItem(login, "theme", "theme:cyberpunk");
+  await equipItem(login, "theme", "theme:sepia");
   await page.reload();
-  await expect(html(page)).toHaveClass(/\bdark\b/);
-  await tgEmit(page, "themeChanged", { colorScheme: "light" });
-  await page.waitForTimeout(300);
-  await expect(html(page)).toHaveClass(/\bdark\b/);
-  await expect(html(page)).not.toHaveClass(/\blight\b/);
+  await expect(html(page)).toHaveClass(/\blight\b/);
+  await tgEmit(page, "themeChanged", { colorScheme: "dark" });
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe("dark");
+  await expect(html(page)).toHaveClass(/\blight\b/);
+  await expect(html(page)).not.toHaveClass(/\bdark\b/);
 });
 
 test("the landing keeps the user's own look", async ({ page }) => {
@@ -80,6 +81,17 @@ test("the landing keeps the user's own look", async ({ page }) => {
   await page.goto("/");
   await expect(html(page)).toHaveClass(/\blight\b/);
   expect(await cssVar(page, "--background")).not.toBe("#0d0221");
+
+  // Мягкий переход: в кабинет по ссылке и «Назад» — замок снимается, стиль скина уходит вместе с layout кабинета
+  await page.getByRole("banner").getByRole("link", { name: "Открыть кабинет" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(html(page)).toHaveClass(/\bdark\b/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(html(page)).toHaveClass(/\blight\b/);
+  await expect(html(page)).not.toHaveClass(/\bdark\b/);
+  expect(await cssVar(page, "--background")).not.toBe("#0d0221");
+  expect(await colorScheme(page)).toBe("light");
 });
 
 test("settings explain the worn skin", async ({ page }) => {
