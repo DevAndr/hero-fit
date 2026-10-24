@@ -161,3 +161,20 @@ test("new user after the first workout: the week shows 1/3 before any streak", a
   await expect(page.getByTestId("streak-week")).toHaveText("1/3 за неделю");
   await expect(page.getByTestId("streak-message")).toHaveText("Эта неделя: 1/3 — ещё 2 тренировки, и серия зажжётся");
 });
+
+test("an open chart tooltip does not widen the page when the screen narrows", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "Только телефон");
+  // Recharts двигает подсказку только при касании: после поворота/разворота экрана она остаётся на старом месте
+  const me = await registerUser(page);
+  await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 60, reps: 10, sets: 3 }], 1);
+  await page.setViewportSize({ width: 900, height: 780 });
+  await page.goto("/dashboard");
+  const chart = page.getByRole("region", { name: "Объём тренировок" }).locator(".recharts-wrapper");
+  await chart.scrollIntoViewIfNeeded();
+  const box = (await chart.boundingBox())!;
+  await page.touchscreen.tap(box.x + box.width * 0.9, box.y + box.height / 2);
+  await expect(page.locator(".recharts-tooltip-wrapper")).toBeVisible();
+  await page.setViewportSize({ width: 360, height: 780 });
+  // Не с innerWidth: мобильный браузер растягивает его до ширины контента
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+});

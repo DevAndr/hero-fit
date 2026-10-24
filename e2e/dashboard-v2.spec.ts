@@ -99,7 +99,8 @@ test("no horizontal scroll on a phone", async ({ page, isMobile }) => {
   await v2User(page);
   await page.goto("/dashboard");
   await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // Не с innerWidth: мобильный браузер растягивает его до ширины контента
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   // Полоса недели целиком внутри карточки героя (иначе плитки вылезают за её рамку)
   const last = await strip(page).last().boundingBox();
   const hero = await page.locator('section[aria-label="Сегодня"]').boundingBox();

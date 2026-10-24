@@ -72,7 +72,8 @@ test("no horizontal scroll on a phone", async ({ page, isMobile }) => {
   await v3User(page);
   await page.goto("/dashboard");
   await expect(page.getByRole("region", { name: "Баланс нагрузки" })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // Не с innerWidth: мобильный браузер растягивает его до ширины контента
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   const last = await strip(page).last().boundingBox();
   const hero = await page.locator('section[aria-label="Сегодня"]').boundingBox();
   expect(last!.x + last!.width).toBeLessThanOrEqual(hero!.x + hero!.width - 16);
