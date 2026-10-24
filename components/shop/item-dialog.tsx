@@ -7,14 +7,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
 import { buyItemAction, equipItemAction } from "@/lib/shop/actions";
-import { DEFAULT_THEME, type ShopItem } from "@/lib/shop/catalog";
+import { DEFAULT_THEME, isSkin, type ShopItem } from "@/lib/shop/catalog";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { RARITY_LABELS } from "@/lib/shop/view";
 import { haptic } from "@/lib/telegram/webapp";
 
 /** Превью предмета на самом игроке: тема — кнопка и полоска в её цветах (светлой и тёмной). */
 export function ItemPreview({ item, display, equipped }: { item: ShopItem; display: string; equipped: Cosmetics }) {
-  if (item.kind === "theme") {
+  if (item.kind === "theme" && !isSkin(item)) {
     return (
       <div className="grid grid-cols-2 gap-2" data-testid="theme-preview">
         {([item.light, item.dark] as const).map((t, i) => (

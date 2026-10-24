@@ -1,4 +1,4 @@
-import type { ShopItem, ThemeTokens } from "@/lib/shop/catalog";
+import { isSkin, type ShopItem, type ThemeTokens } from "@/lib/shop/catalog";
 
 type ThemeItem = ShopItem & { kind: "theme" };
 
@@ -11,5 +11,6 @@ const block = (t: ThemeTokens) =>
  * Значения — hex из каталога, не ввод пользователя.
  */
 export function themeStyle(item: ThemeItem): string {
+  if (isSkin(item)) return ""; // Task 2: палитра скина
   return `:root:root{${block(item.light)}}:root.dark{${block(item.dark)}}`;
 }
