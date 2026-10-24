@@ -4,7 +4,16 @@ import { expect, test } from "@playwright/test";
 
 const html = (page: import("@playwright/test").Page) => page.locator("html");
 
+test("guest's landing follows the OS theme until a choice is made", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  await expect(html(page)).toHaveClass(/\blight\b/);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(html(page)).toHaveClass(/\bdark\b/);
+});
+
 test("guest switches the landing to light and back; the choice survives a reload", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
   await expect(html(page)).toHaveClass(/\bdark\b/);
   const header = page.getByRole("banner");
@@ -25,6 +34,7 @@ test("guest switches the landing to light and back; the choice survives a reload
 test("the toggle fits the header on a narrow phone", async ({ page, isMobile }) => {
   test.skip(!isMobile, "Только телефон");
   await page.setViewportSize({ width: 360, height: 780 });
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
   await expect(page.getByRole("banner").getByRole("button", { name: "Включить светлую тему" })).toBeVisible();
   // Не с innerWidth: мобильный браузер растягивает его до ширины контента

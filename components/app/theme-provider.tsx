@@ -10,12 +10,15 @@ import type { ReactNode } from "react";
  */
 const scriptProps = { type: typeof window === "undefined" ? "text/javascript" : "application/json" };
 
-/** Тема хранится в localStorage (на устройство) и ставится классом на <html> до отрисовки — без вспышки. */
+/**
+ * Тема хранится в localStorage (на устройство) и ставится классом на <html> до отрисовки — без вспышки.
+ * Пока пользователь не выбрал тему (в /settings или кнопкой на лендинге) — как в системе.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="dark"
+      defaultTheme="system"
       enableSystem
       disableTransitionOnChange
       scriptProps={scriptProps}
