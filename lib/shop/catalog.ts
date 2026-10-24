@@ -2,6 +2,46 @@ export type ItemKind = "avatar" | "frame" | "nickColor" | "theme";
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 export type Acquire = "coins" | "free" | "premium" | "reward";
 export type ThemeTokens = { primary: string; primaryForeground: string; ring: string; chart1: string };
+/** Полная палитра скина (тема со своим фоном) — один режим, только #rrggbb (проверяется contrast()). */
+export type SkinPalette = {
+  background: string;
+  foreground: string;
+  card: string;
+  cardForeground: string;
+  popover: string;
+  popoverForeground: string;
+  primary: string;
+  primaryForeground: string;
+  secondary: string;
+  secondaryForeground: string;
+  muted: string;
+  mutedForeground: string;
+  accent: string;
+  accentForeground: string;
+  border: string;
+  input: string;
+  ring: string;
+  chart1: string;
+  chart2: string;
+  chart3: string;
+  chart4: string;
+  chart5: string;
+  series1: string;
+  series2: string;
+  series3: string;
+  series4: string;
+  series5: string;
+  xp: string;
+  streak: string;
+  sidebar: string;
+  sidebarForeground: string;
+  sidebarPrimary: string;
+  sidebarPrimaryForeground: string;
+  sidebarAccent: string;
+  sidebarAccentForeground: string;
+  sidebarBorder: string;
+  sidebarRing: string;
+};
 
 type Base = { code: string; name: string; rarity: Rarity; price: number; acquire: Acquire };
 export type ShopItem = Base &
@@ -10,14 +50,17 @@ export type ShopItem = Base &
     | { kind: "frame"; ring: string }
     | { kind: "nickColor"; light: string; dark: string; gradient?: { light: [string, string]; dark: [string, string] } }
     | { kind: "theme"; light: ThemeTokens; dark: ThemeTokens }
+    | { kind: "theme"; mode: "dark" | "light"; palette: SkinPalette }
   );
 
-/** Цены по виду и редкости; у тем нет легендарных. */
+export type SkinItem = ShopItem & { kind: "theme"; mode: "dark" | "light"; palette: SkinPalette };
+
+/** Цены по виду и редкости; легендарные темы — скины со своим фоном. */
 export const PRICES: Record<ItemKind, Partial<Record<Rarity, number>>> = {
   avatar: { common: 150, rare: 400, epic: 900, legendary: 2000 },
   frame: { common: 100, rare: 300, epic: 700, legendary: 1500 },
   nickColor: { common: 200, rare: 500, epic: 1000, legendary: 1500 },
-  theme: { common: 300, rare: 600, epic: 1000 },
+  theme: { common: 300, rare: 600, epic: 1000, legendary: 2000 },
 };
 
 const buy = (kind: ItemKind, rarity: Rarity) => PRICES[kind][rarity] ?? 0;
@@ -69,6 +112,73 @@ const theme = (id: string, name: string, rarity: Rarity, light: ThemeTokens, dar
   acquire: "coins",
   light,
   dark,
+});
+
+/** Скин: своя палитра и свой режим — пока надет, кабинет в этом режиме (ThemeModeLock). */
+const skin = (id: string, name: string, mode: "dark" | "light", palette: SkinPalette): ShopItem => ({
+  code: `theme:${id}`,
+  kind: "theme",
+  name,
+  rarity: "legendary",
+  price: buy("theme", "legendary"),
+  acquire: "coins",
+  mode,
+  palette,
+});
+
+/** Тёмная палитра из основных цветов: карточки, рамки и сайдбар — производные. */
+const darkSkin = (c: {
+  background: string;
+  card: string;
+  foreground: string;
+  muted: string;
+  mutedForeground: string;
+  primary: string;
+  primaryForeground: string;
+  border: string;
+  charts: [string, string, string, string, string];
+  xp: string;
+  streak: string;
+}): SkinPalette => skinPalette(c);
+
+const skinPalette = (c: Parameters<typeof darkSkin>[0]): SkinPalette => ({
+  background: c.background,
+  foreground: c.foreground,
+  card: c.card,
+  cardForeground: c.foreground,
+  popover: c.card,
+  popoverForeground: c.foreground,
+  primary: c.primary,
+  primaryForeground: c.primaryForeground,
+  secondary: c.muted,
+  secondaryForeground: c.foreground,
+  muted: c.muted,
+  mutedForeground: c.mutedForeground,
+  accent: c.muted,
+  accentForeground: c.foreground,
+  border: c.border,
+  input: c.border,
+  ring: c.primary,
+  chart1: c.charts[0],
+  chart2: c.charts[1],
+  chart3: c.charts[2],
+  chart4: c.charts[3],
+  chart5: c.charts[4],
+  series1: c.charts[0],
+  series2: c.charts[1],
+  series3: c.charts[2],
+  series4: c.charts[3],
+  series5: c.charts[4],
+  xp: c.xp,
+  streak: c.streak,
+  sidebar: c.background,
+  sidebarForeground: c.foreground,
+  sidebarPrimary: c.primary,
+  sidebarPrimaryForeground: c.primaryForeground,
+  sidebarAccent: c.muted,
+  sidebarAccentForeground: c.foreground,
+  sidebarBorder: c.border,
+  sidebarRing: c.primary,
 });
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -182,6 +292,152 @@ export const SHOP_ITEMS: ShopItem[] = [
     { primary: "#4d7c0f", primaryForeground: "#ffffff", ring: "#65a30d", chart1: "#65a30d" },
     { primary: "#a3e635", primaryForeground: "#1a2e05", ring: "#a3e635", chart1: "#a3e635" },
   ),
+
+  // Скины — темы со своим фоном и режимом
+  skin(
+    "cyberpunk",
+    "Киберпанк",
+    "dark",
+    darkSkin({
+      background: "#0d0221",
+      card: "#1a0b2e",
+      foreground: "#f5e9ff",
+      muted: "#2a1747",
+      mutedForeground: "#b9a3d9",
+      primary: "#ff2e97",
+      primaryForeground: "#1a0010",
+      border: "#3d2a5c",
+      charts: ["#ff2e97", "#00e5ff", "#f9f871", "#a855f7", "#39ff14"],
+      xp: "#ffd60a",
+      streak: "#ff7a1a",
+    }),
+  ),
+  skin(
+    "abyss",
+    "Глубина",
+    "dark",
+    darkSkin({
+      background: "#04121f",
+      card: "#0b2236",
+      foreground: "#e0f2fe",
+      muted: "#133149",
+      mutedForeground: "#93b4cc",
+      primary: "#2dd4bf",
+      primaryForeground: "#042f2e",
+      border: "#1f4766",
+      charts: ["#2dd4bf", "#60a5fa", "#fbbf24", "#c084fc", "#fb7185"],
+      xp: "#fbbf24",
+      streak: "#f97316",
+    }),
+  ),
+  skin(
+    "forge",
+    "Кузница",
+    "dark",
+    darkSkin({
+      background: "#14110f",
+      card: "#221c18",
+      foreground: "#f5efe6",
+      muted: "#2f2722",
+      mutedForeground: "#b8a99a",
+      primary: "#f97316",
+      primaryForeground: "#1c0a00",
+      border: "#4a3d33",
+      charts: ["#f97316", "#facc15", "#a3e635", "#38bdf8", "#e879f9"],
+      xp: "#facc15",
+      streak: "#ea580c",
+    }),
+  ),
+  skin(
+    "sepia",
+    "Сепия",
+    "light",
+    skinPalette({
+      background: "#f4ecd8",
+      card: "#fbf6ea",
+      foreground: "#3b2a1a",
+      muted: "#ece1c8",
+      mutedForeground: "#6b5440",
+      primary: "#8b4513",
+      primaryForeground: "#fbf6ea",
+      border: "#d9c9a8",
+      charts: ["#8b4513", "#b45309", "#4d7c0f", "#1d4ed8", "#be123c"],
+      xp: "#a16207",
+      streak: "#7c2d12",
+    }),
+  ),
+  skin(
+    "arctic",
+    "Арктика",
+    "light",
+    skinPalette({
+      background: "#eef6fb",
+      card: "#ffffff",
+      foreground: "#0c2233",
+      muted: "#e1edf5",
+      mutedForeground: "#4a6577",
+      primary: "#0369a1",
+      primaryForeground: "#ffffff",
+      border: "#c9dbe7",
+      charts: ["#0369a1", "#7c3aed", "#0f766e", "#c2410c", "#be185d"],
+      xp: "#a16207",
+      streak: "#7c2d12",
+    }),
+  ),
+  skin(
+    "jungle",
+    "Джунгли",
+    "dark",
+    darkSkin({
+      background: "#08140d",
+      card: "#10251a",
+      foreground: "#eafbe7",
+      muted: "#1a3526",
+      mutedForeground: "#9cc3a8",
+      primary: "#a3e635",
+      primaryForeground: "#1a2e05",
+      border: "#2c4d3a",
+      charts: ["#a3e635", "#34d399", "#fbbf24", "#60a5fa", "#f472b6"],
+      xp: "#fde047",
+      streak: "#f97316",
+    }),
+  ),
+  skin(
+    "vintage",
+    "Винтаж",
+    "dark",
+    darkSkin({
+      background: "#1a0a0e",
+      card: "#2a1218",
+      foreground: "#fbefe6",
+      muted: "#3a1d24",
+      mutedForeground: "#c9a9a3",
+      primary: "#e7b75f",
+      primaryForeground: "#2a1206",
+      border: "#55303a",
+      charts: ["#e7b75f", "#f87171", "#a3e635", "#60a5fa", "#c084fc"],
+      xp: "#fcd34d",
+      streak: "#f97316",
+    }),
+  ),
+  skin(
+    "sakura",
+    "Сакура",
+    "light",
+    skinPalette({
+      background: "#fdf0f3",
+      card: "#ffffff",
+      foreground: "#3a0d1f",
+      muted: "#f8e1e8",
+      mutedForeground: "#7a4a5c",
+      primary: "#be185d",
+      primaryForeground: "#ffffff",
+      border: "#efcbd6",
+      charts: ["#be185d", "#7c3aed", "#0f766e", "#b45309", "#1d4ed8"],
+      xp: "#a16207",
+      streak: "#7c2d12",
+    }),
+  ),
 ];
 
 /**
@@ -215,6 +471,16 @@ const BY_CODE = new Map(SHOP_ITEMS.map((i) => [i.code, i]));
 /** Предмет по коду; неизвестный (удалённый из каталога) или пустой — null. */
 export function itemByCode(code: string | null | undefined): ShopItem | null {
   return code ? (BY_CODE.get(code) ?? null) : null;
+}
+
+export function isSkin(item: ShopItem): item is SkinItem {
+  return "palette" in item;
+}
+
+/** Скин по коду; обычная тема, другой предмет, неизвестный или пустой код — null. */
+export function skinOf(code: string | null | undefined): SkinItem | null {
+  const item = itemByCode(code);
+  return item && isSkin(item) ? item : null;
 }
 
 /** Что можно купить или взять бесплатно (premium/reward в магазине не продаются). */

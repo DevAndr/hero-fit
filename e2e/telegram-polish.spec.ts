@@ -1,20 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { addToWorkout, registerUser } from "./helpers";
-import { mockTelegram, tgBack, tgCalls, tgEmit } from "./telegram-webapp";
+import { openMiniApp, tgBack, tgCalls, tgEmit } from "./telegram-webapp";
 
-/** Уникальный Telegram id на тест (база общая для воркеров). */
-const newTelegramId = () => String(Date.now() * 1000 + Math.floor(Math.random() * 1000));
-
-type Opts = { colorScheme?: "light" | "dark"; version?: string; safeBottom?: number };
-
-/** Новый человек из Mini App → дашборд; заглушка SDK остаётся на всех следующих страницах. */
-async function openMiniApp(page: Page, opts: Opts = {}) {
-  await mockTelegram(page, { id: newTelegramId(), firstName: "Маша", ...opts });
-  await page.goto("/tg");
-  await page.getByRole("checkbox", { name: /Согласен с политикой обработки персональных данных/ }).check();
-  await page.getByRole("button", { name: "Начать" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-}
 
 const names = async (page: Page) => (await tgCalls(page)).map((c) => c[0] as string);
 const last = async (page: Page, ...methods: string[]) => (await names(page)).filter((n) => methods.includes(n)).at(-1);

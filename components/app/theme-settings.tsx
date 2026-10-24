@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { Monitor, Moon, Palette, Sun, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -13,7 +14,22 @@ const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
 
 const noopSubscribe = () => () => {};
 
-export function ThemeSettings() {
+/** Надетый скин (тема магазина со своим режимом): он важнее выбора здесь, пока надет. */
+export type WornSkin = { name: string; mode: "dark" | "light" } | null;
+
+function SkinNote({ skin }: { skin: WornSkin | undefined }) {
+  if (!skin) return null;
+  return (
+    <p className="text-sm text-muted-foreground">
+      Сейчас надета тема «{skin.name}» — она всегда {skin.mode === "dark" ? "тёмная" : "светлая"}. Снять —{" "}
+      <Link href="/shop?tab=theme" className="text-primary hover:underline">
+        в магазине
+      </Link>
+    </p>
+  );
+}
+
+export function ThemeSettings({ skin }: { skin?: WornSkin }) {
   const { theme, setTheme } = useTheme();
   // Выбранная тема известна только в браузере (localStorage) — до гидрации ничего не отмечаем.
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
@@ -24,6 +40,7 @@ export function ThemeSettings() {
         <Palette className="size-4 text-primary" />
         Оформление
       </h2>
+      <SkinNote skin={skin} />
       <RadioGroup
         aria-label="Тема"
         value={mounted ? theme : null}
@@ -48,14 +65,14 @@ export function ThemeSettings() {
 }
 
 /** В Telegram Mini App тема следует схеме Telegram (TelegramMiniApp) — выбирать нечего. */
-export function TelegramThemeNote() {
+export function TelegramThemeNote({ skin }: { skin?: WornSkin }) {
   return (
     <section aria-label="Оформление" className="space-y-3 rounded-xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-bold">
         <Palette className="size-4 text-primary" />
         Оформление
       </h2>
-      <p className="text-sm text-muted-foreground">Тема — как в Telegram</p>
+      {skin ? <SkinNote skin={skin} /> : <p className="text-sm text-muted-foreground">Тема — как в Telegram</p>}
     </section>
   );
 }

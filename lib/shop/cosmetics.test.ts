@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FlagState } from "@/lib/flags/eval";
-import { itemByCode } from "@/lib/shop/catalog";
+import { isSkin, itemByCode } from "@/lib/shop/catalog";
 import { visibleCosmetics } from "@/lib/shop/cosmetics";
 import { themeStyle } from "@/lib/shop/theme-style";
 
@@ -28,7 +28,7 @@ describe("themeStyle", () => {
   it("содержит --primary и блок .dark", () => {
     const item = itemByCode("theme:ocean") ?? undefined;
     expect(item?.kind).toBe("theme");
-    if (item?.kind !== "theme") return;
+    if (item?.kind !== "theme" || isSkin(item)) return;
     const css = themeStyle(item);
     expect(css).toContain("--primary:");
     expect(css).toContain(".dark");

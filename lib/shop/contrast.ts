@@ -17,3 +17,13 @@ export function contrast(fg: string, bg: string): number {
 
 /** Фон карточки — hex-эквиваленты `--card` из app/globals.css: светлая oklch(1 0 0), тёмная oklch(0.205 0 0). */
 export const CARD_BG = { light: "#ffffff", dark: "#171717" } as const;
+
+/**
+ * Смысловые цвета, общие для всех тем (не входят в палитру скина) — hex-эквиваленты из app/globals.css, тем цветом,
+ * каким они пишут текст: в светлой теме «Важно» — text-warning-foreground на подложке bg-warning/20, в тёмной —
+ * dark:text-warning.
+ */
+export const SEMANTIC_HEX = {
+  light: { destructive: "#e7000b", warningForeground: "#461901" },
+  dark: { destructive: "#ff6467", warning: "#ffb900" },
+} as const;

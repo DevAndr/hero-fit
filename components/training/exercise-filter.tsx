@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { isFavorite, useFavorites } from "@/components/exercises/favorites";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { RECOVERY_DOT } from "@/components/progress/body-map";
+import { RECOVERY_DOT } from "@/lib/progress/recovery-colors";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { recoveryHint, type GroupRecovery } from "@/lib/progress/recovery";
 import { cn } from "@/lib/utils";

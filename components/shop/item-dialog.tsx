@@ -7,13 +7,39 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PlayerAvatar } from "@/components/shop/player-avatar";
 import { PlayerName } from "@/components/shop/player-name";
 import { buyItemAction, equipItemAction } from "@/lib/shop/actions";
-import { DEFAULT_THEME, type ShopItem } from "@/lib/shop/catalog";
+import { DEFAULT_THEME, isSkin, type ShopItem } from "@/lib/shop/catalog";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { RARITY_LABELS } from "@/lib/shop/view";
 import { haptic } from "@/lib/telegram/webapp";
 
 /** Превью предмета на самом игроке: тема — кнопка и полоска в её цветах (светлой и тёмной). */
 export function ItemPreview({ item, display, equipped }: { item: ShopItem; display: string; equipped: Cosmetics }) {
+  if (item.kind === "theme" && isSkin(item)) {
+    const p = item.palette;
+    return (
+      <div className="space-y-2 rounded-lg border p-3" style={{ background: p.background }} data-testid="skin-preview">
+        <div className="space-y-2 rounded-md border p-3" style={{ background: p.card, borderColor: p.border }}>
+          <p className="text-sm font-bold" style={{ color: p.cardForeground }}>
+            Неделя в цифрах
+          </p>
+          <p className="text-xs" style={{ color: p.mutedForeground }}>
+            С понедельника — к прошлой неделе
+          </p>
+          <div className="flex h-2 gap-1">
+            {[p.chart1, p.chart2, p.chart3].map((c) => (
+              <span key={c} className="flex-1 rounded-full" style={{ background: c }} />
+            ))}
+          </div>
+          <span className="inline-block rounded-md px-3 py-1 text-xs font-semibold" style={{ background: p.primary, color: p.primaryForeground }}>
+            Кнопка
+          </span>
+        </div>
+        <p className="text-xs" style={{ color: p.mutedForeground }}>
+          {item.mode === "dark" ? "Тёмная тема" : "Светлая тема"} — пока надета, кабинет всегда в ней
+        </p>
+      </div>
+    );
+  }
   if (item.kind === "theme") {
     return (
       <div className="grid grid-cols-2 gap-2" data-testid="theme-preview">
