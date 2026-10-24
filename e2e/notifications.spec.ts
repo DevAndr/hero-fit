@@ -187,7 +187,8 @@ test("today's plan reminder: push shortly before the planned time, once; setting
       );
     });
 
-    await runTick(request, at);
+    // Только шаг напоминаний: тик с часами в 2031 по всем шагам закрыл бы идущие программы всей тестовой базы
+    await runTick(request, at, "reminders");
     await expect.poll(() => push.received.length).toBe(1);
     expect(push.received[0].payload).toMatchObject({
       type: "PLAN",
@@ -195,7 +196,7 @@ test("today's plan reminder: push shortly before the planned time, once; setting
       body: "В 15:30",
       url: "/calendar?date=2031-03-12",
     });
-    await runTick(request, at);
+    await runTick(request, at, "reminders");
     await page.waitForTimeout(1500);
     expect(push.received).toHaveLength(1);
 
