@@ -21,7 +21,7 @@ test("new user: every widget shows its empty state", async ({ page }) => {
   for (const name of ["Неделя в цифрах", "Свежие рекорды", "Баланс нагрузки", "Календарь активности", "Карта мышц"]) {
     await expect(page.getByRole("region", { name })).toBeVisible();
   }
-  await expect(page.getByText("Рекорды появятся после тренировок")).toBeVisible();
+  await expect(page.getByText("Здесь появятся рекорды, когда превзойдёшь свои результаты")).toBeVisible();
   await expect(page.getByText("Баланс появится после тренировок")).toBeVisible();
   await expect(strip(page)).toHaveCount(7);
   const text = (await page.locator("main").innerText()) ?? "";
@@ -52,11 +52,12 @@ test("strength widget is hidden without strength_analytics", async ({ page }) =>
   await expect(page.getByRole("region", { name: "Тренд силы" })).toHaveCount(0);
 });
 
-test("a finished workout gives a fresh record; an active one keeps the day open", async ({ page }) => {
+test("a first result is not a record; an active workout keeps the day open", async ({ page }) => {
   await v2User(page);
   await quickWorkout(page, "Жим штанги лёжа", [{ weight: "50", reps: "8" }]);
   await page.goto("/dashboard");
-  await expect(page.getByRole("region", { name: "Свежие рекорды" })).toContainText("Жим штанги лёжа");
+  // Первый результат в упражнении — не рекорд (как «Рекорды: 0» в «Неделе в цифрах»)
+  await expect(page.getByRole("region", { name: "Свежие рекорды" })).toContainText("Здесь появятся рекорды");
 
   // Новая тренировка начата, но не завершена: кнопка «Продолжить», плиток с тренировкой по-прежнему одна (сегодняшняя)
   // (тренировка становится активной с первым отмеченным подходом)
@@ -72,12 +73,37 @@ test("a finished workout gives a fresh record; an active one keeps the day open"
   await expect(page.locator("li[aria-label$=': тренировка']")).toHaveCount(1);
 });
 
+test("a beaten record shows the gain", async ({ page }) => {
+  await v2User(page);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "50", reps: "8" }]);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "55", reps: "8" }]);
+  await page.goto("/dashboard");
+  const records = page.getByRole("region", { name: "Свежие рекорды" });
+  await expect(records).toContainText("Жим штанги лёжа");
+  // 1RM важнее веса: 55 × (1 + 8/30) = 69,7 против 63,3
+  await expect(records).toContainText("1RM 69,7 кг");
+  await expect(records).toContainText("+6,3 кг");
+});
+
+test("tour targets: level and streak chips", async ({ page }) => {
+  await v2User(page);
+  await page.goto("/dashboard");
+  await expect(page.locator('[data-tour="xp"]')).toBeVisible();
+  await expect(page.locator('[data-tour="streak"]')).toBeVisible();
+});
+
 test("no horizontal scroll on a phone", async ({ page, isMobile }) => {
   test.skip(!isMobile, "Только телефон");
+  // Узкие Android и Telegram Mini App — 360 px (проект mobile — Pixel 7, 412 px)
+  await page.setViewportSize({ width: 360, height: 780 });
   await v2User(page);
   await page.goto("/dashboard");
   await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // Полоса недели целиком внутри карточки героя (иначе плитки вылезают за её рамку)
+  const last = await strip(page).last().boundingBox();
+  const hero = await page.locator('section[aria-label="Сегодня"]').boundingBox();
+  expect(last!.x + last!.width).toBeLessThanOrEqual(hero!.x + hero!.width - 16);
 });
 
 test("without the flag the old dashboard stays", async ({ page }) => {

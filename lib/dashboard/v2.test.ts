@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceSlices, weekCompare, weekHeadline, weekStrip } from "./v2";
+import { balanceSlices, lastWorkoutDate, weekCompare, weekHeadline, weekStrip } from "./v2";
 
 describe("weekStrip", () => {
   it("неделя с понедельника; сегодня в среду", () => {
@@ -57,5 +57,13 @@ describe("weekHeadline", () => {
     expect(weekHeadline(0, 0)).toBe("Ещё 3 тренировки — и неделя засчитана в серию");
     expect(weekHeadline(3, 4)).toBe("Неделя засчитана — серия 4 недели");
     expect(weekHeadline(5, 1)).toBe("Неделя засчитана — серия 1 неделя");
+  });
+});
+
+describe("lastWorkoutDate", () => {
+  it("дата — в поясе пользователя, а не сервера", () => {
+    // 22:30 UTC 23 октября — в Москве уже 24-е
+    expect(lastWorkoutDate(new Date("2026-10-23T22:30:00Z"), "Europe/Moscow")).toBe("24 октября");
+    expect(lastWorkoutDate(new Date("2026-10-23T22:30:00Z"), "UTC")).toBe("23 октября");
   });
 });

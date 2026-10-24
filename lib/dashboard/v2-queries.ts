@@ -70,26 +70,27 @@ export async function getWorkoutDays(userId: string, tz: string, monday: string,
   return rows.map((r) => r.day);
 }
 
-export type RecentRecord = { exerciseId: string; name: string; type: RecordType; value: number; prev: number | null; achievedAt: Date };
+export type RecentRecord = { exerciseId: string; name: string; type: RecordType; value: number; prev: number; achievedAt: Date };
 
 /**
- * Последние рекорды за 30 дней с прошлым значением того же упражнения и типа: по одному на упражнение — самый свежий,
- * при равенстве 1RM → вес → повторы → время → дистанция (темп — «меньше лучше» — не показываем).
+ * Побитые рекорды за 30 дней — из событий опыта PERSONAL_RECORD (в meta.records — value и previous; PersonalRecord
+ * хранит только текущий лучший результат, истории в нём нет). Первый результат в упражнении рекордом не считается —
+ * как в «Неделе в цифрах» и статистике. По одному на упражнение: самый свежий, при равенстве 1RM → вес → повторы →
+ * время → дистанция; темп («меньше лучше») не показываем.
  */
-export async function getRecentRecords(userId: string, limit = 3): Promise<RecentRecord[]> {
+export async function getRecentRecords(userId: string, limit = 3, now = new Date()): Promise<RecentRecord[]> {
   return db.$queryRaw<RecentRecord[]>`
     SELECT "exerciseId", name, type, value, prev, "achievedAt" FROM (
-      SELECT DISTINCT ON (t."exerciseId") t.*
-      FROM (
-        SELECT r."exerciseId", e.name, r.type, r.value,
-               LAG(r.value) OVER (PARTITION BY r."exerciseId", r.type ORDER BY r."achievedAt") AS prev,
-               r."achievedAt"
-        FROM "PersonalRecord" r JOIN "Exercise" e ON e.id = r."exerciseId"
-        WHERE r."userId" = ${userId} AND r.type <> 'BEST_PACE'
-      ) t
-      WHERE t."achievedAt" >= ${new Date(Date.now() - RECORDS_DAYS * DAY_MS)}
-      ORDER BY t."exerciseId", t."achievedAt" DESC,
-        array_position(ARRAY['ONE_RM', 'MAX_WEIGHT', 'MAX_REPS', 'MAX_DURATION', 'MAX_DISTANCE']::text[], t.type::text)
+      SELECT DISTINCT ON (r."exerciseId") r."exerciseId", COALESCE(e.name, r."exerciseName") AS name, r.type::"RecordType" AS type,
+             r.value, r.previous AS prev, x."createdAt" AS "achievedAt"
+      FROM "XpEvent" x
+      CROSS JOIN LATERAL jsonb_to_recordset(CASE WHEN jsonb_typeof(x.meta->'records') = 'array' THEN x.meta->'records' ELSE '[]'::jsonb END)
+        AS r("exerciseId" text, "exerciseName" text, type text, value float8, previous float8)
+      LEFT JOIN "Exercise" e ON e.id = r."exerciseId"
+      WHERE x."userId" = ${userId} AND x.reason = 'PERSONAL_RECORD' AND r.type <> 'BEST_PACE'
+        AND x."createdAt" >= ${new Date(now.getTime() - RECORDS_DAYS * DAY_MS)}
+      ORDER BY r."exerciseId", x."createdAt" DESC,
+        array_position(ARRAY['ONE_RM', 'MAX_WEIGHT', 'MAX_REPS', 'MAX_DURATION', 'MAX_DISTANCE']::text[], r.type)
     ) best
     ORDER BY "achievedAt" DESC
     LIMIT ${limit}
@@ -113,7 +114,7 @@ export async function getDashboardV2(user: { id: string; timeZone: string }, now
     getWorkoutDays(user.id, user.timeZone, monday, sunday),
     getCalendar(user.id, monday, sunday, user.timeZone, now),
     getWeekTotals(user.id, user.timeZone, now),
-    getRecentRecords(user.id),
+    getRecentRecords(user.id, 3, now),
     getTrends(user.id, user.timeZone),
     isEnabled("strength_analytics", user.id).then(async (on) => (on ? (await getMonthCompare(user.id, user.timeZone, now)).strength : null)),
   ]);

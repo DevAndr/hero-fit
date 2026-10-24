@@ -13,7 +13,7 @@ import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { DashboardV2 } from "@/components/dashboard-v2/dashboard-v2";
 import { WeekHero } from "@/components/dashboard-v2/week-hero";
-import { balanceSlices, weekHeadline } from "@/lib/dashboard/v2";
+import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v2";
 import { getDashboardV2 } from "@/lib/dashboard/v2-queries";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
@@ -252,7 +252,7 @@ export default async function DashboardPage() {
               offer={offer}
               offerText={offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, streakTz)}` : null}
               levelXp={level.current}
-              lastWorkout={last && last.finishedAt ? { id: last.id, name: last.name, finishedAt: last.finishedAt } : null}
+              lastWorkout={last && last.finishedAt ? { id: last.id, name: last.name, date: lastWorkoutDate(last.finishedAt, userTz) } : null}
             />
           }
           today={

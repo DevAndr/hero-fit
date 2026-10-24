@@ -59,6 +59,11 @@ export function balanceSlices(rows: { group: MuscleGroup; sets: number }[], top 
   return kept.map((r, i) => ({ ...r, pct: pct[i] }));
 }
 
+/** «24 октября» — дата в поясе пользователя (сервер на проде в UTC). */
+export function lastWorkoutDate(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone }).format(date);
+}
+
 /** Подпись героя: сколько тренировок до засчитанной недели или что неделя уже в серии. */
 export function weekHeadline(weekWorkouts: number, streak: number): string {
   const left = STREAK_WEEK_TARGET - weekWorkouts;

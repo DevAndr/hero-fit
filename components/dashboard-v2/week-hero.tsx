@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const fullDay = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-const shortDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
 
 function dayLabel(d: StripDay): string {
   const name = fullDay.format(new Date(`${d.day}T12:00:00Z`));
@@ -28,7 +27,8 @@ export function WeekHero(props: {
   offer: RestoreOffer | null;
   offerText: string | null;
   levelXp: number;
-  lastWorkout: { id: string; name: string; finishedAt: Date } | null;
+  /** date — уже в поясе пользователя (lastWorkoutDate) */
+  lastWorkout: { id: string; name: string; date: string } | null;
 }) {
   const { offer } = props;
   return (
@@ -50,13 +50,13 @@ export function WeekHero(props: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ul aria-label="Неделя" className="flex gap-1.5">
+        <ul aria-label="Неделя" data-tour="streak" className="grid w-full grid-cols-7 gap-1 sm:flex sm:w-auto sm:gap-1.5">
           {props.strip.map((d) => (
             <li
               key={d.day}
               aria-label={dayLabel(d)}
               className={cn(
-                "flex h-12 w-10 flex-col items-center justify-center gap-0.5 rounded-lg text-xs",
+                "flex h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg text-xs sm:w-10",
                 d.done ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground",
                 d.today && "ring-2 ring-xp ring-offset-2 ring-offset-background",
               )}
@@ -69,7 +69,7 @@ export function WeekHero(props: {
           ))}
         </ul>
         <div className="flex flex-wrap gap-2 text-sm">
-          <Link href="/achievements" className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
+          <Link href="/achievements" data-tour="xp" className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
             <span className="text-xp">⚡</span> Ур. {props.level.level} · {props.level.percent} %
           </Link>
           <span className="rounded-full bg-muted/60 px-3 py-1 font-medium" data-testid="streak-chip">
@@ -99,7 +99,7 @@ export function WeekHero(props: {
 
       {props.lastWorkout ? (
         <Link href={`/workouts/${props.lastWorkout.id}`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          Последняя тренировка: {props.lastWorkout.name} · {shortDate.format(props.lastWorkout.finishedAt)}
+          Последняя тренировка: {props.lastWorkout.name} · {props.lastWorkout.date}
           <ArrowRight className="size-3.5" />
         </Link>
       ) : null}

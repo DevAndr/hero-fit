@@ -79,9 +79,10 @@ function recordValue(type: RecordType, v: number): string {
 }
 
 function recordGain(type: RecordType, v: number, prev: number): string {
+  if (type === "MAX_REPS") return `+${num(v - prev)} повт.`;
   if (type === "MAX_DURATION") return `+${formatDuration(v - prev)}`;
   if (type === "MAX_DISTANCE") return `+${num((v - prev) / 1000)} км`;
-  return `+${num(v - prev)}`;
+  return `+${num(v - prev)} кг`;
 }
 
 export function RecentRecords({ records, className }: { records: RecentRecord[]; className?: string }) {
@@ -97,7 +98,7 @@ export function RecentRecords({ records, className }: { records: RecentRecord[];
                   <span className="font-medium break-words">{r.name}</span>
                   <span className="block text-xs text-muted-foreground">
                     {RECORD_LABEL[r.type]} {recordValue(r.type, r.value)}
-                    {r.prev !== null && r.value > r.prev ? <span className="ml-1 font-semibold text-primary">{recordGain(r.type, r.value, r.prev)}</span> : " · первый результат"}
+                    <span className="ml-1 font-semibold text-primary">{recordGain(r.type, r.value, r.prev)}</span>
                   </span>
                 </span>
               </Link>
@@ -105,7 +106,7 @@ export function RecentRecords({ records, className }: { records: RecentRecord[];
           ))}
         </ul>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">Рекорды появятся после тренировок</p>
+        <p className="mt-2 text-sm text-muted-foreground">Здесь появятся рекорды, когда превзойдёшь свои результаты</p>
       )}
     </Widget>
   );
