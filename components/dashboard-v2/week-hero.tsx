@@ -29,8 +29,10 @@ export function WeekHero(props: {
   levelXp: number;
   /** date — уже в поясе пользователя (lastWorkoutDate) */
   lastWorkout: { id: string; name: string; date: string } | null;
+  /** Метки экскурсии на полосе и чипе уровня; в v3 их держат прежние карточки «Уровень» и «Серия» */
+  tourTargets?: boolean;
 }) {
-  const { offer } = props;
+  const { offer, tourTargets = true } = props;
   return (
     <section
       aria-label="Сегодня"
@@ -50,7 +52,7 @@ export function WeekHero(props: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ul aria-label="Неделя" data-tour="streak" className="grid w-full grid-cols-7 gap-1 sm:flex sm:w-auto sm:gap-1.5">
+        <ul aria-label="Неделя" data-tour={tourTargets ? "streak" : undefined} className="grid w-full grid-cols-7 gap-1 sm:flex sm:w-auto sm:gap-1.5">
           {props.strip.map((d) => (
             <li
               key={d.day}
@@ -69,7 +71,7 @@ export function WeekHero(props: {
           ))}
         </ul>
         <div className="flex flex-wrap gap-2 text-sm">
-          <Link href="/achievements" data-tour="xp" className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
+          <Link href="/achievements" data-tour={tourTargets ? "xp" : undefined} className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
             <span className="text-xp">⚡</span> Ур. {props.level.level} · {props.level.percent} %
           </Link>
           <span className="rounded-full bg-muted/60 px-3 py-1 font-medium" data-testid="streak-chip">

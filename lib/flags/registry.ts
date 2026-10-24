@@ -40,6 +40,10 @@ export const FLAGS = {
     description: "Дашборд v2: полоса недели и инфографика прогресса",
     expires: "2027-06-30",
   },
+  dashboard_v3: {
+    description: "Дашборд v3: прежний дашборд + полоса недели, «Неделя в цифрах», баланс нагрузки",
+    expires: "2027-06-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

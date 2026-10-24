@@ -14,7 +14,9 @@ import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { DashboardV2 } from "@/components/dashboard-v2/dashboard-v2";
 import { WeekHero } from "@/components/dashboard-v2/week-hero";
 import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v2";
-import { getDashboardV2 } from "@/lib/dashboard/v2-queries";
+import { getDashboardV2, getDashboardV3 } from "@/lib/dashboard/v2-queries";
+import { BalanceDonut } from "@/components/dashboard-v2/balance-donut";
+import { WeekNumbers } from "@/components/dashboard-v2/widgets";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
@@ -227,32 +229,38 @@ export default async function DashboardPage() {
     </p>
   );
 
-  if (await isEnabled("dashboard_v2", user.id)) {
+  // Полоса недели и чипы — общие для v2 и v3 (флаг dashboard_v3 важнее dashboard_v2)
+  const v3 = await isEnabled("dashboard_v3", user.id);
+  const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
+  const headline = data.activeWorkout
+    ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
+    : isStreakUrgent(status)
+      ? "Тренировка сегодня спасёт серию недели"
+      : weekHeadline(weekCount, streakValue(status));
+  const last = data.lastWorkout?.finishedAt && now.getTime() - data.lastWorkout.finishedAt.getTime() <= 14 * 24 * 60 * 60 * 1000 ? data.lastWorkout : null;
+  const heroProps = {
+    name: user.name ?? user.login,
+    headline,
+    activeWorkout: Boolean(data.activeWorkout),
+    level: { level: level.level, percent: level.percent },
+    streak: streakValue(status),
+    freezes: data.streak.streakFreezes,
+    levelXp: level.current,
+    lastWorkout: last && last.finishedAt ? { id: last.id, name: last.name, date: lastWorkoutDate(last.finishedAt, userTz) } : null,
+  };
+
+  if (!v3 && (await isEnabled("dashboard_v2", user.id))) {
     const v2 = await getDashboardV2({ id: user.id, timeZone: userTz }, now);
-    const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
-    const headline = data.activeWorkout
-      ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-      : isStreakUrgent(status)
-        ? "Тренировка сегодня спасёт серию недели"
-        : weekHeadline(weekCount, streakValue(status));
-    const last = data.lastWorkout?.finishedAt && now.getTime() - data.lastWorkout.finishedAt.getTime() <= 14 * 24 * 60 * 60 * 1000 ? data.lastWorkout : null;
     return (
       <>
         {programs ? <OnboardingTour programs={programs} /> : null}
         <DashboardV2
           hero={
             <WeekHero
-              name={user.name ?? user.login}
-              headline={headline}
-              activeWorkout={Boolean(data.activeWorkout)}
+              {...heroProps}
               strip={v2.strip}
-              level={{ level: level.level, percent: level.percent }}
-              streak={streakValue(status)}
-              freezes={data.streak.streakFreezes}
               offer={offer}
               offerText={offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, streakTz)}` : null}
-              levelXp={level.current}
-              lastWorkout={last && last.finishedAt ? { id: last.id, name: last.name, date: lastWorkoutDate(last.finishedAt, userTz) } : null}
             />
           }
           today={
@@ -289,30 +297,42 @@ export default async function DashboardPage() {
     );
   }
 
+  const week3 = v3 ? await getDashboardV3({ id: user.id, timeZone: userTz }, now) : null;
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       {programs ? <OnboardingTour programs={programs} /> : null}
-      {/* Главное действие — самое заметное на странице */}
-      <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Привет, {user.name ?? user.login}!</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data.activeWorkout
-              ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-              : isStreakUrgent(status)
-                ? "Тренировка сегодня спасёт серию недели"
-                : "Готов прокачаться сегодня?"}
-          </p>
-        </div>
-        <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
-          <Play />
-          {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
-        </Link>
-      </section>
+      {/* Главное действие — самое заметное на странице; в v3 — с полосой недели (выкуп серии — в карточке «Серия») */}
+      {week3 ? (
+        <WeekHero {...heroProps} strip={week3.strip} offer={null} offerText={null} tourTargets={false} />
+      ) : (
+        <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Привет, {user.name ?? user.login}!</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data.activeWorkout
+                ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
+                : isStreakUrgent(status)
+                  ? "Тренировка сегодня спасёт серию недели"
+                  : "Готов прокачаться сегодня?"}
+            </p>
+          </div>
+          <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
+            <Play />
+            {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
+          </Link>
+        </section>
+      )}
 
       {todayPlan}
       {coachBlock}
       {recapBlock}
+
+      {week3 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <WeekNumbers week={week3.week} />
+          <BalanceDonut slices={balanceSlices(balance.groups)} />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
