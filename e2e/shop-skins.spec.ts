@@ -82,6 +82,22 @@ test("the landing keeps the user's own look", async ({ page }) => {
   expect(await cssVar(page, "--background")).not.toBe("#0d0221");
 });
 
+test("settings explain the worn skin", async ({ page }) => {
+  const me = await skinned(page, "theme:cyberpunk");
+  await page.goto("/settings");
+  const look = page.getByRole("region", { name: "Оформление" });
+  await expect(look).toContainText("Сейчас надета тема «Киберпанк» — она всегда тёмная. Снять — в магазине");
+  await expect(look.getByRole("link", { name: "в магазине" })).toHaveAttribute("href", "/shop?tab=theme");
+  // Выбор режима работает и при скине — он сохранится и включится после снятия
+  await look.getByRole("radio", { name: "Светлая" }).click();
+  await expect(look.getByRole("radio", { name: "Светлая" })).toBeChecked();
+  await expect(html(page)).toHaveClass(/\bdark\b/);
+
+  await equipItem(me.login, "theme", "theme:ocean");
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Оформление" })).not.toContainText("Сейчас надета тема");
+});
+
 test("buying a skin: preview, price and the balance", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   const me = await registerUser(page);

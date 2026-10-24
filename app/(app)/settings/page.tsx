@@ -20,6 +20,8 @@ import { TelegramCard } from "@/components/notifications/telegram-settings";
 import { SiteLoginForm } from "@/components/auth/site-login-form";
 import { AssistantSettings } from "@/components/assistant/assistant-settings";
 import { requireUser } from "@/lib/auth/dal";
+import { shopAllowed } from "@/lib/shop/access";
+import { skinOf } from "@/lib/shop/catalog";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { getNotificationSettings } from "@/lib/notifications/queries";
@@ -43,11 +45,15 @@ export default async function SettingsPage() {
     whoopAvailable(user.id).then(async (ok) => (ok ? (await getWhoopStatus(user.id)).connected : null)),
   ]);
 
+  // Скин — только при флаге shop: без него тема магазина не применяется
+  const worn = (await shopAllowed(user.id)) ? skinOf(user.themeCode) : null;
+  const skin = worn ? { name: worn.name, mode: worn.mode } : null;
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader title="Настройки" description={user.email ? `${user.name ?? user.login} · ${user.email}` : (user.name ?? user.login)} />
       {hasPassword ? null : <SiteLoginForm />}
-      {user.embedded ? <TelegramThemeNote /> : <ThemeSettings />}
+      {user.embedded ? <TelegramThemeNote skin={skin} /> : <ThemeSettings skin={skin} />}
       <BodyWeightSettings initial={user.bodyWeight} />
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
