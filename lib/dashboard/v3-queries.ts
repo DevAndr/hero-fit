@@ -6,7 +6,7 @@ import { getCalendar } from "@/lib/plans/queries";
 import { getActivity } from "@/lib/stats/queries";
 import { weekCompare, weekStrip, type StripDay, type WeekCompareView, type WeekTotals } from "./v3";
 
-/** Дашборд v3 (флаг dashboard_v3): запросы полосы недели, «Недели в цифрах» и календаря активности. */
+/** Дашборд v3: запросы полосы недели, «Недели в цифрах» и календаря активности. */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -67,7 +67,7 @@ export async function getWorkoutDays(userId: string, tz: string, monday: string,
 
 export type DashboardV3Data = { strip: StripDay[]; week: WeekCompareView; activity: Awaited<ReturnType<typeof getActivity>> };
 
-/** Дашборд v3 (флаг dashboard_v3): полоса недели, «Неделя в цифрах» и календарь активности — остальное берёт прежний дашборд. */
+/** Дашборд v3: полоса недели, «Неделя в цифрах» и календарь активности — остальные блоки страница грузит сама. */
 export async function getDashboardV3(user: { id: string; timeZone: string }, now = new Date()): Promise<DashboardV3Data> {
   const today = dayKey(now, user.timeZone);
   const monday = weekStart(today);

@@ -61,17 +61,20 @@ export function BalanceDonut({ slices }: { slices: Slice[] }) {
               </li>
             ))}
           </ul>
-          <table className="sr-only">
-            <caption>Доли подходов по группам мышц за {BALANCE_DAYS} дней</caption>
-            <tbody>
-              {colored.map((s) => (
-                <tr key={s.key}>
-                  <th scope="row">{label(s.key)}</th>
-                  <td>{s.pct} %</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* sr-only — на обёртке: таблица не сжимается до 1px и растягивала страницу на узком экране */}
+          <div className="sr-only">
+            <table>
+              <caption>Доли подходов по группам мышц за {BALANCE_DAYS} дней</caption>
+              <tbody>
+                {colored.map((s) => (
+                  <tr key={s.key}>
+                    <th scope="row">{label(s.key)}</th>
+                    <td>{s.pct} %</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">Баланс появится после тренировок</p>

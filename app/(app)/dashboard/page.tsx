@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, Clock, Dumbbell, Flame, Play, Snowflake, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Clock, Dumbbell, Flame, Snowflake, Sparkles, Users } from "lucide-react";
 import { GoalCard } from "@/components/achievements/goal-card";
 import { OnboardingTour } from "@/components/onboarding/tour";
 import { BossCard } from "@/components/boss/boss-card";
@@ -18,7 +18,6 @@ import { BalanceDonut } from "@/components/dashboard-v3/balance-donut";
 import { WeekNumbers } from "@/components/dashboard-v3/widgets";
 import { DashboardV3 } from "@/components/dashboard-v3/dashboard-v3";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
-import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
@@ -164,7 +163,6 @@ export default async function DashboardPage() {
   const status = streakStatus(data.streak, now, streakTz);
   const offer = restoreOffer(data.streak, now, streakTz);
 
-  // Блоки, общие для прежнего дашборда и v3 (флаг dashboard_v3)
   const todayPlan = (
     <TodayPlan
       today={plan.today.map((p) => ({ ...p, program: programOf(p.seriesId, p.date) }))}
@@ -230,8 +228,7 @@ export default async function DashboardPage() {
     </p>
   );
 
-  // Герой v3: полоса недели и чипы
-  const v3 = await isEnabled("dashboard_v3", user.id);
+  // Герой: полоса недели и чипы
   const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
   const headline = data.activeWorkout
     ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
@@ -249,7 +246,6 @@ export default async function DashboardPage() {
     lastWorkout: last && last.finishedAt ? { id: last.id, name: last.name, date: lastWorkoutDate(last.finishedAt, userTz) } : null,
   };
 
-  // Блоки прежнего дашборда — v3 раскладывает их по ярусам
   const levelCard = (
     <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -344,96 +340,48 @@ export default async function DashboardPage() {
     </section>
   );
 
-  if (v3) {
-    const v3data = await getDashboardV3({ id: user.id, timeZone: userTz }, now);
-    return (
-      <>
-        {programs ? <OnboardingTour programs={programs} /> : null}
-        <DashboardV3
-          // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
-          hero={<WeekHero {...heroProps} strip={v3data.strip} />}
-          today={
-            <>
-              {todayPlan}
-              {coachBlock}
-              {recapBlock}
-              {whoopBlock}
-            </>
-          }
-          progress={
-            <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <WeekNumbers week={v3data.week} />
-                <BalanceDonut slices={balanceSlices(balance.groups)} />
-              </div>
-              <ActivityHeatmap columns={v3data.activity.columns} />
-              {volumeRow}
-              {bodyMap}
-              {tiles}
-            </>
-          }
-          game={
-            <>
-              {playerRow}
-              {bossBlock}
-              {goalsBlock}
-            </>
-          }
-          community={
-            <>
-              {guildClub}
-              {friends}
-            </>
-          }
-          footer={footer}
-        />
-      </>
-    );
-  }
-
+  const v3data = await getDashboardV3({ id: user.id, timeZone: userTz }, now);
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <>
       {programs ? <OnboardingTour programs={programs} /> : null}
-      {/* Главное действие — самое заметное на странице */}
-      <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Привет, {user.name ?? user.login}!</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data.activeWorkout
-              ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-              : isStreakUrgent(status)
-                ? "Тренировка сегодня спасёт серию недели"
-                : "Готов прокачаться сегодня?"}
-          </p>
-        </div>
-        <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
-          <Play />
-          {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
-        </Link>
-      </section>
-
-      {todayPlan}
-      {coachBlock}
-      {recapBlock}
-
-      {playerRow}
-
-      {bossBlock}
-
-      {goalsBlock}
-
-      {volumeRow}
-
-      {whoopBlock}
-      {bodyMap}
-
-      {tiles}
-
-      {guildClub}
-
-      {friends}
-
-      {footer}
-    </div>
+      <DashboardV3
+        // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
+        hero={<WeekHero {...heroProps} strip={v3data.strip} />}
+        today={
+          <>
+            {todayPlan}
+            {coachBlock}
+            {recapBlock}
+            {whoopBlock}
+          </>
+        }
+        progress={
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <WeekNumbers week={v3data.week} />
+              <BalanceDonut slices={balanceSlices(balance.groups)} />
+            </div>
+            <ActivityHeatmap columns={v3data.activity.columns} />
+            {volumeRow}
+            {bodyMap}
+            {tiles}
+          </>
+        }
+        game={
+          <>
+            {playerRow}
+            {bossBlock}
+            {goalsBlock}
+          </>
+        }
+        community={
+          <>
+            {guildClub}
+            {friends}
+          </>
+        }
+        footer={footer}
+      />
+    </>
   );
 }
