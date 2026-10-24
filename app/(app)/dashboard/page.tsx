@@ -17,6 +17,7 @@ import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v2
 import { getDashboardV2, getDashboardV3 } from "@/lib/dashboard/v2-queries";
 import { BalanceDonut } from "@/components/dashboard-v2/balance-donut";
 import { WeekNumbers } from "@/components/dashboard-v2/widgets";
+import { DashboardV3 } from "@/components/dashboard-v2/dashboard-v3";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
@@ -298,138 +299,185 @@ export default async function DashboardPage() {
     );
   }
 
-  const week3 = v3 ? await getDashboardV3({ id: user.id, timeZone: userTz }, now) : null;
+  // Блоки прежнего дашборда — v3 раскладывает их по ярусам
+  const levelCard = (
+    <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Sparkles className="size-4 text-xp" />
+        Уровень
+      </p>
+      <p className="mt-1 text-5xl font-black text-xp">{level.level}</p>
+      <XpBar level={level.level} percent={level.percent} size="lg" delay={150} label={`Опыт уровня ${level.level}`} className="mt-2" />
+      <p className="mt-1 text-xs text-muted-foreground" data-testid="xp-to-next">
+        {level.current} / {level.required} XP · до уровня {level.level + 1}: {level.required - level.current} XP
+      </p>
+    </section>
+  );
+  const playerRow = (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {levelCard}
+      <StreakCard
+        status={status}
+        longest={data.streak.longestStreak}
+        freezes={data.streak.streakFreezes}
+        offer={offer}
+        levelXp={level.current}
+        timeZone={streakTz}
+      />
+      {nearestGoal}
+    </div>
+  );
+  const bossBlock = <BossCard boss={boss} />;
+  const goalsBlock = <GoalsCard goals={goals.goals} total={goals.total} />;
+  const volumeRow = (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="lg:col-span-2">
+        <VolumeChart data={data.volume} />
+      </div>
+
+      <section aria-label="Последняя тренировка" className="flex flex-col rounded-xl border bg-card p-4">
+        <h2 className="font-bold">Последняя тренировка</h2>
+        {data.lastWorkout ? (
+          <>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data.lastWorkout.name} · {data.lastWorkout.finishedAt ? dateFormat.format(data.lastWorkout.finishedAt) : ""}
+            </p>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs text-muted-foreground">Время</dt>
+                <dd className="font-semibold">{formatClock(data.lastWorkout.durationSec ?? 0)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Объём</dt>
+                <dd className="font-semibold">{Math.round(data.lastWorkout.totalVolume).toLocaleString("ru-RU")} кг</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Подходы</dt>
+                <dd className="font-semibold">{data.lastWorkout.totalSets}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Опыт</dt>
+                <dd className="font-semibold text-xp">+{data.lastWorkout.xpEarned} XP</dd>
+              </div>
+            </dl>
+            <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
+              {data.lastWorkout.exercises.map((e) => e.exercise.name).join(" · ")}
+            </p>
+            <Link
+              href={`/workouts/${data.lastWorkout.id}`}
+              className="mt-auto flex items-center gap-1 pt-3 text-sm text-primary hover:underline"
+            >
+              Подробнее
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center">
+            <Dumbbell className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Здесь появится сводка вашей первой тренировки</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+  const bodyMap = <BodyMap recovery={recovery} balance={balance} />;
+  const tiles = (
+    <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <Tile label="Тренировок всего" value={data.counts.total.toLocaleString("ru-RU")} />
+      <Tile label="За 7 дней" value={String(data.counts.week)} />
+      <Tile label="За 30 дней" value={String(data.counts.month)} />
+      <Tile
+        label="В зале за 7 дней"
+        value={`${data.weekHours.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`}
+        hint={data.counts.week ? `≈ ${Math.round((data.weekHours * 60) / data.counts.week)} мин на тренировку` : undefined}
+      />
+    </section>
+  );
+
+  if (v3) {
+    const v3data = await getDashboardV3({ id: user.id, timeZone: userTz }, now);
+    return (
+      <>
+        {programs ? <OnboardingTour programs={programs} /> : null}
+        <DashboardV3
+          // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
+          hero={<WeekHero {...heroProps} strip={v3data.strip} offer={null} offerText={null} tourTargets={false} />}
+          today={
+            <>
+              {todayPlan}
+              {coachBlock}
+              {recapBlock}
+              {whoopBlock}
+            </>
+          }
+          progress={
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <WeekNumbers week={v3data.week} />
+                <BalanceDonut slices={balanceSlices(balance.groups)} />
+              </div>
+              <ActivityHeatmap columns={v3data.activity.columns} />
+              {volumeRow}
+              {bodyMap}
+              {tiles}
+            </>
+          }
+          game={
+            <>
+              {playerRow}
+              {bossBlock}
+              {goalsBlock}
+            </>
+          }
+          community={
+            <>
+              {guildClub}
+              {friends}
+            </>
+          }
+          footer={footer}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       {programs ? <OnboardingTour programs={programs} /> : null}
-      {/* Главное действие — самое заметное на странице; в v3 — с полосой недели (выкуп серии — в карточке «Серия») */}
-      {week3 ? (
-        <WeekHero {...heroProps} strip={week3.strip} offer={null} offerText={null} tourTargets={false} />
-      ) : (
-        <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Привет, {user.name ?? user.login}!</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {data.activeWorkout
-                ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-                : isStreakUrgent(status)
-                  ? "Тренировка сегодня спасёт серию недели"
-                  : "Готов прокачаться сегодня?"}
-            </p>
-          </div>
-          <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
-            <Play />
-            {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
-          </Link>
-        </section>
-      )}
+      {/* Главное действие — самое заметное на странице */}
+      <section className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Привет, {user.name ?? user.login}!</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {data.activeWorkout
+              ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
+              : isStreakUrgent(status)
+                ? "Тренировка сегодня спасёт серию недели"
+                : "Готов прокачаться сегодня?"}
+          </p>
+        </div>
+        <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
+          <Play />
+          {data.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
+        </Link>
+      </section>
 
       {todayPlan}
       {coachBlock}
       {recapBlock}
 
-      {week3 ? (
-        <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <WeekNumbers week={week3.week} />
-            <BalanceDonut slices={balanceSlices(balance.groups)} />
-          </div>
-          <ActivityHeatmap columns={week3.activity.columns} />
-        </>
-      ) : null}
+      {playerRow}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <section aria-label="Уровень" data-tour="xp" className="rounded-xl border bg-card p-4">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="size-4 text-xp" />
-            Уровень
-          </p>
-          <p className="mt-1 text-5xl font-black text-xp">{level.level}</p>
-          <XpBar level={level.level} percent={level.percent} size="lg" delay={150} label={`Опыт уровня ${level.level}`} className="mt-2" />
-          <p className="mt-1 text-xs text-muted-foreground" data-testid="xp-to-next">
-            {level.current} / {level.required} XP · до уровня {level.level + 1}: {level.required - level.current} XP
-          </p>
-        </section>
+      {bossBlock}
 
-        <StreakCard
-          status={status}
-          longest={data.streak.longestStreak}
-          freezes={data.streak.streakFreezes}
-          offer={offer}
-          levelXp={level.current}
-          timeZone={streakTz}
-        />
+      {goalsBlock}
 
-        {nearestGoal}
-      </div>
-
-      <BossCard boss={boss} />
-
-      <GoalsCard goals={goals.goals} total={goals.total} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <VolumeChart data={data.volume} />
-        </div>
-
-        <section aria-label="Последняя тренировка" className="flex flex-col rounded-xl border bg-card p-4">
-          <h2 className="font-bold">Последняя тренировка</h2>
-          {data.lastWorkout ? (
-            <>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {data.lastWorkout.name} · {data.lastWorkout.finishedAt ? dateFormat.format(data.lastWorkout.finishedAt) : ""}
-              </p>
-              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <dt className="text-xs text-muted-foreground">Время</dt>
-                  <dd className="font-semibold">{formatClock(data.lastWorkout.durationSec ?? 0)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Объём</dt>
-                  <dd className="font-semibold">{Math.round(data.lastWorkout.totalVolume).toLocaleString("ru-RU")} кг</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Подходы</dt>
-                  <dd className="font-semibold">{data.lastWorkout.totalSets}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Опыт</dt>
-                  <dd className="font-semibold text-xp">+{data.lastWorkout.xpEarned} XP</dd>
-                </div>
-              </dl>
-              <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                {data.lastWorkout.exercises.map((e) => e.exercise.name).join(" · ")}
-              </p>
-              <Link
-                href={`/workouts/${data.lastWorkout.id}`}
-                className="mt-auto flex items-center gap-1 pt-3 text-sm text-primary hover:underline"
-              >
-                Подробнее
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center">
-              <Dumbbell className="size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Здесь появится сводка вашей первой тренировки</p>
-            </div>
-          )}
-        </section>
-      </div>
+      {volumeRow}
 
       {whoopBlock}
-      <BodyMap recovery={recovery} balance={balance} />
+      {bodyMap}
 
-      <section aria-label="Статистика" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Tile label="Тренировок всего" value={data.counts.total.toLocaleString("ru-RU")} />
-        <Tile label="За 7 дней" value={String(data.counts.week)} />
-        <Tile label="За 30 дней" value={String(data.counts.month)} />
-        <Tile
-          label="В зале за 7 дней"
-          value={`${data.weekHours.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`}
-          hint={data.counts.week ? `≈ ${Math.round((data.weekHours * 60) / data.counts.week)} мин на тренировку` : undefined}
-        />
-      </section>
+      {tiles}
 
       {guildClub}
 

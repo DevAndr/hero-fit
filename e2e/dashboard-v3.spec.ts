@@ -78,3 +78,21 @@ test("no horizontal scroll on a phone", async ({ page, isMobile }) => {
   const hero = await page.locator('section[aria-label="Сегодня"]').boundingBox();
   expect(last!.x + last!.width).toBeLessThanOrEqual(hero!.x + hero!.width - 16);
 });
+
+test("blocks are grouped into progress, game and community tiers", async ({ page }) => {
+  await v3User(page);
+  await page.goto("/dashboard");
+  const tier = (name: string) => page.getByRole("region", { name, exact: true });
+  const tiers: Record<string, string[]> = {
+    Прогресс: ["Неделя в цифрах", "Баланс нагрузки", "Календарь активности", "Объём тренировок", "Последняя тренировка", "Статистика"],
+    Игра: ["Уровень", "Ближайшая ачивка", "Босс недели", "Цели"],
+    Сообщество: ["Гильдия", "Друзья недавно"],
+  };
+  for (const [name, blocks] of Object.entries(tiers)) {
+    await expect(tier(name).getByRole("heading", { name, exact: true })).toBeVisible();
+    for (const block of blocks) await expect(tier(name).getByRole("region", { name: block, exact: true })).toBeVisible();
+  }
+  await expect(tier("Прогресс").getByTestId("body-map")).toBeVisible();
+  // «Сегодня» без заголовка яруса — над «Прогрессом»
+  await expect(page.getByRole("heading", { name: "Сегодня", exact: true })).toHaveCount(0);
+});

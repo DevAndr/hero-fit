@@ -8,7 +8,7 @@ import type { GroupRecovery } from "@/lib/progress/recovery";
 import { BalanceDonut } from "./balance-donut";
 import { RecentRecords, StrengthCard, WeekNumbers } from "./widgets";
 
-function Tier({ title, children }: { title: string; children: ReactNode }) {
+export function Tier({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={`tier-${title}`} className="space-y-4">
       <h2 id={`tier-${title}`} className="text-lg font-black tracking-tight">
