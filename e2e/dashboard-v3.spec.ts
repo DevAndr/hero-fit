@@ -23,14 +23,12 @@ test("new widgets join the old dashboard", async ({ page }) => {
   await expect(main.getByRole("link", { name: "Начать тренировку" })).toHaveCount(1);
   await expect(page.getByTestId("week-headline")).toHaveText("Ещё 3 тренировки — и неделя засчитана в серию");
   await expect(strip(page)).toHaveCount(7);
-  for (const name of ["Неделя в цифрах", "Баланс нагрузки", "Уровень", "Ближайшая ачивка", "Последняя тренировка", "Статистика"]) {
+  for (const name of ["Неделя в цифрах", "Баланс нагрузки", "Календарь активности", "Уровень", "Ближайшая ачивка", "Последняя тренировка", "Статистика"]) {
     await expect(page.getByRole("region", { name })).toBeVisible();
   }
   await expect(page.getByText("Тренировок всего")).toBeVisible();
-  // Блоки v2, которых в v3 нет
-  for (const name of ["Свежие рекорды", "Календарь активности"]) {
-    await expect(page.getByRole("region", { name })).toHaveCount(0);
-  }
+  // Блок v2, которого в v3 нет
+  await expect(page.getByRole("region", { name: "Свежие рекорды" })).toHaveCount(0);
   const text = (await page.locator("main").innerText()) ?? "";
   expect(text).not.toMatch(/NaN|Infinity/);
 });
@@ -48,6 +46,7 @@ test("this week's workouts fill the strip, numbers and balance", async ({ page }
   await expect(page.locator("li[aria-label$=': тренировка']")).toHaveCount(new Set([mondayKey, today]).size);
   await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toContainText("3,6 т");
   await expect(page.getByRole("region", { name: "Баланс нагрузки" })).toContainText("Грудь");
+  await expect(page.getByRole("region", { name: "Календарь активности" })).toContainText("Тренировочных дней за 26 недель: " + new Set([mondayKey, today]).size);
 });
 
 test("tour targets stay on the old level and streak cards", async ({ page }) => {

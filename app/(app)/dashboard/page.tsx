@@ -17,6 +17,7 @@ import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v2
 import { getDashboardV2, getDashboardV3 } from "@/lib/dashboard/v2-queries";
 import { BalanceDonut } from "@/components/dashboard-v2/balance-donut";
 import { WeekNumbers } from "@/components/dashboard-v2/widgets";
+import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
@@ -328,10 +329,13 @@ export default async function DashboardPage() {
       {recapBlock}
 
       {week3 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <WeekNumbers week={week3.week} />
-          <BalanceDonut slices={balanceSlices(balance.groups)} />
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <WeekNumbers week={week3.week} />
+            <BalanceDonut slices={balanceSlices(balance.groups)} />
+          </div>
+          <ActivityHeatmap columns={week3.activity.columns} />
+        </>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

@@ -5,7 +5,7 @@ import { addDays, weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { getCalendar } from "@/lib/plans/queries";
-import { getTrends, type Trends } from "@/lib/stats/queries";
+import { getActivity, getTrends, type Trends } from "@/lib/stats/queries";
 import type { StrengthTrend } from "@/lib/stats/strength";
 import { getMonthCompare } from "@/lib/stats/strength-queries";
 import { weekCompare, weekStrip, type StripDay, type WeekCompareView, type WeekTotals } from "./v2";
@@ -127,20 +127,22 @@ export async function getDashboardV2(user: { id: string; timeZone: string }, now
   };
 }
 
-export type DashboardV3Data = Pick<DashboardV2Data, "strip" | "week">;
+export type DashboardV3Data = Pick<DashboardV2Data, "strip" | "week"> & { activity: Trends["activity"] };
 
-/** Дашборд v3 (флаг dashboard_v3): только полоса недели и «Неделя в цифрах» — остальное берёт прежний дашборд. */
+/** Дашборд v3 (флаг dashboard_v3): полоса недели, «Неделя в цифрах» и календарь активности — остальное берёт прежний дашборд. */
 export async function getDashboardV3(user: { id: string; timeZone: string }, now = new Date()): Promise<DashboardV3Data> {
   const today = dayKey(now, user.timeZone);
   const monday = weekStart(today);
   const sunday = addDays(monday, 6);
-  const [days, calendar, totals] = await Promise.all([
+  const [days, calendar, totals, activity] = await Promise.all([
     getWorkoutDays(user.id, user.timeZone, monday, sunday),
     getCalendar(user.id, monday, sunday, user.timeZone, now),
     getWeekTotals(user.id, user.timeZone, now),
+    getActivity(user.id, user.timeZone),
   ]);
   return {
     strip: weekStrip({ today, workoutDays: days, plannedDays: calendar.occurrences.map((o) => o.date) }),
     week: weekCompare(totals.cur, totals.prev),
+    activity,
   };
 }
