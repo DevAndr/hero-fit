@@ -88,6 +88,8 @@ test("workout in Telegram: set confirm vibrates, closing is confirmed only while
   await block.getByLabel("Повторы, подход 1").fill("10");
   await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
   await expect.poll(async () => (await tgCalls(page)).some((c) => c[0] === "impactOccurred" && c[1] === "light")).toBe(true);
+  // Вход через Mini App — помощник включён (registerUser его выключает): чек-ин после старта закрывает кнопки на телефоне
+  await page.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Пропустить" }).click();
 
   await page.getByRole("button", { name: "Завершить тренировку" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();

@@ -342,6 +342,14 @@ export async function getTrends(userId: string, timeZone: string) {
 
 export type Trends = Awaited<ReturnType<typeof getTrends>>;
 
+/** Только календарь активности (дашборд v3) — без остальных запросов getTrends. */
+export async function getActivity(userId: string, timeZone: string) {
+  const today = dayKey(new Date(), timeZone);
+  const since = new Date(`${weekStart(today)}T00:00:00Z`);
+  since.setUTCDate(since.getUTCDate() - 7 * (HEATMAP_WEEKS - 1) - 1);
+  return activityGrid(await dailyRows(userId, timeZone, since), today, HEATMAP_WEEKS);
+}
+
 export type CardioStats = { weekSec: number; weekM: number; monthSec: number; monthM: number };
 
 /** Кардио и упражнения на время за 7 и 30 дней: минуты работы и километры (подходы завершённых тренировок). */

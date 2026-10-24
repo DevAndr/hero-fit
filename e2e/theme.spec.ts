@@ -3,15 +3,15 @@ import { registerUser } from "./helpers";
 
 const html = (page: import("@playwright/test").Page) => page.locator("html");
 
-test("theme: dark by default, switch in settings persists, system follows OS", async ({ page }) => {
+test("theme: follows the OS by default, switch in settings persists, system follows OS", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await registerUser(page);
-  // По умолчанию — тёмная, даже если ОС светлая
-  await expect(html(page)).toHaveClass(/\bdark\b/);
+  // По умолчанию — как в системе
+  await expect(html(page)).toHaveClass(/\blight\b/);
 
   await page.goto("/settings");
   const theme = page.getByRole("radiogroup", { name: "Тема" });
-  await expect(theme.getByRole("radio", { name: "Тёмная" })).toBeChecked();
+  await expect(theme.getByRole("radio", { name: "Системная" })).toBeChecked();
 
   await theme.getByRole("radio", { name: "Светлая" }).click();
   await expect(html(page)).toHaveClass(/\blight\b/);

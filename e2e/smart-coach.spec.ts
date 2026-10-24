@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, assistantEnabled, enableCoach, idOf, linkCoach, seedWorkouts, withDb, workoutWellbeing } from "./db";
+import { assistantEnabled, enableAssistant, enableCoach, idOf, linkCoach, seedWorkouts, withDb, workoutWellbeing } from "./db";
 import { addToWorkout, registerUser } from "./helpers";
 
-// Флаг smart_coach — списком на пользователя (addFlagUser), не глобально: спеки идут параллельно
+// registerUser выключает помощника (иначе его чек-ин перекрывает кнопки в чужих спеках) — здесь включаем явно
 
 const chat = (page: Page) => page.getByRole("dialog", { name: "Помощник" });
 
@@ -24,16 +24,15 @@ async function askAbout(page: Page, exercise: string) {
 const workoutId = (login: string) =>
   withDb(async (db) => (await db.query<{ id: string }>(`select w.id from "Workout" w join "User" u on u.id = w."userId" where u.login = $1 order by w."createdAt" desc limit 1`, [login])).rows[0].id);
 
-test("no flag — no assistant", async ({ page }) => {
-  await registerUser(page);
+test("a new user has the assistant without any flag", async ({ page }) => {
+  await registerUser(page, "Герой", { assistant: true });
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Помощник" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Помощник" })).toBeVisible();
 });
 
 test("settings toggle hides the assistant", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await page.goto("/dashboard");
   await expect(page.getByRole("button", { name: "Помощник" })).toBeVisible();
   await page.goto("/settings");
@@ -51,7 +50,7 @@ test("settings toggle hides the assistant", async ({ page }) => {
 
 test("launcher can be dragged and keeps its place", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await page.goto("/dashboard");
   const launcher = page.getByRole("button", { name: "Помощник" });
   await expect(launcher).toBeVisible();
@@ -86,7 +85,7 @@ test("launcher can be dragged and keeps its place", async ({ page }) => {
 
 test("in a workout the launcher is a small tab at the right edge", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await startWorkout(page, ["Жим штанги лёжа"]);
   const launcher = page.getByRole("button", { name: "Помощник" });
   const box = (await launcher.boundingBox())!;
@@ -99,7 +98,7 @@ test("in a workout the launcher is a small tab at the right edge", async ({ page
 
 test("weight for today from history fills the sets", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   // 3 тренировки подряд 3 × 8 · 60 — «пора прибавить»: 62,5
   await seedWorkouts(me.login, "Жим штанги лёжа", [
     { weight: 60, reps: 8, sets: 3 },
@@ -123,7 +122,7 @@ test("tired check-in is saved and the coach sees it", async ({ page, browser }) 
   const context = await browser.newContext();
   const client = await context.newPage();
   const me = await registerUser(client, "Клиент");
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await linkCoach(coach.login, me.login);
 
   await startWorkout(client, ["Жим штанги лёжа"]);
@@ -146,7 +145,7 @@ test("tired check-in is saved and the coach sees it", async ({ page, browser }) 
 
 test("knee pain removes leg exercises and stays on the device", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 40, reps: 10, sets: 2 }]);
   await startWorkout(page, ["Приседания со штангой", "Жим штанги лёжа"]);
   await page.getByRole("region", { name: "Как ты сегодня?" }).getByRole("button", { name: "Что-то болит" }).click();
@@ -174,7 +173,7 @@ test("knee pain removes leg exercises and stays on the device", async ({ page })
 
 test("help works offline", async ({ page, context }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Помощник" }).click();
   // Вебвизор Метрики не пишет текст чата (боль — данные о здоровье)
@@ -191,7 +190,7 @@ test("help works offline", async ({ page, context }) => {
 
 test("server refuses the check-in when the assistant is off or the workout is finished", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await startWorkout(page, ["Жим штанги лёжа"]);
   const id = await workoutId(me.login);
   const card = page.getByRole("region", { name: "Как ты сегодня?" });
@@ -216,7 +215,7 @@ test("server refuses the check-in when the assistant is off or the workout is fi
 
 test("keyboard: focus moves into the chat, Escape closes it and returns focus to the launcher", async ({ page }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await page.goto("/dashboard");
   const launcher = page.getByRole("button", { name: "Помощник" });
   await launcher.click();
@@ -228,7 +227,7 @@ test("keyboard: focus moves into the chat, Escape closes it and returns focus to
 
 test("check-in answered offline is sent when the network is back", async ({ page, context }) => {
   const me = await registerUser(page);
-  await addFlagUser("smart_coach", me.login);
+  await enableAssistant(me.login);
   await startWorkout(page, ["Жим штанги лёжа"]);
   const id = await workoutId(me.login);
   await context.setOffline(true);

@@ -777,6 +777,11 @@ export async function workoutWellbeing(id: string): Promise<string | null> {
   return withDb(async (db) => (await db.query<{ wellbeing: string | null }>(`select wellbeing from "Workout" where id = $1`, [id])).rows[0]?.wellbeing ?? null);
 }
 
+/** Включить помощника (registerUser по умолчанию его выключает). */
+export async function enableAssistant(login: string) {
+  await withDb((db) => db.query(`update "User" set "assistantEnabled" = true where login = $1`, [login]));
+}
+
 export async function assistantEnabled(login: string): Promise<boolean> {
   return withDb(async (db) => (await db.query<{ v: boolean }>(`select "assistantEnabled" as v from "User" where login = $1`, [login])).rows[0].v);
 }

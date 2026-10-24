@@ -3,6 +3,7 @@ import type { CardioStats } from "@/lib/stats/queries";
 import { formatKm } from "@/lib/workouts/kinds";
 import { ChartColumn } from "lucide-react";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
+import { CoinsChart } from "@/components/stats/coins-chart";
 import { MonthCompareCard } from "@/components/stats/month-compare";
 import { MuscleChart } from "@/components/stats/muscle-chart";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
@@ -12,6 +13,7 @@ import { StrengthChart } from "@/components/stats/strength-chart";
 import { WeeklyTrendChart } from "@/components/stats/weekly-trend-chart";
 import { formatClock } from "@/lib/format";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import type { CoinStats } from "@/lib/shop/coin-stats-db";
 import type { MonthCompare } from "@/lib/stats/month";
 import type { getStats, getTrends } from "@/lib/stats/queries";
 
@@ -22,6 +24,8 @@ export type StatsViewData = {
   month: MonthCompare | null;
   /** Кардио за 7/30 дней; null — флаг workout_formats выключен или кардио не было. */
   cardio?: CardioStats | null;
+  /** Монеты по неделям — только на своей /stats при флаге shop (у тренера не передаётся). */
+  coins?: CoinStats | null;
 };
 
 const hours = (sec: number) => `${(sec / 3600).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
@@ -119,6 +123,8 @@ export function StatsView({
       </div>
 
       <ActivityHeatmap columns={trends.activity.columns} />
+
+      {data.coins ? <CoinsChart weeks={data.coins.weeks} balance={data.coins.balance} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2">

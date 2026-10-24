@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { withDb } from "./db";
 
 export const PASSWORD = "Secret123";
 
@@ -11,8 +12,12 @@ export function uniqueLogin() {
   return `e2e_${Date.now().toString(36)}_${process.pid}_${counter++}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Регистрирует нового пользователя и оставляет его залогиненным на /dashboard. */
-export async function registerUser(page: Page, name = "Герой") {
+/**
+ * Регистрирует нового пользователя и оставляет его залогиненным на /dashboard. Помощник выключен (как в /settings):
+ * его чек-ин «Как ты сегодня?» после старта перекрывает кнопки тренировки на телефоне — спеки помощника включают его
+ * `enableAssistant` или `{ assistant: true }`.
+ */
+export async function registerUser(page: Page, name = "Герой", opts: { assistant?: boolean } = {}) {
   const login = uniqueLogin();
   await page.goto("/register");
   await page.getByLabel("Логин").fill(login);
@@ -24,6 +29,7 @@ export async function registerUser(page: Page, name = "Герой") {
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
   // argon2 намеренно «тяжёлый»: под параллельной нагрузкой e2e регистрация может занять несколько секунд.
   await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
+  if (!opts.assistant) await withDb((db) => db.query(`update "User" set "assistantEnabled" = false where login = $1`, [login]));
   return { login, email: `${login}@test.local` };
 }
 

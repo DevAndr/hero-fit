@@ -39,7 +39,7 @@ export type CurrentUser = {
   isAdmin: boolean;
   /** Последний просмотренный релиз «Что нового» (точка в меню профиля). */
   changelogSeen: string | null;
-  /** Умный помощник не выключен в /settings (показ — ещё и по флагу smart_coach). */
+  /** Умный помощник не выключен в /settings. */
   assistantEnabled: boolean;
   /** Надетая косметика и баланс монет — шапке кабинета (магазин). */
   avatarCode: string | null;
