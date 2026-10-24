@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, equipItem, withDb } from "./db";
+import { addFlagUser, coinBalance, equipItem, setCoins, withDb } from "./db";
 import { registerUser } from "./helpers";
 import { openMiniApp, tgEmit } from "./telegram-webapp";
 
@@ -80,4 +80,22 @@ test("the landing keeps the user's own look", async ({ page }) => {
   await page.goto("/");
   await expect(html(page)).toHaveClass(/\blight\b/);
   expect(await cssVar(page, "--background")).not.toBe("#0d0221");
+});
+
+test("buying a skin: preview, price and the balance", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  const me = await registerUser(page);
+  await addFlagUser("shop", me.login);
+  await setCoins(me.login, 2000);
+  await page.goto("/shop?tab=theme");
+  await page.getByTestId("shop-item-theme:cyberpunk").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByTestId("skin-preview")).toBeVisible();
+  await expect(dialog.getByTestId("skin-preview")).toContainText("Тёмная тема");
+  await dialog.getByRole("button", { name: "Купить за 2000" }).click();
+  await dialog.getByRole("button", { name: "Надеть" }).click();
+  await expect(dialog.getByRole("button", { name: "Снять" })).toBeVisible();
+  expect(await coinBalance(me.login)).toBe(0);
+  await page.goto("/dashboard");
+  await expect(html(page)).toHaveClass(/\bdark\b/);
 });
