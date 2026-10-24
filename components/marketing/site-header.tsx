@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/marketing/theme-toggle";
+import { cn } from "@/lib/utils";
 
 /**
  * `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %). Пунктов — не больше, чем влезает в max-w-6xl:
@@ -35,13 +37,15 @@ export function SiteHeader({ authed, clubs }: { authed: boolean; clubs: boolean 
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           {authed ? (
             <Link href="/dashboard" className={buttonVariants()}>
               Открыть кабинет
             </Link>
           ) : (
             <>
-              <Link href="/login" className={buttonVariants({ variant: "ghost", className: "hidden sm:inline-flex" })}>
+              {/* cn, а не className в buttonVariants: cva не сливает классы, и базовый inline-flex перебивал hidden */}
+              <Link href="/login" className={cn(buttonVariants({ variant: "ghost" }), "hidden sm:inline-flex")}>
                 Войти
               </Link>
               <Link href="/register" className={buttonVariants()}>
