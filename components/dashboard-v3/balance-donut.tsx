@@ -1,4 +1,4 @@
-import type { Slice } from "@/lib/dashboard/v2";
+import type { Slice } from "@/lib/dashboard/v3";
 import { BALANCE_DAYS } from "@/lib/progress/balance";
 import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { plural } from "@/lib/format";

@@ -1,8 +1,18 @@
 import type { ReactNode } from "react";
-import { Tier } from "./dashboard-v2";
+
+export function Tier({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={`tier-${title}`} className="space-y-4">
+      <h2 id={`tier-${title}`} className="text-lg font-black tracking-tight">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
 
 /**
- * Дашборд v3 (флаг dashboard_v3): блоки прежнего дашборда и виджеты v2, разложенные по ярусам «Прогресс» → «Игра» →
+ * Дашборд v3 (флаг dashboard_v3): блоки прежнего дашборда и виджеты недели, разложенные по ярусам «Прогресс» → «Игра» →
  * «Сообщество». Все блоки собирает страница.
  */
 export function DashboardV3(props: {

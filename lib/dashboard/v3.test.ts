@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceSlices, lastWorkoutDate, weekCompare, weekHeadline, weekStrip } from "./v2";
+import { balanceSlices, lastWorkoutDate, weekCompare, weekHeadline, weekStrip } from "./v3";
 
 describe("weekStrip", () => {
   it("неделя с понедельника; сегодня в среду", () => {

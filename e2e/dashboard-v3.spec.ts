@@ -1,14 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { addFlagUser, seedWorkouts, setTimeZone } from "./db";
-import { registerUser } from "./helpers";
+import { addToWorkout, quickWorkout, registerUser } from "./helpers";
 import { E2E_TZ, localAt } from "./tz";
 
-// Флаг dashboard_v3 — списком на пользователя (addFlagUser): прежний дашборд + полоса недели, «Неделя в цифрах», баланс
+// Флаг dashboard_v3 — списком на пользователя (addFlagUser): спеки идут параллельно, прежний дашборд у остальных
 
-async function v3User(page: Page, ...flags: ("dashboard_v2" | "dashboard_v3")[]) {
+async function v3User(page: Page) {
   const me = await registerUser(page);
   await setTimeZone(me.login);
-  for (const flag of flags.length ? flags : (["dashboard_v3"] as const)) await addFlagUser(flag, me.login);
+  await addFlagUser("dashboard_v3", me.login);
   return me;
 }
 
@@ -27,8 +27,6 @@ test("new widgets join the old dashboard", async ({ page }) => {
     await expect(page.getByRole("region", { name })).toBeVisible();
   }
   await expect(page.getByText("Тренировок всего")).toBeVisible();
-  // Блок v2, которого в v3 нет
-  await expect(page.getByRole("region", { name: "Свежие рекорды" })).toHaveCount(0);
   const text = (await page.locator("main").innerText()) ?? "";
   expect(text).not.toMatch(/NaN|Infinity/);
 });
@@ -58,12 +56,33 @@ test("tour targets stay on the old level and streak cards", async ({ page }) => 
   await expect(page.getByRole("list", { name: "Неделя" })).not.toHaveAttribute("data-tour");
 });
 
-test("v3 wins over v2", async ({ page }) => {
-  await v3User(page, "dashboard_v2", "dashboard_v3");
+test("a first result is not a record; an active workout keeps the day open", async ({ page }) => {
+  await v3User(page);
+  await quickWorkout(page, "Жим штанги лёжа", [{ weight: "50", reps: "8" }]);
   await page.goto("/dashboard");
-  await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toBeVisible();
+  // Первый результат в упражнении — не рекорд (как в статистике)
+  await expect(page.getByRole("region", { name: "Неделя в цифрах" }).getByText("Рекорды").locator("..")).toContainText("0");
+
+  // Новая тренировка начата, но не завершена: кнопка «Продолжить», плитка с тренировкой по-прежнему одна (сегодняшняя)
+  // (тренировка становится активной с первым отмеченным подходом)
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Приседания со штангой"]);
+  const block = page.getByRole("region", { name: "Приседания со штангой" });
+  await block.getByLabel("Вес, подход 1").fill("60");
+  await block.getByLabel("Повторы, подход 1").fill("5");
+  await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await page.goto("/dashboard");
+  await expect(page.getByRole("main").getByRole("link", { name: "Продолжить тренировку" })).toBeVisible();
+  await expect(page.locator("li[aria-label$=': тренировка']")).toHaveCount(1);
+});
+
+test("without the flag the old dashboard stays", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/dashboard");
   await expect(page.getByText("Тренировок всего")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Свежие рекорды" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Неделя в цифрах" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Прогресс", exact: true })).toHaveCount(0);
 });
 
 test("no horizontal scroll on a phone", async ({ page, isMobile }) => {

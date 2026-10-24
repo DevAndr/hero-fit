@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Check, Play, Snowflake } from "lucide-react";
-import { RestoreStreakButton } from "@/components/dashboard/restore-streak-button";
 import { buttonVariants } from "@/components/ui/button";
-import type { StripDay } from "@/lib/dashboard/v2";
-import type { RestoreOffer } from "@/lib/progress/weekly-streak";
+import type { StripDay } from "@/lib/dashboard/v3";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
@@ -15,7 +13,10 @@ function dayLabel(d: StripDay): string {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)}: ${what}`;
 }
 
-/** Ярус «Сегодня»: приветствие, главная кнопка, полоса недели и чипы уровня, серии и заморозок. */
+/**
+ * Герой дашборда: приветствие, главная кнопка, полоса недели и чипы уровня, серии и заморозок. Выкуп серии и метки
+ * экскурсии — у карточек «Уровень» и «Серия».
+ */
 export function WeekHero(props: {
   name: string;
   headline: string;
@@ -24,15 +25,9 @@ export function WeekHero(props: {
   level: { level: number; percent: number };
   streak: number;
   freezes: number;
-  offer: RestoreOffer | null;
-  offerText: string | null;
-  levelXp: number;
   /** date — уже в поясе пользователя (lastWorkoutDate) */
   lastWorkout: { id: string; name: string; date: string } | null;
-  /** Метки экскурсии на полосе и чипе уровня; в v3 их держат прежние карточки «Уровень» и «Серия» */
-  tourTargets?: boolean;
 }) {
-  const { offer, tourTargets = true } = props;
   return (
     <section
       aria-label="Сегодня"
@@ -52,7 +47,7 @@ export function WeekHero(props: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ul aria-label="Неделя" data-tour={tourTargets ? "streak" : undefined} className="grid w-full grid-cols-7 gap-1 sm:flex sm:w-auto sm:gap-1.5">
+        <ul aria-label="Неделя" className="grid w-full grid-cols-7 gap-1 sm:flex sm:w-auto sm:gap-1.5">
           {props.strip.map((d) => (
             <li
               key={d.day}
@@ -71,7 +66,7 @@ export function WeekHero(props: {
           ))}
         </ul>
         <div className="flex flex-wrap gap-2 text-sm">
-          <Link href="/achievements" data-tour={tourTargets ? "xp" : undefined} className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
+          <Link href="/achievements" className="rounded-full bg-muted/60 px-3 py-1 font-medium hover:bg-muted">
             <span className="text-xp">⚡</span> Ур. {props.level.level} · {props.level.percent} %
           </Link>
           <span className="rounded-full bg-muted/60 px-3 py-1 font-medium" data-testid="streak-chip">
@@ -91,13 +86,6 @@ export function WeekHero(props: {
           ) : null}
         </div>
       </div>
-
-      {offer && props.offerText ? (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">{props.offerText}</p>
-          <RestoreStreakButton streak={offer.streak} cost={offer.cost} missing={Math.max(0, offer.cost - props.levelXp)} />
-        </div>
-      ) : null}
 
       {props.lastWorkout ? (
         <Link href={`/workouts/${props.lastWorkout.id}`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">

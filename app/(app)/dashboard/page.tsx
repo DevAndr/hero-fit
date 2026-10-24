@@ -11,13 +11,12 @@ import { TodayPlan } from "@/components/dashboard/today-plan";
 import { RecapCard } from "@/components/recap/recap-card";
 import { FeedCard } from "@/components/social/activity-feed";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
-import { DashboardV2 } from "@/components/dashboard-v2/dashboard-v2";
-import { WeekHero } from "@/components/dashboard-v2/week-hero";
-import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v2";
-import { getDashboardV2, getDashboardV3 } from "@/lib/dashboard/v2-queries";
-import { BalanceDonut } from "@/components/dashboard-v2/balance-donut";
-import { WeekNumbers } from "@/components/dashboard-v2/widgets";
-import { DashboardV3 } from "@/components/dashboard-v2/dashboard-v3";
+import { WeekHero } from "@/components/dashboard-v3/week-hero";
+import { balanceSlices, lastWorkoutDate, weekHeadline } from "@/lib/dashboard/v3";
+import { getDashboardV3 } from "@/lib/dashboard/v3-queries";
+import { BalanceDonut } from "@/components/dashboard-v3/balance-donut";
+import { WeekNumbers } from "@/components/dashboard-v3/widgets";
+import { DashboardV3 } from "@/components/dashboard-v3/dashboard-v3";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
 import { buttonVariants } from "@/components/ui/button";
 import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
@@ -165,7 +164,7 @@ export default async function DashboardPage() {
   const status = streakStatus(data.streak, now, streakTz);
   const offer = restoreOffer(data.streak, now, streakTz);
 
-  // Блоки, общие для прежнего дашборда и v2 (флаг dashboard_v2)
+  // Блоки, общие для прежнего дашборда и v3 (флаг dashboard_v3)
   const todayPlan = (
     <TodayPlan
       today={plan.today.map((p) => ({ ...p, program: programOf(p.seriesId, p.date) }))}
@@ -231,7 +230,7 @@ export default async function DashboardPage() {
     </p>
   );
 
-  // Полоса недели и чипы — общие для v2 и v3 (флаг dashboard_v3 важнее dashboard_v2)
+  // Герой v3: полоса недели и чипы
   const v3 = await isEnabled("dashboard_v3", user.id);
   const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
   const headline = data.activeWorkout
@@ -247,57 +246,8 @@ export default async function DashboardPage() {
     level: { level: level.level, percent: level.percent },
     streak: streakValue(status),
     freezes: data.streak.streakFreezes,
-    levelXp: level.current,
     lastWorkout: last && last.finishedAt ? { id: last.id, name: last.name, date: lastWorkoutDate(last.finishedAt, userTz) } : null,
   };
-
-  if (!v3 && (await isEnabled("dashboard_v2", user.id))) {
-    const v2 = await getDashboardV2({ id: user.id, timeZone: userTz }, now);
-    return (
-      <>
-        {programs ? <OnboardingTour programs={programs} /> : null}
-        <DashboardV2
-          hero={
-            <WeekHero
-              {...heroProps}
-              strip={v2.strip}
-              offer={offer}
-              offerText={offer ? `Серия сгорела — её можно вернуть до ${deadlineText(offer.expiresAt, streakTz)}` : null}
-            />
-          }
-          today={
-            <>
-              {todayPlan}
-              {whoopBlock}
-              {coachBlock}
-              {recapBlock}
-            </>
-          }
-          data={v2}
-          balance={balanceSlices(balance.groups)}
-          recovery={recovery}
-          game={
-            <>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="lg:col-span-2">
-                  <BossCard boss={boss} />
-                </div>
-                {nearestGoal}
-              </div>
-              <GoalsCard goals={goals.goals} total={goals.total} />
-            </>
-          }
-          community={
-            <>
-              {guildClub}
-              {friends}
-            </>
-          }
-          footer={footer}
-        />
-      </>
-    );
-  }
 
   // Блоки прежнего дашборда — v3 раскладывает их по ярусам
   const levelCard = (
@@ -401,7 +351,7 @@ export default async function DashboardPage() {
         {programs ? <OnboardingTour programs={programs} /> : null}
         <DashboardV3
           // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
-          hero={<WeekHero {...heroProps} strip={v3data.strip} offer={null} offerText={null} tourTargets={false} />}
+          hero={<WeekHero {...heroProps} strip={v3data.strip} />}
           today={
             <>
               {todayPlan}

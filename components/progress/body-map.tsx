@@ -87,20 +87,16 @@ function Figure({
 export function BodyMap({
   recovery,
   balance,
-  views = ["recovery", "balance"],
   className,
 }: {
   recovery: GroupRecovery[];
-  /** Нужен, только если среди views есть «balance». */
-  balance?: MuscleBalanceData;
-  /** Один вид — без переключателя (дашборд v2 показывает только восстановление). */
-  views?: Mode[];
+  balance: MuscleBalanceData;
   className?: string;
 }) {
-  const [mode, setMode] = useState<Mode>(views[0]);
+  const [mode, setMode] = useState<Mode>("recovery");
   const [selected, setSelected] = useState<MuscleGroup | null>(null);
   const byGroup = new Map(recovery.map((r) => [r.group, r]));
-  const balanceBy = new Map((balance?.groups ?? []).map((b) => [b.group, b]));
+  const balanceBy = new Map(balance.groups.map((b) => [b.group, b]));
   const toggle = (g: MuscleGroup) => setSelected((s) => (s === g ? null : g));
   const lower = (g: MuscleGroup) => MUSCLE_GROUP_LABELS[g].toLowerCase();
   const balanceText = (b: GroupBalance) =>
@@ -119,7 +115,7 @@ export function BodyMap({
       : summary.join(" · ") || "Начните тренироваться — здесь появится карта нагрузки";
   } else if (selected) {
     hint = balanceText(balanceBy.get(selected)!);
-  } else if (!balance || balance.untouched.length === balance.groups.length) {
+  } else if (balance.untouched.length === balance.groups.length) {
     hint = `За ${BALANCE_DAYS} дней тренировок не было`;
   } else {
     const parts = [
@@ -140,14 +136,12 @@ export function BodyMap({
           <Activity className="size-4 text-primary" />
           Карта мышц
         </h2>
-        {views.length > 1 ? (
-          <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-            <TabsList>
-              <TabsTrigger value="recovery">Восстановление</TabsTrigger>
-              <TabsTrigger value="balance">Баланс за {BALANCE_DAYS} дней</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        ) : null}
+        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+          <TabsList>
+            <TabsTrigger value="recovery">Восстановление</TabsTrigger>
+            <TabsTrigger value="balance">Баланс за {BALANCE_DAYS} дней</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       <p className="mt-2 min-h-10 text-sm text-muted-foreground" aria-live="polite" data-testid="recovery-hint">
         {hint}

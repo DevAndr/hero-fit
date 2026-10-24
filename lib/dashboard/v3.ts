@@ -1,4 +1,4 @@
-/** Дашборд v2 (спека docs/superpowers/specs/2026-10-24-dashboard-v2-design.md): чистая логика полосы недели и виджетов. */
+/** Дашборд v3 (флаг dashboard_v3; полоса недели и виджеты — из спеки docs/superpowers/specs/2026-10-24-dashboard-v2-design.md): чистая логика полосы недели и виджетов. */
 
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { addDays, weekStart } from "@/lib/dates";
