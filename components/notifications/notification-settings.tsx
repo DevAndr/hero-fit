@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BellOff, BellRing, Loader2, Send, Smartphone } from "lucide-react";
+import { BellOff, BellRing, Copy, Loader2, Send, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
 import { sendTestPushAction, updateNotificationSettingsAction } from "@/lib/notifications/actions";
+import type { NativePushReason } from "@/lib/native/push-state";
 import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 
 type Prefs = {
@@ -44,12 +45,59 @@ export function subscribeError() {
     : "Не удалось включить push. В режиме инкогнито браузеры его не поддерживают.";
 }
 
+/** Android-приложение: push идут через приложение ntfy (UnifiedPush) и только через наш сервер ntfy. */
+const NATIVE_STATUS: Record<Exclude<NativePushReason, null>, string> = {
+  "server-off": "Уведомления в приложении пока недоступны.",
+  "no-distributor": "Уведомления приходят через бесплатное приложение ntfy. Установите его и вернитесь сюда.",
+  "foreign-server":
+    "В ntfy выбран чужой сервер. Откройте ntfy → Настройки → Сервер по умолчанию и укажите адрес ниже, затем включите уведомления снова.",
+  permission: "Уведомления запрещены в настройках Android для Hero Fit.",
+};
+
+const NTFY_STORES = [
+  { name: "RuStore", href: "https://www.rustore.ru/catalog/app/io.heckel.ntfy" },
+  { name: "F-Droid", href: "https://f-droid.org/packages/io.heckel.ntfy/" },
+  { name: "Google Play", href: "https://play.google.com/store/apps/details?id=io.heckel.ntfy" },
+];
+
+function NativeHint({ reason, ntfyUrl }: { reason: NativePushReason; ntfyUrl: string | null }) {
+  const [copied, setCopied] = useState(false);
+  if (reason === "no-distributor")
+    return (
+      <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+        {NTFY_STORES.map((s) => (
+          <a key={s.name} href={s.href} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-4 hover:underline">
+            ntfy в {s.name}
+          </a>
+        ))}
+      </p>
+    );
+  if (reason === "foreign-server" && ntfyUrl)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="rounded bg-muted px-2 py-1 text-sm">{ntfyUrl}</code>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            await navigator.clipboard.writeText(ntfyUrl).then(() => setCopied(true), () => {});
+          }}
+        >
+          <Copy />
+          {copied ? "Скопировано" : "Скопировать адрес"}
+        </Button>
+      </div>
+    );
+  return null;
+}
+
 export function PushDeviceCard({ devices }: { devices: number }) {
   const push = usePush();
   const [testing, startTest] = useTransition();
 
   let status: string;
-  if (!push?.supported)
+  if (push?.native && push.nativeReason) status = NATIVE_STATUS[push.nativeReason];
+  else if (!push?.supported)
     status =
       "Этот браузер не поддерживает push. На iPhone откройте приложение через «Поделиться → На экран «Домой»» — тогда push заработает.";
   else if (!push.available) status = "Push не настроен на сервере (нет VAPID-ключей).";
@@ -66,8 +114,9 @@ export function PushDeviceCard({ devices }: { devices: number }) {
       <p className="text-sm text-muted-foreground" data-testid="push-status">
         {status}
       </p>
+      {push?.native ? <NativeHint reason={push.nativeReason} ntfyUrl={push.ntfyUrl} /> : null}
       <p className="text-xs text-muted-foreground">Устройств с push на аккаунте: {devices}</p>
-      {push?.supported && push.available ? (
+      {push?.supported && push.available && push.nativeReason !== "server-off" ? (
         <div className="flex flex-wrap gap-2">
           {push.subscribed ? (
             <Button variant="outline" disabled={push.busy} onClick={() => push.unsubscribe()}>
@@ -79,7 +128,8 @@ export function PushDeviceCard({ devices }: { devices: number }) {
               disabled={push.busy || !push.ready || push.permission === "denied"}
               onClick={async () => {
                 if (await push.subscribe()) toast.success("Push включён");
-                else toast.error(subscribeError());
+                // В приложении причина видна в карточке (подсказка выше)
+                else toast.error(push.native ? "Не удалось включить push" : subscribeError());
               }}
             >
               {push.busy ? <Loader2 className="animate-spin" /> : <BellRing />}
