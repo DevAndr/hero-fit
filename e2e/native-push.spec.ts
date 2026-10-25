@@ -110,3 +110,10 @@ test("browser: no native hints", async ({ page }) => {
   await expect(card(page)).not.toContainText("ntfy");
   await expect(page.getByText(/Android \d/)).toHaveCount(0);
 });
+
+test("assetlinks.json is public JSON", async ({ request }) => {
+  const res = await request.get("/.well-known/assetlinks.json", { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("application/json");
+  expect(Array.isArray(await res.json())).toBe(true);
+});
