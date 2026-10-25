@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aboutPreview,
+  canCountClick,
   ABOUT_PREVIEW,
   catalogFilterSchema,
   catalogMissing,
@@ -113,5 +114,19 @@ describe("aboutPreview", () => {
     const p = aboutPreview(text);
     expect(p.length).toBeLessThanOrEqual(ABOUT_PREVIEW + 1);
     expect(p.endsWith("слово…")).toBe(true);
+  });
+});
+
+describe("canCountClick", () => {
+  it("считается открытие чужих видимых контактов опубликованной страницы", () => {
+    expect(canCountClick(full, true, "viewer", "coach")).toBe(true);
+    expect(canCountClick({ ...full, catalogListed: false }, true, "viewer", "coach")).toBe(true);
+  });
+  it("не считается: сам тренер, без согласия, без контактов, без публикации, режим выключен", () => {
+    expect(canCountClick(full, true, "coach", "coach")).toBe(false);
+    expect(canCountClick({ ...full, contactsConsentAt: null }, true, "viewer", "coach")).toBe(false);
+    expect(canCountClick({ ...full, telegram: null }, true, "viewer", "coach")).toBe(false);
+    expect(canCountClick({ ...full, publishedAt: null }, true, "viewer", "coach")).toBe(false);
+    expect(canCountClick(full, false, "viewer", "coach")).toBe(false);
   });
 });

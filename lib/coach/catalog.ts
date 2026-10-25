@@ -39,6 +39,11 @@ export function inCatalog(p: CatalogProfile, isCoach: boolean): boolean {
   return catalogMissing(p, isCoach).length === 0;
 }
 
+/** Считать ли открытие контактов: не сам тренер, контакты видны, страница опубликована (каталог не обязателен — есть и на странице тренера). */
+export function canCountClick(p: CatalogProfile, isCoach: boolean, viewerId: string, coachId: string): boolean {
+  return viewerId !== coachId && isCoach && p.publishedAt !== null && contactsVisible(p);
+}
+
 export function cityKey(city: string): string {
   return city.trim().toLowerCase().replaceAll("ё", "е");
 }

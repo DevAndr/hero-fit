@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, coachProfile, enableCoach } from "./db";
+import { addFlagUser, coachProfile, contactClicks, enableCoach } from "./db";
 import { registerUser } from "./helpers";
 
 // Каталог тренеров (спека 2026-10-25-coach-catalog): флаг coach_catalog — на смотрящего, поэтому параллельно.
@@ -72,4 +72,72 @@ test("editor: without the flag there is no catalog section, contacts are still e
   await page.goto("/coach/page");
   await expect(contactsSection(page).getByLabel("Telegram")).toBeVisible();
   await expect(catalogSection(page)).toHaveCount(0);
+});
+
+test("trainer page: a signed-in user sees contact links; a click is counted for the coach", async ({ page, browser }) => {
+  const { coach, nick, tg } = await coachWithPage(page);
+  await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { telegram: tgOf(coach.login), phone: "+79991234567" }, consent: true });
+
+  const ctx = await browser.newContext();
+  try {
+    const viewer = await ctx.newPage();
+    const v = await registerUser(viewer);
+    await addFlagUser("coach_catalog", v.login);
+    await ctx.route("https://t.me/**", (r) => r.fulfill({ body: "" }));
+    await viewer.goto(`/trainer/${nick}`);
+    const contacts = viewer.getByRole("region", { name: "Контакты" });
+    await expect(contacts.getByRole("link", { name: "Телефон +7 999 123-45-67" })).toHaveAttribute("href", "tel:+79991234567");
+    const telegram = contacts.getByRole("link", { name: `Telegram @${tg}` });
+    await expect(telegram).toHaveAttribute("href", `https://t.me/${tg}`);
+    await Promise.all([ctx.waitForEvent("page"), telegram.click()]);
+    await expect.poll(() => contactClicks(coach.login)).toBe(1);
+  } finally {
+    await ctx.close();
+  }
+
+  await page.goto("/coach/page");
+  await expect(catalogSection(page)).toContainText("Контакты открывали 1 раз за 30 дней");
+});
+
+test("trainer page: the coach's own clicks are not counted", async ({ page }) => {
+  const { coach, nick, tg } = await coachWithPage(page, { contacts: { telegram: tgOf("own") }, consent: true });
+  await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { telegram: tg }, consent: true });
+  await page.context().route("https://t.me/**", (r) => r.fulfill({ body: "" }));
+  await page.goto(`/trainer/${nick}`);
+  await Promise.all([page.context().waitForEvent("page"), page.getByRole("region", { name: "Контакты" }).getByRole("link", { name: `Telegram @${tg}` }).click()]);
+  await page.goto("/coach/page");
+  await expect(catalogSection(page)).toContainText("Контакты открывали 0 раз за 30 дней");
+  expect(await contactClicks(coach.login)).toBe(0);
+});
+
+test("trainer page: no consent — no contacts block", async ({ page, browser }) => {
+  const { coach, nick } = await coachWithPage(page);
+  await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { phone: "+79991234567" }, consent: false });
+  const ctx = await browser.newContext();
+  try {
+    const viewer = await ctx.newPage();
+    const v = await registerUser(viewer);
+    await addFlagUser("coach_catalog", v.login);
+    await viewer.goto(`/trainer/${nick}`);
+    await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(viewer.getByRole("region", { name: "Контакты" })).toHaveCount(0);
+    expect(await viewer.content()).not.toContain("79991234567");
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("trainer page: without the viewer's flag — no contacts block", async ({ page, browser }) => {
+  const { coach, nick } = await coachWithPage(page);
+  await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { phone: "+79991234567" }, consent: true });
+  const ctx = await browser.newContext();
+  try {
+    const viewer = await ctx.newPage();
+    await registerUser(viewer);
+    await viewer.goto(`/trainer/${nick}`);
+    await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
+    expect(await viewer.content()).not.toContain("79991234567");
+  } finally {
+    await ctx.close();
+  }
 });
