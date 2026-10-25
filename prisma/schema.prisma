@@ -276,6 +276,7 @@ model User {
   coachRecaps         CoachWeeklyRecap[]
   coachRecapRows      CoachRecapClient[]
   coachProfile        CoachProfile?
+  coachContactClicks  CoachContactClick[]
   kudos               Kudos[]
   recordRespects      RecordRespect[]
   favoriteExercises   FavoriteExercise[]
@@ -952,6 +953,16 @@ model CoachProfile {
   publishedAt DateTime?
   /// блок «Награды тренера» на публичной странице
   showAwards  Boolean     @default(true)
+  /// контакты (каталог тренеров) — нормализованные, см. lib/coach/contacts.ts
+  telegram          String?
+  whatsapp          String?
+  vk                String?
+  phone             String?
+  email             String?
+  /// согласие показывать контакты вошедшим; null — контакты не видны
+  contactsConsentAt DateTime?
+  /// «Показывать меня в каталоге тренеров» — сам тренер, по умолчанию выключено
+  catalogListed     Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -1800,4 +1811,15 @@ model CampaignSend {
 
   @@unique([campaignId, userId, episode])
   @@index([userId, sentAt])
+}
+
+/// Открытия контактов тренера по дням — только число, кто открывал не хранится
+model CoachContactClick {
+  coachId String
+  day     DateTime @db.Date
+  count   Int      @default(0)
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@id([coachId, day])
 }
