@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
+import { Activity, Building2, CalendarRange, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -100,6 +100,12 @@ export function UserMenu({
           <DropdownMenuItem render={<Link href="/coach" />}>
             <ClipboardCheck />
             Клиенты
+          </DropdownMenuItem>
+        ) : null}
+        {isCoach ? (
+          <DropdownMenuItem render={<Link href="/coach/calendar" />}>
+            <CalendarRange />
+            Календарь клиентов
           </DropdownMenuItem>
         ) : null}
         {isCoach ? (

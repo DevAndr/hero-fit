@@ -12,14 +12,11 @@ const UPCOMING_DAYS = 14;
 const PAST_DAYS = 28;
 
 /**
- * Назначения этого тренера клиенту: ближайшие 2 недели (с сегодня) и прошлые 4 недели (новые сверху).
- * «Пропущено клиентом» — отменённые клиентом вхождения: разовые от тренера и исключения его серий,
- * отменённые без пометки тренера (своё «удалить только эту» тренер помечает coachId — такие не показываем).
+ * Назначения этого тренера клиенту за [from, to] (местные даты клиента) и «пропущено клиентом» — отменённые клиентом
+ * вхождения: разовые от тренера и исключения его серий, отменённые без пометки тренера (своё «удалить только эту»
+ * тренер помечает coachId — такие не показываем). Общее у вкладки «План» и календаря тренера.
  */
-export async function getClientPlan(coachId: string, clientId: string, tz: string, now = new Date()) {
-  const today = dayKey(now, tz);
-  const from = addDays(today, -PAST_DAYS);
-  const to = addDays(today, UPCOMING_DAYS - 1);
+export async function coachOccurrences(coachId: string, clientId: string, from: string, to: string, tz: string, now: Date): Promise<CoachPlanItem[]> {
   const [calendar, cancelled] = await Promise.all([
     getCalendar(clientId, from, to, tz, now),
     db.planEntry.findMany({
@@ -44,7 +41,13 @@ export async function getClientPlan(coachId: string, clientId: string, tz: strin
     coachId,
     status: "skipped",
   }));
-  const mine: CoachPlanItem[] = [...calendar.occurrences.filter((o) => o.coachId === coachId), ...skipped];
+  return [...calendar.occurrences.filter((o) => o.coachId === coachId), ...skipped];
+}
+
+/** Назначения этого тренера клиенту: ближайшие 2 недели (с сегодня) и прошлые 4 недели (новые сверху). */
+export async function getClientPlan(coachId: string, clientId: string, tz: string, now = new Date()) {
+  const today = dayKey(now, tz);
+  const mine = await coachOccurrences(coachId, clientId, addDays(today, -PAST_DAYS), addDays(today, UPCOMING_DAYS - 1), tz, now);
   const byTime = (a: CoachPlanItem, b: CoachPlanItem) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date));
   return {
     upcoming: mine.filter((o) => o.date >= today).sort(byTime),
