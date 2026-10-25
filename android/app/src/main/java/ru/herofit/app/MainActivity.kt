@@ -5,6 +5,7 @@ import android.os.Bundle
 import com.getcapacitor.BridgeActivity
 import ru.herofit.app.push.EXTRA_URL
 import ru.herofit.app.push.HeroPushPlugin
+import ru.herofit.app.push.appVisible
 import ru.herofit.app.push.ensureChannels
 import ru.herofit.app.push.safePath
 
@@ -14,6 +15,16 @@ class MainActivity : BridgeActivity() {
         super.onCreate(savedInstanceState)
         ensureChannels(this)
         openFrom(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appVisible = true
+    }
+
+    override fun onPause() {
+        appVisible = false
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

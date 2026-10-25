@@ -105,6 +105,37 @@ test("app: dropped endpoint is removed on start", async ({ page }) => {
   }
 });
 
+test("app: ntfy removed — the saved subscription is dropped, not re-saved", async ({ page }) => {
+  const push = await startPushService();
+  try {
+    const { login } = await registerUser(page);
+    await addFlagUser("native_app", login);
+    await addSubscription(login, push, "UNIFIEDPUSH");
+    await mockNativeApp(page, { distributor: false, saved: push, register: push });
+    await page.goto("/settings");
+    await expect(card(page).getByTestId("push-status")).toContainText("Установите его");
+    await expect.poll(async () => (await rows(push.endpoint)).length).toBe(0);
+    await expect(card(page).getByRole("button", { name: "Выключить на этом устройстве" })).toHaveCount(0);
+  } finally {
+    await push.close();
+  }
+});
+
+test("app: undecryptable push — re-registers on start and saves the new endpoint", async ({ page }) => {
+  const push = await startPushService();
+  try {
+    const { login } = await registerUser(page);
+    await addFlagUser("native_app", login);
+    await mockNativeApp(page, { permission: "granted", saved: push, register: push, reregister: true });
+    await page.goto("/settings");
+    await expect(card(page).getByTestId("push-status")).toHaveText("Push включён на этом устройстве.");
+    expect(await page.evaluate(() => (window as unknown as { __heroPush: { registerCalls: number } }).__heroPush.registerCalls)).toBe(1);
+    expect(await rows(push.endpoint)).toEqual([{ kind: "UNIFIEDPUSH", appVersion: "1.0.0" }]);
+  } finally {
+    await push.close();
+  }
+});
+
 test("browser: no native hints", async ({ page }) => {
   await registerUser(page);
   await page.goto("/settings");

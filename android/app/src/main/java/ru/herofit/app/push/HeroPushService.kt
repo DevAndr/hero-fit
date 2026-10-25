@@ -19,8 +19,9 @@ class HeroPushService : PushService() {
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
-        // Не расшифровалось (ключи сменились) — отбрасываем: сайт перерегистрирует подписку при запуске
+        // Не расшифровалось (ключи потеряны или сменились) — отбрасываем и просим сайт перерегистрироваться при запуске
         if (message.decrypted) showPush(this, String(message.content, Charsets.UTF_8))
+        else PushStore.markReregister(this, true)
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) {

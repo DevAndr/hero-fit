@@ -24,6 +24,12 @@ fun channelFor(type: String?): String = when (type) {
     else -> "system"
 }
 
+/** Приложение на экране (MainActivity между onResume и onPause). */
+@Volatile var appVisible = false
+
+/** Таймер отдыха при открытом приложении не показываем — страница уже подала сигнал сама (как public/sw.js). */
+fun shouldShow(type: String?, appVisible: Boolean): Boolean = !(type == "REST" && appVisible)
+
 /** Один tag — один id: новое уведомление с тем же tag (таймер отдыха) заменяет прежнее, как в service worker. */
 fun notificationId(tag: String?): Int = (tag ?: "hero-fit").hashCode()
 
@@ -56,6 +62,7 @@ fun showPush(context: Context, json: String) {
     val data = runCatching { JSONObject(json) }.getOrNull() ?: return
     ensureChannels(context) // push может прийти, когда приложение ещё ни разу не открывалось после установки
     val type = data.optString("type").ifEmpty { null }
+    if (!shouldShow(type, appVisible)) return
     val tag = data.optString("tag").ifEmpty { null }
     val intent = Intent(context, MainActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)

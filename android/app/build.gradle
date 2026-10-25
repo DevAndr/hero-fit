@@ -76,6 +76,17 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
+// Release — только с боевым адресом: capacitor.config.json в assets пишет последний cap sync, после cap:dev там localhost
+tasks.matching { it.name ==~ /pre\w*ReleaseBuild/ }.configureEach {
+    doFirst {
+        def cfg = file('src/main/assets/capacitor.config.json')
+        def server = cfg.exists() ? new groovy.json.JsonSlurper().parse(cfg).server : null
+        if (server == null || !(server.url ?: '').startsWith('https://') || server.cleartext) {
+            throw new GradleException("Release собирается только после npm run cap:prod (сейчас server.url = ${server?.url})")
+        }
+    }
+}
+
 try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {

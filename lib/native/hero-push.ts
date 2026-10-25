@@ -4,7 +4,8 @@ export type NativeSubscription = { endpoint: string; p256dh: string; auth: strin
 
 /** JS-API плагина android/app/src/main/java/ru/herofit/app/push/HeroPushPlugin.kt. */
 export type HeroPushPlugin = {
-  status(): Promise<{ distributor: boolean; permission: "granted" | "denied" | "prompt" }>;
+  /** reregister — push не расшифровался (ключи потеряны), нужна новая регистрация. */
+  status(): Promise<{ distributor: boolean; permission: "granted" | "denied" | "prompt"; reregister: boolean }>;
   requestPermission(): Promise<{ permission: "granted" | "denied" }>;
   /** Ошибки: "no-distributor", "failed:<FailedReason>", "timeout". */
   register(options: { vapid: string }): Promise<NativeSubscription>;

@@ -27,4 +27,13 @@ class NotificationsTest {
         listOf(null, "", "//evil.com", "/\\evil.com", "https://evil.com", "javascript:alert(1)", "workouts")
             .forEach { assertEquals("/dashboard", safePath(it)) }
     }
+
+    @Test
+    fun restSuppressedWhileAppVisible() {
+        // Как public/sw.js: открытая страница уже сама подала сигнал отдыха
+        assertEquals(false, shouldShow("REST", appVisible = true))
+        assertEquals(true, shouldShow("REST", appVisible = false))
+        assertEquals(true, shouldShow("ACHIEVEMENT", appVisible = true))
+        assertEquals(true, shouldShow(null, appVisible = true))
+    }
 }

@@ -64,12 +64,18 @@ class HeroPushPlugin : Plugin() {
         }
     }
 
+    /**
+     * distributor — есть ли дистрибьютор; если сохранённый удалён (сняли ntfy), библиотека замечает это только в
+     * getAckDistributor — сайт тогда удаляет подписку. reregister — push не расшифровался, нужна новая регистрация.
+     */
     @PluginMethod
     fun status(call: PluginCall) {
+        UnifiedPush.getAckDistributor(context)
         call.resolve(
             JSObject()
                 .put("distributor", UnifiedPush.getDistributors(context).isNotEmpty())
-                .put("permission", permission()),
+                .put("permission", permission())
+                .put("reregister", PushStore.needsReregister(context)),
         )
     }
 
@@ -94,6 +100,7 @@ class HeroPushPlugin : Plugin() {
                 if (!ok) return@tryUseCurrentOrDefaultDistributor call.reject("no-distributor")
                 pending?.reject("superseded")
                 pending = call
+                PushStore.markReregister(context, false)
                 UnifiedPush.register(context, INSTANCE_DEFAULT, null, vapid)
                 main.postDelayed({
                     if (pending === call) {

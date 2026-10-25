@@ -35,6 +35,11 @@ object PushStore {
         }.apply()
     }
 
+    /** Push не расшифровался (ключи потеряны) — сайт при следующем запуске перерегистрирует подписку. */
+    fun needsReregister(context: Context) = prefs(context).getBoolean("reregister", false)
+
+    fun markReregister(context: Context, value: Boolean) = prefs(context).edit().putBoolean("reregister", value).apply()
+
     fun takeDropped(context: Context): String? {
         val p = prefs(context)
         return p.getString("dropped", null)?.also { p.edit().remove("dropped").apply() }

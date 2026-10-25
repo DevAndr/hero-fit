@@ -62,7 +62,22 @@ export function useNativePush(enabled: boolean, vapidKey: string | null, ntfyUrl
       const [st, sub, info] = await Promise.all([HeroPush.status(), HeroPush.getSubscription(), HeroPush.appVersion()]);
       if (cancelled) return;
       version.current = info.version;
-      setStatus(st);
+      setStatus({ distributor: st.distributor, permission: st.permission });
+      if (sub.endpoint && !st.distributor) {
+        // Приложение ntfy удалили — подписка мертва: убрать на сервере и на телефоне, а не пересохранять
+        await unsubscribePushAction(sub.endpoint).catch(() => {});
+        await HeroPush.unregister().catch(() => {});
+        return;
+      }
+      if (st.reregister && st.distributor && st.permission === "granted" && vapidKey) {
+        // Push не расшифровался — новая регистрация (новые ключи и, возможно, эндпоинт)
+        const fresh = await HeroPush.register({ vapid: vapidKey }).catch(() => null);
+        if (fresh) {
+          if (sub.endpoint && sub.endpoint !== fresh.endpoint) await unsubscribePushAction(sub.endpoint).catch(() => {});
+          await save(fresh);
+          return;
+        }
+      }
       if (sub.endpoint) await save(sub);
     })()
       .catch((e) => console.warn("[push] native init", e))
@@ -80,7 +95,7 @@ export function useNativePush(enabled: boolean, vapidKey: string | null, ntfyUrl
       cancelled = true;
       void listener.then((l) => l.remove());
     };
-  }, [enabled, save]);
+  }, [enabled, vapidKey, save]);
 
   const subscribe = useCallback(async () => {
     if (!enabled || !vapidKey) return false;

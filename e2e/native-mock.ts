@@ -10,6 +10,8 @@ export type NativeMockOptions = {
   saved?: { endpoint: string; p256dh: string; auth: string } | null;
   /** Эндпоинт, снятый дистрибьютором до запуска (takeDropped). */
   dropped?: string | null;
+  /** Push не расшифровался — приложение должно перерегистрироваться (status().reregister). */
+  reregister?: boolean;
 };
 
 /**
@@ -26,7 +28,9 @@ export async function mockNativeApp(page: Page, opts: NativeMockOptions) {
       permission: (o.permission ?? "prompt") as string,
       saved: o.saved ?? null,
       dropped: o.dropped ?? null,
+      reregister: o.reregister ?? false,
       unregisterCalls: 0,
+      registerCalls: 0,
     };
     const stored = sessionStorage.getItem(KEY);
     const state: typeof initial = stored ? JSON.parse(stored) : initial;
@@ -36,13 +40,15 @@ export async function mockNativeApp(page: Page, opts: NativeMockOptions) {
     const promise = (names: string[]) => names.map((name) => ({ name, rtype: "promise" }));
     const handlers: Record<string, Record<string, (options: Record<string, unknown>) => unknown>> = {
       HeroPush: {
-        status: () => ({ distributor: state.distributor, permission: state.permission }),
+        status: () => ({ distributor: state.distributor, permission: state.permission, reregister: state.reregister }),
         requestPermission: () => {
           if (state.permission === "prompt") state.permission = "granted";
           return { permission: state.permission };
         },
         register: () => {
           if (!state.distributor) throw new Error("no-distributor");
+          state.registerCalls++;
+          state.reregister = false;
           state.saved = o.register;
           return o.register;
         },
