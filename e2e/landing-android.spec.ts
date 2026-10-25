@@ -14,6 +14,7 @@ test("without native_app for everyone the landing does not mention the Android a
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Приложение для Android" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Скачать APK" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Приложение для Android/ })).toHaveCount(0);
 });
 
 test("native_app for everyone: Android section with the APK link, FAQ and the guide mention it", async ({ page }) => {
@@ -24,6 +25,13 @@ test("native_app for everyone: Android section with the APK link, FAQ and the gu
   await expect(section.getByRole("link", { name: "Скачать APK" })).toHaveAttribute("href", "/download/hero-fit.apk");
   await expect(section.getByRole("link", { name: "Как подключить уведомления" })).toHaveAttribute("href", "/android");
   await expect(page.getByText(/Есть приложение для Android/)).toBeAttached();
+  // Якоря: герой (виден на телефоне), меню шапки (широкий экран) и подвал ведут к секции
+  await expect(page.locator("main section").first().getByRole("link", { name: /Приложение для Android/ })).toHaveAttribute("href", "#android");
+  await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Android" })).toHaveAttribute("href", "/#android");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Приложение для Android" })).toHaveAttribute("href", "/#android");
+  await page.locator("main section").first().getByRole("link", { name: /Приложение для Android/ }).click();
+  await expect(page).toHaveURL(/#android$/);
+  await expect(section).toBeInViewport();
   await page.goto("/android");
   await expect(page.getByRole("link", { name: "Скачать APK" })).toHaveAttribute("href", "/download/hero-fit.apk");
 });
