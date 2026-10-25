@@ -309,6 +309,15 @@ export type FeatureUsage = {
   push: number;
   /** Из них с push в Android-приложении (UnifiedPush или своё соединение). */
   pushNative: number;
+  /** Android-приложение: нажатия «Скачать APK» за 7 и 30 дней и всего, игроки в приложении за 7 и 30 дней, регистрации из него. */
+  apkDownloads7: number;
+  apkDownloads30: number;
+  apkDownloadsAll: number;
+  appUsers7: number;
+  appUsers30: number;
+  appSignups: number;
+  /** Самая частая версия приложения у заходивших за 30 дней; null — заходов не было. */
+  appVersion: string | null;
   guilds: number;
   guildMembers: number;
   clubs: number;
@@ -331,6 +340,14 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(*) FROM "User" WHERE "telegramId" IS NOT NULL)::int AS "telegramMiniApp",
       (SELECT COUNT(DISTINCT "userId") FROM "PushSubscription")::int AS push,
       (SELECT COUNT(DISTINCT "userId") FROM "PushSubscription" WHERE kind <> 'WEB')::int AS "pushNative",
+      (SELECT COALESCE(SUM(count), 0) FROM "ApkDownload" WHERE day > CURRENT_DATE - 7)::int AS "apkDownloads7",
+      (SELECT COALESCE(SUM(count), 0) FROM "ApkDownload" WHERE day > CURRENT_DATE - 30)::int AS "apkDownloads30",
+      (SELECT COALESCE(SUM(count), 0) FROM "ApkDownload")::int AS "apkDownloadsAll",
+      (SELECT COUNT(DISTINCT "userId") FROM "AppVisit" WHERE day > CURRENT_DATE - 7)::int AS "appUsers7",
+      (SELECT COUNT(DISTINCT "userId") FROM "AppVisit" WHERE day > CURRENT_DATE - 30)::int AS "appUsers30",
+      (SELECT COUNT(*) FROM "User" WHERE "signupLanding" = 'android-app')::int AS "appSignups",
+      (SELECT version FROM "AppVisit" WHERE day > CURRENT_DATE - 30 AND version IS NOT NULL
+         GROUP BY version ORDER BY COUNT(DISTINCT "userId") DESC, version DESC LIMIT 1) AS "appVersion",
       (SELECT COUNT(*) FROM "Guild")::int AS guilds,
       (SELECT COUNT(*) FROM "GuildMember")::int AS "guildMembers",
       (SELECT COUNT(*) FROM "Club" WHERE status = 'APPROVED')::int AS clubs,

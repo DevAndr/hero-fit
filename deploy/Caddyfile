@@ -2,8 +2,9 @@
 {$DOMAIN} {
 	encode zstd gzip
 	# X-Real-IP — адрес клиента для лимита подбора пароля (lib/auth/throttle.ts); клиентский заголовок перезаписывается
-	# APK Android-приложения (android/README.md): файлы из /opt/hero-fit/downloads, без кэша — новая версия сразу
-	handle_path /download/* {
+	# APK Android-приложения (android/README.md): файлы из /opt/hero-fit/downloads, без кэша — новая версия сразу.
+	# Кнопка ведёт на /download/hero-fit.apk — его считает приложение и переадресует сюда
+	handle_path /apk/* {
 		root * /srv/downloads
 		@apk path *.apk
 		header @apk Content-Type application/vnd.android.package-archive
