@@ -963,6 +963,8 @@ model CoachProfile {
   contactsConsentAt DateTime?
   /// «Показывать меня в каталоге тренеров» — сам тренер, по умолчанию выключено
   catalogListed     Boolean     @default(false)
+  /// кнопка «Заниматься» на публичной странице; выключена — подключение только по личной ссылке /coach/join/<код>
+  joinEnabled       Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

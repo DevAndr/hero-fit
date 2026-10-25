@@ -33,6 +33,13 @@ describe("coachProfileSchema: контакты и каталог", () => {
   });
 });
 
+describe("coachProfileSchema: кнопка «Заниматься»", () => {
+  it("по умолчанию включена, можно выключить", () => {
+    expect(coachProfileSchema.parse(ok).joinEnabled).toBe(true);
+    expect(coachProfileSchema.parse({ ...ok, joinEnabled: false }).joinEnabled).toBe(false);
+  });
+});
+
 describe("canPublish", () => {
   it("нужны ник и описание от 50 символов", () => {
     expect(canPublish({ about: ok.about }, null)).toBe("Сначала задайте ник");

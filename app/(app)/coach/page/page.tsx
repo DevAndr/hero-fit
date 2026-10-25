@@ -62,6 +62,7 @@ export default async function CoachProfilePage() {
           email: profile?.email ?? "",
           contactsConsent: Boolean(profile?.contactsConsentAt),
           catalogListed: profile?.catalogListed ?? false,
+          joinEnabled: profile?.joinEnabled ?? true,
         }}
         catalog={
 catalog ? { missing: catalogMissing(profile ?? EMPTY_PROFILE, true), clicks30 } : null

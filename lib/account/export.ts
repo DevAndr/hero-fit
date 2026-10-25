@@ -79,6 +79,7 @@ export type ExportRaw = {
         about: string;
         publishedAt: Dated;
         catalogListed: boolean;
+        joinEnabled: boolean;
         telegram: string | null;
         whatsapp: string | null;
         vk: string | null;
@@ -255,6 +256,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
           about: raw.coachPage.about,
           publishedAt: raw.coachPage.publishedAt,
           catalogListed: raw.coachPage.catalogListed,
+          joinEnabled: raw.coachPage.joinEnabled,
           contacts: {
             telegram: raw.coachPage.telegram,
             whatsapp: raw.coachPage.whatsapp,

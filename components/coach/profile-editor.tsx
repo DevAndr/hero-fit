@@ -35,6 +35,7 @@ export type ProfileForm = {
   showAwards: boolean;
   contactsConsent: boolean;
   catalogListed: boolean;
+  joinEnabled: boolean;
 } & Record<ContactKind, string>;
 
 const CONTACT_PLACEHOLDERS: Record<ContactKind, string> = {
@@ -145,6 +146,20 @@ export function ProfileEditor({
             </div>
           </>
         )}
+      </section>
+
+      <section className="rounded-xl border bg-card p-4" aria-label="Подключение клиентов">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm">
+            <span className="font-bold">Кнопка «Заниматься»</span>
+            <span className="block text-xs text-muted-foreground">
+              {form.joinEnabled
+                ? "Клиенты подключаются к вам прямо со страницы"
+                : "Кнопки нет — клиенты подключаются только по вашей личной ссылке-приглашению"}
+            </span>
+          </span>
+          <Switch aria-label="Кнопка «Заниматься»" checked={form.joinEnabled} onCheckedChange={(v) => set({ joinEnabled: v })} />
+        </div>
       </section>
 
       <section className="space-y-4 rounded-xl border bg-card p-4" aria-label="О тренере">

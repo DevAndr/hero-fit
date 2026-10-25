@@ -45,6 +45,7 @@ export const coachProfileSchema = z.object({
   /** Галочка «Показывать контакты вошедшим» — на сервере становится contactsConsentAt. */
   contactsConsent: z.boolean().default(false),
   catalogListed: z.boolean().default(false),
+  joinEnabled: z.boolean().default(true),
 });
 export type CoachProfileInput = z.input<typeof coachProfileSchema>;
 

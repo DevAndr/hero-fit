@@ -77,6 +77,8 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   const url = absoluteUrl(env.APP_URL, pathOf(coach.nickname));
   const telegramUrl = coach.coachCode && telegramEnabled(env) ? telegramJoinUrl(coach.coachCode, env.TELEGRAM_BOT_USERNAME) : null;
 
+  // Тренер выключил «Заниматься» — ни кнопок, ни шагов подключения (подключение — по его личной ссылке)
+  const join = coach.profile.joinEnabled;
   const action = isOwner ? (
     <div className="flex flex-wrap items-center gap-3">
       <p className="text-sm text-muted-foreground">Это ваша страница</p>
@@ -89,7 +91,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
       <BadgeCheck className="size-5" aria-hidden />
       Вы занимаетесь с этим тренером
     </p>
-  ) : (
+  ) : !join ? null : (
     <div className="flex flex-wrap gap-3">
       {/* prefetch={false}: /join — route handler с целью Метрики, предзагрузка засчитывала бы её на каждый просмотр */}
       <Link href={`${pathOf(coach.nickname)}/join`} prefetch={false} className={buttonVariants({ size: "lg" })}>
@@ -143,7 +145,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
         </div>
       </header>
 
-      <div className="mt-6">{action}</div>
+      {action ? <div className="mt-6">{action}</div> : null}
 
       {catalog && contactsVisible(coach.profile) ? (
         <section aria-labelledby="contacts" className="mt-6 space-y-3">
@@ -190,22 +192,24 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
         </section>
       ) : null}
 
-      <section aria-labelledby="how" className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
-        <h2 id="how" className="font-display text-xl font-bold">
-          Как это работает
-        </h2>
-        <ol className="mt-4 space-y-3">
-          {STEPS.map((step, i) => (
-            <li key={step} className="flex gap-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-                {i + 1}
-              </span>
-              <span className="pt-0.5">{step}</span>
-            </li>
-          ))}
-        </ol>
-        {!isOwner && !link ? <div className="mt-6">{action}</div> : null}
-      </section>
+      {join ? (
+        <section aria-labelledby="how" className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
+          <h2 id="how" className="font-display text-xl font-bold">
+            Как это работает
+          </h2>
+          <ol className="mt-4 space-y-3">
+            {STEPS.map((step, i) => (
+              <li key={step} className="flex gap-3">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                  {i + 1}
+                </span>
+                <span className="pt-0.5">{step}</span>
+              </li>
+            ))}
+          </ol>
+          {!isOwner && !link ? <div className="mt-6">{action}</div> : null}
+        </section>
+      ) : null}
     </div>
   );
 }
