@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
+import { Activity, Building2, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -56,6 +56,7 @@ export function UserMenu({
   const clubs = useFlag("clubs");
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
+  const trainers = useFlag("coach_catalog") && !isCoach;
   const campaigns = useFlag("campaigns");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
@@ -181,6 +182,12 @@ export function UserMenu({
           <DropdownMenuItem render={<Link href="/programs" />}>
             <LibraryBig />
             Каталог программ
+          </DropdownMenuItem>
+        ) : null}
+        {trainers ? (
+          <DropdownMenuItem render={<Link href="/trainers" />}>
+            <UserSearch />
+            Найти тренера
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem render={<Link href="/goals" />}>

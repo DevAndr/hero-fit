@@ -223,3 +223,27 @@ test("catalog: 404 without the flag", async ({ page }) => {
   const res = await page.goto("/trainers");
   expect(res?.status()).toBe(404);
 });
+
+test("entry points: sidebar and profile menu «Найти тренера», settings link — only with the flag, not for coaches", async ({ page }) => {
+  const v = await registerUser(page);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: "Найти тренера" })).toHaveCount(0);
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: "Найти тренера в каталоге" })).toHaveCount(0);
+
+  await addFlagUser("coach_catalog", v.login);
+  await page.goto("/dashboard");
+  await page.getByRole("navigation").getByRole("link", { name: "Найти тренера" }).click();
+  await expect(page).toHaveURL(/\/trainers$/);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Меню профиля" }).click();
+  await expect(page.getByRole("menuitem", { name: "Найти тренера" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Найти тренера" }).getByRole("link", { name: "Найти тренера в каталоге" }).click();
+  await expect(page).toHaveURL(/\/trainers$/);
+
+  await enableCoach(v.login, nickOf(v.login));
+  await page.goto("/dashboard");
+  await expect(page.getByRole("navigation").getByRole("link", { name: "Найти тренера" })).toHaveCount(0);
+});

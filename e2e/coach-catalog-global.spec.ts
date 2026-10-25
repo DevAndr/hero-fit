@@ -33,3 +33,13 @@ test("sitemap lists /trainers", async ({ request }) => {
   const xml = await (await request.get("/sitemap.xml")).text();
   expect(xml).toMatch(/<loc>[^<]*\/trainers<\/loc>/);
 });
+
+test("landing: «Тренеры» in the header and the footer, FAQ question, the header fits 1280px", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Тренеры" })).toHaveAttribute("href", "/trainers");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Найти тренера" })).toHaveAttribute("href", "/trainers");
+  await expect(page.getByRole("heading", { name: "Как найти тренера?" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await expect(page.getByRole("banner").getByRole("link", { name: "Начать бесплатно" })).toBeInViewport();
+});

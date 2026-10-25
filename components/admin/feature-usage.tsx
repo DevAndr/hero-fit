@@ -15,6 +15,7 @@ export function FeatureUsage({ usage: u }: { usage: Usage }) {
         `игроков ${fmt(u.appUsers7)} / ${fmt(u.appUsers30)}, регистраций ${fmt(u.appSignups)}` +
         (u.appVersion ? `, версия ${u.appVersion}` : ""),
     ],
+    ["Каталог тренеров", `в каталоге ${fmt(u.catalogCoaches)}, открытий контактов ${fmt(u.contactClicks7)} / ${fmt(u.contactClicks30)} (7 дн. / 30 дн.)`],
     ["Гильдии", `${fmt(u.guilds)}, игроков ${fmt(u.guildMembers)}`],
     ["Клубы", `${fmt(u.clubs)}, участников ${fmt(u.clubMembers)}`],
     ["Активные цели", fmt(u.activeGoals)],

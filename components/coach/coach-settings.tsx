@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ClipboardList, UserCheck } from "lucide-react";
+import { ClipboardList, UserCheck, UserSearch } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -60,6 +60,22 @@ export function CoachModeCard({ initial, hasNickname }: { initial: boolean; hasN
           </Link>
         </p>
       ) : null}
+    </section>
+  );
+}
+
+/** /settings: тренера нет (каталог тренеров, флаг `coach_catalog`) — ссылка на каталог. */
+export function FindCoachCard() {
+  return (
+    <section aria-label="Найти тренера" className="space-y-2 rounded-xl border bg-card p-4">
+      <h2 className="flex items-center gap-2 font-bold">
+        <UserSearch className="size-4 text-primary" />
+        Найти тренера
+      </h2>
+      <p className="text-sm text-muted-foreground">У вас пока нет тренера. В каталоге — тренеры по городу, формату и специализации.</p>
+      <Link href="/trainers" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        Найти тренера в каталоге
+      </Link>
     </section>
   );
 }
