@@ -8,7 +8,7 @@ export function FeatureUsage({ usage: u }: { usage: Usage }) {
     ["Тренеры", `${fmt(u.coaches)}, с клиентами ${fmt(u.coachesWithClients)}`],
     ["Клиентов у тренеров", fmt(u.activeClients)],
     ["Telegram", `уведомления ${fmt(u.telegramNotify)}, Mini App ${fmt(u.telegramMiniApp)}`],
-    ["Push", fmt(u.push)],
+    ["Push", `${fmt(u.push)}, в приложении ${fmt(u.pushNative)}`],
     ["Гильдии", `${fmt(u.guilds)}, игроков ${fmt(u.guildMembers)}`],
     ["Клубы", `${fmt(u.clubs)}, участников ${fmt(u.clubMembers)}`],
     ["Активные цели", fmt(u.activeGoals)],

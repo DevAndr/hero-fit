@@ -60,6 +60,8 @@ export type ExportRaw = {
   favoriteExercises: ({ exercise: string; createdAt: Date } & Record<string, unknown>)[];
   /** Обращения в обратную связь — без заметки админа, браузера и id. */
   feedback: ({ kind: string; body: string; status: string; page: string | null; createdAt: Date } & Record<string, unknown>)[];
+  /** Устройства с push: тип и версия приложения — без эндпоинта и ключей. */
+  pushDevices: ({ kind: string; appVersion: string | null; createdAt: Date } & Record<string, unknown>)[];
   /** Отправки рассылок «вернуться»: название кампании и даты — без id и ключа серии. */
   campaignSends: ({ campaign: string; sentAt: Date; returnedAt: Dated } & Record<string, unknown>)[];
   /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
@@ -108,6 +110,7 @@ export const EXPORT_SECTIONS = [
   "kudosReceived",
   "favoriteExercises",
   "feedback",
+  "pushDevices",
   "campaignSends",
   "programs",
   "coachPrograms",
@@ -204,6 +207,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     kudosReceived: raw.kudosReceived.map((k) => ({ workoutDate: k.workoutDate, from: k.from })),
     favoriteExercises: raw.favoriteExercises.map((f) => ({ exercise: f.exercise, createdAt: f.createdAt })),
     feedback: raw.feedback.map((f) => ({ kind: f.kind, body: f.body, status: f.status, page: f.page, createdAt: f.createdAt })),
+    pushDevices: raw.pushDevices.map((d) => ({ kind: d.kind, appVersion: d.appVersion, createdAt: d.createdAt })),
     campaignSends: raw.campaignSends.map((s) => ({ campaign: s.campaign, sentAt: s.sentAt, returnedAt: s.returnedAt })),
     programs: raw.programs.map((p) => ({
       name: p.name,
