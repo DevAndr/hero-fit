@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, coachProfile, contactClicks, enableCoach } from "./db";
-import { registerUser } from "./helpers";
+import { addFlagUser, coachProfile, contactClicks, createUserRow, enableCoach } from "./db";
+import { registerUser, uniqueLogin } from "./helpers";
 
 // Каталог тренеров (спека 2026-10-25-coach-catalog): флаг coach_catalog — на смотрящего, поэтому параллельно.
 // Гость и глобальный флаг — coach-catalog-global.spec.ts. Экран не важен — только desktop.
@@ -140,4 +140,86 @@ test("trainer page: without the viewer's flag — no contacts block", async ({ p
   } finally {
     await ctx.close();
   }
+});
+
+/** Тренер только в БД (без входа): по умолчанию — полностью в каталоге. */
+async function dbCoach(city: string, extra: Partial<Parameters<typeof coachProfile>[1]> = {}) {
+  const login = uniqueLogin();
+  await createUserRow(login);
+  const nick = nickOf(login);
+  await enableCoach(login, nick);
+  await coachProfile(login, { about: ABOUT, publish: true, city, contacts: { telegram: tgOf(login) }, consent: true, listed: true, ...extra });
+  return { login, nick };
+}
+
+/** Уникальный «город» на тест — каталог общий для параллельных тестов. */
+const cityOf = () => `Город${uniqueLogin().replace(/[^a-z0-9]/g, "").slice(-10)}`;
+
+async function viewer(page: Page) {
+  const v = await registerUser(page);
+  await addFlagUser("coach_catalog", v.login);
+  return v;
+}
+
+const cards = (page: Page) => page.getByRole("list", { name: "Тренеры" }).getByRole("listitem").filter({ has: page.getByRole("link", { name: "Подробнее" }) });
+
+test("catalog: a listed coach is shown; unlisted, no-consent and no-contact coaches are not", async ({ page }) => {
+  const city = cityOf();
+  const shown = await dbCoach(city, { displayName: "Видимый Тренер" });
+  await dbCoach(city, { listed: false });
+  await dbCoach(city, { consent: false });
+  await dbCoach(city, { contacts: {} });
+  await viewer(page);
+  await page.goto(`/trainers?city=${encodeURIComponent(city.toUpperCase())}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Тренеры Hero Fit" })).toBeVisible();
+  await expect(cards(page)).toHaveCount(1);
+  await expect(cards(page).first()).toContainText("Видимый Тренер");
+  await expect(cards(page).first().getByRole("link", { name: `Telegram @${tgOf(shown.login)}` })).toBeVisible();
+  await cards(page).first().getByRole("link", { name: "Подробнее" }).click();
+  await expect(page).toHaveURL(new RegExp(`/trainer/${shown.nick}$`));
+});
+
+test("catalog: format filter — «online and in the gym» matches both; specialty filter", async ({ page }) => {
+  const city = cityOf();
+  await dbCoach(city, { displayName: "Онлайн Тренер", format: "ONLINE", specialties: ["strength"] });
+  await dbCoach(city, { displayName: "Зальный Тренер", format: "OFFLINE", specialties: ["mass"] });
+  await dbCoach(city, { displayName: "Универсальный Тренер", format: "BOTH", specialties: ["strength"] });
+  await viewer(page);
+  const names = async (query: string) => {
+    await page.goto(`/trainers?city=${encodeURIComponent(city)}&${query}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    return (await cards(page).getByRole("heading").allTextContents()).sort();
+  };
+  expect(await names("format=ONLINE")).toEqual(["Онлайн Тренер", "Универсальный Тренер"]);
+  expect(await names("format=OFFLINE")).toEqual(["Зальный Тренер", "Универсальный Тренер"]);
+  expect(await names("specialty=mass")).toEqual(["Зальный Тренер"]);
+  expect(await names("format=OFFLINE&specialty=strength")).toEqual(["Универсальный Тренер"]);
+});
+
+test("catalog: filters form submits city, format and specialty", async ({ page }) => {
+  const city = cityOf();
+  await dbCoach(city, { displayName: "Тренер Формы", format: "ONLINE", specialties: ["rehab"] });
+  await viewer(page);
+  await page.goto("/trainers");
+  await page.getByLabel("Город").selectOption({ label: city });
+  await page.getByLabel("Формат").selectOption({ label: "онлайн" });
+  await page.getByLabel("Специализация").selectOption({ label: "Восстановление после травм" });
+  await page.getByRole("button", { name: "Показать" }).click();
+  await expect(page).toHaveURL(/format=ONLINE/);
+  await expect(cards(page)).toHaveCount(1);
+  await expect(cards(page).first()).toContainText("Тренер Формы");
+});
+
+test("catalog: empty state with reset", async ({ page }) => {
+  await viewer(page);
+  await page.goto("/trainers?city=nowhere-city-x");
+  await expect(page.getByText("По этим условиям тренеров пока нет")).toBeVisible();
+  await page.getByRole("link", { name: "Сбросить фильтры" }).click();
+  await expect(page).toHaveURL(/\/trainers$/);
+});
+
+test("catalog: 404 without the flag", async ({ page }) => {
+  await registerUser(page);
+  const res = await page.goto("/trainers");
+  expect(res?.status()).toBe(404);
 });
