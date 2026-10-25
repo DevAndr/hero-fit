@@ -522,6 +522,7 @@ test("campaigns: export lists sends without ids, deletion removes them", async (
   const text = await readFile((await json.path())!, "utf8");
   const data = JSON.parse(text);
   expect(data.campaignSends).toEqual([{ campaign: name, sentAt: expect.any(String), returnedAt: null }]);
+  expect(data.pushDevices).toEqual([]);
   expect(data.profile.notifications.notifyComeback).toBe(true);
   expect(text).not.toContain(campaignId);
 

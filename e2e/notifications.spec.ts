@@ -152,6 +152,21 @@ test("settings: preferences persist; disabled streak reminders are not sent", as
   }
 });
 
+test("native (UNIFIEDPUSH) subscription gets the same push", async ({ page, request }) => {
+  const push = await startPushService();
+  try {
+    const { login } = await registerUser(page);
+    await addSubscription(login, push, "UNIFIEDPUSH");
+    const at = pastSaturday();
+    await setDueStreak(login, at);
+    await runTick(request, at, "reminders");
+    await expect.poll(() => push.received.length).toBe(1);
+    expect(push.received[0].payload).toMatchObject({ type: "STREAK", tag: "hero-fit-streak" });
+  } finally {
+    await push.close();
+  }
+});
+
 test("dead subscriptions (410 Gone) are removed", async ({ page, request }) => {
   const push = await startPushService({ status: 410 });
   try {

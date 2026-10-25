@@ -28,6 +28,7 @@ import { getNotificationSettings } from "@/lib/notifications/queries";
 import { getTelegramStatus } from "@/lib/telegram/queries";
 import { getTitleSettings } from "@/lib/titles/queries";
 import { getWhoopStatus, whoopAvailable } from "@/lib/whoop/queries";
+import { NativeVersion } from "@/components/native/native-shell";
 
 export const metadata: Metadata = { title: "Настройки" };
 
@@ -84,7 +85,8 @@ export default async function SettingsPage() {
       <MyDataCard />
       <DeleteAccount hasPassword={hasPassword} preview={deletionPreview(deletion)} />
       <p className="pt-2 text-center text-xs text-muted-foreground">
-        Hero Fit {buildLabel(process.env.APP_VERSION, process.env.GIT_SHA)} ·{" "}
+        Hero Fit {buildLabel(process.env.APP_VERSION, process.env.GIT_SHA)}
+        <NativeVersion /> ·{" "}
         <Link href="/whats-new" className="underline-offset-4 hover:underline">
           Что нового
         </Link>

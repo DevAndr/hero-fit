@@ -6,6 +6,23 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2027-05-native",
+    version: "0.25.0",
+    date: "2026-10-25",
+    title: "Hero Fit для Android",
+    summary: "Приложение для Android: уведомления приходят, даже когда оно закрыто, — без сервисов Google.",
+    new: [
+      {
+        text: "Приложение Hero Fit для Android. Уведомления — таймер отдыха, серия, ачивки — приходят через бесплатное приложение ntfy и наш сервер, даже если Hero Fit закрыт и экран заблокирован",
+        href: "/settings",
+        flag: "native_app",
+      },
+    ],
+    improved: [
+      { text: "В приложении ссылки на Hero Fit открываются сразу внутри него, а кнопка «Назад» ведёт по истории страниц", flag: "native_app" },
+    ],
+  },
+  {
     id: "2027-04-skins",
     version: "0.24.0",
     date: "2026-10-24",

@@ -2,6 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { subscribePushAction, unsubscribePushAction } from "@/lib/notifications/actions";
+import { isNativeApp } from "@/lib/native/hero-push";
+import type { NativePushReason } from "@/lib/native/push-state";
+import { useNativePush } from "@/components/notifications/native-push";
 
 type PushApi = {
   /** Браузер умеет Web Push (на iOS — только у приложения, добавленного на экран «Домой»). */
@@ -14,8 +17,14 @@ type PushApi = {
   busy: boolean;
   subscribe: () => Promise<boolean>;
   unsubscribe: () => Promise<void>;
-  /** Отвязать устройство от аккаунта на сервере (при выходе), не трогая браузерную подписку. */
+  /** Отвязать устройство от аккаунта на сервере (при выходе), не трогая браузерную подписку; в приложении — и снять регистрацию в ntfy. */
   forgetDevice: () => Promise<void>;
+  /** Страница открыта в Android-приложении: push через ntfy (UnifiedPush), а не браузер. */
+  native: boolean;
+  /** Почему push в приложении сейчас не работают; null — всё в порядке (и всегда в браузере). */
+  nativeReason: NativePushReason;
+  /** Адрес нашего ntfy — подсказка «укажите сервер в ntfy». */
+  ntfyUrl: string | null;
 };
 
 const PushContext = createContext<PushApi | null>(null);
@@ -32,7 +41,9 @@ function base64UrlToUint8Array(base64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-export function PushProvider({ vapidKey, children }: { vapidKey: string | null; children: ReactNode }) {
+export function PushProvider({ vapidKey, ntfyUrl, children }: { vapidKey: string | null; ntfyUrl: string | null; children: ReactNode }) {
+  const native = useSyncExternalStore(noopSubscribe, isNativeApp, () => false);
+  const nativePush = useNativePush(native, vapidKey, ntfyUrl);
   const supported = useSyncExternalStore(noopSubscribe, isSupported, () => false);
   const browserPermission = useSyncExternalStore(noopSubscribe, readPermission, () => "default" as const);
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
@@ -41,7 +52,8 @@ export function PushProvider({ vapidKey, children }: { vapidKey: string | null; 
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // Service worker нужен и без push — для тренировки без сети (кэш страницы и статики)
+    // Service worker нужен и без push — для тренировки без сети (кэш страницы и статики); в приложении Push API нет
+    // (supported = false), подписку даёт useNativePush
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
@@ -94,18 +106,37 @@ export function PushProvider({ vapidKey, children }: { vapidKey: string | null; 
   }, [subscription]);
 
   const api = useMemo<PushApi>(
-    () => ({
-      supported,
-      available: Boolean(vapidKey),
-      ready,
-      subscribed: Boolean(subscription),
-      permission: permission ?? browserPermission,
-      busy,
-      subscribe,
-      unsubscribe,
-      forgetDevice,
-    }),
-    [supported, vapidKey, ready, subscription, permission, browserPermission, busy, subscribe, unsubscribe, forgetDevice],
+    () =>
+      native
+        ? {
+            supported: true,
+            available: Boolean(vapidKey),
+            ready: nativePush.ready,
+            subscribed: nativePush.subscribed,
+            permission: nativePush.permission,
+            busy: nativePush.busy,
+            subscribe: nativePush.subscribe,
+            unsubscribe: nativePush.unsubscribe,
+            forgetDevice: nativePush.forgetDevice,
+            native,
+            nativeReason: nativePush.reason,
+            ntfyUrl,
+          }
+        : {
+            supported,
+            available: Boolean(vapidKey),
+            ready,
+            subscribed: Boolean(subscription),
+            permission: permission ?? browserPermission,
+            busy,
+            subscribe,
+            unsubscribe,
+            forgetDevice,
+            native,
+            nativeReason: null,
+            ntfyUrl,
+          },
+    [native, nativePush, ntfyUrl, supported, vapidKey, ready, subscription, permission, browserPermission, busy, subscribe, unsubscribe, forgetDevice],
   );
 
   return <PushContext.Provider value={api}>{children}</PushContext.Provider>;

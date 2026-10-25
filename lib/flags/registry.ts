@@ -36,6 +36,10 @@ export const FLAGS = {
     description: "Рассылки «вернись в зал» по условиям из админки",
     expires: "2027-04-30",
   },
+  native_app: {
+    description: "Нативное Android-приложение: push через свой ntfy",
+    expires: "2027-06-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

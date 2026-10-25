@@ -7,25 +7,25 @@ import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 import { NotificationType } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { env } from "@/lib/env";
+import { isEnabled } from "@/lib/flags/server";
 import { pushEnabled } from "@/lib/notifications/push";
+import { isNativeKind, subscriptionAllowed, subscriptionSchema } from "@/lib/notifications/push-hosts";
 import { cancelRestPush, notify, processDuePushes, scheduleRestPush } from "@/lib/notifications/service";
-
-const subscriptionSchema = z.object({
-  endpoint: z.url().max(2048),
-  keys: z.object({ p256dh: z.string().min(1).max(256), auth: z.string().min(1).max(256) }),
-});
 
 export async function subscribePushAction(input: unknown): Promise<{ ok: boolean }> {
   const user = await requireUser();
   const parsed = subscriptionSchema.safeParse(input);
   if (!parsed.success) return { ok: false };
-  const { endpoint, keys } = parsed.data;
+  const { endpoint, keys, kind, appVersion } = parsed.data;
+  const nativeEnabled = isNativeKind(kind) && (await isEnabled("native_app", user.id));
+  if (!subscriptionAllowed(kind, endpoint, env.NTFY_URL, nativeEnabled)) return { ok: false };
   const userAgent = (await headers()).get("user-agent")?.slice(0, 512);
   // endpoint уникален для браузера: если на этом устройстве вошёл другой пользователь — переносим подписку.
   await db.pushSubscription.upsert({
     where: { endpoint },
-    create: { userId: user.id, endpoint, ...keys, userAgent },
-    update: { userId: user.id, ...keys, userAgent },
+    create: { userId: user.id, endpoint, ...keys, userAgent, kind, appVersion: appVersion ?? null },
+    update: { userId: user.id, ...keys, userAgent, kind, appVersion: appVersion ?? null },
   });
   return { ok: true };
 }
