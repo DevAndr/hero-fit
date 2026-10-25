@@ -36,3 +36,12 @@
 - Кнопка «Заниматься» (без флага): переключатель в `/coach/page` (секция «Подключение клиентов») → `CoachProfile.joinEnabled` (по умолчанию `true`). Выключен — на `/trainer/<ник>` нет «Заниматься», «Заниматься в Telegram» и блока «Как это работает», `/trainer/<ник>/join` переадресует на страницу; личная ссылка `/coach/join/<код>` работает как прежде.
 - «Мои данные» — раздел `coachPage` (поля страницы, `catalogListed`, `joinEnabled`, `contacts`, `contactsConsentAt`, `contactOpens` — `{ day, count }`); удаление аккаунта — каскад профиля и счётчика. `/privacy` — строка про контакты и каталог.
 - e2e — `e2e/coach-catalog.spec.ts` (desktop, флаг на пользователя — параллельно; тренеры в БД — `createUserRow` + `enableCoach` + `coachProfile({ contacts, consent, listed, format })`, `contactClicks`) и `e2e/coach-catalog-global.spec.ts` (гость, sitemap, лендинг — проект `trainers-global` после `android-global`).
+
+## Календарь клиентов
+
+Спека `docs/superpowers/specs/2026-10-25-coach-calendar-design.md`, без фича-флага (только просмотр того, что уже есть во вкладке «План»).
+
+- `/coach/calendar` (`requireCoach`): неделя (по умолчанию; на телефоне — списком дней) или месяц, `?view=week|month&date=&group=`; неверная дата — сегодня тренера, чужая группа — без фильтра (`ownGroupId`). Навигация и подписи — `shiftDate`/`viewTitle`/`dayLabel` из `lib/plans/view.ts`. Пункт «Календарь клиентов» — после «Клиентов» в боковом меню (активным считается самый длинный подходящий пункт), в меню профиля и кнопкой на `/coach`.
+- Данные — `getCoachCalendar` (`lib/coach/calendar-queries.ts`): активные клиенты (с группой), отбор тех, у кого в диапазоне есть серия или разовая тренера, и `coachOccurrences` (`lib/coach/plan-queries.ts`, общая с вкладкой «План»: назначения тренера из `getCalendar` клиента + отменённые клиентом) — пачками по `CALENDAR_CONCURRENCY = 8`.
+- Строка — время, клиент, тренировка и статус (`statusOf`: `done` «выполнено», `skipped` «пропущено», `missed` «не выполнено», `today`/`planned` — без пометки); дата и время — клиента, при другом поясе — «(по его времени)» с поясом в подсказке. Порядок — `groupByDay`, в месяце — 3 строки и «ещё N» (`dayPreview`, `<details>`). Сводка — `calendarSummary`. Клик — `/coach/clients/<id>?tab=plan`.
+- e2e — `e2e/coach-calendar.spec.ts` (хелперы `coachGroup`, `completeAssignment`, `cancelAssignment` в `e2e/db.ts`).
