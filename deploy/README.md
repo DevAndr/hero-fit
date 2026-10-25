@@ -113,6 +113,9 @@ Push приложения идут через свой ntfy (UnifiedPush, спе
 4. В `/opt/hero-fit/.env`: `NTFY_URL=https://push.<домен>`, затем Run pipeline на `main`. Без `NTFY_URL` сервер
    не принимает подписки приложения. Флаг `native_app` в `/admin/flags` — когда выйдет приложение.
 
+APK Android-приложения для скачивания с сайта — `/opt/hero-fit/downloads/hero-fit.apk` (Caddy, `/download/*`, том
+`./downloads`); как собрать и выложить — `android/README.md`, «APK на сайте».
+
 Пять неудачных отправок на ntfy подряд — алерт админам в Telegram (не чаще раза в час).
 
 ## На сервере

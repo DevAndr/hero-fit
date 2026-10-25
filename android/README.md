@@ -29,6 +29,22 @@ adb install -r app/build/outputs/apk/play/debug/app-play-debug.apk
 ./gradlew assembleRustoreRelease assembleApkRelease
 ```
 
+## APK на сайте
+
+Лендинг и `/android` дают ссылку `https://hero-fit.ru/download/hero-fit.apk` — **только когда флаг `native_app` включён
+всем** (иначе скачавший не сможет включить уведомления). Файл отдаёт Caddy из `/opt/hero-fit/downloads` (не из образа).
+Выложить новую версию (поднять `versionCode`/`versionName` в `app/build.gradle`):
+
+```bash
+npm run cap:prod
+cd android && ./gradlew assembleApkRelease
+ssh deploy@<сервер> "mkdir -p /opt/hero-fit/downloads"
+scp app/build/outputs/apk/apk/release/app-apk-release.apk deploy@<сервер>:/opt/hero-fit/downloads/hero-fit.apk
+cd .. && npm run cap:dev   # вернуть отладочный адрес
+```
+
+Проверка: `curl -sI https://hero-fit.ru/download/hero-fit.apk` → `200`, `application/vnd.android.package-archive`.
+
 ## Подпись
 
 Один ключ на все магазины, хранится вне репозитория (потеря ключа — новое приложение в магазинах):
