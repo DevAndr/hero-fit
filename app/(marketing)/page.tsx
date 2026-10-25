@@ -339,11 +339,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               )}
             </div>
             <ul className="hf-rise flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" style={{ animationDelay: "0.2s" }}>
-              {["Без установки", "Готовые программы", "Работает без сети", ...(telegramUrl ? ["Есть в Telegram"] : []), ...(android ? ["Есть для Android"] : [])].map((t) => (
+              {["Без установки", "Готовые программы", "Работает без сети", ...(telegramUrl ? ["Есть в Telegram"] : [])].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
                   <Check className="size-4 text-primary" aria-hidden /> {t}
                 </li>
               ))}
+              {android ? (
+                <li>
+                  {/* Якорь к секции «Приложение для Android» — меню шапки на телефоне скрыто */}
+                  <a href="#android" className="flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
+                    <Smartphone className="size-4" aria-hidden /> Приложение для Android ↓
+                  </a>
+                </li>
+              ) : null}
             </ul>
           </div>
           <HeroHud />
