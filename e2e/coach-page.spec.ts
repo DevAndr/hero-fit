@@ -169,3 +169,33 @@ test("an unpublished page leaks nothing in the 404 response", async ({ page, req
   expect(html).not.toContain("Тайный Город");
   expect(html).not.toContain(ABOUT.slice(0, 40));
 });
+
+test("coach turns off «Заниматься»: no join buttons and steps for guests, /join leads back; on again — the button returns", async ({ page, browser }) => {
+  const { nick } = await publishedCoach(page, { about: ABOUT });
+  await page.goto("/coach/page");
+  const join = page.getByRole("switch", { name: "Кнопка «Заниматься»" });
+  await expect(join).toBeChecked();
+  await join.click();
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByText("Сохранено")).toBeVisible();
+
+  const g = await guest(browser);
+  try {
+    await g.page.goto(`/trainer/${nick}`);
+    await expect(g.page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(g.page.getByRole("link", { name: "Заниматься" })).toHaveCount(0);
+    await expect(g.page.getByRole("heading", { name: "Как это работает" })).toHaveCount(0);
+    await g.page.goto(`/trainer/${nick}/join`);
+    await expect(g.page).toHaveURL(new RegExp(`/trainer/${nick}$`));
+
+    await page.reload();
+    await expect(join).not.toBeChecked();
+    await join.click();
+    await page.getByRole("button", { name: "Сохранить" }).click();
+    await expect(page.getByText("Сохранено")).toBeVisible();
+    await g.page.goto(`/trainer/${nick}`);
+    await expect(g.page.getByRole("link", { name: "Заниматься" }).first()).toBeVisible();
+  } finally {
+    await g.context.close();
+  }
+});

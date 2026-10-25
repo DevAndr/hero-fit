@@ -24,7 +24,7 @@ import { isBot } from "@/lib/analytics/bots";
 import { recordFirstVisit, recordUtmVisit } from "@/lib/analytics/visits";
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
-const PUBLIC_PAGES = ["/", "/privacy", "/changelog", "/reset-password", "/tools/1rm", "/tools/plates", "/tools/dots-wilks", "/training-programs", "/tg", "/android", "/.well-known/assetlinks.json", ...AUTH_PAGES];
+const PUBLIC_PAGES = ["/", "/privacy", "/changelog", "/reset-password", "/tools/1rm", "/tools/plates", "/tools/dots-wilks", "/training-programs", "/tg", "/android", "/.well-known/assetlinks.json", "/trainers", ...AUTH_PAGES];
 /** Публичные файлы без расширения (PWA-иконки, картинка для соцсетей — opengraph-image?<hash>), страницы тренеров /trainer/<ник> и залов /gym/<город>/<зал>. */
 const PUBLIC_PREFIXES = ["/download/", "/pwa-icon/", "/opengraph-image", "/trainer/", "/gym/", "/training-programs/"];
 /** Страничные префиксы (не файлы): только их посещения считаются первой точкой входа. */

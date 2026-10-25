@@ -71,6 +71,25 @@ const raw = (): ExportRaw => ({
     { kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z"), id: "fb_secret", adminNote: "заметка_админа", userAgent: "UA_secret" },
   ],
   pushDevices: [{ kind: "UNIFIEDPUSH", appVersion: "1.0.0", createdAt: new Date("2026-10-25T08:00:00Z"), id: "pd_secret", endpoint: "https://push.example.ru/upSecret", p256dh: "p256_secret", auth: "auth_secret" }],
+  coachPage: {
+    displayName: "Иван",
+    city: "Казань",
+    format: "BOTH",
+    specialties: ["strength"],
+    about: "О себе",
+    publishedAt: new Date("2026-10-20T10:00:00Z"),
+    catalogListed: true,
+    joinEnabled: false,
+    telegram: "hero_coach",
+    whatsapp: null,
+    vk: null,
+    phone: "+79991234567",
+    email: null,
+    contactsConsentAt: new Date("2026-10-21T10:00:00Z"),
+    hiddenStats: [],
+    userId: "cp_secret",
+    contactOpens: [{ day: new Date("2026-10-24T00:00:00Z"), count: 3, coachId: "cc_secret" }],
+  },
   campaignSends: [{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null, id: "cs_secret", campaignId: "c_secret", userId: "u_secret", episode: "2026-10-17" }],
   programs: [
     {
@@ -194,6 +213,31 @@ describe("export — push devices", () => {
     expect(EXPORT_SECTIONS).toContain("pushDevices");
     expect(o.pushDevices).toEqual([{ kind: "UNIFIEDPUSH", appVersion: "1.0.0", createdAt: new Date("2026-10-25T08:00:00Z") }]);
     expect(JSON.stringify(o)).not.toMatch(/pd_secret|upSecret|p256_secret|auth_secret/);
+  });
+});
+
+describe("export — coach page", () => {
+  it("страница тренера с контактами и согласием, открытия контактов — числом по дням; без id", () => {
+    const o = buildExport(raw(), new Date("2026-10-25T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toContain("coachPage");
+    expect(o.coachPage).toEqual({
+      displayName: "Иван",
+      city: "Казань",
+      format: "BOTH",
+      specialties: ["strength"],
+      about: "О себе",
+      publishedAt: new Date("2026-10-20T10:00:00Z"),
+      catalogListed: true,
+      joinEnabled: false,
+      contacts: { telegram: "hero_coach", whatsapp: null, vk: null, phone: "+79991234567", email: null },
+      contactsConsentAt: new Date("2026-10-21T10:00:00Z"),
+      contactOpens: [{ day: new Date("2026-10-24T00:00:00Z"), count: 3 }],
+    });
+    expect(JSON.stringify(o)).not.toMatch(/cp_secret|cc_secret/);
+  });
+
+  it("без страницы — null", () => {
+    expect(buildExport({ ...raw(), coachPage: null }, new Date()).coachPage).toBeNull();
   });
 });
 

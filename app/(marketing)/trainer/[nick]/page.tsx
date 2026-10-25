@@ -5,12 +5,15 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { BadgeCheck, MapPin } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
+import { CoachContacts } from "@/components/coach/coach-contacts";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { contactsVisible } from "@/lib/coach/catalog";
 import { FORMAT_LABELS, publicAwards, SPECIALTIES, visibleStats } from "@/lib/coach/profile";
 import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { isEnabled } from "@/lib/flags/server";
 import { absoluteUrl, shortDescription, coachJsonLd, jsonLd } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramJoinUrl } from "@/lib/telegram/links";
@@ -53,12 +56,13 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   const isOwner = viewer?.id === coach.id;
   if (!coach.profile.publishedAt && !isOwner) notFound();
 
-  const [stats, link, earned] = await Promise.all([
+  const [stats, link, earned, catalog] = await Promise.all([
     getCoachPublicStats(coach.id, new Date(), coach.profile.hiddenStats),
     viewer && !isOwner ? db.coachLink.findFirst({ where: { coachId: coach.id, clientId: viewer.id, endedAt: null }, select: { id: true } }) : null,
     coach.profile.showAwards
       ? db.userAchievement.findMany({ where: { userId: coach.id, category: "COACH" }, select: { code: true, title: true } })
       : [],
+    isEnabled("coach_catalog", viewer?.id ?? null),
   ]);
   const titles = new Map(earned.map((a) => [a.code, a.title]));
   const awards = publicAwards(earned.map((a) => a.code)).map((code) => ({ code, title: titles.get(code)! }));
@@ -73,6 +77,8 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   const url = absoluteUrl(env.APP_URL, pathOf(coach.nickname));
   const telegramUrl = coach.coachCode && telegramEnabled(env) ? telegramJoinUrl(coach.coachCode, env.TELEGRAM_BOT_USERNAME) : null;
 
+  // Тренер выключил «Заниматься» — ни кнопок, ни шагов подключения (подключение — по его личной ссылке)
+  const join = coach.profile.joinEnabled;
   const action = isOwner ? (
     <div className="flex flex-wrap items-center gap-3">
       <p className="text-sm text-muted-foreground">Это ваша страница</p>
@@ -85,7 +91,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
       <BadgeCheck className="size-5" aria-hidden />
       Вы занимаетесь с этим тренером
     </p>
-  ) : (
+  ) : !join ? null : (
     <div className="flex flex-wrap gap-3">
       {/* prefetch={false}: /join — route handler с целью Метрики, предзагрузка засчитывала бы её на каждый просмотр */}
       <Link href={`${pathOf(coach.nickname)}/join`} prefetch={false} className={buttonVariants({ size: "lg" })}>
@@ -139,7 +145,16 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
         </div>
       </header>
 
-      <div className="mt-6">{action}</div>
+      {action ? <div className="mt-6">{action}</div> : null}
+
+      {catalog && contactsVisible(coach.profile) ? (
+        <section aria-labelledby="contacts" className="mt-6 space-y-3">
+          <h2 id="contacts" className="font-display text-xl font-bold">
+            Контакты
+          </h2>
+          <CoachContacts coachId={coach.id} contacts={coach.profile} signedIn={Boolean(viewer)} nextPath={pathOf(coach.nickname)} />
+        </section>
+      ) : null}
 
       {shown.length ? (
         <section aria-label="Цифры" className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -177,22 +192,24 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
         </section>
       ) : null}
 
-      <section aria-labelledby="how" className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
-        <h2 id="how" className="font-display text-xl font-bold">
-          Как это работает
-        </h2>
-        <ol className="mt-4 space-y-3">
-          {STEPS.map((step, i) => (
-            <li key={step} className="flex gap-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-                {i + 1}
-              </span>
-              <span className="pt-0.5">{step}</span>
-            </li>
-          ))}
-        </ol>
-        {!isOwner && !link ? <div className="mt-6">{action}</div> : null}
-      </section>
+      {join ? (
+        <section aria-labelledby="how" className="mt-10 rounded-2xl border bg-card p-5 sm:p-6">
+          <h2 id="how" className="font-display text-xl font-bold">
+            Как это работает
+          </h2>
+          <ol className="mt-4 space-y-3">
+            {STEPS.map((step, i) => (
+              <li key={step} className="flex gap-3">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+                  {i + 1}
+                </span>
+                <span className="pt-0.5">{step}</span>
+              </li>
+            ))}
+          </ol>
+          {!isOwner && !link ? <div className="mt-6">{action}</div> : null}
+        </section>
+      ) : null}
     </div>
   );
 }

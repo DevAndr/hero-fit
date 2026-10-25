@@ -19,6 +19,27 @@ describe("coachProfileSchema", () => {
   });
 });
 
+describe("coachProfileSchema: контакты и каталог", () => {
+  it("без контактов — всё null и выключено (старые клиенты формы)", () => {
+    expect(coachProfileSchema.parse(ok)).toMatchObject({ telegram: null, phone: null, contactsConsent: false, catalogListed: false });
+  });
+  it("контакты нормализуются, ошибка номера — первой", () => {
+    expect(coachProfileSchema.parse({ ...ok, telegram: "@hero_coach", catalogListed: true, contactsConsent: true })).toMatchObject({
+      telegram: "hero_coach",
+      catalogListed: true,
+      contactsConsent: true,
+    });
+    expect(coachProfileSchema.safeParse({ ...ok, phone: "123" }).error?.issues[0].message).toBe("Проверьте номер");
+  });
+});
+
+describe("coachProfileSchema: кнопка «Заниматься»", () => {
+  it("по умолчанию включена, можно выключить", () => {
+    expect(coachProfileSchema.parse(ok).joinEnabled).toBe(true);
+    expect(coachProfileSchema.parse({ ...ok, joinEnabled: false }).joinEnabled).toBe(false);
+  });
+});
+
 describe("canPublish", () => {
   it("нужны ник и описание от 50 символов", () => {
     expect(canPublish({ about: ok.about }, null)).toBe("Сначала задайте ник");

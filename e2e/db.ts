@@ -414,7 +414,7 @@ export async function coachGroupMembers(coachLogin: string) {
   });
 }
 
-/** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
+/** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован; contacts/consent/listed — каталог тренеров. */
 export async function coachProfile(
   coachLogin: string,
   p: {
@@ -425,13 +425,23 @@ export async function coachProfile(
     hiddenStats?: string[];
     specialties?: string[];
     showAwards?: boolean;
+    format?: "ONLINE" | "OFFLINE" | "BOTH";
+    contacts?: Partial<Record<"telegram" | "whatsapp" | "vk" | "phone" | "email", string>>;
+    consent?: boolean;
+    listed?: boolean;
+    /** Кнопка «Заниматься» на странице; по умолчанию включена. */
+    join?: boolean;
   },
 ) {
+  const c = p.contacts ?? {};
   await withDb(async (db) => {
     await db.query(
-      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, now())
-       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "showAwards" = $8, "updatedAt" = now()`,
+      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", format,
+         telegram, whatsapp, vk, phone, email, "contactsConsentAt", "catalogListed", "joinEnabled", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now())
+       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7,
+         "showAwards" = $8, format = $9, telegram = $10, whatsapp = $11, vk = $12, phone = $13, email = $14, "contactsConsentAt" = $15,
+         "catalogListed" = $16, "joinEnabled" = $17, "updatedAt" = now()`,
       [
         await userId(db, coachLogin),
         p.displayName ?? null,
@@ -441,8 +451,28 @@ export async function coachProfile(
         p.hiddenStats ?? [],
         p.publish ? new Date() : null,
         p.showAwards ?? true,
+        p.format ?? "BOTH",
+        c.telegram ?? null,
+        c.whatsapp ?? null,
+        c.vk ?? null,
+        c.phone ?? null,
+        c.email ?? null,
+        p.consent ? new Date() : null,
+        p.listed ?? false,
+        p.join ?? true,
       ],
     );
+  });
+}
+
+/** Открытия контактов тренера, всего. */
+export async function contactClicks(coachLogin: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(
+      `select coalesce(sum(count), 0)::int n from "CoachContactClick" where "coachId" = $1`,
+      [await userId(db, coachLogin)],
+    );
+    return rows[0].n;
   });
 }
 
