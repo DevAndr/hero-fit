@@ -94,7 +94,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {theme?.kind === "theme" ? <style>{themeStyle(theme)}</style> : null}
       {/* Скин — со своим режимом: держим его класс на <html>, пока скин надет */}
       {theme?.kind === "theme" && isSkin(theme) ? <ThemeModeLock mode={theme.mode} /> : null}
-      <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null}>
+      <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null} ntfyUrl={env.NTFY_URL ?? null}>
         {/* Умный помощник: выключатель в /settings */}
         <AssistantProvider available={user.assistantEnabled} whoop={flags.includes("whoop")}>
           {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
