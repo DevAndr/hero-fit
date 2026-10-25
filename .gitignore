@@ -54,3 +54,7 @@ next-env.d.ts
 
 # рабочие файлы агентов: журналы прогонов, черновики описаний MR, журналы планов
 /.superpowers/
+
+# Ключ подписи Android-приложения (android/README.md) — никогда в git
+*.jks
+*.keystore
