@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedPushHost, subscriptionSchema } from "./push-hosts";
+import { allowedPushHost, subscriptionAllowed, subscriptionSchema } from "./push-hosts";
 
 const NTFY = "https://push.example.ru";
 
@@ -54,5 +54,18 @@ describe("subscriptionSchema", () => {
   it("чужой kind и длинная версия — ошибка", () => {
     expect(subscriptionSchema.safeParse({ ...base, kind: "FCM" }).success).toBe(false);
     expect(subscriptionSchema.safeParse({ ...base, appVersion: "x".repeat(33) }).success).toBe(false);
+  });
+});
+
+describe("subscriptionAllowed", () => {
+  const native = "https://push.example.ru/upAbcdefghijkl?up=1";
+  it("нативная подписка — только при включённом native_app", () => {
+    expect(subscriptionAllowed("UNIFIEDPUSH", native, NTFY, false)).toBe(false);
+    expect(subscriptionAllowed("EMBEDDED", native, NTFY, false)).toBe(false);
+    expect(subscriptionAllowed("UNIFIEDPUSH", native, NTFY, true)).toBe(true);
+  });
+  it("веб от флага не зависит, хост проверяется всегда", () => {
+    expect(subscriptionAllowed("WEB", "https://fcm.googleapis.com/x", NTFY, false)).toBe(true);
+    expect(subscriptionAllowed("UNIFIEDPUSH", "https://ntfy.sh/upAbcdefghijkl", NTFY, true)).toBe(false);
   });
 });

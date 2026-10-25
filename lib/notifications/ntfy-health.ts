@@ -24,12 +24,13 @@ export function createNtfyHealth() {
 
 /**
  * Что отправка значит для здоровья ntfy: true — принял, false — сбой (5xx, таймаут), null — не считаем
- * (чужой хост, ntfy не настроен, 404/410 — подписка умерла, сам ntfy жив).
+ * (чужой хост, ntfy не настроен, 404/410 — подписка умерла, 507 — у топика UnifiedPush сейчас нет подписчика: телефон
+ * офлайн или приложение удалено; сам ntfy жив). 507 подписку не удаляет — телефон может вернуться в сеть.
  */
 export function ntfyOutcome(endpoint: string, ntfy: string | null, result: "ok" | number | undefined): boolean | null {
   if (!ntfy || new URL(endpoint).hostname.toLowerCase() !== ntfy) return null;
   if (result === "ok") return true;
-  return result === 404 || result === 410 ? null : false;
+  return result === 404 || result === 410 || result === 507 ? null : false;
 }
 
 /** Общий счётчик процесса (как лимит алертов в lib/errors/notify.ts). */

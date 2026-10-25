@@ -45,3 +45,9 @@ export function allowedPushHost(kind: PushKind, endpoint: string, ntfyUrl: strin
   if (host === "localhost" || host.endsWith(".localhost")) return false;
   return isIP(host.replace(/^\[|\]$/g, "")) === 0;
 }
+
+/** Принимает ли сервер подписку: хост (allowedPushHost) и, для нативных, флаг native_app у пользователя. */
+export function subscriptionAllowed(kind: PushKind, endpoint: string, ntfyUrl: string | undefined, nativeEnabled: boolean): boolean {
+  if (!allowedPushHost(kind, endpoint, ntfyUrl)) return false;
+  return !isNativeKind(kind) || nativeEnabled;
+}

@@ -34,6 +34,9 @@ describe("ntfyOutcome", () => {
     expect(ntfyOutcome("https://push.example.ru/upA", host, 404)).toBeNull();
     expect(ntfyOutcome("https://push.example.ru/upA", host, 410)).toBeNull();
   });
+  it("507 — у топика нет подписчика (телефон офлайн или приложение удалено), ntfy жив", () => {
+    expect(ntfyOutcome("https://push.example.ru/upA", host, 507)).toBeNull();
+  });
   it("чужой хост и ntfy не настроен — не считаем", () => {
     expect(ntfyOutcome("https://fcm.googleapis.com/x", host, 500)).toBeNull();
     expect(ntfyOutcome("https://push.example.ru/upA", null, 500)).toBeNull();

@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { env } from "@/lib/env";
 import { isEnabled } from "@/lib/flags/server";
 import { pushEnabled } from "@/lib/notifications/push";
-import { allowedPushHost, isNativeKind, subscriptionSchema } from "@/lib/notifications/push-hosts";
+import { isNativeKind, subscriptionAllowed, subscriptionSchema } from "@/lib/notifications/push-hosts";
 import { cancelRestPush, notify, processDuePushes, scheduleRestPush } from "@/lib/notifications/service";
 
 export async function subscribePushAction(input: unknown): Promise<{ ok: boolean }> {
@@ -18,8 +18,8 @@ export async function subscribePushAction(input: unknown): Promise<{ ok: boolean
   const parsed = subscriptionSchema.safeParse(input);
   if (!parsed.success) return { ok: false };
   const { endpoint, keys, kind, appVersion } = parsed.data;
-  if (!allowedPushHost(kind, endpoint, env.NTFY_URL)) return { ok: false };
-  if (isNativeKind(kind) && !(await isEnabled("native_app", user.id))) return { ok: false };
+  const nativeEnabled = isNativeKind(kind) && (await isEnabled("native_app", user.id));
+  if (!subscriptionAllowed(kind, endpoint, env.NTFY_URL, nativeEnabled)) return { ok: false };
   const userAgent = (await headers()).get("user-agent")?.slice(0, 512);
   // endpoint уникален для браузера: если на этом устройстве вошёл другой пользователь — переносим подписку.
   await db.pushSubscription.upsert({
