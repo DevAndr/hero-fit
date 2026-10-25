@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Prisma generated client
     "generated/**",
+    // Android-проект Capacitor (сборки Gradle кладут туда скопированный JS)
+    "android/**",
   ]),
 ]);
 
