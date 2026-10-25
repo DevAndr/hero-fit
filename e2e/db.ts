@@ -1918,13 +1918,3 @@ export async function completeAssignment(clientLogin: string, planKey: string, f
 export async function cancelAssignment(planKey: string) {
   await withDb((db) => db.query(`update "PlanEntry" set cancelled = true where id = $1`, [planKey.replace(/^e:/, "")]));
 }
-
-/** Пояс пользователя (IANA). */
-export async function setUserTimeZone(login: string, timeZone: string) {
-  await withDb((db) => db.query(`update "User" set "timeZone" = $2 where login = $1`, [login, timeZone]));
-}
-
-/** Ник пользователя (минуя форму). */
-export async function setNickname(login: string, nickname: string) {
-  await withDb((db) => db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2) where login = $1`, [login, nickname]));
-}
