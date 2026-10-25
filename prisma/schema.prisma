@@ -236,6 +236,7 @@ model User {
   streakCoverWeeks    StreakCoverWeek[]
   visits              UserVisit[]
   visitHours          UserVisitHour[]
+  appVisits           AppVisit[]
   alertDismissals     SystemAlertDismissal[]
   feedback            Feedback[]
   bossWeeks           BossWeek[]
@@ -1225,6 +1226,24 @@ model UserVisit {
 
   @@id([userId, day])
   @@index([day])
+}
+
+/// Заходы из Android-приложения (спека 2026-10-25-native-push-ntfy): местный день и версия приложения — для метрик
+/// админки. Пишется раз в день (recordAppVisitAction), каскад от User, в выгрузку не входит (как UserVisit).
+model AppVisit {
+  userId  String
+  day     DateTime @db.Date
+  version String?
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
+}
+
+/// Нажатия «Скачать APK» (/download/hero-fit.apk) за день UTC — только число, без людей и устройств; боты не считаются.
+model ApkDownload {
+  day   DateTime @id @db.Date
+  count Int
 }
 
 /// Журнал часов захода — для графика «по времени суток» в админке: местный день и час 0–23 в поясе игрока.

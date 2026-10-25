@@ -8,6 +8,7 @@ const LANDING: Record<string, string> = {
   club: "Зал",
   other: "Другие страницы",
   telegram: "Telegram",
+  "android-app": "Android-приложение",
 };
 
 export const REFERRER: Record<string, string> = {
@@ -16,6 +17,7 @@ export const REFERRER: Record<string, string> = {
   direct: "Прямой заход",
   site: "Другой сайт",
   telegram: "Telegram",
+  app: "Приложение",
 };
 
 const UNTRACKED = "До учёта";

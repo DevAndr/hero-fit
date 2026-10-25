@@ -32,7 +32,8 @@ adb install -r app/build/outputs/apk/play/debug/app-play-debug.apk
 ## APK на сайте
 
 Лендинг и `/android` дают ссылку `https://hero-fit.ru/download/hero-fit.apk` — **только когда флаг `native_app` включён
-всем** (иначе скачавший не сможет включить уведомления). Файл отдаёт Caddy из `/opt/hero-fit/downloads` (не из образа).
+всем** (иначе скачавший не сможет включить уведомления). Этот адрес считает нажатие (`ApkDownload`, метрики админки) и
+переадресует на `/apk/hero-fit.apk` — файл отдаёт Caddy из `/opt/hero-fit/downloads` (не из образа).
 Выложить новую версию (поднять `versionCode`/`versionName` в `app/build.gradle`):
 
 ```bash
@@ -43,7 +44,8 @@ scp app/build/outputs/apk/apk/release/app-apk-release.apk deploy@<сервер>:
 cd .. && npm run cap:dev   # вернуть отладочный адрес
 ```
 
-Проверка: `curl -sI https://hero-fit.ru/download/hero-fit.apk` → `200`, `application/vnd.android.package-archive`.
+Проверка: `curl -sI https://hero-fit.ru/apk/hero-fit.apk` → `200`, `application/vnd.android.package-archive`;
+`curl -sI https://hero-fit.ru/download/hero-fit.apk` → `302` на `/apk/hero-fit.apk`.
 
 ## Подпись
 

@@ -91,7 +91,11 @@ export async function registerAction(_prev: FormState, formData: FormData): Prom
   }
 
   const jar = await cookies();
-  const source = decodeSource(jar.get(SOURCE_COOKIE)?.value) ?? { landing: "other", referrer: "direct" };
+  // Из Android-приложения — свой источник (форма шлёт app=android), иначе — по cookie первого захода
+  const source =
+    formData.get("app") === "android"
+      ? { landing: "android-app", referrer: "app" }
+      : (decodeSource(jar.get(SOURCE_COOKIE)?.value) ?? { landing: "other", referrer: "direct" });
   const utm = decodeUtm(jar.get(UTM_COOKIE)?.value);
 
   let userId: string;
