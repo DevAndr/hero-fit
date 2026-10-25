@@ -307,6 +307,8 @@ export type FeatureUsage = {
   telegramNotify: number;
   telegramMiniApp: number;
   push: number;
+  /** Из них с push в Android-приложении (UnifiedPush или своё соединение). */
+  pushNative: number;
   guilds: number;
   guildMembers: number;
   clubs: number;
@@ -328,6 +330,7 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(*) FROM "User" WHERE "telegramChatId" IS NOT NULL)::int AS "telegramNotify",
       (SELECT COUNT(*) FROM "User" WHERE "telegramId" IS NOT NULL)::int AS "telegramMiniApp",
       (SELECT COUNT(DISTINCT "userId") FROM "PushSubscription")::int AS push,
+      (SELECT COUNT(DISTINCT "userId") FROM "PushSubscription" WHERE kind <> 'WEB')::int AS "pushNative",
       (SELECT COUNT(*) FROM "Guild")::int AS guilds,
       (SELECT COUNT(*) FROM "GuildMember")::int AS "guildMembers",
       (SELECT COUNT(*) FROM "Club" WHERE status = 'APPROVED')::int AS clubs,

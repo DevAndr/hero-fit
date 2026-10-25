@@ -674,17 +674,26 @@ model UserItem {
 
 /// Подписка Web Push одного браузера/устройства.
 model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  userAgent String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  /// WEB — браузер; UNIFIEDPUSH и EMBEDDED — Android-приложение через наш ntfy (спека 2026-10-25-native-push-ntfy)
+  kind       PushKind @default(WEB)
+  appVersion String?
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+enum PushKind {
+  WEB
+  UNIFIEDPUSH
+  EMBEDDED
 }
 
 /// Лента уведомлений внутри приложения (колокольчик).

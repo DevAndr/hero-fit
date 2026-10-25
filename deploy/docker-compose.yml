@@ -54,6 +54,25 @@ services:
     depends_on:
       - app
 
+  # ntfy — push в Android-приложении (UnifiedPush, спека 2026-10-25-native-push-ntfy). Тело push зашифровано ключами
+  # устройства, сервер его не видит. Снаружи — через Caddy на push.<домен>; конфиг — переменными NTFY_* (на сервер
+  # копируются только этот файл и Caddyfile). Доступ к топикам up* открывается один раз командой из deploy/README.md.
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command: serve
+    restart: unless-stopped
+    environment:
+      NTFY_BASE_URL: https://push.${DOMAIN}
+      NTFY_LISTEN_HTTP: ":80"
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_CACHE_DURATION: 12h
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING: "true"
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+
   # Реестр образов только для деплоя: слушает localhost сервера, CI пушит в него через SSH-туннель.
   # Хранится только latest, прошлые слои чистит garbage-collect после деплоя.
   registry:
@@ -93,3 +112,4 @@ volumes:
   caddy_data:
   caddy_config:
   registry:
+  ntfy_data:
