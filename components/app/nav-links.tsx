@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { CLUB_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, PROGRAMS_NAV_ITEM, SHOP_NAV_ITEM, TRAINERS_NAV_ITEM } from "@/components/app/nav";
+import { CLUB_NAV_ITEM, COACH_CALENDAR_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, PROGRAMS_NAV_ITEM, SHOP_NAV_ITEM, TRAINERS_NAV_ITEM } from "@/components/app/nav";
 import { useFlag } from "@/components/flags/flags-provider";
 
 function useIsActive() {
@@ -21,6 +21,7 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
     | (typeof NAV_ITEMS)[number]
     | typeof CLUB_NAV_ITEM
     | typeof COACH_NAV_ITEM
+    | typeof COACH_CALENDAR_NAV_ITEM
     | typeof SHOP_NAV_ITEM
     | typeof PROGRAMS_NAV_ITEM
     | typeof TRAINERS_NAV_ITEM;
@@ -31,8 +32,10 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
     if (item.href === "/friends" && trainers) return [item, TRAINERS_NAV_ITEM];
     return [item];
   });
-  // Тренеру «Клиенты» — сразу после «Кабинета»
-  const items = isCoach ? [base[0], COACH_NAV_ITEM, ...base.slice(1)] : base;
+  // Тренеру «Клиенты» и «Календарь клиентов» — сразу после «Кабинета»
+  const items = isCoach ? [base[0], COACH_NAV_ITEM, COACH_CALENDAR_NAV_ITEM, ...base.slice(1)] : base;
+  // Активен самый длинный подходящий пункт: на /coach/calendar — «Календарь клиентов», а не «Клиенты»
+  const active = items.filter((i) => isActive(i.href)).sort((a, b) => b.href.length - a.href.length)[0]?.href;
   return (
     <nav className="flex flex-col gap-1" data-tour="nav">
       {items.map(({ href, label, icon: Icon }) => {
@@ -41,10 +44,10 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
           <Link
             key={href}
             href={href}
-            aria-current={isActive(href) ? "page" : undefined}
+            aria-current={href === active ? "page" : undefined}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              isActive(href) && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
+              href === active && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
               coach && "coach-nav",
             )}
           >
