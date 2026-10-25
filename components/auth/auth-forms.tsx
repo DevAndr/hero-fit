@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { CircleAlert, CircleCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { FormField } from "@/components/auth/form-field";
+import { isNativeApp } from "@/lib/native/hero-push";
 import {
   forgotPasswordAction,
   loginAction,
@@ -128,12 +129,17 @@ function CoachField({ checked, nickname, errors }: { checked: boolean; nickname?
   );
 }
 
+const noopSubscribe = () => () => {};
+
 export function RegisterForm({ next, coach = false }: { next?: string; coach?: boolean }) {
   const [state, action, pending] = useActionState(registerAction, initial);
+  // Регистрация в Android-приложении — источник «android-app» в метриках
+  const app = useSyncExternalStore(noopSubscribe, isNativeApp, () => false);
 
   return (
     <form action={action} noValidate>
       {next ? <input type="hidden" name="next" value={next} /> : null}
+      {app ? <input type="hidden" name="app" value="android" /> : null}
       <FieldGroup>
         <FormMessage state={state} />
         <FormField

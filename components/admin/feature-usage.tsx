@@ -9,6 +9,12 @@ export function FeatureUsage({ usage: u }: { usage: Usage }) {
     ["Клиентов у тренеров", fmt(u.activeClients)],
     ["Telegram", `уведомления ${fmt(u.telegramNotify)}, Mini App ${fmt(u.telegramMiniApp)}`],
     ["Push", `${fmt(u.push)}, в приложении ${fmt(u.pushNative)}`],
+    [
+      "Android-приложение",
+      `скачиваний ${fmt(u.apkDownloads7)} / ${fmt(u.apkDownloads30)} / ${fmt(u.apkDownloadsAll)} (7 дн. / 30 дн. / всего), ` +
+        `игроков ${fmt(u.appUsers7)} / ${fmt(u.appUsers30)}, регистраций ${fmt(u.appSignups)}` +
+        (u.appVersion ? `, версия ${u.appVersion}` : ""),
+    ],
     ["Гильдии", `${fmt(u.guilds)}, игроков ${fmt(u.guildMembers)}`],
     ["Клубы", `${fmt(u.clubs)}, участников ${fmt(u.clubMembers)}`],
     ["Активные цели", fmt(u.activeGoals)],

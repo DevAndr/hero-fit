@@ -60,6 +60,7 @@ test.describe("admin metrics page", () => {
     await expect(cohorts.getByRole("row")).toHaveCount(9);
     await expect(page.getByRole("region", { name: "Фичи" }).getByText("Прошли экскурсию")).toBeVisible();
     await expect(page.getByRole("region", { name: "Фичи" }).getByText(/, в приложении \d/)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Фичи" }).getByText("Android-приложение")).toBeVisible();
 
     await page.getByRole("link", { name: "90 дней" }).click();
     await expect(page).toHaveURL(/\/admin\?range=90$/);

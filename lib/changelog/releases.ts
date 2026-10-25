@@ -6,6 +6,20 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2027-07-app-stats",
+    version: "0.27.0",
+    date: "2026-10-25",
+    title: "Что мы считаем в приложении для Android",
+    summary: "Только скачивания и заходы по дням — чтобы понимать, как развивать приложение. Без данных о вашем телефоне.",
+    new: [],
+    improved: [
+      {
+        text: "Hero Fit считает скачивания приложения для Android и заходы из него — только числа по дням и версию приложения, без данных о телефоне",
+        flag: "native_app",
+      },
+    ],
+  },
+  {
     id: "2027-06-android-help",
     version: "0.26.0",
     date: "2026-10-25",

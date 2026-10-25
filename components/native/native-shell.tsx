@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { App } from "@capacitor/app";
+import { recordAppVisitAction } from "@/lib/native/actions";
 import { HeroPush, isNativeApp } from "@/lib/native/hero-push";
 
 /** Android-приложение: системная «Назад» ходит по истории сайта, на первой странице — закрывает приложение. */
@@ -27,4 +28,24 @@ export function NativeVersion() {
       .catch(() => {});
   }, []);
   return label;
+}
+
+/** Кабинет в Android-приложении: заход — в метрики (AppVisit), не чаще раза в день на телефоне. */
+export function NativeAppVisit() {
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const today = new Date().toLocaleDateString("sv-SE");
+    try {
+      if (localStorage.getItem("hero-app-visit") === today) return;
+    } catch {}
+    HeroPush.appVersion()
+      .then((v) => recordAppVisitAction(v.version))
+      .then(() => {
+        try {
+          localStorage.setItem("hero-app-visit", today);
+        } catch {}
+      })
+      .catch(() => {});
+  }, []);
+  return null;
 }

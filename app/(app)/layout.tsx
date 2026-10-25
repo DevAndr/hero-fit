@@ -13,6 +13,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PushProvider } from "@/components/notifications/push-provider";
 import { NativePushIntro } from "@/components/native/push-intro";
+import { NativeAppVisit } from "@/components/native/native-shell";
 import { TelegramMiniApp } from "@/components/telegram/telegram-mini-app";
 import { FlagsProvider } from "@/components/flags/flags-provider";
 import { AssistantProvider } from "@/components/assistant/assistant";
@@ -98,6 +99,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <PushProvider vapidKey={env.VAPID_PUBLIC_KEY ?? null} ntfyUrl={env.NTFY_URL ?? null}>
         {/* Android-приложение: «Включите уведомления» при первом запуске */}
         <NativePushIntro />
+        <NativeAppVisit />
         {/* Умный помощник: выключатель в /settings */}
         <AssistantProvider available={user.assistantEnabled} whoop={flags.includes("whoop")}>
           {/* Сессия из Telegram Mini App — кабинет подстраивается под Telegram */}
