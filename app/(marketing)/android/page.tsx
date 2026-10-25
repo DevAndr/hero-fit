@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { CopyAddress } from "@/components/native/copy-address";
 import { env } from "@/lib/env";
+import { isEnabled } from "@/lib/flags/server";
+import { APK_MIN_ANDROID, APK_URL } from "@/lib/native/apk";
 import { NTFY_STORES } from "@/lib/native/ntfy-stores";
 
 // Инструкция для Android-приложения (спека 2026-10-25-native-push-ntfy). В индекс — когда приложение будет в магазинах.
@@ -26,7 +28,10 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
-export default function AndroidPage() {
+export default async function AndroidPage() {
+  // APK с сайта — только когда приложение открыто всем (флаг native_app), как секция на лендинге
+  const apk = await isEnabled("native_app", null);
+  const n = apk ? 1 : 0;
   return (
     <article className="mx-auto w-full max-w-3xl space-y-10 px-4 py-12 text-pretty sm:py-16 [&_p]:text-muted-foreground">
       <header className="space-y-3">
@@ -38,7 +43,18 @@ export default function AndroidPage() {
       </header>
 
       <ol className="space-y-8">
-        <Step n={1} title="Установите ntfy">
+        {apk ? (
+          <Step n={1} title="Установите Hero Fit">
+            <p>Скачайте APK и откройте его на телефоне. Android попросит разрешить установку из этого источника — разрешите.</p>
+            <p>
+              <a href={APK_URL} download className="font-medium text-primary underline-offset-4 hover:underline">
+                Скачать APK
+              </a>{" "}
+              · Android {APK_MIN_ANDROID} и новее
+            </p>
+          </Step>
+        ) : null}
+        <Step n={n + 1} title="Установите ntfy">
           <p>Бесплатное приложение с открытым кодом. Одно на все приложения — батарея почти не тратится.</p>
           <p className="flex flex-wrap gap-x-4 gap-y-1">
             {NTFY_STORES.map((s) => (
@@ -48,15 +64,15 @@ export default function AndroidPage() {
             ))}
           </p>
         </Step>
-        <Step n={2} title="Укажите наш сервер в ntfy">
+        <Step n={n + 2} title="Укажите наш сервер в ntfy">
           <p>Откройте ntfy → Настройки → «Сервер по умолчанию» и вставьте адрес:</p>
           {env.NTFY_URL ? <CopyAddress value={env.NTFY_URL} /> : <p>Сервер уведомлений пока не настроен.</p>}
           <p>С другим сервером (например, ntfy.sh) уведомления Hero Fit не придут.</p>
         </Step>
-        <Step n={3} title="Включите уведомления в Hero Fit">
+        <Step n={n + 3} title="Включите уведомления в Hero Fit">
           <p>Hero Fit → Настройки → «Push на этом устройстве» → «Включить push» и разрешите уведомления, когда Android спросит.</p>
         </Step>
-        <Step n={4} title="Проверьте">
+        <Step n={n + 4} title="Проверьте">
           <p>Там же нажмите «Отправить тестовое» — уведомление придёт через пару секунд.</p>
         </Step>
       </ol>

@@ -2,8 +2,18 @@
 {$DOMAIN} {
 	encode zstd gzip
 	# X-Real-IP — адрес клиента для лимита подбора пароля (lib/auth/throttle.ts); клиентский заголовок перезаписывается
-	reverse_proxy app:3000 {
-		header_up X-Real-IP {remote_host}
+	# APK Android-приложения (android/README.md): файлы из /opt/hero-fit/downloads, без кэша — новая версия сразу
+	handle_path /download/* {
+		root * /srv/downloads
+		@apk path *.apk
+		header @apk Content-Type application/vnd.android.package-archive
+		header Cache-Control no-cache
+		file_server
+	}
+	handle {
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
 	}
 }
 

@@ -1,5 +1,8 @@
-/** `clubs` — только когда клубы открыты всем (флаг `clubs` на 100 %). */
-export const FAQ: { q: string; a: string; clubs?: true }[] = [
+/**
+ * `clubs` — только когда клубы открыты всем (флаг `clubs` на 100 %). `android` — true: только когда Android-приложение
+ * открыто всем (флаг `native_app`), false: только пока не открыто.
+ */
+export const FAQ: { q: string; a: string; clubs?: true; android?: boolean }[] = [
   {
     q: "Hero Fit бесплатный?",
     a: "Да. Сейчас идёт ранний доступ, и открыто всё. Позже появится Премиум с расширенной статистикой, архивом итогов недели и балансом мышц, но запись тренировок, шаблоны, уровни, ачивки, streak, босс недели, лига друзей и калькуляторы останутся бесплатными навсегда.",
@@ -11,6 +14,12 @@ export const FAQ: { q: string; a: string; clubs?: true }[] = [
   {
     q: "Нужно ли что-то устанавливать?",
     a: "Нет, приложение работает в браузере на телефоне и компьютере. При желании его можно добавить на главный экран — оно откроется как обычное приложение и будет присылать уведомления. Или откройте Hero Fit прямо в Telegram — вход в одно касание, без пароля.",
+    android: false,
+  },
+  {
+    q: "Нужно ли что-то устанавливать?",
+    a: "Нет, Hero Fit работает в браузере на телефоне и компьютере, а сайт можно добавить на главный экран. Есть приложение для Android — в нём уведомления приходят, даже когда оно закрыто, без сервисов Google. Или откройте Hero Fit прямо в Telegram — вход в одно касание, без пароля.",
+    android: true,
   },
   {
     q: "Работает ли дневник без интернета?",
@@ -65,15 +74,15 @@ export const FAQ: { q: string; a: string; clubs?: true }[] = [
 ];
 
 /** Вопросы для показа и JSON-LD: клубные — только при открытых клубах. */
-export function faqFor(clubs: boolean) {
-  return FAQ.filter((f) => clubs || !f.clubs);
+export function faqFor(clubs: boolean, android: boolean) {
+  return FAQ.filter((f) => (clubs || !f.clubs) && (f.android === undefined || f.android === android));
 }
 
 /** Частые вопросы — нативные details (работают без JS, текст виден поисковикам). */
-export function Faq({ clubs }: { clubs: boolean }) {
+export function Faq({ clubs, android }: { clubs: boolean; android: boolean }) {
   return (
     <div className="divide-y rounded-2xl border bg-card">
-      {faqFor(clubs).map(({ q, a }) => (
+      {faqFor(clubs, android).map(({ q, a }) => (
         <details key={q} className="group p-5 [&_summary::-webkit-details-marker]:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
             <h3>{q}</h3>

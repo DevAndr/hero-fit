@@ -49,6 +49,8 @@ services:
       DOMAIN: ${DOMAIN:?DOMAIN is required}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # APK для скачивания с сайта (/download/…) — кладётся scp, android/README.md
+      - ./downloads:/srv/downloads:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
