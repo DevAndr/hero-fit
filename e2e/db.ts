@@ -1891,3 +1891,40 @@ export async function addLandingVisit(hour: Date, landing: string, referrer: str
     );
   });
 }
+
+/** Группа клиентов тренера (минуя UI); возвращает id. */
+export async function coachGroup(coachLogin: string, name: string, clientLogins: string[]): Promise<string> {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "CoachGroup" (id, "coachId", name, "nameKey") values ($1, $2, $3, lower($3))`, [id, await userId(db, coachLogin), name]);
+    for (const login of clientLogins) await db.query(`insert into "CoachGroupMember" ("groupId", "clientId") values ($1, $2)`, [id, await userId(db, login)]);
+    return id;
+  });
+}
+
+/** Завершённая тренировка клиента по вхождению плана (planKey) — закрывает назначение. */
+export async function completeAssignment(clientLogin: string, planKey: string, finishedAt: Date) {
+  await withDb(async (db) => {
+    const started = new Date(finishedAt.getTime() - 3600 * 1000);
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "planKey", "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, 'По плану', 'COMPLETED', $3, $4, $5, 3600, 0, 0, 0, $4, $5)`,
+      [randomUUID(), await userId(db, clientLogin), planKey, started, finishedAt],
+    );
+  });
+}
+
+/** Клиент отменил разовое назначение (`e:<id>`). */
+export async function cancelAssignment(planKey: string) {
+  await withDb((db) => db.query(`update "PlanEntry" set cancelled = true where id = $1`, [planKey.replace(/^e:/, "")]));
+}
+
+/** Пояс пользователя (IANA). */
+export async function setUserTimeZone(login: string, timeZone: string) {
+  await withDb((db) => db.query(`update "User" set "timeZone" = $2 where login = $1`, [login, timeZone]));
+}
+
+/** Ник пользователя (минуя форму). */
+export async function setNickname(login: string, nickname: string) {
+  await withDb((db) => db.query(`update "User" set nickname = $2, "nicknameKey" = lower($2) where login = $1`, [login, nickname]));
+}
