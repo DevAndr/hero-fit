@@ -44,6 +44,8 @@ test("app: ntfy on a foreign server — hint, nothing saved", async ({ page }) =
   await expect(card(page).getByTestId("push-status")).toContainText("В ntfy выбран чужой сервер");
   await expect(card(page).getByText("https://127.0.0.1")).toBeVisible();
   expect(await rows(endpoint)).toEqual([]);
+  // Регистрация на чужом сервере снята: после смены сервера в ntfy «Включить» получит новый адрес, а не прежний
+  expect(await page.evaluate(() => (window as unknown as { __heroPush: { unregisterCalls: number } }).__heroPush.unregisterCalls)).toBe(1);
 });
 
 test("app: no distributor — install hint", async ({ page }) => {

@@ -96,10 +96,12 @@ export function useNativePush(enabled: boolean, vapidKey: string | null, ntfyUrl
       });
       if (!sub) return false;
       setStatus((s) => ({ ...s, distributor: true }));
-      // Чужой сервер ntfy сервер всё равно не примет — сразу показываем подсказку
+      // Чужой сервер ntfy сервер всё равно не примет — показываем подсказку и снимаем регистрацию: после смены сервера
+      // в ntfy следующее «Включить» получит адрес на новом сервере, а не прежний
       if (nativePushReason({ distributor: true, permission, endpoint: sub.endpoint, ntfyHost: host }) === "foreign-server") {
+        await HeroPush.unregister().catch(() => {});
         setEndpoint(sub.endpoint);
-        current.current = sub.endpoint;
+        current.current = null;
         setSaved(false);
         return false;
       }
