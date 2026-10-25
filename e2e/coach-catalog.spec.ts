@@ -1,6 +1,7 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, coachProfile, contactClicks, createUserRow, enableCoach } from "./db";
-import { registerUser, uniqueLogin } from "./helpers";
+import { addFlagUser, coachProfile, contactClicks, createUserRow, enableCoach, withDb } from "./db";
+import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
 // Каталог тренеров (спека 2026-10-25-coach-catalog): флаг coach_catalog — на смотрящего, поэтому параллельно.
 // Гость и глобальный флаг — coach-catalog-global.spec.ts. Экран не важен — только desktop.
@@ -246,4 +247,39 @@ test("entry points: sidebar and profile menu «Найти тренера», sett
   await enableCoach(v.login, nickOf(v.login));
   await page.goto("/dashboard");
   await expect(page.getByRole("navigation").getByRole("link", { name: "Найти тренера" })).toHaveCount(0);
+});
+
+test("my data: contacts, consent, catalog switch and contact opens; deleting the coach removes them from the catalog", async ({ page }) => {
+  const city = cityOf();
+  const { coach } = await coachWithPage(page);
+  const coachId = await withDb(async (db) => (await db.query<{ id: string }>(`select id from "User" where login = $1`, [coach.login])).rows[0].id);
+  await coachProfile(coach.login, { about: ABOUT, publish: true, city, contacts: { phone: "+79991234567" }, consent: true, listed: true });
+  await withDb((db) =>
+    db.query(`insert into "CoachContactClick" ("coachId", day, count) select id, current_date, 2 from "User" where login = $1`, [coach.login]),
+  );
+
+  await page.goto("/settings");
+  const [json] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click(),
+  ]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.coachPage).toMatchObject({ city, catalogListed: true, contacts: { phone: "+79991234567", telegram: null } });
+  expect(data.coachPage.contactsConsentAt).toBeTruthy();
+  expect(data.coachPage.contactOpens).toEqual([expect.objectContaining({ count: 2 })]);
+
+  await page.goto(`/trainers?city=${encodeURIComponent(city)}`);
+  await expect(cards(page)).toHaveCount(1);
+
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Удаление аккаунта" }).getByRole("button", { name: "Удалить аккаунт" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Удалить аккаунт?" });
+  await dialog.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await dialog.getByRole("button", { name: "Удалить навсегда" }).click();
+  await expect(page).toHaveURL(/deleted=1/);
+
+  await viewer(page);
+  await page.goto(`/trainers?city=${encodeURIComponent(city)}`);
+  await expect(page.getByText("По этим условиям тренеров пока нет")).toBeVisible();
+  expect(await withDb(async (db) => (await db.query(`select 1 from "CoachContactClick" where "coachId" = $1`, [coachId])).rowCount)).toBe(0);
 });

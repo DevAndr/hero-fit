@@ -51,6 +51,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     feedback,
     campaignSends,
     pushDevices,
+    coachPage,
   ] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.workout.findMany({
@@ -163,6 +164,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.feedback.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { kind: true, body: true, status: true, page: true, createdAt: true } }),
     db.campaignSend.findMany({ where: { userId }, orderBy: { sentAt: "asc" }, select: { sentAt: true, returnedAt: true, campaign: { select: { name: true } } } }),
     db.pushSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { kind: true, appVersion: true, createdAt: true } }),
+    db.coachProfile.findUnique({ where: { userId }, include: { user: { select: { coachContactClicks: { orderBy: { day: "asc" }, select: { day: true, count: true } } } } } }),
   ]);
 
   const counts = await participants(publishedPrograms.map((p) => p.id));
@@ -206,6 +208,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     favoriteExercises: favorites.map((f) => ({ exercise: f.exercise.name, createdAt: f.createdAt })),
     feedback,
     pushDevices,
+    coachPage: coachPage ? { ...coachPage, user: undefined, contactOpens: coachPage.user.coachContactClicks } : null,
     campaignSends: campaignSends.map((s) => ({ campaign: s.campaign.name, sentAt: s.sentAt, returnedAt: s.returnedAt })),
     clientNotes: clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client.nickname })),
     programs: (await programsWithNames(programs)).map(({ catalogProgram, ...p }) => ({ ...p, catalogProgram: catalogProgram ? { name: catalogProgram.name, author: catalogProgram.coach.nickname } : null })),

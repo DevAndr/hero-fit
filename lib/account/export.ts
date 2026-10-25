@@ -69,6 +69,25 @@ export type ExportRaw = {
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   /** Опубликованные в каталоге программы тренера: число занимающихся — без людей; id и причина снятия сюда не идут. */
   publishedPrograms: ({ name: string; description: string | null; publishedAt: Date; hiddenAt: Dated; participants: number } & Record<string, unknown>)[];
+  /** Публичная страница тренера: поля, контакты и согласие; открытия контактов — только число по дням (кто открывал, не хранится). */
+  coachPage:
+    | ({
+        displayName: string | null;
+        city: string | null;
+        format: string;
+        specialties: string[];
+        about: string;
+        publishedAt: Dated;
+        catalogListed: boolean;
+        telegram: string | null;
+        whatsapp: string | null;
+        vk: string | null;
+        phone: string | null;
+        email: string | null;
+        contactsConsentAt: Dated;
+        contactOpens: ({ day: Date; count: number } & Record<string, unknown>)[];
+      } & Record<string, unknown>)
+    | null;
   notifications: unknown[];
   /** WHOOP: null без подключения. Токены не выбираются вовсе; активности — без userId. */
   whoop: { whoopUserId: string; connectedAt: Date; consentAt: Date; workouts: unknown[]; sleeps: unknown[] } | null;
@@ -115,6 +134,7 @@ export const EXPORT_SECTIONS = [
   "programs",
   "coachPrograms",
   "publishedPrograms",
+  "coachPage",
   "notifications",
   "shop",
   "whoop",
@@ -226,6 +246,26 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
       days: p.days.map((d) => ({ weekday: d.weekday, template: d.template, time: d.time })),
     })),
     publishedPrograms: raw.publishedPrograms.map((p) => ({ name: p.name, description: p.description, publishedAt: p.publishedAt, hiddenAt: p.hiddenAt, participants: p.participants })),
+    coachPage: raw.coachPage
+      ? {
+          displayName: raw.coachPage.displayName,
+          city: raw.coachPage.city,
+          format: raw.coachPage.format,
+          specialties: raw.coachPage.specialties,
+          about: raw.coachPage.about,
+          publishedAt: raw.coachPage.publishedAt,
+          catalogListed: raw.coachPage.catalogListed,
+          contacts: {
+            telegram: raw.coachPage.telegram,
+            whatsapp: raw.coachPage.whatsapp,
+            vk: raw.coachPage.vk,
+            phone: raw.coachPage.phone,
+            email: raw.coachPage.email,
+          },
+          contactsConsentAt: raw.coachPage.contactsConsentAt,
+          contactOpens: raw.coachPage.contactOpens.map((c) => ({ day: c.day, count: c.count })),
+        }
+      : null,
     notifications: raw.notifications,
     shop: {
       coins: raw.shop.coins,
