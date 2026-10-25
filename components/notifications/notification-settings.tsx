@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BellOff, BellRing, Copy, Loader2, Send, Smartphone } from "lucide-react";
+import Link from "next/link";
+import { BellOff, BellRing, ChevronRight, Loader2, Send, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -9,6 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { useFlag } from "@/components/flags/flags-provider";
 import { usePush } from "@/components/notifications/push-provider";
 import { sendTestPushAction, updateNotificationSettingsAction } from "@/lib/notifications/actions";
+import { CopyAddress } from "@/components/native/copy-address";
+import { NTFY_STORES } from "@/lib/native/ntfy-stores";
 import type { NativePushReason } from "@/lib/native/push-state";
 import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 
@@ -54,14 +57,7 @@ const NATIVE_STATUS: Record<Exclude<NativePushReason, null>, string> = {
   permission: "Уведомления запрещены в настройках Android для Hero Fit.",
 };
 
-const NTFY_STORES = [
-  { name: "RuStore", href: "https://www.rustore.ru/catalog/app/io.heckel.ntfy" },
-  { name: "F-Droid", href: "https://f-droid.org/packages/io.heckel.ntfy/" },
-  { name: "Google Play", href: "https://play.google.com/store/apps/details?id=io.heckel.ntfy" },
-];
-
 function NativeHint({ reason, ntfyUrl }: { reason: NativePushReason; ntfyUrl: string | null }) {
-  const [copied, setCopied] = useState(false);
   if (reason === "no-distributor")
     return (
       <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
@@ -72,22 +68,7 @@ function NativeHint({ reason, ntfyUrl }: { reason: NativePushReason; ntfyUrl: st
         ))}
       </p>
     );
-  if (reason === "foreign-server" && ntfyUrl)
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="rounded bg-muted px-2 py-1 text-sm">{ntfyUrl}</code>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={async () => {
-            await navigator.clipboard.writeText(ntfyUrl).then(() => setCopied(true), () => {});
-          }}
-        >
-          <Copy />
-          {copied ? "Скопировано" : "Скопировать адрес"}
-        </Button>
-      </div>
-    );
+  if (reason === "foreign-server" && ntfyUrl) return <CopyAddress value={ntfyUrl} />;
   return null;
 }
 
@@ -114,7 +95,15 @@ export function PushDeviceCard({ devices }: { devices: number }) {
       <p className="text-sm text-muted-foreground" data-testid="push-status">
         {status}
       </p>
-      {push?.native ? <NativeHint reason={push.nativeReason} ntfyUrl={push.ntfyUrl} /> : null}
+      {push?.native ? (
+        <>
+          <NativeHint reason={push.nativeReason} ntfyUrl={push.ntfyUrl} />
+          <Link href="/android" className="flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline">
+            Как подключить уведомления
+            <ChevronRight className="size-4" />
+          </Link>
+        </>
+      ) : null}
       <p className="text-xs text-muted-foreground">Устройств с push на аккаунте: {devices}</p>
       {push?.supported && push.available && push.nativeReason !== "server-off" ? (
         <div className="flex flex-wrap gap-2">
