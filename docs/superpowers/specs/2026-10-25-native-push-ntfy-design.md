@@ -110,9 +110,10 @@ APK с сайта, у которого push не зависят от Google:
 - env (`lib/env.ts`): `NTFY_URL` (необязательный, `https://…`). Без него нативные подписки отклоняются, в приложении —
   «уведомления недоступны».
 - `subscribePushAction` принимает `kind` и `appVersion`. Проверка хоста — чистая функция
-  `allowedPushHost(kind, endpoint, ntfyUrl)` (`lib/notifications/push-hosts.ts`): только `https`; `WEB` — хосты
-  браузерных push-сервисов (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`,
-  `web.push.apple.com`); `UNIFIEDPUSH`/`EMBEDDED` — только хост `NTFY_URL`. Нативный `kind` при выключенном флаге
+  `allowedPushHost(kind, endpoint, ntfyUrl)` (`lib/notifications/push-hosts.ts`): только `https`; `WEB` — любое имя
+  хоста, кроме `localhost` и IP-адресов (список браузерных push-сервисов не ведём: у Яндекс Браузера и других свои
+  сервисы, список молча отрезал бы им push); `UNIFIEDPUSH`/`EMBEDDED` — только имя хоста `NTFY_URL` (порт не
+  сравнивается — в e2e фейковый ntfy слушает случайный порт). Нативный `kind` при выключенном флаге
   `native_app` отклоняется. Upsert по `endpoint`, как сейчас.
 - Веб-подписки, сохранённые до появления проверки, не трогаем: проверяются только новые.
 - `sendPushToUser` не меняется: 404/410 от ntfy (топик удалён) удаляют подписку, как у веба.
@@ -135,7 +136,8 @@ APK с сайта, у которого push не зависят от Google:
 
 - В БД — эндпоинт, ключи, `kind`, `appVersion`, как и раньше без содержимого уведомлений.
 - На ntfy — только зашифрованные сообщения с хранением ≤ 12 ч, без учёток; сервер в РФ, на нашем хостинге.
-- «Мои данные» (`lib/account/*`): у подписок появляются `kind` и `appVersion`. Удаление аккаунта — каскад уже есть.
+- «Мои данные» (`lib/account/*`): новый раздел `pushDevices` — `kind`, `appVersion`, `createdAt` (без эндпоинта и
+  ключей; раньше подписки не выгружались вовсе). Удаление аккаунта — каскад уже есть.
 - `/privacy`: строка о том, что push в приложении идут через наш сервер ntfy и зашифрованы. FAQ на лендинге — про
   приложение, только когда появится реальная ссылка на магазин.
 
@@ -146,7 +148,8 @@ APK с сайта, у которого push не зависят от Google:
 
 ## Тесты
 
-- unit: `allowedPushHost` (каждый `kind`, `http`, поддомены, порт, пустой `NTFY_URL`), схема подписки с `kind`.
+- unit: `allowedPushHost` (каждый `kind`, `http`, `localhost` и IP, поддомен `NTFY_URL`, порт, пустой `NTFY_URL`),
+  схема подписки с `kind`.
 - e2e (`e2e/native-push.spec.ts`, serial, только desktop — глобальный флаг): фейковый push-сервис
   `e2e/push-server.ts` играет роль ntfy (`NTFY_URL` на него); нативная подписка сохраняется и получает push; подписка с
   чужим хостом отклоняется; при выключенном флаге отклоняется; отписка удаляет строку.
@@ -159,9 +162,11 @@ APK с сайта, у которого push не зависят от Google:
 Каждый этап — свой план и своя фича-ветка от `release/2027-05-native`.
 
 1. **Сервер:** `PushKind`, `appVersion`, `NTFY_URL`, `allowedPushHost`, флаг `native_app`, ntfy в `deploy/`, алерт о
-   сбоях, метрики, «Мои данные», `/privacy`.
+   сбоях, метрики, «Мои данные». e2e — только отправка на нативную подписку (через БД): вызвать action с нативным
+   `kind` без Capacitor нечем.
 2. **Обёртка и UnifiedPush:** проект `android/`, flavors, `HeroPush` в режимах `unifiedpush`/`none`, каналы,
-   `push-provider`, `/settings`, App Links. После этапа сборка `play` готова.
+   `push-provider`, `/settings`, App Links, `/privacy` (раньше нельзя: утверждения о приложении должны быть правдой),
+   e2e `native-push.spec.ts` с подменой `window.Capacitor` через `addInitScript`. После этапа сборка `play` готова.
 3. **Своё соединение** для `rustore`/`apk`: топик, ключи, foreground service, переподключение, батарея.
 
 ## Вне объёма
