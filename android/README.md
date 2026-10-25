@@ -48,3 +48,24 @@ keyPassword=...
 
 SHA-256 ключа для App Links — `keytool -list -v -keystore hero-fit.jks -alias hero-fit` (строка `SHA256:`), в `.env`
 сервера — `ANDROID_CERT_SHA256` (через запятую, если ключей несколько: свой и ключ подписи Google Play).
+
+## Ручной чек-лист (push через ntfy)
+
+Локально: в `.env` `NTFY_URL="https://ntfy.sh"` (сервер по умолчанию в приложении ntfy), VAPID-ключи, флаг `native_app`
+для своего логина (`/admin/flags`), `npm run dev`, `adb reverse tcp:3000 tcp:3000`, `npm run cap:dev`,
+`./gradlew assemblePlayDebug`, `adb install -r …`. Пропал USB — пропал и `adb reverse` (заглушка «Нет связи»).
+
+Пройден 2026-10-25 на Galaxy S24 (Android 16), сборка `play` debug:
+
+- [x] «Включить push» → разрешение Android → «Push включён», в БД подписка `UNIFIEDPUSH`, `appVersion` 1.0.0
+- [x] «Отправить тестовое» → уведомление пришло
+- [x] Hero Fit смахнут из недавних, экран заблокирован → push «таймер отдыха» × 2 с одним `tag`: одно уведомление в
+      канале «Таймер отдыха» (звук, вибрация), нажатие открывает `/stats`
+- [x] App Link `adb shell am start -a android.intent.action.VIEW -d https://hero-fit.ru/stats ru.herofit.app` → «Статистика»
+- [x] «Назад» Android ходит по истории сайта
+- [x] Выход из аккаунта → подписки нет ни в БД, ни в ntfy, `hero_push` пуст
+- [x] В ntfy чужой сервер по умолчанию → «В ntfy выбран чужой сервер» и адрес; вернули сервер → «Включить» → новая
+      подписка на нужном сервере
+- [x] Нет связи с сайтом → заглушка «Нет связи с Hero Fit» (`server.errorPath`)
+- [ ] Удаление приложения ntfy → подписка снимается (не проверялось)
+- [ ] Release-сборка с `cap:prod` и подписью, App Links с проверкой на проде (нужен `ANDROID_CERT_SHA256` на сервере)

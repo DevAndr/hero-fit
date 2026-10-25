@@ -10,7 +10,8 @@ const config: CapacitorConfig = {
   // Заглушка: Capacitor требует webDir, а страницы приходят с server.url
   webDir: "capacitor-web",
   // Старт — кабинет (без входа proxy отправит на /login), а не лендинг
-  server: { url, appStartPath: "/dashboard", cleartext: url.startsWith("http://") },
+  // errorPath — заглушка «Нет связи» из webDir вместо белого экрана, если сайт не загрузился
+  server: { url, appStartPath: "/dashboard", errorPath: "index.html", cleartext: url.startsWith("http://") },
   android: { allowMixedContent: false },
 };
 
