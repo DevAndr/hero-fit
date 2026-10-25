@@ -20,6 +20,11 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default("mailto:admin@hero-fit.local"),
+  /** ntfy для push в Android-приложении (спека 2026-10-25-native-push-ntfy); пусто — нативные подписки не принимаются. */
+  NTFY_URL: z
+    .union([z.literal(""), z.url().startsWith("https://")])
+    .optional()
+    .transform((v) => v || undefined),
   NOTIFICATIONS_WORKER: z.enum(["on", "off"]).default("on"),
   /** off — ежедневный сундук не открывается сам (e2e: диалог не мешает остальным сценариям). */
   DAILY_CHEST_AUTOOPEN: z.enum(["on", "off"]).default("on"),
