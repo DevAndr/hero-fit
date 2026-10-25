@@ -66,6 +66,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // UnifiedPush: дистрибьютор (приложение ntfy), ключи Web Push и расшифровка — спека 2026-10-25-native-push-ntfy
+    implementation "org.unifiedpush.android:connector:3.3.5"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
