@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { COACH_CODE_PREFIX, COACH_LADDERS, type CoachLadderKey } from "@/lib/achievements/definitions";
+import { contactsSchema } from "@/lib/coach/contacts";
 import { plural } from "@/lib/format";
 
 /** Публичная страница тренера: специализации, формат, цифры и правила показа (чистые). */
@@ -40,6 +41,10 @@ export const coachProfileSchema = z.object({
   about: z.string().trim().max(1000, "О себе — максимум 1000 символов"),
   hiddenStats: z.array(z.enum(STAT_CODES)).refine((a) => new Set(a).size === a.length),
   showAwards: z.boolean().default(true),
+  ...contactsSchema.shape,
+  /** Галочка «Показывать контакты вошедшим» — на сервере становится contactsConsentAt. */
+  contactsConsent: z.boolean().default(false),
+  catalogListed: z.boolean().default(false),
 });
 export type CoachProfileInput = z.input<typeof coachProfileSchema>;
 

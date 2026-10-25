@@ -11,12 +11,15 @@ export const CONTACT_LABELS: Record<ContactKind, string> = { telegram: "Telegram
 /** Адрес без схемы, хоста и хвоста: «https://t.me/nick/?x» → «nick». */
 const stripUrl = (v: string, hosts: RegExp) => v.replace(/^https?:\/\//i, "").replace(hosts, "").replace(/[/?#].*$/, "");
 
-const handle = (normalize: (v: string) => string, valid: RegExp, message: string) =>
+/** Необязательная строка: пусто → null, иначе normalize и проверка. */
+const handle = (normalize: (v: string) => string, valid: (v: string) => boolean, message: string) =>
   z
     .string()
-    .trim()
-    .transform((v) => (v ? normalize(v) : null))
-    .refine((v) => v === null || valid.test(v), message);
+    .optional()
+    .transform((v) => (v?.trim() ? normalize(v.trim()) : null))
+    .refine((v) => v === null || valid(v), message);
+
+const matches = (re: RegExp) => (v: string) => re.test(v);
 
 /** Номер: только цифры с «+»; российский «8XXXXXXXXXX» → «+7XXXXXXXXXX». */
 function normalizePhone(v: string): string {
@@ -26,19 +29,14 @@ function normalizePhone(v: string): string {
   return `+${digits}`;
 }
 
-const phone = handle(normalizePhone, /^\+\d{10,15}$/, "Проверьте номер");
+const phone = handle(normalizePhone, matches(/^\+\d{10,15}$/), "Проверьте номер");
 
 export const contactsSchema = z.object({
-  telegram: handle((v) => stripUrl(v, /^(www\.)?(t|telegram)\.me\//i).replace(/^@/, ""), /^[A-Za-z0-9_]{5,32}$/, "Проверьте ник в Telegram"),
+  telegram: handle((v) => stripUrl(v, /^(www\.)?(t|telegram)\.me\//i).replace(/^@/, ""), matches(/^[A-Za-z0-9_]{5,32}$/), "Проверьте ник в Telegram"),
   whatsapp: phone,
-  vk: handle((v) => stripUrl(v, /^(m\.)?vk\.(com|ru)\//i), /^[A-Za-z0-9_.]{2,32}$/, "Проверьте адрес VK"),
+  vk: handle((v) => stripUrl(v, /^(m\.)?vk\.(com|ru)\//i), matches(/^[A-Za-z0-9_.]{2,32}$/), "Проверьте адрес VK"),
   phone,
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .transform((v) => v || null)
-    .refine((v) => v === null || (v.length <= 254 && z.email().safeParse(v).success), "Проверьте email"),
+  email: handle((v) => v.toLowerCase(), (v) => v.length <= 254 && z.email().safeParse(v).success, "Проверьте email"),
 });
 
 /** +79991234567 → «+7 999 123-45-67»; другие страны — как хранятся. */

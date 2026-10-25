@@ -15,6 +15,7 @@ function revalidate(nickname: string | null) {
   revalidatePath("/coach/page");
   if (nickname) revalidatePath(`/trainer/${nickname}`);
   revalidatePath("/sitemap.xml");
+  revalidatePath("/trainers");
 }
 
 const nicknameOf = async (userId: string) =>
@@ -24,7 +25,15 @@ export async function saveCoachProfileAction(input: CoachProfileInput): Promise<
   const coach = await requireCoach();
   const parsed = coachProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Проверьте поля" };
-  await db.coachProfile.upsert({ where: { userId: coach.id }, create: { userId: coach.id, ...parsed.data }, update: parsed.data });
+  const { contactsConsent, ...data } = parsed.data;
+  // Дата согласия — с первой отметки, повторное сохранение её не сдвигает
+  const prev = await db.coachProfile.findUnique({ where: { userId: coach.id }, select: { contactsConsentAt: true } });
+  const contactsConsentAt = contactsConsent ? (prev?.contactsConsentAt ?? new Date()) : null;
+  await db.coachProfile.upsert({
+    where: { userId: coach.id },
+    create: { userId: coach.id, ...data, contactsConsentAt },
+    update: { ...data, contactsConsentAt },
+  });
   revalidate(await nicknameOf(coach.id));
   return { ok: true };
 }
