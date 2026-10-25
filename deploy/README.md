@@ -108,10 +108,13 @@ Push приложения идут через свой ntfy (UnifiedPush, спе
    сертификат (основной сайт при этом работает).
 2. После первого деплоя с ntfy — один раз открыть топики UnifiedPush (остальные закрыты `deny-all`):
    `docker compose exec ntfy ntfy access everyone 'up*' read-write`. Права хранятся в томе `ntfy_data`.
-3. Проверка: `curl -d test https://push.<домен>/up$(openssl rand -hex 6)` → `507` («нет подписчика» — ntfy жив и
+3. Проверка: `curl -d test "https://push.<домен>/up$(openssl rand -hex 6)?up=1"` → `507` (`?up=1` — так шлёт сервер Hero Fit; без него ntfy ответит `200`) («нет подписчика» — ntfy жив и
    топики открыты; `403` — шаг 2 не выполнен). Топик UnifiedPush — ровно `up` + 12 символов.
 4. В `/opt/hero-fit/.env`: `NTFY_URL=https://push.<домен>`, затем Run pipeline на `main`. Без `NTFY_URL` сервер
    не принимает подписки приложения. Флаг `native_app` в `/admin/flags` — когда выйдет приложение.
+
+APK Android-приложения для скачивания с сайта — `/opt/hero-fit/downloads/hero-fit.apk` (Caddy, `/download/*`, том
+`./downloads`); как собрать и выложить — `android/README.md`, «APK на сайте».
 
 Пять неудачных отправок на ntfy подряд — алерт админам в Telegram (не чаще раза в час).
 

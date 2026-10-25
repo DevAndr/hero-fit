@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Dumbbell, Gift, Play, Send, Sparkles, Trophy, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Download, Dumbbell, Gift, Play, Send, Smartphone, Sparkles, Trophy, Users, X } from "lucide-react";
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
@@ -30,6 +30,7 @@ import { getPopularCities } from "@/lib/club/public-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { isEnabled } from "@/lib/flags/server";
+import { APK_MIN_ANDROID, APK_URL } from "@/lib/native/apk";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramAppUrl } from "@/lib/telegram/links";
@@ -248,16 +249,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   await connection();
   // Mini App в Telegram — только при настроенном боте
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
-  // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ
-  const [exercises, programs, clubs, cities, authed] = await Promise.all([
+  // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ.
+  // Android-приложение — так же: флаг `native_app` для всех (иначе скачавший не сможет включить уведомления)
+  const [exercises, programs, clubs, android, cities, authed] = await Promise.all([
     db.exercise.count({ where: { userId: null } }),
     db.workoutTemplate.count({ where: { userId: null } }),
     isEnabled("clubs", null),
+    isEnabled("native_app", null),
     getPopularCities(6),
     cookies().then((c) => c.has(ACCESS_COOKIE)),
   ]);
   const freePlan = FREE_PLAN.filter((t) => clubs || !t.startsWith("Клубы залов"));
-  const faq = faqFor(clubs);
+  const faq = faqFor(clubs, android);
+  const platforms = ["в браузере", ...(telegramUrl ? ["Telegram"] : []), ...(android ? ["Android"] : [])];
   const site = env.APP_URL;
   const structured = [
     {
@@ -311,7 +315,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             ) : null}
             <WhatsNewLink />
             <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
-              <Dumbbell className="size-4 text-primary" aria-hidden /> {telegramUrl ? "Бесплатно · в браузере, Telegram и офлайн" : "Бесплатно · в браузере и офлайн"}
+              <Dumbbell className="size-4 text-primary" aria-hidden /> Бесплатно · {platforms.join(", ")} и офлайн
             </p>
             <h1 className="hf-rise font-display text-4xl leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl" style={{ animationDelay: "0.05s" }}>
               Дневник тренировок, который превращает зал в <span className="text-primary">игру</span>
@@ -340,6 +344,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   <Check className="size-4 text-primary" aria-hidden /> {t}
                 </li>
               ))}
+              {android ? (
+                <li>
+                  {/* Якорь к секции «Приложение для Android» — меню шапки на телефоне скрыто */}
+                  <a href="#android" className="flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
+                    <Smartphone className="size-4" aria-hidden /> Приложение для Android ↓
+                  </a>
+                </li>
+              ) : null}
             </ul>
           </div>
           <HeroHud />
@@ -637,6 +649,38 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </section>
 
       {/* Тарифы */}
+      {android ? (
+        <section aria-labelledby="android" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-20 sm:pb-24">
+          <div className="grid items-center gap-8 rounded-3xl border bg-card p-6 sm:p-10 md:grid-cols-[auto_1fr]">
+            <div className="mx-auto flex size-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground md:size-24">
+              <Smartphone className="size-10 md:size-12" aria-hidden />
+            </div>
+            <div className="space-y-4 text-center md:text-left">
+              <p className="text-sm font-semibold tracking-wide text-primary uppercase">Android</p>
+              <h2 id="android" className="font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+                Приложение для Android
+              </h2>
+              <p className="text-pretty text-muted-foreground">
+                Таймер отдыха, серия и ачивки приходят уведомлением, даже когда приложение закрыто. Без сервисов Google: уведомления доставляет
+                бесплатное приложение ntfy через наш сервер.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3 md:justify-start">
+                <a href={APK_URL} download className={buttonVariants({ size: "lg", className: "h-12 px-6 text-base" })}>
+                  <Download aria-hidden /> Скачать APK
+                </a>
+                <Link href="/android" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
+                  Как подключить уведомления
+                </Link>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Android {APK_MIN_ANDROID} и новее. При установке телефон попросит разрешить установку из этого источника — это нормально для приложений
+                не из магазина.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section aria-labelledby="pricing" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle
           id="pricing"
@@ -686,7 +730,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
         <div className="mt-12">
-          <Faq clubs={clubs} />
+          <Faq clubs={clubs} android={android} />
         </div>
       </section>
 

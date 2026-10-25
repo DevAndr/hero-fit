@@ -136,6 +136,72 @@ test("app: undecryptable push — re-registers on start and saves the new endpoi
   }
 });
 
+const intro = (page: Page) => page.getByRole("alertdialog", { name: "Включите уведомления" });
+
+test("app: first launch — intro dialog once; «Позже» does not come back", async ({ page }) => {
+  await mockNativeApp(page, { distributor: false, register: { endpoint: "https://127.0.0.1/upIntroLater1", p256dh: "p", auth: "a" }, intro: true });
+  const { login } = await registerUser(page);
+  await addFlagUser("native_app", login);
+  await page.goto("/dashboard");
+  await expect(intro(page)).toBeVisible();
+  await intro(page).getByRole("button", { name: "Позже" }).click();
+  await expect(intro(page)).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(intro(page)).toHaveCount(0);
+});
+
+test("app: intro without ntfy leads to the guide", async ({ page }) => {
+  await mockNativeApp(page, { distributor: false, register: { endpoint: "https://127.0.0.1/upIntroGuide1", p256dh: "p", auth: "a" }, intro: true });
+  const { login } = await registerUser(page);
+  await addFlagUser("native_app", login);
+  await page.goto("/dashboard");
+  await intro(page).getByRole("link", { name: "Как подключить" }).click();
+  await expect(page).toHaveURL(/\/android$/);
+});
+
+test("app: intro with ntfy installed enables push right away", async ({ page }) => {
+  const push = await startPushService();
+  try {
+    await mockNativeApp(page, { register: push, intro: true });
+    const { login } = await registerUser(page);
+    await addFlagUser("native_app", login);
+    await page.goto("/dashboard");
+    await intro(page).getByRole("button", { name: "Включить" }).click();
+    await expect.poll(async () => (await rows(push.endpoint)).length).toBe(1);
+    await expect(intro(page)).toHaveCount(0);
+  } finally {
+    await push.close();
+  }
+});
+
+test("app: settings card links to the guide", async ({ page }) => {
+  await mockNativeApp(page, { distributor: false, register: { endpoint: "https://127.0.0.1/upIntroLink01", p256dh: "p", auth: "a" } });
+  const { login } = await registerUser(page);
+  await addFlagUser("native_app", login);
+  await page.goto("/settings");
+  await card(page).getByRole("link", { name: "Как подключить уведомления" }).click();
+  await expect(page).toHaveURL(/\/android$/);
+});
+
+test("guide /android is public and shows our ntfy server", async ({ page }) => {
+  await page.goto("/android");
+  await expect(page).toHaveURL(/\/android$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Уведомления в приложении Hero Fit для Android" })).toBeVisible();
+  await expect(page.getByText("https://127.0.0.1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ntfy в RuStore" })).toBeVisible();
+});
+
+test("browser: no intro dialog", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addFlagUser("native_app", login);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(intro(page)).toHaveCount(0);
+  await page.goto("/settings");
+  await expect(card(page).getByRole("link", { name: "Как подключить уведомления" })).toHaveCount(0);
+});
+
 test("browser: no native hints", async ({ page }) => {
   await registerUser(page);
   await page.goto("/settings");

@@ -5,21 +5,23 @@ import { ThemeToggle } from "@/components/marketing/theme-toggle";
 import { cn } from "@/lib/utils";
 
 /**
- * `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %). Пунктов — не больше, чем влезает в max-w-6xl:
+ * `clubs` — пункт только при открытых клубах (флаг `clubs` на 100 %), `android` — при Android-приложении для всех
+ * (флаг `native_app`). Пунктов — не больше, чем влезает в max-w-6xl:
  * иначе кнопки справа уезжают за экран. «Как это работает», «Калькулятор блинов» и «Что нового» — в подвале.
  */
-const NAV: { href: string; label: string; clubs?: true }[] = [
+const NAV: { href: string; label: string; clubs?: true; android?: true }[] = [
   { href: "/#features", label: "Возможности" },
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
   { href: "/#guilds", label: "Гильдии" },
   { href: "/#clubs", label: "Клубы", clubs: true },
   { href: "/#coaches", label: "Тренерам" },
+  { href: "/#android", label: "Android", android: true },
   { href: "/#pricing", label: "Тарифы" },
   { href: "/#faq", label: "Вопросы" },
 ];
 
 /** Шапка публичных страниц; вошедшему — сразу в кабинет. */
-export function SiteHeader({ authed, clubs }: { authed: boolean; clubs: boolean }) {
+export function SiteHeader({ authed, clubs, android }: { authed: boolean; clubs: boolean; android: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4">
@@ -30,7 +32,7 @@ export function SiteHeader({ authed, clubs }: { authed: boolean; clubs: boolean 
           Hero Fit
         </Link>
         <nav aria-label="Разделы сайта" className="hidden items-center gap-5 text-sm whitespace-nowrap text-muted-foreground xl:flex">
-          {NAV.filter((n) => clubs || !n.clubs).map((n) => (
+          {NAV.filter((n) => (clubs || !n.clubs) && (android || !n.android)).map((n) => (
             <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">
               {n.label}
             </Link>

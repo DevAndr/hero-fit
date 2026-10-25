@@ -12,6 +12,8 @@ export type NativeMockOptions = {
   dropped?: string | null;
   /** Push не расшифровался — приложение должно перерегистрироваться (status().reregister). */
   reregister?: boolean;
+  /** Показать диалог «Включите уведомления» при первом запуске; по умолчанию он уже «был» и не мешает сценарию. */
+  intro?: boolean;
 };
 
 /**
@@ -23,6 +25,7 @@ export async function mockNativeApp(page: Page, opts: NativeMockOptions) {
   await page.addInitScript((o: NativeMockOptions) => {
     // Состояние «телефона» переживает перезагрузки (выход из аккаунта — полная навигация): как SharedPreferences
     const KEY = "__heroPush";
+    if (!o.intro && !sessionStorage.getItem(KEY)) localStorage.setItem("hero-push-intro", "1");
     const initial = {
       distributor: o.distributor ?? true,
       permission: (o.permission ?? "prompt") as string,
