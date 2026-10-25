@@ -98,6 +98,10 @@ test("group filter keeps one client; a foreign group shows all", async ({ page, 
   await expect(page.getByRole("link", { name: new RegExp(masha.nickname) })).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(borya.nickname) })).toHaveCount(0);
 
+  const empty = await coachGroup(c.login, "Пустая", []);
+  await page.goto(`/coach/calendar?group=${empty}`);
+  await expect(page.getByText("В этой группе нет клиентов")).toBeVisible();
+
   await page.goto(`/coach/calendar?group=${foreign}`);
   await expect(page.getByRole("link", { name: new RegExp(masha.nickname) })).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(borya.nickname) })).toBeVisible();
@@ -148,7 +152,7 @@ test("another coach's client and a former client are not shown", async ({ page, 
   await expect(page.getByRole("link", { name: new RegExp(stranger.nickname) })).toHaveCount(0);
 });
 
-test("client in another timezone: today's assignment is upcoming and marked «по его времени»", async ({ page }) => {
+test("client in another timezone: today's assignment is upcoming and marked «время клиента»", async ({ page }) => {
   const c = await coach(page);
   const far = await client(c.login, "Далеко");
   const offset = E2E_TZ_OFFSET + 12 <= 14 ? E2E_TZ_OFFSET + 12 : E2E_TZ_OFFSET - 12;
@@ -158,7 +162,7 @@ test("client in another timezone: today's assignment is upcoming and marked «п
 
   await page.goto(`/coach/calendar?date=${theirToday}`);
   const row = day(page, theirToday).getByRole("link", { name: new RegExp(far.nickname) });
-  await expect(row).toContainText("по его времени");
+  await expect(row).toContainText("время клиента");
   await expect(row).not.toContainText("не выполнено");
 });
 

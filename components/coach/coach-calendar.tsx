@@ -24,7 +24,7 @@ function Row({ item, coachTz }: { item: CoachCalendarItem; coachTz: string }) {
       <span className="font-semibold tabular-nums">{item.time}</span>{" "}
       {item.clientTz !== coachTz ? (
         <span className="text-muted-foreground" title={item.clientTz}>
-          (по его времени){" "}
+          (время клиента){" "}
         </span>
       ) : null}
       <span className="font-medium">{item.clientName}</span> · {item.title}

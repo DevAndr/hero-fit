@@ -15,8 +15,11 @@ export type CoachCalendarItem = {
   status: CoachCalendarStatus;
 };
 
-/** Клиентов, чей календарь считается одновременно (пул соединений БД). */
-export const CALENDAR_CONCURRENCY = 8;
+/**
+ * Клиентов, чей календарь считается одновременно: у каждого ~5 параллельных запросов, пул pg по умолчанию — 10
+ * соединений; больше — и запросы других пользователей ждут очереди.
+ */
+export const CALENDAR_CONCURRENCY = 2;
 
 /** «Сегодня» и «впереди» — одно: невыполненное в свой день ещё не пропуск. */
 export function statusOf(status: PlanStatus | "skipped"): CoachCalendarStatus {
@@ -37,8 +40,9 @@ export function dayPreview<T>(items: T[], limit = 3): { shown: T[]; more: number
   return { shown: items.slice(0, limit), more: Math.max(0, items.length - limit) };
 }
 
-export function calendarSummary(items: CoachCalendarItem[]): { workouts: number; clients: number; done: number; past: number } {
-  const past = items.filter((i) => i.status !== "upcoming");
+/** past — выполненные, не выполненные и отменённые в прошедшие дни (`today` — тренера; отменённое заранее — не прошедшее). */
+export function calendarSummary(items: CoachCalendarItem[], today: string): { workouts: number; clients: number; done: number; past: number } {
+  const past = items.filter((i) => i.status === "done" || i.status === "missed" || (i.status === "skipped" && i.date < today));
   return {
     workouts: items.length,
     clients: new Set(items.map((i) => i.clientId)).size,

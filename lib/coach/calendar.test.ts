@@ -52,7 +52,11 @@ describe("calendarSummary", () => {
         item({ status: "missed", clientId: "c2" }),
         item({ status: "upcoming", clientId: "c2" }),
         item({ status: "upcoming" }),
-      ]),
+      ], "2026-10-28"),
     ).toEqual({ workouts: 5, clients: 2, done: 1, past: 3 });
+  });
+
+  it("отменённое заранее (будущая дата) — не прошедшее", () => {
+    expect(calendarSummary([item({ status: "skipped", date: "2026-10-29" })], "2026-10-28")).toEqual({ workouts: 1, clients: 1, done: 0, past: 0 });
   });
 });

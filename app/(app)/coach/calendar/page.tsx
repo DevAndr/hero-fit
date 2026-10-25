@@ -31,7 +31,7 @@ export default async function CoachCalendarPage({ searchParams }: { searchParams
     db.coachGroup.findMany({ where: { coachId: coach.id }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const { clients, items } = await getCoachCalendar(coach.id, range.from, range.to, { groupId, now });
-  const summary = calendarSummary(items);
+  const summary = calendarSummary(items, today);
 
   const hrefFor = (v: CalendarViewKind, d: string, g: string | null = groupId) => {
     const q = new URLSearchParams();
@@ -63,7 +63,7 @@ export default async function CoachCalendarPage({ searchParams }: { searchParams
 
       {clients === 0 ? (
         <div className="space-y-3 rounded-xl border border-dashed p-6 text-center">
-          <p className="text-sm text-muted-foreground">Пока нет клиентов</p>
+          <p className="text-sm text-muted-foreground">{groupId ? "В этой группе нет клиентов" : "Пока нет клиентов"}</p>
           <Link href="/coach" className={buttonVariants({ variant: "outline", size: "sm" })}>
             К клиентам
           </Link>
