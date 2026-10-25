@@ -92,6 +92,11 @@ test("trainer page: a signed-in user sees contact links; a click is counted for 
     await expect(telegram).toHaveAttribute("href", `https://t.me/${tg}`);
     await Promise.all([ctx.waitForEvent("page"), telegram.click()]);
     await expect.poll(() => contactClicks(coach.login)).toBe(1);
+    // Повтор тем же пользователем в пределах окна — не накручивает
+    const repeat = viewer.waitForResponse((r) => r.request().method() === "POST" && r.url().includes(`/trainer/${nick}`));
+    await Promise.all([ctx.waitForEvent("page"), telegram.click()]);
+    await repeat;
+    expect(await contactClicks(coach.login)).toBe(1);
   } finally {
     await ctx.close();
   }
@@ -175,6 +180,7 @@ test("catalog: a listed coach is shown; unlisted, no-consent and no-contact coac
   await expect(page.getByRole("heading", { level: 1, name: "Тренеры Hero Fit" })).toBeVisible();
   await expect(cards(page)).toHaveCount(1);
   await expect(cards(page).first()).toContainText("Видимый Тренер");
+  await expect(cards(page).first()).toContainText(`@${shown.nick}`);
   await expect(cards(page).first().getByRole("link", { name: `Telegram @${tgOf(shown.login)}` })).toBeVisible();
   await cards(page).first().getByRole("link", { name: "Подробнее" }).click();
   await expect(page).toHaveURL(new RegExp(`/trainer/${shown.nick}$`));
@@ -209,6 +215,8 @@ test("catalog: filters form submits city, format and specialty", async ({ page }
   await expect(page).toHaveURL(/format=ONLINE/);
   await expect(cards(page)).toHaveCount(1);
   await expect(cards(page).first()).toContainText("Тренер Формы");
+  await page.getByRole("form", { name: "Фильтры" }).getByRole("link", { name: "Сбросить" }).click();
+  await expect(page).toHaveURL(/\/trainers$/);
 });
 
 test("catalog: empty state with reset", async ({ page }) => {

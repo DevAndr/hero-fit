@@ -12,6 +12,7 @@ export function TrainerCard({ item, signedIn, nextPath }: { item: CatalogItem; s
     <li className="space-y-3 rounded-xl border bg-card p-4">
       <div className="space-y-1">
         <h2 className="font-display text-lg font-bold">{item.name}</h2>
+        {item.name !== item.nickname ? <p className="text-sm text-muted-foreground">@{item.nickname}</p> : null}
         <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
           {item.city ? (
             <span className="flex items-center gap-1">

@@ -21,11 +21,14 @@ const handle = (normalize: (v: string) => string, valid: (v: string) => boolean,
 
 const matches = (re: RegExp) => (v: string) => re.test(v);
 
-/** Номер: только цифры с «+»; российский «8XXXXXXXXXX» → «+7XXXXXXXXXX». */
+/** Номер: только цифры с «+». Без «+» — российский: «8XXXXXXXXXX» и «XXXXXXXXXX» → «+7XXXXXXXXXX». С «+» — как есть. */
 function normalizePhone(v: string): string {
   if (/[^\d\s()+-]/.test(v)) return v;
   let digits = v.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) digits = `7${digits.slice(1)}`;
+  if (!v.startsWith("+")) {
+    if (digits.length === 11 && digits.startsWith("8")) digits = `7${digits.slice(1)}`;
+    else if (digits.length === 10) digits = `7${digits}`;
+  }
   return `+${digits}`;
 }
 

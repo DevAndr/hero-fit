@@ -19,6 +19,16 @@ describe("contactsSchema", () => {
     expect(parse({ whatsapp: "+7 999 abc" }).success).toBe(false);
   });
 
+  it("иностранный номер с «+» и восьмёркой не становится российским", () => {
+    expect(parse({ phone: "+81 3 1234 5678" }).data?.phone).toBe("+81312345678");
+    expect(parse({ whatsapp: "+84 91 234 5678" }).data?.whatsapp).toBe("+84912345678");
+  });
+
+  it("российский номер из 10 цифр без 8 и +7 → +7", () => {
+    expect(parse({ phone: "999 123 45 67" }).data?.phone).toBe("+79991234567");
+    expect(parse({ whatsapp: "(999) 123-45-67" }).data?.whatsapp).toBe("+79991234567");
+  });
+
   it("vk: ссылка, слэш на конце, id123", () => {
     expect(parse({ vk: "https://vk.com/hero.coach/" }).data?.vk).toBe("hero.coach");
     expect(parse({ vk: "m.vk.com/hero_coach?w=wall" }).data?.vk).toBe("hero_coach");

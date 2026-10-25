@@ -93,9 +93,16 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
             ))}
           </select>
         </label>
-        <button type="submit" className={buttonVariants()}>
-          Показать
-        </button>
+        <div className="flex gap-2">
+          <button type="submit" className={buttonVariants()}>
+            Показать
+          </button>
+          {filtered ? (
+            <Link href="/trainers" className={buttonVariants({ variant: "ghost" })}>
+              Сбросить
+            </Link>
+          ) : null}
+        </div>
       </form>
 
       {items.length === 0 ? (
