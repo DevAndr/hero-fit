@@ -15,6 +15,13 @@ export function showCatalogOnLanding(coachesInCatalog: number): boolean {
   return coachesInCatalog >= CATALOG_LANDING_MIN;
 }
 
+/** «Вы тренер?» на /trainers: куда вести, чтобы попасть в каталог (/coach/page без режима тренера — 404). */
+export function joinCatalogLink(viewer: { isCoach: boolean } | null): { href: string; label: string } {
+  if (viewer?.isCoach) return { href: "/coach/page", label: "Добавить свою страницу в каталог" };
+  if (viewer) return { href: "/settings", label: "Включить режим тренера" };
+  return { href: "/register?coach=1", label: "Стать тренером в Hero Fit" };
+}
+
 export function catalogIndexable(coachesInCatalog: number): boolean {
   return coachesInCatalog >= CATALOG_LANDING_MIN;
 }

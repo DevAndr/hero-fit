@@ -304,3 +304,19 @@ test("SEO: catalog title in social preview, JSON-LD list of trainer pages, index
   expect(ld.mainEntity.itemListElement.length).toBeGreaterThan(0);
   expect(ld.mainEntity.itemListElement[0].url).toMatch(/\/trainer\//);
 });
+
+test("«Вы тренер?» on /trainers: guest → sign-up as coach, user → settings, coach → own page with the catalog switch", async ({ page }) => {
+  const block = page.getByRole("region", { name: "Тренерам" });
+  await page.goto("/trainers");
+  await expect(block.getByRole("link", { name: "Стать тренером в Hero Fit" })).toHaveAttribute("href", "/register?coach=1");
+
+  const user = await registerUser(page, "Ученик");
+  await page.goto("/trainers");
+  await expect(block.getByRole("link", { name: "Включить режим тренера" })).toHaveAttribute("href", "/settings");
+
+  await enableCoach(user.login, nickOf(user.login));
+  await page.goto("/trainers");
+  await block.getByRole("link", { name: "Добавить свою страницу в каталог" }).click();
+  await expect(page).toHaveURL(/\/coach\/page$/);
+  await expect(catalogSection(page)).toBeVisible();
+});

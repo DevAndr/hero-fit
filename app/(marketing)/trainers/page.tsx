@@ -5,7 +5,7 @@ import { ReachGoal } from "@/components/analytics/reach-goal";
 import { TrainerCard } from "@/components/coach/catalog-card";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { CATALOG_PAGE_SIZE, catalogFilterSchema, catalogIndexable, type CatalogFilter } from "@/lib/coach/catalog";
+import { CATALOG_PAGE_SIZE, catalogFilterSchema, catalogIndexable, joinCatalogLink, type CatalogFilter } from "@/lib/coach/catalog";
 import { catalogCount, getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
 import { env } from "@/lib/env";
 import { absoluteUrl, jsonLd, trainersJsonLd, pageOpenGraph } from "@/lib/seo";
@@ -55,6 +55,7 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
   const here = hrefOf(f);
   const hasMore = f.page * CATALOG_PAGE_SIZE < total;
   const filtered = Boolean(f.city || f.format || f.specialty);
+  const join = joinCatalogLink(viewer);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:py-14">
@@ -154,6 +155,16 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
           ) : null}
         </nav>
       ) : null}
+
+      <section aria-label="Тренерам" className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="font-bold">Вы тренер?</h2>
+          <p className="text-sm text-muted-foreground">Добавьте свою страницу в каталог — клиенты найдут вас по городу и специализации и напишут напрямую.</p>
+        </div>
+        <Link href={join.href} className={buttonVariants({ variant: "outline", className: "shrink-0" })}>
+          {join.label}
+        </Link>
+      </section>
     </div>
   );
 }

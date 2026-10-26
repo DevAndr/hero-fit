@@ -3,6 +3,7 @@ import {
   aboutPreview,
   showCatalogOnLanding,
   catalogIndexable,
+  joinCatalogLink,
   CATALOG_LANDING_MIN,
   canCountClick,
   ABOUT_PREVIEW,
@@ -148,5 +149,17 @@ describe("catalogIndexable", () => {
     expect(catalogIndexable(0)).toBe(false);
     expect(catalogIndexable(CATALOG_LANDING_MIN - 1)).toBe(false);
     expect(catalogIndexable(CATALOG_LANDING_MIN)).toBe(true);
+  });
+});
+
+describe("joinCatalogLink", () => {
+  it("тренеру — сразу его публичная страница с переключателем каталога", () => {
+    expect(joinCatalogLink({ isCoach: true }).href).toBe("/coach/page");
+  });
+  it("вошедшему не тренеру — включить режим тренера в настройках (/coach/page без него — 404)", () => {
+    expect(joinCatalogLink({ isCoach: false }).href).toBe("/settings");
+  });
+  it("гостю — регистрация с отмеченной галочкой «Я тренер»", () => {
+    expect(joinCatalogLink(null).href).toBe("/register?coach=1");
   });
 });
