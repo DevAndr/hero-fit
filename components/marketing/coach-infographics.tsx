@@ -5,7 +5,7 @@
  * Анимации стартуют при попадании в экран (useSeen) и учитывают «уменьшить движение» через MotionProvider.
  */
 import { m } from "motion/react";
-import { ArrowDown, ArrowUp, Check, Link2, Lock, MessageSquareText, ShieldCheck } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Link2, Lock, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { CountUp, useSeen } from "@/components/marketing/motion";
 import { programPreview } from "@/lib/coach/program";
 import { cn } from "@/lib/utils";
@@ -314,5 +314,42 @@ export function TrainerCard({ className }: { className?: string }) {
         <span className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground">Заниматься</span>
       </div>
     </m.div>
+  );
+}
+
+/** Каталог тренеров: фильтры, карточка тренера с контактами и счётчик открытий. */
+export function CatalogListing({ className }: { className?: string }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  return (
+    <div ref={ref} aria-hidden className={cn("space-y-2 text-xs", className)}>
+      <div className="flex flex-wrap gap-1">
+        {["Казань", "онлайн", "Сила"].map((f, i) => (
+          <m.span
+            key={f}
+            className="rounded-full border bg-card px-2 py-0.5 text-[10px] font-medium"
+            initial={{ opacity: 0, y: 6 }}
+            animate={seen ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.4, delay: 0.1 + i * 0.1, ease: EASE }}
+          >
+            {f}
+          </m.span>
+        ))}
+      </div>
+      <m.div
+        className="rounded-lg border bg-card px-3 py-2"
+        initial={{ opacity: 0, y: 10 }}
+        animate={seen ? { opacity: 1, y: 0 } : undefined}
+        transition={{ duration: 0.5, delay: 0.45, ease: EASE }}
+      >
+        <p className="font-semibold">Анна Силина</p>
+        <p className="text-[10px] text-muted-foreground">Казань · онлайн и в зале</p>
+        <span className="mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium">
+          <Send className="size-3" /> Telegram
+        </span>
+      </m.div>
+      <p className="text-[10px] text-muted-foreground tabular-nums">
+        Контакты открывали <CountUp value={12} delay={0.8} /> раз за 30 дней
+      </p>
+    </div>
   );
 }

@@ -275,3 +275,13 @@ test("sitemap lists /trainers", async ({ request }) => {
   const xml = await (await request.get("/sitemap.xml")).text();
   expect(xml).toMatch(/<loc>[^<]*\/trainers<\/loc>/);
 });
+
+test("landing: «Найти тренера» in the coaches block once the catalog has enough coaches", async ({ page }) => {
+  const city = cityOf();
+  // Порог — CATALOG_LANDING_MIN (5); тренеры соседних тестов тоже в счёт — тут добиваем до порога гарантированно
+  for (let i = 0; i < 5; i++) await dbCoach(city);
+  await page.goto("/");
+  const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
+  await block.getByRole("link", { name: "Найти тренера" }).click();
+  await expect(page).toHaveURL(/\/trainers$/);
+});
