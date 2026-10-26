@@ -6,7 +6,7 @@ import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, C
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
-import { AssignedWeek, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
+import { AssignedWeek, CatalogListing, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { HeroHud } from "@/components/marketing/hero-hud";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
@@ -29,6 +29,8 @@ import { ACCESS_COOKIE } from "@/lib/auth/cookies";
 import { getPopularCities } from "@/lib/club/public-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { showCatalogOnLanding } from "@/lib/coach/catalog";
+import { catalogCount } from "@/lib/coach/catalog-queries";
 import { isEnabled } from "@/lib/flags/server";
 import { APK_MIN_ANDROID, APK_URL } from "@/lib/native/apk";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
@@ -230,6 +232,11 @@ const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[]
     text: "Публичная страница с описанием, честными цифрами из приложения и кнопкой «Заниматься» — делитесь ссылкой, её находят и поисковики.",
     visual: <TrainerCard />,
   },
+  {
+    title: "Каталог тренеров",
+    text: "Включите показ в каталоге — клиенты найдут вас по городу, формату и специализации и напишут напрямую. Контакты видят только вошедшие, а вы — сколько раз их открывали.",
+    visual: <CatalogListing />,
+  },
 ];
 
 function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
@@ -251,13 +258,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
   // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ.
   // Android-приложение — так же: флаг `native_app` для всех (иначе скачавший не сможет включить уведомления)
-  const [exercises, programs, clubs, android, cities, authed] = await Promise.all([
+  const [exercises, programs, clubs, android, cities, authed, catalogCoaches] = await Promise.all([
     db.exercise.count({ where: { userId: null } }),
     db.workoutTemplate.count({ where: { userId: null } }),
     isEnabled("clubs", null),
     isEnabled("native_app", null),
     getPopularCities(6),
     cookies().then((c) => c.has(ACCESS_COOKIE)),
+    catalogCount(),
   ]);
   const freePlan = FREE_PLAN.filter((t) => clubs || !t.startsWith("Клубы залов"));
   const faq = faqFor(clubs, android);
@@ -561,6 +569,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <Link href="/register?coach=1" className={buttonVariants({ size: "lg" })}>
                 Стать тренером — бесплатно <ArrowRight aria-hidden />
               </Link>
+              {showCatalogOnLanding(catalogCoaches) ? (
+                <Link href="/trainers" className={buttonVariants({ size: "lg", variant: "outline" })}>
+                  Найти тренера
+                </Link>
+              ) : null}
               <span className="text-sm text-muted-foreground">Пока идёт бета — всё бесплатно</span>
             </div>
           </div>

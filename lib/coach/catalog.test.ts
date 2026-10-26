@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   aboutPreview,
+  showCatalogOnLanding,
+  CATALOG_LANDING_MIN,
   canCountClick,
   ABOUT_PREVIEW,
   catalogFilterSchema,
@@ -128,5 +130,14 @@ describe("canCountClick", () => {
     expect(canCountClick({ ...full, telegram: null }, true, "viewer", "coach")).toBe(false);
     expect(canCountClick({ ...full, publishedAt: null }, true, "viewer", "coach")).toBe(false);
     expect(canCountClick(full, false, "viewer", "coach")).toBe(false);
+  });
+});
+
+describe("showCatalogOnLanding", () => {
+  it("кнопка «Найти тренера» на лендинге — от CATALOG_LANDING_MIN тренеров в каталоге", () => {
+    expect(CATALOG_LANDING_MIN).toBe(5);
+    expect(showCatalogOnLanding(0)).toBe(false);
+    expect(showCatalogOnLanding(4)).toBe(false);
+    expect(showCatalogOnLanding(5)).toBe(true);
   });
 });
