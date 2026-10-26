@@ -20,6 +20,12 @@ describe("alertInputSchema", () => {
   it("popup cannot be non-dismissable", () => {
     expect(errors({ ...base, kind: "POPUP", title: "Т", dismiss: "NEVER" })).toContain("Попап нельзя сделать незакрываемым");
   });
+  it("audience: all by default; users and coaches accepted; unknown — error", () => {
+    expect(alertInputSchema.parse(base).audience).toBe("ALL");
+    expect(alertInputSchema.parse({ ...base, audience: "COACHES" }).audience).toBe("COACHES");
+    expect(alertInputSchema.parse({ ...base, audience: "USERS" }).audience).toBe("USERS");
+    expect(alertInputSchema.safeParse({ ...base, audience: "ADMINS" }).success).toBe(false);
+  });
   it("banner may be non-dismissable", () => {
     expect(errors({ ...base, dismiss: "NEVER" })).toEqual([]);
   });

@@ -1681,6 +1681,8 @@ type AlertSeed = {
   /** сдвиг конца от «сейчас», мс; не задан — без конца */
   endsInMs?: number;
   enabled?: boolean;
+  /** кому: по умолчанию — всем */
+  audience?: "ALL" | "USERS" | "COACHES";
 };
 
 /** Оповещение минуя админку; возвращает id. Живое видят все — только в проекте alerts-global. */
@@ -1689,8 +1691,8 @@ export async function createAlert(a: AlertSeed): Promise<string> {
   const now = Date.now();
   await withDb((db) =>
     db.query(
-      `insert into "SystemAlert" (id, kind, tone, title, body, "ctaLabel", "ctaHref", dismiss, "startsAt", "endsAt", enabled, "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())`,
+      `insert into "SystemAlert" (id, kind, tone, title, body, "ctaLabel", "ctaHref", dismiss, "startsAt", "endsAt", enabled, audience, "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())`,
       [
         id,
         a.kind,
@@ -1703,6 +1705,7 @@ export async function createAlert(a: AlertSeed): Promise<string> {
         new Date(now + (a.startsInMs ?? -60_000)),
         a.endsInMs === undefined ? null : new Date(now + a.endsInMs),
         a.enabled ?? true,
+        a.audience ?? "ALL",
       ],
     ),
   );

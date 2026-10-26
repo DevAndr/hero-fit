@@ -1334,12 +1334,20 @@ model SystemAlert {
   updatedAt  DateTime               @updatedAt
   /// логин админа, создавшего оповещение
   createdBy  String?
+  /// кому показывать: всем, только без режима тренера или только тренерам
+  audience   SystemAlertAudience    @default(ALL)
   dismissals SystemAlertDismissal[]
 
   @@index([enabled, startsAt])
 }
 
 /// Кто закрыл оповещение навсегда; служебная запись (в «Мои данные» не входит).
+enum SystemAlertAudience {
+  ALL
+  USERS
+  COACHES
+}
+
 model SystemAlertDismissal {
   alertId   String
   userId    String

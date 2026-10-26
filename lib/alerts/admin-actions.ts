@@ -24,6 +24,7 @@ export async function saveAlertAction(id: string | null, input: unknown): Promis
     ctaLabel: a.ctaLabel ?? null,
     ctaHref: a.ctaHref ?? null,
     dismiss: a.dismiss,
+    audience: a.audience,
     startsAt: new Date(a.startsAt),
     endsAt: a.endsAt ? new Date(a.endsAt) : null,
   };

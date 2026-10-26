@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     enabledFlags(user.id),
     user.isAdmin ? pendingClubCount() : 0,
     // Оповещения не должны ронять кабинет
-    quietly(() => getUserAlerts(user.id), []),
+    quietly(() => getUserAlerts(user.id, user.isCoach), []),
     user.isAdmin ? newFeedbackCount() : 0,
   ]);
   // Косметика и баланс — из того же запроса, что и сессия (requireUser)
