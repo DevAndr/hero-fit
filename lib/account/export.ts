@@ -56,6 +56,10 @@ export type ExportRaw = {
   respectsReceived: ({ workoutDate: Dated; exercise: string; from: string | null } & Record<string, unknown>)[];
   kudosGiven: ({ workoutDate: Dated; to: string | null } & Record<string, unknown>)[];
   kudosReceived: ({ workoutDate: Dated; from: string | null } & Record<string, unknown>)[];
+  /** Совместные тренировки (принятые): дата, роль, ник партнёра, статус и бонус XP — без id. */
+  trainingSessions: ({ date: Date; role: "позвал" | "позвали"; partner: string | null; status: string; bonusXp: number } & Record<string, unknown>)[];
+  /** Сколько 👊 отправлено партнёрам во время совместных тренировок. */
+  cheersSent: number;
   /** ★ Избранные упражнения: название и когда отмечено, без id. */
   favoriteExercises: ({ exercise: string; createdAt: Date } & Record<string, unknown>)[];
   /** Обращения в обратную связь — без заметки админа, браузера и id. */
@@ -128,6 +132,8 @@ export const EXPORT_SECTIONS = [
   "respectsReceived",
   "kudosGiven",
   "kudosReceived",
+  "trainingSessions",
+  "cheersSent",
   "favoriteExercises",
   "feedback",
   "pushDevices",
@@ -226,6 +232,8 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     respectsReceived: raw.respectsReceived.map((r) => ({ workoutDate: r.workoutDate, exercise: r.exercise, from: r.from })),
     kudosGiven: raw.kudosGiven.map((k) => ({ workoutDate: k.workoutDate, to: k.to })),
     kudosReceived: raw.kudosReceived.map((k) => ({ workoutDate: k.workoutDate, from: k.from })),
+    trainingSessions: raw.trainingSessions.map((s) => ({ date: s.date, role: s.role, partner: s.partner, status: s.status, bonusXp: s.bonusXp })),
+    cheersSent: raw.cheersSent,
     favoriteExercises: raw.favoriteExercises.map((f) => ({ exercise: f.exercise, createdAt: f.createdAt })),
     feedback: raw.feedback.map((f) => ({ kind: f.kind, body: f.body, status: f.status, page: f.page, createdAt: f.createdAt })),
     pushDevices: raw.pushDevices.map((d) => ({ kind: d.kind, appVersion: d.appVersion, createdAt: d.createdAt })),

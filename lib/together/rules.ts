@@ -85,3 +85,22 @@ export function currentExercise(exercises: DraftExercise[]): SnapshotCurrent {
 export function canCheer(lastCheerAt: Date | null, now: Date): boolean {
   return !lastCheerAt || now.getTime() - lastCheerAt.getTime() >= CHEER_GAP_MS;
 }
+
+/** Строка про бонус в сводке тренировки «Вместе с …». */
+export function bonusNote(i: {
+  awarded: number | null;
+  sessionStatus: SessionStatus;
+  endReason: string | null;
+  mine: BonusInput;
+  theirs: BonusInput;
+  partner: string;
+}): string {
+  if (i.awarded) return `+${i.awarded} XP за тренировку вместе`;
+  if (i.sessionStatus === "ACTIVE") return `Бонус придёт, когда ${i.partner} закончит`;
+  if (i.endReason === "left" || i.endReason === "cancelled") return "Кто-то вышел из сессии — бонуса нет";
+  const why = bonusEligible(i.mine, i.theirs, false);
+  if (why === "short_overlap") return `Пересеклись меньше ${MIN_OVERLAP_MIN} минут — бонуса нет`;
+  if (why === "no_sets") return "В одной из тренировок нет подходов — бонуса нет";
+  if (why === "not_finished") return `${i.partner} не закончил тренировку вместе с вами — бонуса нет`;
+  return "Бонус за совместную тренировку сегодня уже был";
+}

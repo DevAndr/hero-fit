@@ -169,7 +169,26 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
 
   const counts = await participants(publishedPrograms.map((p) => p.id));
 
+  const [sessions, cheersSent, bonuses] = await Promise.all([
+    db.trainingSession.findMany({
+      where: { acceptedAt: { not: null }, OR: [{ hostId: userId }, { guestId: userId }] },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, createdAt: true, status: true, hostId: true, host: person, guest: person },
+    }),
+    db.sessionCheer.count({ where: { fromId: userId } }),
+    db.xpEvent.findMany({ where: { userId, reason: "TOGETHER_BONUS" }, select: { amount: true, meta: true } }),
+  ]);
+  const bonusBySession = new Map(bonuses.map((b) => [(b.meta as { sessionId?: string } | null)?.sessionId, b.amount]));
+
   return {
+    trainingSessions: sessions.map((s) => ({
+      date: s.createdAt,
+      role: s.hostId === userId ? ("позвал" as const) : ("позвали" as const),
+      partner: (s.hostId === userId ? s.guest : s.host).nickname,
+      status: s.status,
+      bonusXp: bonusBySession.get(s.id) ?? 0,
+    })),
+    cheersSent,
     user,
     workouts: workouts.map(({ exercises, ...w }) => ({ ...w, exercises: exercises.map((e) => ({ name: e.exercise.name, supersetGroup: e.supersetGroup, sets: e.sets })) })),
     exercises,

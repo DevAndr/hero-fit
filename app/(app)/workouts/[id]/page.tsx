@@ -21,6 +21,8 @@ import { differsFromTemplate } from "@/lib/templates/from-workout";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { getWhoopCard, whoopAvailable } from "@/lib/whoop/queries";
+import { TogetherSummaryBlock } from "@/components/together/summary-block";
+import { getTogetherSummary } from "@/lib/together/summary";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
 
@@ -45,6 +47,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   const byExercise = new Map(comments.map((c) => [c.workoutExerciseId, c]));
   // Пульс и strain из WHOOP — только владельцу (страница и так только его), при флаге и подключении
   const whoopCard = (await whoopAvailable(user.id)) ? await getWhoopCard(user.id, workout) : null;
+  const together = (await isEnabled("together", user.id)) ? await getTogetherSummary(user.id, workout.id) : null;
 
   return (
     <WorkoutSummaryView
@@ -58,7 +61,14 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       supersets={await isEnabled("workout_formats", user.id)}
       goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
-      wearable={whoopCard ? <WhoopCard workoutId={workout.id} initial={whoopCard} /> : null}
+      wearable={
+        whoopCard || together ? (
+          <div className="space-y-4">
+            {together ? <TogetherSummaryBlock summary={together} /> : null}
+            {whoopCard ? <WhoopCard workoutId={workout.id} initial={whoopCard} /> : null}
+          </div>
+        ) : null
+      }
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) => {
         const comment = byExercise.get(workoutExerciseId);

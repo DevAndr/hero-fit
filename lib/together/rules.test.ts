@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bonusEligible,
+  bonusNote,
   bonusXp,
   canCheer,
   inviteExpiresAt,
@@ -110,5 +111,26 @@ describe("canCheer", () => {
     expect(canCheer(null, now)).toBe(true);
     expect(canCheer(new Date(now.getTime() - 9_999), now)).toBe(false);
     expect(canCheer(new Date(now.getTime() - 10_000), now)).toBe(true);
+  });
+});
+
+describe("bonusNote", () => {
+  const w = (start: string, end: string, sets = 5): BonusInput => ({ status: "COMPLETED", startedAt: at(start), finishedAt: at(end), totalSets: sets });
+  const mine = w("10:00", "11:00");
+  it("бонус получен", () => {
+    expect(bonusNote({ awarded: 12, sessionStatus: "ENDED", endReason: null, mine, theirs: w("10:00", "11:00"), partner: "Аня" })).toBe("+12 XP за тренировку вместе");
+  });
+  it("партнёр ещё тренируется", () => {
+    expect(bonusNote({ awarded: null, sessionStatus: "ACTIVE", endReason: null, mine, theirs: { ...mine, status: "IN_PROGRESS", finishedAt: null }, partner: "Аня" })).toBe(
+      "Бонус придёт, когда Аня закончит",
+    );
+  });
+  it("причины без бонуса", () => {
+    const ended = { awarded: null, sessionStatus: "ENDED" as const, partner: "Аня", mine };
+    expect(bonusNote({ ...ended, endReason: "left", theirs: w("10:00", "11:00") })).toBe("Кто-то вышел из сессии — бонуса нет");
+    expect(bonusNote({ ...ended, endReason: null, theirs: w("10:45", "12:00") })).toBe("Пересеклись меньше 20 минут — бонуса нет");
+    expect(bonusNote({ ...ended, endReason: null, theirs: w("10:00", "11:00", 0) })).toBe("В одной из тренировок нет подходов — бонуса нет");
+    expect(bonusNote({ ...ended, endReason: null, theirs: w("10:00", "11:00") })).toBe("Бонус за совместную тренировку сегодня уже был");
+    expect(bonusNote({ ...ended, endReason: "timeout", theirs: { status: null, startedAt: null, finishedAt: null, totalSets: 0 } })).toBe("Аня не закончил тренировку вместе с вами — бонуса нет");
   });
 });
