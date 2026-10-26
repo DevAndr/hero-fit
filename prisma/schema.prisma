@@ -92,6 +92,15 @@ enum NotificationType {
   COMEBACK // рассылки «вернись»
 }
 
+/// Совместная тренировка (lib/together): приглашение 15 минут, сессия — до 4 часов после принятия
+enum TrainingSessionStatus {
+  INVITED
+  ACTIVE
+  ENDED
+  DECLINED
+  EXPIRED
+}
+
 enum FriendshipStatus {
   PENDING // заявка отправлена, ждёт ответа
   ACCEPTED
@@ -109,6 +118,7 @@ enum XpReason {
   GOAL_REWARD // сундук за выполненную цель (lib/goals)
   CLUB_TASK_REWARD // сундук за задание клуба (lib/club/tasks)
   GOBLIN_REWARD // сундук Золотого гоблина (lib/goblin)
+  TOGETHER_BONUS // бонус за совместную тренировку (lib/together)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -279,6 +289,9 @@ model User {
   coachContactClicks  CoachContactClick[]
   kudos               Kudos[]
   recordRespects      RecordRespect[]
+  sessionsHosted      TrainingSession[]    @relation("SessionHost")
+  sessionsJoined      TrainingSession[]    @relation("SessionGuest")
+  sessionCheers       SessionCheer[]
   favoriteExercises   FavoriteExercise[]
   goals               Goal[]
   campaignSends       CampaignSend[]
@@ -519,6 +532,8 @@ model Workout {
   xpEvents     XpEvent[]
   kudos        Kudos[]
   recordRespects RecordRespect[]
+  sessionAsHost  TrainingSession? @relation("SessionHostWorkout")
+  sessionAsGuest TrainingSession? @relation("SessionGuestWorkout")
   comments     CoachComment[]
   raidHit      RaidHit?
   clubTaskHits ClubTaskHit[]
@@ -740,6 +755,46 @@ model ScheduledPush {
 // ───────────────────────────── Лента активности ─────────────────────────────
 
 /// 👊 от друга на завершённую тренировку (запись ленты = тренировка). Один на пару «тренировка–пользователь».
+/// Совместная тренировка: связка двух обычных тренировок друзей (спека 2026-10-26-train-together)
+model TrainingSession {
+  id             String                @id @default(cuid())
+  hostId         String
+  guestId        String
+  /// SetNull: отмена тренировки её удаляет, а сессия (и причина конца) должна остаться
+  hostWorkoutId  String?               @unique
+  guestWorkoutId String?               @unique
+  status         TrainingSessionStatus @default(INVITED)
+  createdAt      DateTime              @default(now())
+  acceptedAt     DateTime?
+  endedAt        DateTime?
+  /// "left" | "cancelled" | "timeout" — для причины в сводке
+  endReason      String?
+  /// бонус выдан (повтор невозможен)
+  bonusAt        DateTime?
+
+  host         User           @relation("SessionHost", fields: [hostId], references: [id], onDelete: Cascade)
+  guest        User           @relation("SessionGuest", fields: [guestId], references: [id], onDelete: Cascade)
+  hostWorkout  Workout?       @relation("SessionHostWorkout", fields: [hostWorkoutId], references: [id], onDelete: SetNull)
+  guestWorkout Workout?       @relation("SessionGuestWorkout", fields: [guestWorkoutId], references: [id], onDelete: SetNull)
+  cheers       SessionCheer[]
+
+  @@index([hostId, status])
+  @@index([guestId, status])
+}
+
+/// 👊 партнёру во время совместной тренировки
+model SessionCheer {
+  id        String   @id @default(cuid())
+  sessionId String
+  fromId    String
+  createdAt DateTime @default(now())
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  from    User            @relation(fields: [fromId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
 model Kudos {
   id        String   @id @default(cuid())
   workoutId String
