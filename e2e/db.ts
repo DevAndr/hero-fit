@@ -1921,3 +1921,65 @@ export async function completeAssignment(clientLogin: string, planKey: string, f
 export async function cancelAssignment(planKey: string) {
   await withDb((db) => db.query(`update "PlanEntry" set cancelled = true where id = $1`, [planKey.replace(/^e:/, "")]));
 }
+
+// ───────────────────────────── Совместная тренировка ─────────────────────────────
+
+const userIdSql = `(select id from "User" where login = $1)`;
+
+/** Идущая тренировка игрока (IN_PROGRESS). */
+export async function activeWorkoutId(login: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select w.id from "Workout" w join "User" u on u.id = w."userId" where u.login = $1 and w.status = 'IN_PROGRESS' order by w."startedAt" desc limit 1`, [login]);
+    return rows[0]?.id ?? null;
+  });
+}
+
+export type TogetherRow = { id: string; status: string; endReason: string | null; hostWorkoutId: string | null; guestWorkoutId: string | null };
+
+/** Последняя совместная сессия, где игрок — хозяин или гость. */
+export async function togetherSessionOf(login: string): Promise<TogetherRow | null> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<TogetherRow>(
+      `select s.id, s.status, s."endReason", s."hostWorkoutId", s."guestWorkoutId" from "TrainingSession" s
+       where s."hostId" = ${userIdSql} or s."guestId" = ${userIdSql} order by s."createdAt" desc limit 1`,
+      [login],
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Совместная сессия прямо в БД (минуя приглашение). */
+export async function seedTogether(host: string, guest: string, s: { status: "INVITED" | "ACTIVE"; hostWorkoutId: string | null; guestWorkoutId?: string | null }): Promise<string> {
+  const id = randomUUID();
+  await withDb((db) =>
+    db.query(
+      `insert into "TrainingSession" (id, "hostId", "guestId", "hostWorkoutId", "guestWorkoutId", status, "createdAt", "acceptedAt")
+       values ($1, ${userIdSql.replace("$1", "$2")}, ${userIdSql.replace("$1", "$3")}, $4, $5, $6::"TrainingSessionStatus", now(), case when $6 = 'ACTIVE' then now() end)`,
+      [id, host, guest, s.hostWorkoutId, s.guestWorkoutId ?? null, s.status],
+    ),
+  );
+  return id;
+}
+
+/** Сдвинуть время сессии назад (истечение приглашения / 4 часа). */
+export async function shiftSession(id: string, minutes: { created?: number; accepted?: number }) {
+  await withDb((db) =>
+    db.query(
+      `update "TrainingSession" set "createdAt" = "createdAt" - make_interval(mins => $2), "acceptedAt" = "acceptedAt" - make_interval(mins => $3) where id = $1`,
+      [id, minutes.created ?? 0, minutes.accepted ?? 0],
+    ),
+  );
+}
+
+/** Сдвинуть старт тренировки назад — для пересечения совместных тренировок. */
+export async function shiftWorkoutStart(workoutId: string, minutes: number) {
+  await withDb((db) => db.query(`update "Workout" set "startedAt" = "startedAt" - make_interval(mins => $2) where id = $1`, [workoutId, minutes]));
+}
+
+/** Бонусы за совместные тренировки игрока. */
+export async function togetherBonuses(login: string): Promise<number[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ amount: number }>(`select e.amount from "XpEvent" e join "User" u on u.id = e."userId" where u.login = $1 and e.reason = 'TOGETHER_BONUS'`, [login]);
+    return rows.map((r) => r.amount);
+  });
+}

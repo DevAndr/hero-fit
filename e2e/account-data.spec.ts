@@ -37,6 +37,8 @@ import {
   userExists,
   visitDays,
   withDb,
+  latestWorkout,
+  seedTogether,
 } from "./db";
 import { createGuild, guildName, inviteUrl, nickOf, player } from "./guild-helpers";
 import { PASSWORD, quickWorkout, registerUser } from "./helpers";
@@ -529,4 +531,29 @@ test("campaigns: export lists sends without ids, deletion removes them", async (
   await deleteAccount(page, PASSWORD);
   await expect(page).toHaveURL(/deleted=1/);
   expect(await campaignSendCount(campaignId)).toBe(0);
+});
+
+test("train together: export lists the session; the partner's deletion removes the block from the summary", async ({ browser }) => {
+  const host = await player(browser, "Вася");
+  const guest = await player(browser, "Оля");
+  await addFlagUser("together", host.login);
+  const [hostNick, guestNick] = await Promise.all([nickname(host.login), nickname(guest.login)]);
+  await makeFriends(host.login, hostNick, guest.login, guestNick);
+  await quickWorkout(host.page, "Жим штанги лёжа", [{ weight: "60", reps: "8" }]);
+  const workout = await latestWorkout(host.login);
+  await seedTogether(host.login, guest.login, { status: "ACTIVE", hostWorkoutId: workout.id });
+
+  await host.page.goto(`/workouts/${workout.id}`);
+  await expect(host.page.getByRole("region", { name: "Вместе с партнёром" })).toContainText(`Вместе с ${guestNick}`);
+  await host.page.goto("/settings");
+  const [json] = await Promise.all([host.page.waitForEvent("download"), host.page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.trainingSessions).toEqual([expect.objectContaining({ role: "позвал", partner: guestNick, status: "ACTIVE", bonusXp: 0 })]);
+  expect(data.cheersSent).toBe(0);
+
+  await deleteAccount(guest.page, PASSWORD);
+  await expect(guest.page).toHaveURL(/deleted=1/);
+  await host.page.goto(`/workouts/${workout.id}`);
+  await expect(host.page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(host.page.getByRole("region", { name: "Вместе с партнёром" })).toHaveCount(0);
 });
