@@ -86,14 +86,27 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: four features, client screen, CTA opens coach sign-up", async ({ page }) => {
+test("coaches block: all coach features with infographics, client screen, CTA opens coach sign-up", async ({ page }) => {
   await page.goto("/");
   const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
   await expect(block.getByRole("img", { name: "Экран тренера: клиенты и сигналы" })).toBeVisible();
-  await expect(block.getByRole("list").first().getByRole("listitem")).toHaveCount(4);
-  for (const title of ["Клиенты и сигналы", "Планы и программы на недели", "Комментарии к тренировкам", "Публичная страница и каталог тренеров"]) {
-    await expect(block.getByRole("heading", { name: title })).toBeVisible();
-  }
+  const titles = [
+    "Приглашение по ссылке",
+    "Клиенты и сигналы",
+    "Группы клиентов",
+    "Календарь клиентов",
+    "Тренировки в календарь",
+    "Программы на 2–16 недель",
+    "Задания и прогрессия",
+    "Комментарии к тренировкам",
+    "Заметки о клиенте",
+    "Итоги недели",
+    "Своя страница тренера",
+    "Каталог тренеров",
+    "Ачивки тренера",
+  ];
+  await expect(block.getByRole("list", { name: "Возможности тренера" }).getByRole("listitem")).toHaveCount(titles.length);
+  for (const title of titles) await expect(block.getByRole("heading", { name: title, exact: true })).toBeVisible();
   await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();
   await expect(page).toHaveURL(/\/register\?coach=1$/);
   await expect(page.getByRole("checkbox", { name: /Я тренер/ })).toBeChecked();

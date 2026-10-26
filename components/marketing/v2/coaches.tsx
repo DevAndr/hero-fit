@@ -1,36 +1,90 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Briefcase, CalendarRange, MessageSquareText, Store, UsersRound } from "lucide-react";
+import { ArrowRight, Briefcase } from "lucide-react";
+import { AssignedWeek, CatalogListing, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
 import { Reveal } from "@/components/marketing/motion";
+import { CoachBadgesMini, CoachCalendarMini, GroupsMini } from "@/components/marketing/v2/coach-extra";
 import { PhoneFrame } from "@/components/marketing/v2/phone-frame";
 import { ClientsScreen } from "@/components/marketing/v2/screens/clients-screen";
 import { Section, glass } from "@/components/marketing/v2/section";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-/** Утверждения держать в соответствии с режимом тренера (docs/features/coach.md). */
-const POINTS = [
+/** Все возможности режима тренера без флагов. Утверждения держать в соответствии с docs/features/coach.md. */
+const FEATURES: { title: string; text: string; visual: ReactNode; className?: string }[] = [
   {
-    icon: UsersRound,
+    title: "Приглашение по ссылке",
+    text: "Отправьте ссылку — или ссылку в Telegram: клиент откроет Hero Fit в мессенджере без пароля. Доступ к тренировкам он разрешает сам и может отозвать.",
+    visual: <InviteFlow />,
+  },
+  {
     title: "Клиенты и сигналы",
     text: "Кто пропадает, у кого застой, кому пора добавить вес — видно сразу. По каждому — тренировки, статистика и карта мышц.",
+    visual: <ClientRows />,
   },
   {
-    icon: CalendarRange,
-    title: "Планы и программы на недели",
-    text: "Шаблоны в календарь клиента и циклы на 2–16 недель: веса растут сами, разгрузка — по расписанию.",
+    title: "Группы клиентов",
+    text: "Разложите клиентов по группам — «Утро», «Онлайн», «Новички» — и фильтруйте список и календарь по группе.",
+    visual: <GroupsMini />,
   },
   {
-    icon: MessageSquareText,
+    title: "Календарь клиентов",
+    text: "Все назначенные тренировки всех клиентов на одной странице: что выполнено, что пропущено, что впереди.",
+    visual: <CoachCalendarMini />,
+  },
+  {
+    title: "Тренировки в календарь",
+    text: "Назначьте шаблон на нужные дни на несколько недель вперёд — клиент увидит план на дашборде и напоминание.",
+    visual: <AssignedWeek />,
+  },
+  {
+    title: "Программы на 2–16 недель",
+    text: "Дни по шаблонам, вес растёт каждую неделю на % или кг, разгрузка — по расписанию. Веса недели подставятся сами.",
+    visual: <ProgramWeeks />,
+    className: "lg:col-span-2",
+  },
+  {
+    title: "Задания и прогрессия",
+    text: "Подходы, повторы и вес — свои для каждого клиента. Справился — в следующий раз тяжелее, три неудачи подряд — разгрузка.",
+    visual: <ProgressionTicker />,
+  },
+  {
     title: "Комментарии к тренировкам",
-    text: "Отзыв и заметки к упражнениям прямо в сводке — клиенту приходит уведомление.",
+    text: "Общий отзыв и заметки к упражнениям прямо в сводке тренировки — клиенту приходит уведомление.",
+    visual: <CoachNote />,
   },
   {
-    icon: Store,
-    title: "Публичная страница и каталог тренеров",
-    text: "Своя страница с честными цифрами из приложения, а в каталоге клиенты найдут вас по городу и специализации.",
+    title: "Заметки о клиенте",
+    text: "Цели, травмы со слов клиента, инвентарь — личная заметка в карточке. Видите только вы.",
+    visual: <ClientNote />,
+  },
+  {
+    title: "Итоги недели",
+    text: "Каждый понедельник — сводка по всем клиентам: кто тренировался, рекорды и кому нужно внимание.",
+    visual: <WeekRecap />,
+  },
+  {
+    title: "Своя страница тренера",
+    text: "Описание, честные цифры из приложения и кнопка «Заниматься» — делитесь ссылкой, её находят и поисковики.",
+    visual: <TrainerCard />,
+  },
+  {
+    title: "Каталог тренеров",
+    text: "Включите показ в каталоге — клиенты найдут вас по городу, формату и специализации и напишут напрямую.",
+    visual: <CatalogListing />,
+  },
+  {
+    title: "Ачивки тренера",
+    text: "За первого ученика, разборы тренировок, рекорды и цели учеников — свои награды и титулы.",
+    visual: <CoachBadgesMini className="lg:grid-cols-4" />,
+    // 13 карточек: две широкие закрывают последние ряды без дыр (sm — 2 колонки, lg — 3)
+    className: "sm:col-span-2",
   },
 ];
 
-/** «Тренерам»: телефон с клиентами, четыре главные возможности и кнопки. */
+const START = ["Включите режим тренера в настройках", "Отправьте клиенту ссылку-приглашение", "Назначьте план — и смотрите, как он тренируется"];
+
+/** «Тренерам»: телефон с клиентами, как начать, и все возможности с анимированной инфографикой. */
 export function Coaches({ showFind }: { showFind: boolean }) {
   return (
     <Section
@@ -45,19 +99,23 @@ export function Coaches({ showFind }: { showFind: boolean }) {
         className="pointer-events-none absolute -top-40 -left-40 -z-10 size-144 rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_16%,transparent),transparent_65%)]"
       />
       <div className="grid items-center gap-12 lg:grid-cols-[auto_1fr]">
-        <PhoneFrame label="Экран тренера: клиенты и сигналы" tilt="left" className="lg:order-none">
+        <PhoneFrame label="Экран тренера: клиенты и сигналы" tilt="left">
           <ClientsScreen />
         </PhoneFrame>
         <div className="space-y-8">
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {POINTS.map(({ icon: Icon, title, text }, i) => (
-              <Reveal as="li" key={title} delay={(i % 2) * 0.08} className={`${glass} p-5`}>
-                <Icon aria-hidden className="size-5 text-primary" />
-                <h3 className="mt-3 font-bold">{title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">{text}</p>
-              </Reveal>
-            ))}
-          </ul>
+          <div className={cn(glass, "p-6")}>
+            <p className="font-semibold">Как начать</p>
+            <ol className="mt-4 space-y-3">
+              {START.map((t, i) => (
+                <li key={t} className="flex items-center gap-3">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary font-display text-sm font-black text-primary-foreground">
+                    {i + 1}
+                  </span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link href="/register?coach=1" className={buttonVariants({ size: "lg" })}>
               Стать тренером — бесплатно <ArrowRight aria-hidden />
@@ -71,6 +129,23 @@ export function Coaches({ showFind }: { showFind: boolean }) {
           </div>
         </div>
       </div>
+
+      <ul aria-label="Возможности тренера" className="mt-16 grid grid-flow-dense gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {FEATURES.map((f, i) => (
+          <Reveal
+            as="li"
+            key={f.title}
+            delay={(i % 3) * 0.07}
+            className={cn(glass, "flex flex-col justify-between gap-5 p-5 transition-colors hover:border-primary/40", f.className)}
+          >
+            <div>
+              <h3 className="font-bold">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">{f.text}</p>
+            </div>
+            {f.visual}
+          </Reveal>
+        ))}
+      </ul>
     </Section>
   );
 }
