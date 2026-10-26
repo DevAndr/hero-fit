@@ -3,14 +3,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { ArrowRight, BellRing, CalendarDays, Check, Crown, Download, Gift, Send, Smartphone, Sparkles, Users, X } from "lucide-react";
-import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
-import { RaidInfographic } from "@/components/marketing/raid-infographics";
-import { AssignedWeek, CatalogListing, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
 import { Hero } from "@/components/marketing/v2/hero";
 import { How } from "@/components/marketing/v2/how";
 import { Bento, FEATURE_LIST } from "@/components/marketing/v2/bento";
 import { Game } from "@/components/marketing/v2/game";
+import { Together } from "@/components/marketing/v2/together";
+import { Coaches } from "@/components/marketing/v2/coaches";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
 import { CountUp, Reveal } from "@/components/marketing/motion";
 import { buttonVariants } from "@/components/ui/button";
@@ -46,18 +45,6 @@ const COMPARE: [feature: string, notebook: boolean][] = [
   ["Тренировки с тренером: план, программы, задания и комментарии", false],
 ];
 
-const CLUB_POINTS = [
-  "Найдите свой зал или добавьте его — заявку проверит модератор",
-  "Соревнуйтесь в рейтинге недели с теми, кто тренируется рядом",
-  "Выполняйте задания клуба вместе и открывайте сундуки",
-];
-
-const GUILD_POINTS = [
-  "Гильдия до 10 человек: вступают по ссылке, видят опыт друг друга за неделю и ленту тренировок",
-  "Рейд-босс недели — общий: HP подстраивается под силы гильдии",
-  "Сундук с опытом — каждому участнику, кто бил до победы; MVP, нанёсший больше всех урона, получает больше",
-];
-
 /** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
 const FREE_PLAN = [
   "Тренировки без ограничений, шаблоны и готовые программы",
@@ -78,60 +65,6 @@ const PREMIUM_PLAN = [
   "Баланс мышц за 30 дней",
   "Тренировка «по восстановлению» одним касанием",
   "Новые функции — первыми",
-];
-
-/** Режим тренера: утверждения держать в соответствии с приложением. */
-const COACH_FEATURES: { title: string; text: string; visual: React.ReactNode }[] = [
-  {
-    title: "Приглашение по ссылке",
-    text: "Отправьте клиенту ссылку — или ссылку в Telegram: клиент откроет Hero Fit прямо в мессенджере, без пароля. Доступ к своим тренировкам он разрешает сам и в любой момент может отозвать.",
-    visual: <InviteFlow />,
-  },
-  {
-    title: "Клиенты в одном списке",
-    text: "Кто тренировался сегодня, кто пропадает, кому пора увеличить вес — видно сразу. По каждому — тренировки с подходами, статистика и карта мышц.",
-    visual: <ClientRows />,
-  },
-  {
-    title: "Итоги недели",
-    text: "Каждый понедельник — сводка по всем клиентам: кто тренировался, рекорды, кому нужно внимание.",
-    visual: <WeekRecap />,
-  },
-  {
-    title: "Тренировки в календарь",
-    text: "Назначьте шаблон на нужные дни недели на несколько недель вперёд. Клиент видит план на дашборде, а вы — что выполнено и что пропущено.",
-    visual: <AssignedWeek />,
-  },
-  {
-    title: "Программы на несколько недель",
-    text: "Соберите цикл на 2–16 недель: дни по шаблонам, вес растёт каждую неделю на % или кг, разгрузка — по расписанию. Назначьте клиенту — веса недели подставятся сами.",
-    visual: <ProgramWeeks />,
-  },
-  {
-    title: "Задания и прогрессия",
-    text: "Подходы, повторы и вес — свои для каждого клиента. Справился — в следующий раз тяжелее на шаг, три неудачи подряд — разгрузка.",
-    visual: <ProgressionTicker />,
-  },
-  {
-    title: "Комментарии к тренировкам",
-    text: "Общий отзыв и заметки к упражнениям прямо в сводке тренировки — клиенту приходит уведомление.",
-    visual: <CoachNote />,
-  },
-  {
-    title: "Заметки о клиенте",
-    text: "Цели, травмы со слов клиента, инвентарь — личная заметка в карточке клиента. Видите только вы.",
-    visual: <ClientNote />,
-  },
-  {
-    title: "Своя страница тренера",
-    text: "Публичная страница с описанием, честными цифрами из приложения и кнопкой «Заниматься» — делитесь ссылкой, её находят и поисковики.",
-    visual: <TrainerCard />,
-  },
-  {
-    title: "Каталог тренеров",
-    text: "Включите показ в каталоге — клиенты найдут вас по городу, формату и специализации и напишут напрямую. Контакты видят только вошедшие, а вы — сколько раз их открывали.",
-    visual: <CatalogListing />,
-  },
 ];
 
 function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
@@ -244,147 +177,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       <Game />
 
-      {/* Гильдии и рейды */}
-      <section aria-labelledby="guilds" className="relative scroll-mt-20 overflow-hidden border-t">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_70%_30%,color-mix(in_oklch,var(--destructive)_12%,transparent),transparent_60%)]"
-        />
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-20 sm:py-24 lg:grid-cols-2 lg:gap-14">
-          <div>
-            <p className="text-sm font-semibold tracking-wide text-primary uppercase">Гильдии</p>
-            <h2 id="guilds" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-              Гильдии и рейды
-            </h2>
-            <p className="mt-4 text-pretty text-muted-foreground">
-              Собери команду и бейте общего босса. Каждая тренировка участника снимает ему HP — тот же урон, что и личному боссу недели.
-            </p>
-            <ul className="mt-6 space-y-3 text-sm">
-              {GUILD_POINTS.map((t) => (
-                <li key={t} className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-8">
-              <Link href="/register" className={buttonVariants({ size: "lg" })}>
-                Собрать гильдию <ArrowRight aria-hidden />
-              </Link>
-            </div>
-          </div>
-          <Reveal>
-            <RaidInfographic />
-          </Reveal>
-        </div>
-      </section>
+      <Together clubs={clubs} authed={authed} cities={cities} />
 
-      {/* Клубы залов */}
-      {clubs ? (
-        <section aria-labelledby="clubs" className="relative scroll-mt-20 overflow-hidden border-t">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_30%_40%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_60%)]"
-          />
-          <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-20 sm:py-24 lg:grid-cols-2 lg:gap-14">
-            <Reveal className="lg:order-last">
-              <ClubInfographic />
-            </Reveal>
-            <div>
-              <p className="text-sm font-semibold tracking-wide text-primary uppercase">Клубы</p>
-              <h2 id="clubs" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-                Клубы залов
-              </h2>
-              <p className="mt-4 text-pretty text-muted-foreground">
-                Вступите в клуб своего зала: общий рейтинг недели и задания, которые выполняют все вместе.
-              </p>
-              <ul className="mt-6 space-y-3 text-sm">
-                {CLUB_POINTS.map((t) => (
-                  <li key={t} className="flex gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> {t}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href={authed ? "/clubs" : `/register?next=${encodeURIComponent("/clubs")}`} className={buttonVariants({ size: "lg" })}>
-                  Найти свой зал <ArrowRight aria-hidden />
-                </Link>
-                <Link
-                  href={authed ? "/clubs/new" : `/register?next=${encodeURIComponent("/clubs/new")}`}
-                  className={buttonVariants({ variant: "outline", size: "lg" })}
-                >
-                  Добавить свой зал
-                </Link>
-              </div>
-              {cities.length ? (
-                <div className="mt-8">
-                  <p className="text-sm font-semibold">Популярные города</p>
-                  <ul className="mt-2 flex flex-wrap gap-2">
-                    {cities.map((c) => (
-                      <li key={c.path}>
-                        <Link href={c.path} className="inline-flex rounded-full border px-3 py-1 text-sm transition-colors hover:border-primary/50">
-                          {c.city}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Для тренеров */}
-      <section aria-labelledby="coaches" className="relative scroll-mt-20 overflow-hidden border-t">
-        {/* «Пульт тренера»: сетка рабочего экрана и свечение фирменного цвета */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,color-mix(in_oklch,var(--border)_70%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklch,var(--border)_70%,transparent)_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-40 -left-40 -z-10 size-144 rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)]"
-        />
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:py-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <p className="text-sm font-semibold tracking-wide text-primary uppercase">Для тренеров</p>
-            <h2 id="coaches" className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-              Ведите клиентов там, где им интересно тренироваться
-            </h2>
-            <p className="mt-4 text-pretty text-muted-foreground">
-              Клиент качается в игровом дневнике — уровни, streak, босс недели. А вы видите каждую тренировку, назначаете план и ведёте
-              прогрессию весов. Без таблиц и переписки в мессенджерах.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/register?coach=1" className={buttonVariants({ size: "lg" })}>
-                Стать тренером — бесплатно <ArrowRight aria-hidden />
-              </Link>
-              {showCatalogOnLanding(catalogCoaches) ? (
-                <Link href="/trainers" className={buttonVariants({ size: "lg", variant: "outline" })}>
-                  Найти тренера
-                </Link>
-              ) : null}
-              <span className="text-sm text-muted-foreground">Пока идёт бета — всё бесплатно</span>
-            </div>
-          </div>
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {COACH_FEATURES.map((f, i) => (
-              <Reveal
-                as="li"
-                delay={(i % 2) * 0.08}
-                key={f.title}
-                className="flex flex-col justify-between gap-5 rounded-2xl border bg-card/90 p-5 backdrop-blur transition-colors hover:border-primary/50"
-              >
-                <div>
-                  <h3 className="font-bold">{f.title}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{f.text}</p>
-                </div>
-                {f.visual}
-              </Reveal>
-            ))}
-          </ul>
-        </div>
-      </section>
+      <Coaches showFind={showCatalogOnLanding(catalogCoaches)} />
 
       {/* Сравнение */}
       <section aria-labelledby="compare" className="border-y bg-card/40">
