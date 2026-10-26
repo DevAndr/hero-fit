@@ -23,6 +23,15 @@ describe("jsonLd", () => {
     const lt = "\\u003c";
     expect(jsonLd({ name: "</script><b>" })).toBe(`{"name":"${lt}/script>${lt}b>"}`);
   });
+  it("several entities — one object with @graph and a single @context (scripts reading r['@context'] break on an array)", () => {
+    const out = JSON.parse(
+      jsonLd([
+        { "@context": "https://schema.org", "@type": "WebSite", name: "A" },
+        { "@context": "https://schema.org", "@type": "FAQPage" },
+      ]),
+    );
+    expect(out).toEqual({ "@context": "https://schema.org", "@graph": [{ "@type": "WebSite", name: "A" }, { "@type": "FAQPage" }] });
+  });
 });
 
 describe("sitemapEntries", () => {

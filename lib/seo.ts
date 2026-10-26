@@ -32,7 +32,12 @@ export function absoluteUrl(origin: string, path: string): string {
 
 /** JSON-LD для <script type="application/ld+json">: «<» экранируется, чтобы строка не закрыла тег. */
 export function jsonLd(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, "\\u003c");
+  // Несколько сущностей — одним объектом с @graph: сторонние скрипты (встроенные браузеры, расширения) читают
+  // r["@context"] у корня и на массиве падают — ошибка прилетает в наш мониторинг
+  const doc = Array.isArray(data)
+    ? { "@context": "https://schema.org", "@graph": data.map(({ "@context": _, ...rest }: Record<string, unknown>) => rest) }
+    : data;
+  return JSON.stringify(doc).replace(/</g, "\\u003c");
 }
 
 /** Публичные страницы для поисковиков: лендинг, калькуляторы и регистрация. */
