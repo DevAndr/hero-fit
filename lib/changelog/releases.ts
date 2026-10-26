@@ -6,6 +6,16 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2027-09-hotfix-faq",
+    version: "0.29.1",
+    date: "2026-10-26",
+    title: "Точнее в ответах на вопросы",
+    summary: "В частых вопросах на главной — верное число групп мышц.",
+    new: [],
+    improved: [],
+    fixed: [{ text: "В ответе «Подойдёт ли новичку?» — 11 групп мышц, как в приложении", href: "/#faq" }],
+  },
+  {
     id: "2027-09-together",
     version: "0.29.0",
     date: "2026-10-26",
