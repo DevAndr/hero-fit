@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, ClipboardList, Crown, Download, Dumbbell, Gift, Play, Send, Smartphone, Sparkles, Trophy, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, Calculator, CalendarDays, Check, Crown, Download, Dumbbell, Gift, Send, Smartphone, Sparkles, Trophy, Users, X } from "lucide-react";
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { AssignedWeek, CatalogListing, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
 import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
-import { HeroHud } from "@/components/marketing/hero-hud";
+import { Hero } from "@/components/marketing/v2/hero";
+import { How } from "@/components/marketing/v2/how";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
 import { CountUp, Reveal } from "@/components/marketing/motion";
 import {
@@ -45,24 +46,6 @@ export const metadata: Metadata = {
 };
 
 const NBSP = " ";
-
-const STEPS = [
-  {
-    icon: ClipboardList,
-    title: "Собери тренировку",
-    text: "Выбери готовую программу или шаблон — или набери упражнения сам. Повторить прошлую тренировку — в один клик.",
-  },
-  {
-    icon: Play,
-    title: "Тренируйся с подсказками",
-    text: "Отмечай подходы, вес и повторы. Таймер отдыха напомнит о следующем подходе, а калькулятор блинов — что вешать на гриф.",
-  },
-  {
-    icon: Sparkles,
-    title: "Прокачивайся",
-    text: "Получай XP и уровни, бей рекорды и босса недели, держи недельный streak. В понедельник — итоги недели и место в лиге друзей.",
-  },
-];
 
 type Feature = { title: string; text: string; visual: React.ReactNode; className?: string };
 
@@ -269,7 +252,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   ]);
   const freePlan = FREE_PLAN.filter((t) => clubs || !t.startsWith("Клубы залов"));
   const faq = faqFor(clubs, android);
-  const platforms = ["в браузере", ...(telegramUrl ? ["Telegram"] : []), ...(android ? ["Android"] : [])];
   const site = env.APP_URL;
   const structured = [
     {
@@ -302,7 +284,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const stats: { value: number; from?: number; suffix?: string; label: string }[] = [
     { value: exercises, label: "упражнений в базе" },
     { value: programs, label: "готовых программ" },
-    { value: 10, label: "групп мышц" },
+    { value: 11, label: "групп мышц" },
     { value: 0, from: 990, suffix: " ₽", label: "ранний доступ: всё бесплатно" },
   ];
 
@@ -310,69 +292,26 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structured) }} />
 
-      {/* Герой */}
-      <section className="relative overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_80%_10%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_0%_90%,color-mix(in_oklch,var(--streak)_12%,transparent),transparent_40%)]" />
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[48px_48px] opacity-40 mask-[radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-20 px-4 pt-12 pb-28 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-20 lg:pb-32">
-          <div className="space-y-7">
-            {deleted ? (
-              <p role="status" className="rounded-lg border bg-card/80 px-4 py-3 text-sm">
-                Аккаунт удалён. Спасибо, что тренировались с Hero Fit
-              </p>
-            ) : null}
-            <WhatsNewLink />
-            <p className="hf-rise inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-sm text-muted-foreground">
-              <Dumbbell className="size-4 text-primary" aria-hidden /> Бесплатно · {platforms.join(", ")} и офлайн
+      <Hero
+        notice={
+          deleted ? (
+            <p role="status" className="rounded-lg border bg-card/80 px-4 py-3 text-sm">
+              Аккаунт удалён. Спасибо, что тренировались с Hero Fit
             </p>
-            <h1 className="hf-rise font-display text-4xl leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl" style={{ animationDelay: "0.05s" }}>
-              Дневник тренировок, который превращает зал в <span className="text-primary">игру</span>
-            </h1>
-            <p className="hf-rise max-w-xl text-lg text-pretty text-muted-foreground" style={{ animationDelay: "0.1s" }}>
-              Записывай подходы, вес и повторы — и получай XP, уровни и ачивки за реальный прогресс. Hero Fit помогает не бросить: недельный streak,
-              напоминания и итоги недели.
-            </p>
-            <div className="hf-rise flex flex-wrap gap-3" style={{ animationDelay: "0.15s" }}>
-              <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-6 text-base" })}>
-                Начать бесплатно <ArrowRight aria-hidden />
-              </Link>
-              {telegramUrl ? (
-                <a href={telegramUrl} className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
-                  <Send aria-hidden /> Открыть в Telegram
-                </a>
-              ) : (
-                <Link href="#features" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
-                  Что умеет
-                </Link>
-              )}
-            </div>
-            <ul className="hf-rise flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" style={{ animationDelay: "0.2s" }}>
-              {["Без установки", "Готовые программы", "Работает без сети", ...(telegramUrl ? ["Есть в Telegram"] : [])].map((t) => (
-                <li key={t} className="flex items-center gap-1.5">
-                  <Check className="size-4 text-primary" aria-hidden /> {t}
-                </li>
-              ))}
-              {android ? (
-                <li>
-                  {/* Якорь к секции «Приложение для Android» — меню шапки на телефоне скрыто */}
-                  <a href="#android" className="flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
-                    <Smartphone className="size-4" aria-hidden /> Приложение для Android ↓
-                  </a>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-          <HeroHud />
-        </div>
-      </section>
+          ) : null
+        }
+        whatsNew={<WhatsNewLink />}
+        android={android}
+        telegramUrl={telegramUrl}
+      />
 
-      {/* Цифры */}
-      <section aria-label="Hero Fit в цифрах" className="border-y bg-card/40">
-        <dl className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 px-4 py-10 sm:grid-cols-4">
+      {/* Цифры — настоящие, из базы */}
+      <section aria-label="Hero Fit в цифрах" className="px-4">
+        <dl className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-px overflow-hidden rounded-3xl border border-foreground/10 bg-foreground/10 sm:grid-cols-4">
           {stats.map((s, i) => (
-            <div key={s.label} className="text-center">
+            <div key={s.label} className="bg-card/80 px-4 py-7 text-center backdrop-blur">
               <dt className="sr-only">{s.label}</dt>
-              <dd className="font-display text-3xl font-extrabold text-primary tabular-nums sm:text-4xl">
+              <dd className="font-display text-3xl font-black text-primary tabular-nums sm:text-4xl">
                 <span className="sr-only">
                   {s.value}
                   {s.suffix}
@@ -387,26 +326,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </dl>
       </section>
 
-      {/* Как это работает */}
-      <section aria-labelledby="how" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-20 sm:py-24">
-        <SectionTitle id="how" eyebrow="Как это работает" title="Три шага от первого подхода до нового уровня" />
-        <ol className="mt-12 grid gap-4 sm:gap-6 lg:mt-14 lg:grid-cols-3">
-          {STEPS.map(({ icon: Icon, title, text }, i) => (
-            <Reveal as="li" delay={i * 0.1} key={title} className="relative rounded-2xl border bg-card p-5 sm:flex sm:items-start sm:gap-6 sm:p-6 lg:block">
-              <div className="flex items-center gap-3 sm:w-24 sm:shrink-0 sm:flex-col sm:items-start sm:gap-2 lg:w-auto">
-                <span className="font-display text-5xl font-extrabold text-primary/20" aria-hidden>
-                  0{i + 1}
-                </span>
-                <Icon className="size-6 text-primary" aria-hidden />
-              </div>
-              <div>
-                <h3 className="mt-3 text-lg font-bold sm:mt-1 lg:mt-3">{title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{text}</p>
-              </div>
-            </Reveal>
-          ))}
-        </ol>
-      </section>
+      <How />
 
       {/* Возможности */}
       <section aria-labelledby="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-20 sm:pb-24">

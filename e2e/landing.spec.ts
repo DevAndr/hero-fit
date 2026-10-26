@@ -3,7 +3,12 @@ import { registerUser } from "./helpers";
 
 test("landing is public: hero, features, FAQ and structured data", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Дневник тренировок, который превращает зал в игру/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Дневник тренировок, который не даст бросить/);
+  await expect(page.getByRole("img", { name: "Дашборд Hero Fit: уровень, XP и серия недель" })).toBeVisible();
+  const stats = page.getByRole("region", { name: "Hero Fit в цифрах" });
+  await expect(stats).toContainText("11");
+  await expect(stats).toContainText("групп мышц");
+  await expect(page.getByRole("region", { name: "Три шага до нового уровня" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Всё для прогресса — и немного игры" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Недельный streak", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Сейчас всё бесплатно" })).toBeVisible();
@@ -98,8 +103,7 @@ test("landing offers Hero Fit in Telegram", async ({ page }) => {
   const links = page.getByRole("link", { name: "Открыть в Telegram" });
   await expect(links).toHaveCount(2);
   for (const link of await links.all()) await expect(link).toHaveAttribute("href", "https://t.me/hero_fit_e2e_bot?startapp");
-  await expect(page.getByText("Бесплатно · в браузере, Telegram и офлайн")).toBeVisible();
-  await expect(page.getByText("Есть в Telegram")).toBeVisible();
+  await expect(page.getByText("Бесплатно · без рекламы · сайт и Telegram")).toBeVisible();
 });
 
 test("guilds block: header link, raid infographic, CTA, FAQ", async ({ page }) => {
