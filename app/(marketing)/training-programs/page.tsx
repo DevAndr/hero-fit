@@ -4,7 +4,7 @@ import { ProgramCard } from "@/components/marketing/program-card";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { env } from "@/lib/env";
 import { BUILTIN_PROGRAMS } from "@/lib/programs/builtin";
-import { PROGRAMS_CRUMBS as CRUMBS, absoluteUrl, jsonLd } from "@/lib/seo";
+import { PROGRAMS_CRUMBS as CRUMBS, absoluteUrl, jsonLd, pageOpenGraph } from "@/lib/seo";
 
 const TITLE = "Программы тренировок в зал: готовые планы на неделю";
 const DESCRIPTION =
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: ["программа тренировок", "программа тренировок в зал", "готовые программы тренировок", "программа для новичка в зале", "сплит"],
   alternates: { canonical: "/training-programs" },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: "/training-programs" },
+  openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/training-programs" }),
 };
 
 export default function ProgramsPage() {

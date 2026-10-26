@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aboutPreview,
   showCatalogOnLanding,
+  catalogIndexable,
   CATALOG_LANDING_MIN,
   canCountClick,
   ABOUT_PREVIEW,
@@ -139,5 +140,13 @@ describe("showCatalogOnLanding", () => {
     expect(showCatalogOnLanding(0)).toBe(false);
     expect(showCatalogOnLanding(4)).toBe(false);
     expect(showCatalogOnLanding(5)).toBe(true);
+  });
+});
+
+describe("catalogIndexable", () => {
+  it("пустой или почти пустой каталог — не в индекс (тонкая страница); с порога — в индекс", () => {
+    expect(catalogIndexable(0)).toBe(false);
+    expect(catalogIndexable(CATALOG_LANDING_MIN - 1)).toBe(false);
+    expect(catalogIndexable(CATALOG_LANDING_MIN)).toBe(true);
   });
 });

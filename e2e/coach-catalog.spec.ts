@@ -285,3 +285,22 @@ test("landing: «Найти тренера» in the coaches block once the catal
   await block.getByRole("link", { name: "Найти тренера" }).click();
   await expect(page).toHaveURL(/\/trainers$/);
 });
+
+test("SEO: catalog title in social preview, JSON-LD list of trainer pages, indexable with enough coaches", async ({ page }) => {
+  const city = cityOf();
+  for (let i = 0; i < 5; i++) await dbCoach(city);
+  await page.goto("/trainers");
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Тренеры Hero Fit — найдите тренера");
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", /\/trainers$/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /opengraph-image/);
+  // Свой noindex каталог ставит только пустому каталогу и фильтрам («noindex, follow»); иначе robots — общий layout
+  // (в e2e площадка вне индекса — «noindex, nofollow», на проде — «index, follow»)
+  await expect(page.locator('meta[name="robots"]')).not.toHaveAttribute("content", "noindex, follow");
+  await page.goto("/trainers?format=ONLINE");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+  await page.goto("/trainers");
+  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent())!);
+  expect(ld["@type"]).toBe("CollectionPage");
+  expect(ld.mainEntity.itemListElement.length).toBeGreaterThan(0);
+  expect(ld.mainEntity.itemListElement[0].url).toMatch(/\/trainer\//);
+});

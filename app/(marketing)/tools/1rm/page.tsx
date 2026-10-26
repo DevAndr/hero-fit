@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
 import { env } from "@/lib/env";
-import { jsonLd, toolJsonLd } from "@/lib/seo";
+import { jsonLd, toolJsonLd, pageOpenGraph } from "@/lib/seo";
 
 const TITLE = "Калькулятор 1ПМ онлайн — одноповторный максимум по формуле Эпли";
 const DESCRIPTION =
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: ["калькулятор 1ПМ", "одноповторный максимум", "калькулятор максимума жима", "формула Эпли", "1RM калькулятор"],
   alternates: { canonical: "/tools/1rm" },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: "/tools/1rm" },
+  openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/tools/1rm" }),
 };
 
 const CRUMBS = [

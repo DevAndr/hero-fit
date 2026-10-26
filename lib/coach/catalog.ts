@@ -8,10 +8,14 @@ export const CATALOG_PAGE_SIZE = 20;
 /** «Активный» тренер — входил за последние N дней. */
 export const ACTIVE_DAYS = 14;
 export const ABOUT_PREVIEW = 140;
-/** Кнопка «Найти тренера» в секции «Тренерам» на лендинге — от стольких тренеров в каталоге (пустой каталог не рекламируем). */
+/** От стольких тренеров каталог рекламируем и индексируем: кнопка на лендинге и `index` у /trainers (пустой — тонкая страница). */
 export const CATALOG_LANDING_MIN = 5;
 
 export function showCatalogOnLanding(coachesInCatalog: number): boolean {
+  return coachesInCatalog >= CATALOG_LANDING_MIN;
+}
+
+export function catalogIndexable(coachesInCatalog: number): boolean {
   return coachesInCatalog >= CATALOG_LANDING_MIN;
 }
 

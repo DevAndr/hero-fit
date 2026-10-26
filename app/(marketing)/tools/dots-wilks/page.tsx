@@ -3,7 +3,7 @@ import Link from "next/link";
 import { StrengthScoreCalculator } from "@/components/marketing/strength-score-calculator";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { env } from "@/lib/env";
-import { jsonLd, toolJsonLd } from "@/lib/seo";
+import { jsonLd, toolJsonLd, pageOpenGraph } from "@/lib/seo";
 
 const TITLE = "Калькулятор DOTS и Wilks онлайн — сила с поправкой на вес тела";
 const DESCRIPTION =
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: ["калькулятор DOTS", "калькулятор Wilks", "DOTS пауэрлифтинг", "коэффициент Вилкса", "сумма троеборья"],
   alternates: { canonical: "/tools/dots-wilks" },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: "/tools/dots-wilks" },
+  openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/tools/dots-wilks" }),
 };
 
 const CRUMBS = [

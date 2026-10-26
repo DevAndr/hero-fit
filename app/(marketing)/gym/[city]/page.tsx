@@ -7,7 +7,7 @@ import { cityPath } from "@/lib/club/public";
 import { getCityClubs } from "@/lib/club/public-queries";
 import { env } from "@/lib/env";
 import { plural } from "@/lib/format";
-import { absoluteUrl, cityJsonLd, jsonLd } from "@/lib/seo";
+import { absoluteUrl, cityJsonLd, jsonLd, pageOpenGraph } from "@/lib/seo";
 
 export async function generateMetadata({ params }: PageProps<"/gym/[city]">): Promise<Metadata> {
   const { city } = await params;
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: PageProps<"/gym/[city]">): Pr
   if (!data) return {};
   const title = `Тренажёрные залы — ${data.city} · Hero Fit`;
   const description = `Залы города ${data.city} в Hero Fit: рейтинг недели, общие задания клуба и сундуки за тренировки.`;
-  return { title: { absolute: title }, description, alternates: { canonical: cityPath(city) }, openGraph: { title, description, url: cityPath(city) } };
+  return { title: { absolute: title }, description, alternates: { canonical: cityPath(city) }, openGraph: pageOpenGraph({ title, description, url: cityPath(city) }) };
 }
 
 /** Опубликованные залы города. */

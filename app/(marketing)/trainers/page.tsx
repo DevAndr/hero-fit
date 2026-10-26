@@ -5,8 +5,10 @@ import { ReachGoal } from "@/components/analytics/reach-goal";
 import { TrainerCard } from "@/components/coach/catalog-card";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { CATALOG_PAGE_SIZE, catalogFilterSchema, type CatalogFilter } from "@/lib/coach/catalog";
-import { getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
+import { CATALOG_PAGE_SIZE, catalogFilterSchema, catalogIndexable, type CatalogFilter } from "@/lib/coach/catalog";
+import { catalogCount, getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
+import { env } from "@/lib/env";
+import { absoluteUrl, jsonLd, trainersJsonLd, pageOpenGraph } from "@/lib/seo";
 import { FORMAT_LABELS, SPECIALTIES } from "@/lib/coach/profile";
 
 // Каталог тренеров (спека 2026-10-25-coach-catalog): контакты — только вошедшим, решается на каждый запрос
@@ -26,15 +28,20 @@ const hrefOf = (f: CatalogFilter, page = f.page) => {
   return s ? `/trainers?${s}` : "/trainers";
 };
 
+const TITLE = "Тренеры Hero Fit — найдите тренера";
+const DESCRIPTION = "Каталог тренеров Hero Fit: выберите город, формат и специализацию и свяжитесь с тренером напрямую.";
+
 export async function generateMetadata({ searchParams }: PageProps<"/trainers">): Promise<Metadata> {
   const f = parse(await searchParams);
   const filtered = Boolean(f.city || f.format || f.specialty || f.page > 1);
+  // В индексе — только сам каталог (не каждая комбинация фильтров) и только не пустой
+  const indexable = !filtered && catalogIndexable(await catalogCount());
   return {
-    title: { absolute: "Тренеры Hero Fit — найдите тренера" },
-    description: "Каталог тренеров Hero Fit: выберите город, формат и специализацию и свяжитесь с тренером напрямую.",
+    title: { absolute: TITLE },
+    description: DESCRIPTION,
     alternates: { canonical: "/trainers" },
-    // В индексе — только сам каталог, не каждая комбинация фильтров
-    ...(filtered ? { robots: { index: false, follow: true } } : {}),
+    openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/trainers" }),
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
   };
 }
 
@@ -52,6 +59,19 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:py-14">
       <ReachGoal goal="trainers_catalog_view" />
+      {items.length ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLd(
+              trainersJsonLd({
+                url: absoluteUrl(env.APP_URL, "/trainers"),
+                items: items.map((i) => ({ name: i.name, url: absoluteUrl(env.APP_URL, `/trainer/${encodeURIComponent(i.nickname)}`) })),
+              }),
+            ),
+          }}
+        />
+      ) : null}
       <header className="space-y-2">
         <h1 className="font-display text-3xl font-extrabold tracking-tight">Тренеры Hero Fit</h1>
         <p className="text-pretty text-muted-foreground">
