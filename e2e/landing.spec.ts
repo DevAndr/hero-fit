@@ -12,7 +12,9 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
   await expect(page.getByText("останутся бесплатными навсегда")).toBeVisible();
 
   const ld = await page.locator('script[type="application/ld+json"]').first().textContent();
-  const types = (JSON.parse(ld!) as { "@type": string }[]).map((x) => x["@type"]);
+  const doc = JSON.parse(ld!) as { "@context": string; "@graph": { "@type": string }[] };
+  expect(doc["@context"]).toBe("https://schema.org");
+  const types = doc["@graph"].map((x) => x["@type"]);
   expect(types).toEqual(["WebSite", "SoftwareApplication", "FAQPage"]);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /^https?:\/\/[^/]+\/?$/);
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /opengraph-image/);

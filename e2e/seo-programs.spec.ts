@@ -17,13 +17,14 @@ test("страница программы 5×5: мета, JSON-LD, таблиц�
   const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
   const types = blocks.flatMap((b) => {
     const parsed = JSON.parse(b);
-    return (Array.isArray(parsed) ? parsed : [parsed]).map((d: { "@type": string }) => d["@type"]);
+    return (parsed["@graph"] ?? [parsed]).map((d: { "@type": string }) => d["@type"]);
   });
   expect(types).toContain("ExercisePlan");
 
   await expect(page).toHaveTitle("Программа 5×5 для силы: присед, жим, тяга — 3 раза в неделю");
-  const crumbList = JSON.parse(blocks.find((b) => b.includes("BreadcrumbList"))!) as { itemListElement: { name: string }[] }[] | { itemListElement: { name: string }[] };
-  const items = (Array.isArray(crumbList) ? crumbList.find((d) => d.itemListElement) : crumbList)!.itemListElement;
+  type Crumbs = { itemListElement?: { name: string }[] };
+  const crumbList = JSON.parse(blocks.find((b) => b.includes("BreadcrumbList"))!) as Crumbs & { "@graph"?: Crumbs[] };
+  const items = (crumbList["@graph"] ? crumbList["@graph"].find((d) => d.itemListElement) : crumbList)!.itemListElement!;
   await expect(page.getByRole("navigation", { name: "Хлебные крошки" }).locator('[aria-current="page"]')).toHaveText(items.at(-1)!.name);
 
   const table = page.getByRole("table").first();
