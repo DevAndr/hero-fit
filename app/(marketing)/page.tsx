@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, CalendarDays, Check, Crown, Download, Gift, Send, Smartphone, Sparkles, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Check, Crown, Gift, MessageCircleQuestion, Sparkles, Users } from "lucide-react";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { Hero } from "@/components/marketing/v2/hero";
 import { How } from "@/components/marketing/v2/how";
@@ -10,6 +10,11 @@ import { Bento, FEATURE_LIST } from "@/components/marketing/v2/bento";
 import { Game } from "@/components/marketing/v2/game";
 import { Together } from "@/components/marketing/v2/together";
 import { Coaches } from "@/components/marketing/v2/coaches";
+import { Compare } from "@/components/marketing/v2/compare";
+import { Platforms } from "@/components/marketing/v2/platforms";
+import { GradientText, Section, glass } from "@/components/marketing/v2/section";
+import { StickyCta } from "@/components/marketing/v2/sticky-cta";
+import { cn } from "@/lib/utils";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
 import { CountUp, Reveal } from "@/components/marketing/motion";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,7 +25,6 @@ import { env } from "@/lib/env";
 import { showCatalogOnLanding } from "@/lib/coach/catalog";
 import { catalogCount } from "@/lib/coach/catalog-queries";
 import { isEnabled } from "@/lib/flags/server";
-import { APK_MIN_ANDROID, APK_URL } from "@/lib/native/apk";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramAppUrl } from "@/lib/telegram/links";
@@ -31,19 +35,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-
-const COMPARE: [feature: string, notebook: boolean][] = [
-  ["Запись подходов, веса и повторов", true],
-  ["Личные рекорды и 1ПМ считаются сами", false],
-  ["Подсказка «пора увеличить вес»", false],
-  ["Таймер отдыха с уведомлением", false],
-  ["Графики прогресса по каждому упражнению", false],
-  ["Мотивация: уровни, ачивки, streak, лига", false],
-  ["Босс недели, сундуки и титулы", false],
-  ["Восстановление мышц и баланс нагрузки", false],
-  ["Напоминания о тренировках по плану", false],
-  ["Тренировки с тренером: план, программы, задания и комментарии", false],
-];
 
 /** Бесплатно навсегда. Утверждения держать в соответствии с приложением. */
 const FREE_PLAN = [
@@ -66,18 +57,6 @@ const PREMIUM_PLAN = [
   "Тренировка «по восстановлению» одним касанием",
   "Новые функции — первыми",
 ];
-
-function SectionTitle({ eyebrow, title, text, id }: { eyebrow: string; title: string; text?: string; id?: string }) {
-  return (
-    <div className="mx-auto max-w-2xl text-center">
-      <p className="text-sm font-semibold tracking-wide text-primary uppercase">{eyebrow}</p>
-      <h2 id={id} className="mt-2 font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-        {title}
-      </h2>
-      {text ? <p className="mt-4 text-pretty text-muted-foreground">{text}</p> : null}
-    </div>
-  );
-}
 
 export default async function Home({ searchParams }: PageProps<"/">) {
   const deleted = (await searchParams).deleted === "1";
@@ -181,80 +160,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       <Coaches showFind={showCatalogOnLanding(catalogCoaches)} />
 
-      {/* Сравнение */}
-      <section aria-labelledby="compare" className="border-y bg-card/40">
-        <div className="mx-auto w-full max-w-4xl px-4 py-20 sm:py-24">
-          <SectionTitle id="compare" eyebrow="Почему не блокнот" title="Блокнот запоминает. Hero Fit — ведёт к результату" />
-          <div className="mt-10 overflow-hidden rounded-2xl border bg-card sm:mt-12">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Сравнение Hero Fit и бумажного дневника тренировок</caption>
-              <thead>
-                <tr className="border-b text-left">
-                  <th scope="col" className="p-3 font-semibold sm:p-4">Возможность</th>
-                  <th scope="col" className="p-3 text-center font-semibold whitespace-nowrap text-muted-foreground sm:p-4">Блокнот</th>
-                  <th scope="col" className="p-3 text-center font-semibold whitespace-nowrap text-primary sm:p-4">Hero Fit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARE.map(([feature, notebook]) => (
-                  <tr key={feature} className="border-b last:border-0">
-                    <th scope="row" className="p-3 text-left font-normal sm:p-4">{feature}</th>
-                    <td className="p-3 text-center sm:p-4">
-                      {notebook ? <Check className="mx-auto size-5 text-muted-foreground" aria-label="есть" /> : <X className="mx-auto size-5 text-muted-foreground/50" aria-label="нет" />}
-                    </td>
-                    <td className="p-3 text-center sm:p-4">
-                      <Check className="mx-auto size-5 text-primary" aria-label="есть" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <Compare />
 
-      {/* Тарифы */}
-      {android ? (
-        <section aria-labelledby="android" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-20 sm:pb-24">
-          <div className="grid items-center gap-8 rounded-3xl border bg-card p-6 sm:p-10 md:grid-cols-[auto_1fr]">
-            <div className="mx-auto flex size-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground md:size-24">
-              <Smartphone className="size-10 md:size-12" aria-hidden />
-            </div>
-            <div className="space-y-4 text-center md:text-left">
-              <p className="text-sm font-semibold tracking-wide text-primary uppercase">Android</p>
-              <h2 id="android" className="font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-                Приложение для Android
-              </h2>
-              <p className="text-pretty text-muted-foreground">
-                Таймер отдыха, серия и ачивки приходят уведомлением, даже когда приложение закрыто. Без сервисов Google: уведомления доставляет
-                бесплатное приложение ntfy через наш сервер.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3 md:justify-start">
-                <a href={APK_URL} download className={buttonVariants({ size: "lg", className: "h-12 px-6 text-base" })}>
-                  <Download aria-hidden /> Скачать APK
-                </a>
-                <Link href="/android" className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-6 text-base" })}>
-                  Как подключить уведомления
-                </Link>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Android {APK_MIN_ANDROID} и новее. При установке телефон попросит разрешить установку из этого источника — это нормально для приложений
-                не из магазина.
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <Platforms android={android} telegramUrl={telegramUrl} />
 
-      <section aria-labelledby="pricing" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-20 sm:pb-24">
-        <SectionTitle
-          id="pricing"
-          eyebrow="Тарифы"
-          title="Сейчас всё бесплатно"
-          text="Идёт ранний доступ — открыты все функции. Позже появится Премиум, а основное останется бесплатным навсегда."
-        />
-        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:mt-14">
-          <Reveal className="flex flex-col rounded-2xl border bg-card p-5 sm:p-6">
+      <Section
+        id="pricing"
+        eyebrow={<><Gift className="size-3.5" /> Тарифы</>}
+        title="Сейчас всё бесплатно"
+        lead="Идёт ранний доступ — открыты все функции. Позже появится Премиум, а основное останется бесплатным навсегда."
+        center
+      >
+        <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
+          <Reveal className={cn(glass, "flex flex-col p-6")}>
             <h3 className="text-lg font-bold">Бесплатно</h3>
             <p className="mt-1 text-sm text-muted-foreground">Навсегда</p>
             <ul className="mt-5 space-y-3 text-sm">
@@ -265,7 +183,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               ))}
             </ul>
           </Reveal>
-          <Reveal delay={0.08} className="relative flex flex-col rounded-2xl border border-primary/50 bg-card p-5 sm:p-6">
+          <Reveal
+            delay={0.08}
+            className="relative flex flex-col rounded-2xl border border-primary/50 bg-linear-to-b from-primary/10 to-card/70 p-6 shadow-[0_30px_80px_-40px_var(--primary)] backdrop-blur-md"
+          >
             <div className="flex items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 text-lg font-bold">
                 <Crown className="size-5 text-primary" aria-hidden /> Премиум
@@ -289,33 +210,26 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </p>
           </Reveal>
         </div>
-      </section>
+      </Section>
 
-      {/* FAQ */}
-      <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-20 sm:pb-24">
-        <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
-        <div className="mt-12">
+      <Section id="faq" eyebrow={<><MessageCircleQuestion className="size-3.5" /> Вопросы</>} title="Частые вопросы" center>
+        <div className="mx-auto max-w-3xl">
           <Faq clubs={clubs} android={android} />
         </div>
-      </section>
+      </Section>
 
       {/* Финальный призыв */}
-      <section className="mx-auto w-full max-w-6xl px-4 pb-24">
-        <div className="relative overflow-hidden rounded-3xl border bg-card px-5 py-14 text-center sm:px-10 sm:py-16">
-          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_22%,transparent),transparent_60%)]" />
+      <section className="mx-auto w-full max-w-6xl px-4 pb-28">
+        <div className="relative overflow-hidden rounded-[2rem] border border-foreground/10 bg-card px-5 py-16 text-center sm:px-10 sm:py-20">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_28%,transparent),transparent_60%),radial-gradient(circle_at_50%_120%,color-mix(in_oklch,var(--xp)_18%,transparent),transparent_55%)]" />
           <div className="relative space-y-6">
-            <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight text-balance sm:text-5xl">Первый уровень — уже после первой тренировки</h2>
+            <h2 className="mx-auto max-w-2xl font-display text-3xl font-black tracking-tight text-balance sm:text-5xl">
+              Первый уровень — <GradientText>уже после первой тренировки</GradientText>
+            </h2>
             <p className="mx-auto max-w-xl text-muted-foreground">Регистрация за минуту. Без карты и без установки.</p>
-            <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 px-8 text-base" })}>
-                Создать аккаунт <ArrowRight aria-hidden />
-              </Link>
-              {telegramUrl ? (
-                <a href={telegramUrl} className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 px-8 text-base" })}>
-                  <Send aria-hidden /> Открыть в Telegram
-                </a>
-              ) : null}
-            </div>
+            <Link href="/register" className={buttonVariants({ size: "lg", className: "h-13 px-8 text-base shadow-[0_12px_40px_-12px_var(--primary)]" })}>
+              Создать аккаунт <ArrowRight aria-hidden />
+            </Link>
             <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-1.5"><CalendarDays className="size-4 text-primary" aria-hidden /> Календарь и напоминания</li>
               <li className="flex items-center gap-1.5"><Users className="size-4 text-primary" aria-hidden /> Лига друзей</li>
@@ -324,6 +238,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
         </div>
       </section>
+
+      <StickyCta />
     </>
   );
 }

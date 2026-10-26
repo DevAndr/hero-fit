@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Send, Sparkles, Trophy, Zap } from "lucide-react";
+import { ArrowRight, Send, Smartphone, Sparkles, Trophy, Zap } from "lucide-react";
 import { Reveal } from "@/components/marketing/motion";
 import { PhoneFrame } from "@/components/marketing/v2/phone-frame";
 import { DashboardScreen } from "@/components/marketing/v2/screens/dashboard-screen";
@@ -61,6 +61,12 @@ export function Hero({ notice, whatsNew, android, telegramUrl }: { notice: React
             {telegramUrl ? (
               <a href={telegramUrl} className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
                 <Send className="size-4" aria-hidden /> Открыть в Telegram
+              </a>
+            ) : null}
+            {android ? (
+              // Якорь к карточке Android — меню шапки на телефоне скрыто
+              <a href="#android" className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
+                <Smartphone className="size-4" aria-hidden /> Приложение для Android ↓
               </a>
             ) : null}
           </p>

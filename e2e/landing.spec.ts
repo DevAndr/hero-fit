@@ -16,7 +16,9 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
   await expect(features.getByRole("link", { name: "DOTS и Wilks" })).toHaveAttribute("href", "/tools/dots-wilks");
   const game = page.getByRole("region", { name: "Игра, которая держит" });
   await expect(game.getByRole("img", { name: "Босс недели: Железный Голем" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Сейчас всё бесплатно" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Сейчас всё бесплатно" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Чем Hero Fit лучше блокнота" }).getByRole("row")).toHaveCount(11);
+  await expect(page.getByRole("region", { name: "Частые вопросы" })).toBeVisible();
   await expect(page.getByText("Год Премиума в подарок.")).toBeVisible();
   await page.getByText("Hero Fit бесплатный?").click();
   await expect(page.getByText("останутся бесплатными навсегда")).toBeVisible();
