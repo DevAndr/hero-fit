@@ -16,6 +16,11 @@ import { getTemplateTargets } from "@/lib/coach/target-queries";
 import { formatTarget, type Target } from "@/lib/coach/targets";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
 import { getWhoopRecovery } from "@/lib/whoop/queries";
+import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
+import { openSessionOf, partnerName } from "@/lib/together/queries";
+import { inviteExpiresAt } from "@/lib/together/rules";
+import type { TogetherInitial } from "@/components/together/together-control";
 
 export const metadata: Metadata = { title: "Тренировка" };
 
@@ -81,6 +86,7 @@ export default async function TrainingPage() {
     }),
   );
   const plan = occurrence ? { key: occurrence.occurrence.key, title: occurrence.occurrence.title } : null;
+  const together = (await isEnabled("together", user.id)) ? { initial: await togetherInitial(user.id) } : null;
 
   // key: после отмены/новой тренировки редактор монтируется с чистым состоянием.
   return (
@@ -97,7 +103,22 @@ export default async function TrainingPage() {
         targets={Object.fromEntries(targets)}
         own={Object.fromEntries(own)}
         whoop={whoop}
+        together={together}
       />
     </MuscleRecoveryProvider>
   );
+}
+
+/** Открытая совместная сессия — для полосы партнёра сразу после загрузки. */
+async function togetherInitial(userId: string): Promise<TogetherInitial> {
+  const s = await openSessionOf(db, userId, new Date());
+  if (!s) return null;
+  const partner = await db.user.findUniqueOrThrow({ where: { id: s.hostId === userId ? s.guestId : s.hostId }, select: { nickname: true } });
+  return {
+    id: s.id,
+    status: s.status === "ACTIVE" ? "ACTIVE" : "INVITED",
+    role: s.hostId === userId ? "host" : "guest",
+    partnerName: partnerName(partner.nickname),
+    expiresAt: s.status === "INVITED" ? inviteExpiresAt(s.createdAt).toISOString() : null,
+  };
 }

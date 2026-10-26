@@ -74,6 +74,7 @@ import type { Wellbeing } from "@/lib/assistant/rules";
 import type { Target } from "@/lib/coach/targets";
 import { RecoveryLine, whoopZone } from "@/components/training/recovery-line";
 import type { WhoopRecoveryView } from "@/lib/whoop/queries";
+import { TogetherControl, type TogetherInitial } from "@/components/together/together-control";
 
 type Props = {
   workout: ActiveWorkout;
@@ -91,6 +92,8 @@ type Props = {
   own?: Record<string, Target>;
   /** Восстановление WHOOP: строка зоны, при красной — «Облегчить»; жёлтая/красная — как самочувствие «устал». */
   whoop?: WhoopRecoveryView | null;
+  /** Совместная тренировка (флаг together): открытая сессия на момент загрузки. */
+  together?: { initial: TogetherInitial } | null;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -185,7 +188,7 @@ const NO_TARGETS: Record<string, Target> = {};
 /** «Облегчить» уже нажимали в этой тренировке — повторно не предлагаем (и после перезагрузки). */
 const lightenedKey = (workoutId: string) => `hf:lightened:${workoutId}`;
 
-function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS, whoop }: Props) {
+function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS, whoop, together }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   // Выполненные упражнения сворачиваются (isCollapsed); ручной выбор — поверх правила (ключ упражнения → свёрнуто)
   const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -448,6 +451,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                   </Button>
                 ) : null}
                 <NotificationToggle />
+                {together && state.status === "IN_PROGRESS" ? <TogetherControl workoutId={workout.id} initial={together.initial} /> : null}
               </div>
             </div>
 

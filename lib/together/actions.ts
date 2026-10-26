@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { notify } from "@/lib/notifications/service";
 import { friendIds } from "@/lib/social/queries";
-import { endSession, lockUsers, openSessionOf, partnerName, releaseWorkout, runningWorkoutId, settle } from "@/lib/together/queries";
+import { endSession, inviteCandidates, lockUsers, openSessionOf, partnerName, releaseWorkout, runningWorkoutId, settle } from "@/lib/together/queries";
 import { canCheer, inviteExpiresAt } from "@/lib/together/rules";
 
 type Fail = { ok: false; error: string };
@@ -20,6 +20,12 @@ async function guard() {
 
 const UNAVAILABLE = "Совместные тренировки недоступны";
 const BUSY = "Уже есть совместная тренировка";
+
+/** Друзья, которых можно позвать (лист «Позвать друга»). */
+export async function inviteCandidatesAction(): Promise<{ id: string; name: string; together: number }[]> {
+  const user = await guard();
+  return user ? inviteCandidates(user.id) : [];
+}
 
 export async function inviteAction(workoutId: string, friendId: string): Promise<{ ok: true; sessionId: string; expiresAt: string } | Fail> {
   const user = await guard();
