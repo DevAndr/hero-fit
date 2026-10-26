@@ -3,10 +3,22 @@ import { registerUser } from "./helpers";
 
 test("landing is public: hero, features, FAQ and structured data", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Дневник тренировок, который превращает зал в игру/);
-  await expect(page.getByRole("heading", { name: "Всё для прогресса — и немного игры" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Недельный streak", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Сейчас всё бесплатно" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Дневник тренировок, который не даст бросить/);
+  await expect(page.getByRole("img", { name: "Дашборд Hero Fit: уровень, XP и серия недель" })).toBeVisible();
+  const stats = page.getByRole("region", { name: "Hero Fit в цифрах" });
+  await expect(stats).toContainText("11");
+  await expect(stats).toContainText("групп мышц");
+  await expect(page.getByRole("region", { name: "Три шага до нового уровня" })).toBeVisible();
+  const features = page.getByRole("region", { name: "Всё для прогресса" });
+  await expect(features.getByRole("heading", { name: "Недельная серия", exact: true })).toBeVisible();
+  await expect(features.getByRole("link", { name: "Калькулятор 1ПМ" })).toHaveAttribute("href", "/tools/1rm");
+  await expect(features.getByRole("link", { name: "Блины и разминка" })).toHaveAttribute("href", "/tools/plates");
+  await expect(features.getByRole("link", { name: "DOTS и Wilks" })).toHaveAttribute("href", "/tools/dots-wilks");
+  const game = page.getByRole("region", { name: "Игра, которая держит" });
+  await expect(game.getByRole("img", { name: "Босс недели: Железный Голем" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Сейчас всё бесплатно" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Чем Hero Fit лучше блокнота" }).getByRole("row")).toHaveCount(11);
+  await expect(page.getByRole("region", { name: "Частые вопросы" })).toBeVisible();
   await expect(page.getByText("Год Премиума в подарок.")).toBeVisible();
   await page.getByText("Hero Fit бесплатный?").click();
   await expect(page.getByText("останутся бесплатными навсегда")).toBeVisible();
@@ -74,13 +86,27 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: ten features, header link, CTA opens coach sign-up", async ({ page }) => {
+test("coaches block: all coach features with infographics, client screen, CTA opens coach sign-up", async ({ page }) => {
   await page.goto("/");
   const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
-  await expect(block.getByRole("list").first().getByRole("listitem")).toHaveCount(10);
-  for (const title of ["Приглашение по ссылке", "Клиенты в одном списке", "Итоги недели", "Тренировки в календарь", "Программы на несколько недель", "Задания и прогрессия", "Комментарии к тренировкам", "Заметки о клиенте", "Своя страница тренера", "Каталог тренеров"]) {
-    await expect(block.getByRole("heading", { name: title })).toBeVisible();
-  }
+  await expect(block.getByRole("img", { name: "Экран тренера: клиенты и сигналы" })).toBeVisible();
+  const titles = [
+    "Приглашение по ссылке",
+    "Клиенты и сигналы",
+    "Группы клиентов",
+    "Календарь клиентов",
+    "Тренировки в календарь",
+    "Программы на 2–16 недель",
+    "Задания и прогрессия",
+    "Комментарии к тренировкам",
+    "Заметки о клиенте",
+    "Итоги недели",
+    "Своя страница тренера",
+    "Каталог тренеров",
+    "Ачивки тренера",
+  ];
+  await expect(block.getByRole("list", { name: "Возможности тренера" }).getByRole("listitem")).toHaveCount(titles.length);
+  for (const title of titles) await expect(block.getByRole("heading", { name: title, exact: true })).toBeVisible();
   await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();
   await expect(page).toHaveURL(/\/register\?coach=1$/);
   await expect(page.getByRole("checkbox", { name: /Я тренер/ })).toBeChecked();
@@ -98,15 +124,20 @@ test("landing offers Hero Fit in Telegram", async ({ page }) => {
   const links = page.getByRole("link", { name: "Открыть в Telegram" });
   await expect(links).toHaveCount(2);
   for (const link of await links.all()) await expect(link).toHaveAttribute("href", "https://t.me/hero_fit_e2e_bot?startapp");
-  await expect(page.getByText("Бесплатно · в браузере, Telegram и офлайн")).toBeVisible();
-  await expect(page.getByText("Есть в Telegram")).toBeVisible();
+  await expect(page.getByText("Бесплатно · без рекламы · сайт и Telegram")).toBeVisible();
 });
 
-test("guilds block: header link, raid infographic, CTA, FAQ", async ({ page }) => {
+test("together tabs: friends, guilds and raids by keyboard, CTA, FAQ", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Гильдии" })).toHaveAttribute("href", "/#guilds");
-  const block = page.getByRole("region", { name: "Гильдии и рейды" });
+  const section = page.getByRole("region", { name: "Вместе веселее" });
+  await expect(section.getByRole("tabpanel", { name: "Друзья и лига" })).toBeVisible();
+  await section.getByRole("tab", { name: "Друзья и лига" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(section.getByRole("tab", { name: "Гильдии и рейды" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  const block = section.getByRole("tabpanel", { name: "Гильдии и рейды" });
   await expect(block).toContainText("до 10");
   await expect(block).toContainText("MVP");
   await expect(block.getByRole("link", { name: "Собрать гильдию" })).toHaveAttribute("href", "/register");
