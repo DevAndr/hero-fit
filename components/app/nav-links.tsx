@@ -16,7 +16,7 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
   const clubs = useFlag("clubs");
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
-  const trainers = useFlag("coach_catalog") && !isCoach;
+  const trainers = !isCoach;
   type Item =
     | (typeof NAV_ITEMS)[number]
     | typeof CLUB_NAV_ITEM

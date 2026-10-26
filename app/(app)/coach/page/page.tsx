@@ -8,7 +8,6 @@ import { MIN_CLIENTS_FOR_STATS, STAT_CODES, visibleStats, type StatCode } from "
 import { getCoachPublicStats } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { isEnabled } from "@/lib/flags/server";
 
 export const metadata: Metadata = { title: "Публичная страница" };
 
@@ -27,11 +26,10 @@ const EMPTY_PROFILE = {
 
 export default async function CoachProfilePage() {
   const coach = await requireCoach();
-  const [user, profile, stats, catalog, clicks30] = await Promise.all([
+  const [user, profile, stats, clicks30] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: coach.id }, select: { nickname: true } }),
     db.coachProfile.findUnique({ where: { userId: coach.id } }),
     getCoachPublicStats(coach.id),
-    isEnabled("coach_catalog", coach.id),
     contactClicksForDays(coach.id, 30),
   ]);
   const shown = new Map(visibleStats(stats, []).map((s) => [s.code, `${s.value} ${s.label}`]));
@@ -65,7 +63,7 @@ export default async function CoachProfilePage() {
           joinEnabled: profile?.joinEnabled ?? true,
         }}
         catalog={
-catalog ? { missing: catalogMissing(profile ?? EMPTY_PROFILE, true), clicks30 } : null
+{ missing: catalogMissing(profile ?? EMPTY_PROFILE, true), clicks30 }
         }
         published={Boolean(profile?.publishedAt)}
         url={user.nickname ? new URL(`/trainer/${encodeURIComponent(user.nickname)}`, env.APP_URL).toString() : null}

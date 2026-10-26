@@ -27,7 +27,7 @@ export const COACH_NAV_ITEM = { href: "/coach", label: "Клиенты", icon: C
 /** Календарь клиентов тренера: в боковом меню сразу после «Клиентов», на телефоне — в меню профиля. */
 export const COACH_CALENDAR_NAV_ITEM = { href: "/coach/calendar", label: "Календарь клиентов", icon: CalendarRange, mobile: false } as const;
 
-/** Каталог тренеров (флаг `coach_catalog`): не тренеру — в боковом меню после «Друзей», на телефоне — в меню профиля. */
+/** Каталог тренеров: не тренеру — в боковом меню после «Друзей», на телефоне — в меню профиля. */
 export const TRAINERS_NAV_ITEM = { href: "/trainers", label: "Найти тренера", icon: UserSearch, mobile: false } as const;
 
 /** Каталог программ (флаг `program_catalog`): в боковом меню после «Шаблонов», на телефоне — в меню профиля. */

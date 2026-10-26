@@ -251,17 +251,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
   // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ.
   // Android-приложение — так же: флаг `native_app` для всех (иначе скачавший не сможет включить уведомления)
-  const [exercises, programs, clubs, android, trainers, cities, authed] = await Promise.all([
+  const [exercises, programs, clubs, android, cities, authed] = await Promise.all([
     db.exercise.count({ where: { userId: null } }),
     db.workoutTemplate.count({ where: { userId: null } }),
     isEnabled("clubs", null),
     isEnabled("native_app", null),
-    isEnabled("coach_catalog", null),
     getPopularCities(6),
     cookies().then((c) => c.has(ACCESS_COOKIE)),
   ]);
   const freePlan = FREE_PLAN.filter((t) => clubs || !t.startsWith("Клубы залов"));
-  const faq = faqFor(clubs, android, trainers);
+  const faq = faqFor(clubs, android);
   const platforms = ["в браузере", ...(telegramUrl ? ["Telegram"] : []), ...(android ? ["Android"] : [])];
   const site = env.APP_URL;
   const structured = [
@@ -731,7 +730,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <section aria-labelledby="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-20 sm:pb-24">
         <SectionTitle id="faq" eyebrow="Вопросы" title="Частые вопросы" />
         <div className="mt-12">
-          <Faq clubs={clubs} android={android} trainers={trainers} />
+          <Faq clubs={clubs} android={android} />
         </div>
       </section>
 

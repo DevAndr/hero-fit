@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { SearchX } from "lucide-react";
 import { TrainerCard } from "@/components/coach/catalog-card";
 import { buttonVariants } from "@/components/ui/button";
@@ -9,9 +8,8 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { CATALOG_PAGE_SIZE, catalogFilterSchema, type CatalogFilter } from "@/lib/coach/catalog";
 import { getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
 import { FORMAT_LABELS, SPECIALTIES } from "@/lib/coach/profile";
-import { isEnabled } from "@/lib/flags/server";
 
-// Каталог тренеров (спека 2026-10-25-coach-catalog): флаг — смотрящего, проверяется на каждый запрос
+// Каталог тренеров (спека 2026-10-25-coach-catalog): контакты — только вошедшим, решается на каждый запрос
 export const dynamic = "force-dynamic";
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -45,7 +43,6 @@ const selectClass =
 
 export default async function TrainersPage({ searchParams }: PageProps<"/trainers">) {
   const viewer = await getCurrentUser();
-  if (!(await isEnabled("coach_catalog", viewer?.id ?? null))) notFound();
   const f = parse(await searchParams);
   const [{ items, total }, cities] = await Promise.all([getCatalog(f), getCatalogCities()]);
   await queueGoal("trainers_catalog_view");

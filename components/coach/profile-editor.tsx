@@ -67,8 +67,8 @@ export function ProfileEditor({
   url: string | null;
   /** Текущее значение каждой цифры или почему её пока нет на странице. */
   stats: Record<StatCode, string>;
-  /** Флаг coach_catalog: что мешает попасть в каталог (по сохранённому) и открытия контактов за 30 дней; null — без флага. */
-  catalog: { missing: string[]; clicks30: number } | null;
+  /** Что мешает попасть в каталог тренеров (по сохранённому) и открытия контактов за 30 дней. */
+  catalog: { missing: string[]; clicks30: number };
 }) {
   const [form, setForm] = useState(initial);
   const [pending, startTransition] = useTransition();
@@ -250,34 +250,32 @@ export function ProfileEditor({
         </label>
       </section>
 
-      {catalog ? (
-        <section className="space-y-3 rounded-xl border bg-card p-4" aria-label="Каталог тренеров">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm">
-              <span className="font-bold">Показывать меня в каталоге тренеров</span>
-              <span className="block text-xs text-muted-foreground">Пользователи найдут вас по городу, формату и специализации</span>
-            </span>
-            <Switch
-              aria-label="Показывать меня в каталоге тренеров"
-              checked={form.catalogListed}
-              onCheckedChange={(v) => set({ catalogListed: v })}
-            />
-          </div>
-          {catalog.missing.length ? (
-            <p className="text-sm text-muted-foreground">Не в каталоге: {catalog.missing.join(", ")}</p>
-          ) : (
-            <p className="flex flex-wrap items-center gap-x-2 text-sm">
-              <span className="font-medium text-primary">В каталоге тренеров</span>
-              <Link href="/trainers" className="underline underline-offset-4">
-                Открыть каталог
-              </Link>
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Контакты открывали {catalog.clicks30} {plural(catalog.clicks30, "раз", "раза", "раз")} за 30 дней
+      <section className="space-y-3 rounded-xl border bg-card p-4" aria-label="Каталог тренеров">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm">
+            <span className="font-bold">Показывать меня в каталоге тренеров</span>
+            <span className="block text-xs text-muted-foreground">Пользователи найдут вас по городу, формату и специализации</span>
+          </span>
+          <Switch
+            aria-label="Показывать меня в каталоге тренеров"
+            checked={form.catalogListed}
+            onCheckedChange={(v) => set({ catalogListed: v })}
+          />
+        </div>
+        {catalog.missing.length ? (
+          <p className="text-sm text-muted-foreground">Не в каталоге: {catalog.missing.join(", ")}</p>
+        ) : (
+          <p className="flex flex-wrap items-center gap-x-2 text-sm">
+            <span className="font-medium text-primary">В каталоге тренеров</span>
+            <Link href="/trainers" className="underline underline-offset-4">
+              Открыть каталог
+            </Link>
           </p>
-        </section>
-      ) : null}
+        )}
+        <p className="text-xs text-muted-foreground">
+          Контакты открывали {catalog.clicks30} {plural(catalog.clicks30, "раз", "раза", "раз")} за 30 дней
+        </p>
+      </section>
 
       <section className="space-y-3 rounded-xl border bg-card p-4" aria-label="Цифры на странице">
         <h2 className="font-bold">Цифры на странице</h2>

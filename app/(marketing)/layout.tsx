@@ -12,15 +12,15 @@ const unbounded = Unbounded({ subsets: ["latin", "cyrillic"], weight: ["500", "7
 export default async function MarketingLayout({ children }: LayoutProps<"/">) {
   // Только для шапки («Открыть кабинет»): сессию окончательно проверяет кабинет
   const authed = (await cookies()).has(ACCESS_COOKIE);
-  // Клубы, Android-приложение и каталог тренеров в меню — только когда открыты всем (гость видит флаг лишь при 100 %)
-  const [clubs, android, trainers] = await Promise.all([isEnabled("clubs", null), isEnabled("native_app", null), isEnabled("coach_catalog", null)]);
+  // Клубы и Android-приложение в меню — только когда открыты всем (гость видит флаг лишь при 100 %)
+  const [clubs, android] = await Promise.all([isEnabled("clubs", null), isEnabled("native_app", null)]);
   return (
     <div className={`${unbounded.variable} flex min-h-full flex-1 flex-col`}>
-      <SiteHeader authed={authed} clubs={clubs} android={android} trainers={trainers} />
+      <SiteHeader authed={authed} clubs={clubs} android={android} />
       <main className="flex-1">
         <MotionProvider>{children}</MotionProvider>
       </main>
-      <SiteFooter clubs={clubs} android={android} trainers={trainers} />
+      <SiteFooter clubs={clubs} android={android} />
     </div>
   );
 }

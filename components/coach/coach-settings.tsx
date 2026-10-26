@@ -64,7 +64,7 @@ export function CoachModeCard({ initial, hasNickname }: { initial: boolean; hasN
   );
 }
 
-/** /settings: тренера нет (каталог тренеров, флаг `coach_catalog`) — ссылка на каталог. */
+/** /settings: тренера нет — ссылка на каталог тренеров. */
 export function FindCoachCard() {
   return (
     <section aria-label="Найти тренера" className="space-y-2 rounded-xl border bg-card p-4">

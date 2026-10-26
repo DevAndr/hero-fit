@@ -1,8 +1,8 @@
 /**
  * `clubs` — только когда клубы открыты всем (флаг `clubs` на 100 %). `android` — true: только когда Android-приложение
- * открыто всем (флаг `native_app`), false: только пока не открыто. `trainers` — когда каталог тренеров открыт всем (`coach_catalog`).
+ * открыто всем (флаг `native_app`), false: только пока не открыто.
  */
-export const FAQ: { q: string; a: string; clubs?: true; android?: boolean; trainers?: true }[] = [
+export const FAQ: { q: string; a: string; clubs?: true; android?: boolean }[] = [
   {
     q: "Hero Fit бесплатный?",
     a: "Да. Сейчас идёт ранний доступ, и открыто всё. Позже появится Премиум с расширенной статистикой, архивом итогов недели и балансом мышц, но запись тренировок, шаблоны, уровни, ачивки, streak, босс недели, лига друзей и калькуляторы останутся бесплатными навсегда.",
@@ -60,7 +60,6 @@ export const FAQ: { q: string; a: string; clubs?: true; android?: boolean; train
   {
     q: "Как найти тренера?",
     a: "Откройте каталог тренеров: выберите город, формат и специализацию. Контакты тренера видны после входа — договаривайтесь с ним напрямую, а тренировки ведите в Hero Fit.",
-    trainers: true,
   },
   {
     q: "Подойдёт ли Hero Fit тренеру?",
@@ -78,16 +77,16 @@ export const FAQ: { q: string; a: string; clubs?: true; android?: boolean; train
   },
 ];
 
-/** Вопросы для показа и JSON-LD: клубные — только при открытых клубах, про каталог — при открытом каталоге тренеров. */
-export function faqFor(clubs: boolean, android: boolean, trainers: boolean) {
-  return FAQ.filter((f) => (clubs || !f.clubs) && (f.android === undefined || f.android === android) && (trainers || !f.trainers));
+/** Вопросы для показа и JSON-LD: клубные — только при открытых клубах. */
+export function faqFor(clubs: boolean, android: boolean) {
+  return FAQ.filter((f) => (clubs || !f.clubs) && (f.android === undefined || f.android === android));
 }
 
 /** Частые вопросы — нативные details (работают без JS, текст виден поисковикам). */
-export function Faq({ clubs, android, trainers }: { clubs: boolean; android: boolean; trainers: boolean }) {
+export function Faq({ clubs, android }: { clubs: boolean; android: boolean }) {
   return (
     <div className="divide-y rounded-2xl border bg-card">
-      {faqFor(clubs, android, trainers).map(({ q, a }) => (
+      {faqFor(clubs, android).map(({ q, a }) => (
         <details key={q} className="group p-5 [&_summary::-webkit-details-marker]:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
             <h3>{q}</h3>
