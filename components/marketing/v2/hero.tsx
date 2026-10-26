@@ -39,10 +39,10 @@ export function Hero({ notice, whatsNew, android, telegramUrl }: { notice: React
         <div className="space-y-7">
           {notice}
           {whatsNew}
-          <h1 className="hf-rise font-display text-[2.6rem] leading-[1.02] font-black tracking-tight text-balance sm:text-6xl lg:text-[4rem]">
+          <h1 className="font-display text-[2.6rem] leading-[1.02] font-black tracking-tight text-balance sm:text-6xl lg:text-[4rem]">
             Дневник тренировок, который <GradientText>не даст бросить</GradientText>
           </h1>
-          <p className="hf-rise max-w-xl text-lg text-pretty text-muted-foreground sm:text-xl" style={{ animationDelay: "0.08s" }}>
+          <p className="max-w-xl text-lg text-pretty text-muted-foreground sm:text-xl">
             Подходы, рекорды и прогресс — в одном месте. За каждую тренировку — XP, уровни и ачивки, а недельная серия не даёт сорваться.
           </p>
           <div className="hf-rise flex flex-wrap gap-3" style={{ animationDelay: "0.14s" }}>
