@@ -3,6 +3,12 @@
 export type AlertKind = "BANNER" | "POPUP";
 export type AlertTone = "INFO" | "WARNING" | "CRITICAL";
 export type AlertDismiss = "NEVER" | "SESSION" | "FOREVER";
+export type AlertAudience = "ALL" | "USERS" | "COACHES";
+
+/** Видит ли оповещение пользователь: «пользователям» — без режима тренера, «тренерам» — с ним. */
+export function audienceMatches(audience: AlertAudience, isCoach: boolean): boolean {
+  return audience === "ALL" || (audience === "COACHES") === isCoach;
+}
 
 /** Оповещение для показа в кабинете; даты — ISO-строки (уходит в клиент). */
 export type AlertView = {

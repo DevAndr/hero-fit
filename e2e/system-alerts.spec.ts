@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { alertDismissalCount, clearAlerts, createAlert, makeAdmin, resetOnboarding, withDb } from "./db";
+import { alertDismissalCount, clearAlerts, createAlert, enableCoach, makeAdmin, resetOnboarding, withDb } from "./db";
 import { registerUser } from "./helpers";
 
 // Системные оповещения (спека 2026-10-18-system-alerts-design). Живое оповещение видят все —
@@ -37,6 +37,27 @@ test.describe("in the app", () => {
     await tab.goto("/exercises");
     await expect(banner(tab, "Сессионное")).toBeVisible();
     expect(await alertDismissalCount(id)).toBe(0);
+  });
+
+  test("audience: coaches see «coaches» alerts, regular users see «users» alerts, everyone sees «all»", async ({ page, browser }) => {
+    await createAlert({ kind: "BANNER", body: "Тренерам: новый календарь", audience: "COACHES" });
+    await createAlert({ kind: "BANNER", body: "Пользователям: каталог тренеров", audience: "USERS" });
+    await createAlert({ kind: "BANNER", body: "Всем: техработы" });
+
+    await registerUser(page);
+    await page.goto("/exercises");
+    await expect(banner(page, "Всем: техработы")).toBeVisible();
+    await expect(banner(page, "Пользователям: каталог тренеров")).toBeVisible();
+    await expect(banner(page, "Тренерам: новый календарь")).toBeHidden();
+
+    const coachPage = await browser.newPage();
+    const coach = await registerUser(coachPage);
+    await enableCoach(coach.login, `A_${coach.login.replace(/[^a-z0-9]/g, "").slice(-15)}`);
+    await coachPage.goto("/exercises");
+    await expect(banner(coachPage, "Всем: техработы")).toBeVisible();
+    await expect(banner(coachPage, "Тренерам: новый календарь")).toBeVisible();
+    await expect(banner(coachPage, "Пользователям: каталог тренеров")).toBeHidden();
+    await coachPage.close();
   });
 
   test("non-dismissable banner has no close button", async ({ page }) => {
@@ -166,6 +187,7 @@ test.describe("admin page", () => {
     await form.getByLabel("Текст").fill("Техработы в 23:00");
     await form.getByRole("radio", { name: "Важно" }).click();
     await form.getByRole("radio", { name: "Можно закрыть навсегда" }).click();
+    await expect(form.getByRole("radio", { name: "Всем" })).toBeChecked();
     await expect(form.getByRole("region", { name: "Превью" })).toContainText("Техработы в 23:00");
     await form.getByRole("button", { name: "Сохранить" }).click();
     await expect(form).toBeHidden();
@@ -194,6 +216,27 @@ test.describe("admin page", () => {
     await third.reload();
     await expect(third.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(banner(third, "Техработы в 23:00")).toBeHidden();
+  });
+
+  test("admin sends to coaches only: the list marks it, a regular user does not see it", async ({ page, browser }) => {
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login);
+    await page.goto("/admin/alerts");
+    await page.getByRole("button", { name: "Новое оповещение" }).click();
+    const form = page.getByRole("dialog", { name: "Новое оповещение" });
+    await form.getByLabel("Текст").fill("Только тренерам");
+    await form.getByRole("radio", { name: "Тренерам" }).click();
+    await form.getByRole("button", { name: "Сохранить" }).click();
+    await expect(form).toBeHidden();
+    const item = page.getByRole("region", { name: "Идут сейчас" }).getByRole("article", { name: "Только тренерам" });
+    await expect(item).toContainText("тренерам");
+
+    const user = await browser.newPage();
+    await registerUser(user);
+    await user.goto("/exercises");
+    await expect(user.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(banner(user, "Только тренерам")).toBeHidden();
+    await user.close();
   });
 
   test("popup form: no «cannot close» option, title required; delete removes the alert", async ({ page }) => {

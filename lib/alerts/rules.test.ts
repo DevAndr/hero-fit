@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertOrder, isLive, nextChange, nextPopup, safeHref, visibleBanners, type AlertView } from "./rules";
+import { alertOrder, audienceMatches, isLive, nextChange, nextPopup, safeHref, visibleBanners, type AlertView } from "./rules";
 
 const NOW = new Date("2026-10-18T12:00:00Z");
 const at = (min: number) => new Date(NOW.getTime() + min * 60_000).toISOString();
@@ -18,6 +18,17 @@ function alert(p: Partial<AlertView> & { id: string }): AlertView {
     ...p,
   };
 }
+
+describe("audienceMatches", () => {
+  it("всем — каждому; тренерам — только с режимом тренера; пользователям — только без него", () => {
+    expect(audienceMatches("ALL", true)).toBe(true);
+    expect(audienceMatches("ALL", false)).toBe(true);
+    expect(audienceMatches("COACHES", true)).toBe(true);
+    expect(audienceMatches("COACHES", false)).toBe(false);
+    expect(audienceMatches("USERS", false)).toBe(true);
+    expect(audienceMatches("USERS", true)).toBe(false);
+  });
+});
 
 describe("isLive", () => {
   it("starts inclusively and ends exclusively", () => {
