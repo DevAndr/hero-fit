@@ -56,8 +56,8 @@ export function Platforms({ android, telegramUrl }: { android: boolean; telegram
             </span>
             <h3 className="text-xl font-bold">Telegram</h3>
             <p className="flex-1 text-sm text-muted-foreground">Hero Fit прямо в мессенджере — без пароля и установки, а напоминания приходят от бота.</p>
-            <a href={telegramUrl} className={buttonVariants({ size: "lg", variant: "outline" })}>
-              <Send aria-hidden /> Открыть в Telegram
+            <a href="#telegram" className={buttonVariants({ size: "lg", variant: "outline" })}>
+              Подробнее о Telegram
             </a>
           </li>
         ) : null}

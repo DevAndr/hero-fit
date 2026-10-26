@@ -121,6 +121,12 @@ test("header links to the coaches block", async ({ page }) => {
 
 test("landing offers Hero Fit in Telegram", async ({ page }) => {
   await page.goto("/");
+  const tg = page.getByRole("region", { name: "Hero Fit в Telegram" });
+  const chat = tg.getByRole("img", { name: "Чат с ботом Hero Fit в Telegram" });
+  await expect(chat).toContainText("Отдых окончен 💪");
+  await expect(chat).toContainText("Не потеряй streak! 🔥");
+  for (const title of ["Вход без пароля", "Уведомления от бота", "Приглашение от тренера"]) await expect(tg.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Где тренироваться с Hero Fit" }).getByRole("link", { name: "Подробнее о Telegram" })).toHaveAttribute("href", "#telegram");
   const links = page.getByRole("link", { name: "Открыть в Telegram" });
   await expect(links).toHaveCount(2);
   for (const link of await links.all()) await expect(link).toHaveAttribute("href", "https://t.me/hero_fit_e2e_bot?startapp");
