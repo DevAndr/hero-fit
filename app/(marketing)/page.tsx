@@ -2,29 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, Calculator, CalendarDays, Check, Crown, Download, Dumbbell, Gift, Send, Smartphone, Sparkles, Trophy, Users, X } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Check, Crown, Download, Gift, Send, Smartphone, Sparkles, Users, X } from "lucide-react";
 import { ClubInfographic } from "@/components/marketing/club-infographics";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { AssignedWeek, CatalogListing, ClientNote, ClientRows, CoachNote, InviteFlow, ProgramWeeks, ProgressionTicker, TrainerCard, WeekRecap } from "@/components/marketing/coach-infographics";
-import { BestiaryStrip, BossFight, MuscleMapMini } from "@/components/marketing/game-infographics";
 import { Hero } from "@/components/marketing/v2/hero";
 import { How } from "@/components/marketing/v2/how";
+import { Bento, FEATURE_LIST } from "@/components/marketing/v2/bento";
+import { Game } from "@/components/marketing/v2/game";
 import { WhatsNewLink } from "@/components/marketing/whats-new-link";
 import { CountUp, Reveal } from "@/components/marketing/motion";
-import {
-  BadgeRow,
-  FreezeChip,
-  LevelHud,
-  MiniCalendar,
-  MiniLeague,
-  MiniRecap,
-  MuscleBars,
-  OfflineBadge,
-  ProgressChart,
-  RestTimerRing,
-  StreakWeeks,
-} from "@/components/marketing/infographics";
 import { buttonVariants } from "@/components/ui/button";
 import { ACCESS_COOKIE } from "@/lib/auth/cookies";
 import { getPopularCities } from "@/lib/club/public-queries";
@@ -37,7 +25,6 @@ import { APK_MIN_ANDROID, APK_URL } from "@/lib/native/apk";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramAppUrl } from "@/lib/telegram/links";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: { absolute: SITE_TITLE },
@@ -45,81 +32,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const NBSP = " ";
-
-type Feature = { title: string; text: string; visual: React.ReactNode; className?: string };
-
-const FEATURES: Feature[] = [
-  {
-    title: "Уровни и XP за реальную работу",
-    text: "Каждый подход, повтор и поднятый килограмм — это очки опыта. Рекорд добавляет +25 XP, а ежедневный сундук — бонус за то, что заглянул. Уровень растёт вместе с тобой.",
-    visual: <LevelHud className="shadow-none" />,
-    className: "lg:col-span-2",
-  },
-  {
-    title: "Недельный streak",
-    text: "3 тренировки в неделю — и серия растёт. Заболел или уехал — неделю спасёт заморозка, а сгоревшую серию можно выкупить за XP.",
-    visual: (
-      <div className="space-y-3">
-        <StreakWeeks />
-        <FreezeChip />
-      </div>
-    ),
-  },
-  {
-    title: "Босс недели",
-    text: "Каждую неделю — новый босс. Подходы бьют его по HP, подход до отказа — сильнее, рекорд — критический удар. Победил — открывай сундук с XP.",
-    visual: <BossFight />,
-    className: "sm:col-span-2",
-  },
-  {
-    title: "Карта мышц",
-    text: "Видно, какие мышцы ещё восстанавливаются, а какие можно нагружать, и где перекос за месяц. Тренировку по восстановлению соберёт одно касание.",
-    visual: <MuscleMapMini />,
-    className: "sm:col-span-2",
-  },
-  {
-    title: "Рекорды и подсказки прогрессии",
-    text: "Личные рекорды по 1ПМ, весу и повторам считаются сами. Когда пора добавить вес — приложение подскажет.",
-    visual: <ProgressChart />,
-  },
-  {
-    title: "Таймер отдыха",
-    text: "Обратный отсчёт со звуком, вибрацией и push-уведомлением — даже при заблокированном экране. ±15 секунд одним касанием.",
-    visual: <RestTimerRing />,
-  },
-  {
-    title: "Ачивки, которые хочется собрать",
-    text: "За количество тренировок, серию, рост веса в каждом упражнении, объём и рекорды. Генерируются по твоему прогрессу.",
-    visual: <BadgeRow />,
-  },
-  {
-    title: "Календарь тренировок",
-    text: "Планируй тренировки по дням и времени, повторяй их каждую неделю и получай напоминание «Сегодня по плану».",
-    visual: <MiniCalendar />,
-    className: "lg:col-span-2",
-  },
-  {
-    title: "Лига друзей",
-    text: "Соревнуйтесь по XP за неделю, поддерживайте друг друга 👊 в ленте и давайте респект 🏆 за рекорды. Веса можно скрыть.",
-    visual: <MiniLeague />,
-  },
-  {
-    title: "Итоги недели",
-    text: "Каждый понедельник — «Ты стал сильнее» с цифрами по упражнениям, рекорды, лучший подход, место в лиге и забытые группы мышц.",
-    visual: <MiniRecap />,
-  },
-  {
-    title: "Статистика и графики",
-    text: "Месяц к месяцу, объём, время в зале, группы мышц, тренды по неделям, график силы по каждому упражнению и прогноз, когда достигнешь цели.",
-    visual: <MuscleBars />,
-  },
-  {
-    title: "Работает без интернета",
-    text: "Приложение в браузере, ставится на главный экран как обычное. Без сети всё сохраняется и синхронизируется позже.",
-    visual: <OfflineBadge />,
-  },
-];
 
 const COMPARE: [feature: string, notebook: boolean][] = [
   ["Запись подходов, веса и повторов", true],
@@ -272,7 +184,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       operatingSystem: "Web, Android, iOS",
       inLanguage: "ru-RU",
       offers: { "@type": "Offer", price: "0", priceCurrency: "RUB" },
-      featureList: FEATURES.map((f) => f.title),
+      featureList: FEATURE_LIST,
     },
     {
       "@context": "https://schema.org",
@@ -328,51 +240,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       <How />
 
-      {/* Возможности */}
-      <section aria-labelledby="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-20 sm:pb-24">
-        <SectionTitle
-          id="features"
-          eyebrow="Возможности"
-          title="Всё для прогресса — и немного игры"
-          text="Не просто блокнот с цифрами: Hero Fit считает рекорды, подсказывает следующий шаг и мотивирует возвращаться в зал."
-        />
-        {/* dense — узкие карточки заполняют дыры рядом с широкими (col-span-2) на любой ширине */}
-        <ul className="mt-12 grid grid-flow-dense gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
-          {FEATURES.map((f, i) => (
-            <Reveal
-              as="li"
-              delay={(i % 4) * 0.08}
-              key={f.title}
-              className={cn("flex flex-col justify-between gap-6 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6", f.className)}
-            >
-              <div>
-                <h3 className="text-lg font-bold">{f.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{f.text}</p>
-              </div>
-              {f.visual}
-            </Reveal>
-          ))}
-        </ul>
-      </section>
+      <Bento />
 
-      {/* Бестиарий */}
-      <section aria-labelledby="bestiary" className="relative overflow-hidden border-t">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_0%,color-mix(in_oklch,var(--streak)_14%,transparent),transparent_60%)]"
-        />
-        <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:py-24">
-          <SectionTitle
-            id="bestiary"
-            eyebrow="Бестиарий"
-            title="12 боссов. Собери всех"
-            text="Боссы приходят по кругу — каждую неделю новый. Победы дают звёзды, звёзды открывают титулы рядом с твоим ником в лиге и ленте друзей."
-          />
-          <Reveal className="mt-12 lg:mt-14">
-            <BestiaryStrip />
-          </Reveal>
-        </div>
-      </section>
+      <Game />
 
       {/* Гильдии и рейды */}
       <section aria-labelledby="guilds" className="relative scroll-mt-20 overflow-hidden border-t">
@@ -546,39 +416,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </table>
           </div>
         </div>
-      </section>
-
-      {/* Инструменты */}
-      <section aria-labelledby="tools" className="mx-auto w-full max-w-6xl px-4 py-20 sm:py-24">
-        <SectionTitle id="tools" eyebrow="Бесплатные инструменты" title="Посчитай прямо сейчас — без регистрации" />
-        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[
-            { href: "/tools/1rm", icon: Calculator, title: "Калькулятор 1ПМ", text: "Одноповторный максимум по формуле Эпли и таблица рабочих весов на 1–12 повторений." },
-            { href: "/tools/plates", icon: Dumbbell, title: "Калькулятор блинов и разминки", text: "Какие блины вешать на гриф для нужного веса и разминочные подходы к рабочему." },
-            { href: "/tools/dots-wilks", icon: Trophy, title: "Калькулятор DOTS и Wilks", text: "Сравните силу в троеборье с поправкой на вес тела: оба коэффициента и ориентировочный уровень." },
-          ].map(({ href, icon: Icon, title, text }) => (
-            <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border bg-card p-5 transition-colors hover:border-primary/50 sm:p-6">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                <Icon className="size-6" aria-hidden />
-              </span>
-              <span>
-                <span className="block text-lg font-bold">
-                  {title}
-                  {NBSP}
-                  <ArrowRight className="inline size-4 align-[-2px] transition-transform group-hover:translate-x-1" aria-hidden />
-                </span>
-                <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Не знаете, с чего начать?{" "}
-          <Link href="/training-programs" className="font-medium text-primary underline underline-offset-4 hover:no-underline">
-            Готовые программы тренировок
-          </Link>
-          : Push Pull Legs, Full Body, 5×5, Верх / Низ и план для новичка.
-        </p>
       </section>
 
       {/* Тарифы */}

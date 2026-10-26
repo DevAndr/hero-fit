@@ -9,8 +9,13 @@ test("landing is public: hero, features, FAQ and structured data", async ({ page
   await expect(stats).toContainText("11");
   await expect(stats).toContainText("групп мышц");
   await expect(page.getByRole("region", { name: "Три шага до нового уровня" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Всё для прогресса — и немного игры" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Недельный streak", exact: true })).toBeVisible();
+  const features = page.getByRole("region", { name: "Всё для прогресса" });
+  await expect(features.getByRole("heading", { name: "Недельная серия", exact: true })).toBeVisible();
+  await expect(features.getByRole("link", { name: "Калькулятор 1ПМ" })).toHaveAttribute("href", "/tools/1rm");
+  await expect(features.getByRole("link", { name: "Блины и разминка" })).toHaveAttribute("href", "/tools/plates");
+  await expect(features.getByRole("link", { name: "DOTS и Wilks" })).toHaveAttribute("href", "/tools/dots-wilks");
+  const game = page.getByRole("region", { name: "Игра, которая держит" });
+  await expect(game.getByRole("img", { name: "Босс недели: Железный Голем" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Сейчас всё бесплатно" })).toBeVisible();
   await expect(page.getByText("Год Премиума в подарок.")).toBeVisible();
   await page.getByText("Hero Fit бесплатный?").click();
