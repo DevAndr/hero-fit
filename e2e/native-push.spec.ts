@@ -136,6 +136,19 @@ test("app: undecryptable push — re-registers on start and saves the new endpoi
   }
 });
 
+test("app: «Уведомлять об отдыхе» without ntfy — a toast with the reason, no page error", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await mockNativeApp(page, { distributor: false, register: { endpoint: "https://127.0.0.1/upRestToggle1", p256dh: "p", auth: "a" } });
+  const { login } = await registerUser(page);
+  await addFlagUser("native_app", login);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await page.getByRole("button", { name: "Уведомлять об отдыхе" }).click();
+  await expect(page.getByText("Установите приложение ntfy — подробности в настройках уведомлений")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 const intro = (page: Page) => page.getByRole("alertdialog", { name: "Включите уведомления" });
 
 test("app: first launch — intro dialog once; «Позже» does not come back", async ({ page }) => {
