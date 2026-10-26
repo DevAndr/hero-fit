@@ -70,6 +70,8 @@ export async function mockNativeApp(page: Page, opts: NativeMockOptions) {
       },
       App: { removeListener: () => undefined, exitApp: () => undefined },
     };
+    // WebView Android не даёт Notification API — как на телефоне (обращение без проверки — ReferenceError)
+    delete (window as unknown as { Notification?: unknown }).Notification;
     (window as unknown as { CapacitorCustomPlatform: unknown }).CapacitorCustomPlatform = { name: "android" };
     (window as unknown as { Capacitor: unknown }).Capacitor = {
       PluginHeaders: [

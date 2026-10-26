@@ -15,11 +15,11 @@ import {
 import { Bell, BellOff, SkipForward, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { subscribeError } from "@/components/notifications/notification-settings";
 import { usePush } from "@/components/notifications/push-provider";
 import { useTelegram } from "@/components/telegram/telegram-mini-app";
 import { formatClock } from "@/lib/format";
 import { cancelRestPushAction, scheduleRestPushAction } from "@/lib/notifications/actions";
+import { readNotificationPermission, subscribeErrorText } from "@/lib/notifications/subscribe-error";
 import { haptic } from "@/lib/telegram/webapp";
 import { cn } from "@/lib/utils";
 
@@ -250,14 +250,12 @@ function RestTimerPanel() {
 }
 
 const noopSubscribe = () => () => {};
-const readPermission = (): NotificationPermission | "unsupported" =>
-  typeof Notification === "undefined" ? "unsupported" : Notification.permission;
 
 /** Включить уведомления об окончании отдыха: Web Push, а где его нет — системные уведомления вкладки. */
 export function NotificationToggle({ className }: { className?: string }) {
   const push = usePush();
   const { inTelegram } = useTelegram();
-  const browserPermission = useSyncExternalStore(noopSubscribe, readPermission, () => "default" as const);
+  const browserPermission = useSyncExternalStore(noopSubscribe, readNotificationPermission, () => "default" as const);
   const [requested, setPermission] = useState<NotificationPermission | null>(null);
   const permission: NotificationPermission | "unsupported" = requested ?? browserPermission;
 
@@ -276,7 +274,7 @@ export function NotificationToggle({ className }: { className?: string }) {
         onClick={async () => {
           const ok = await push.subscribe();
           if (ok) toast.success("Push включён — сигнал придёт и при заблокированном экране");
-          else toast.error(subscribeError());
+          else toast.error(subscribeErrorText({ native: push.native, nativeReason: push.nativeReason, permission: readNotificationPermission() }));
         }}
       >
         {push.permission === "denied" ? <BellOff /> : <Bell />}

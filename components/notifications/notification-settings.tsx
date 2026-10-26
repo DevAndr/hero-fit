@@ -13,6 +13,7 @@ import { sendTestPushAction, updateNotificationSettingsAction } from "@/lib/noti
 import { CopyAddress } from "@/components/native/copy-address";
 import { NTFY_STORES } from "@/lib/native/ntfy-stores";
 import type { NativePushReason } from "@/lib/native/push-state";
+import { readNotificationPermission, subscribeErrorText } from "@/lib/notifications/subscribe-error";
 import { PLAN_REMINDER_LEADS } from "@/lib/plans/reminders";
 
 type Prefs = {
@@ -41,12 +42,6 @@ const PREFS: { key: Toggle; label: string; description: string; coachOnly?: bool
   { key: "notifyComeback", label: "Напоминания вернуться", description: "Если давно не заходили или не тренировались", flag: "campaigns" },
 ];
 
-/** Почему не удалось подписаться — самые частые причины. */
-export function subscribeError() {
-  return Notification.permission === "denied"
-    ? "Разрешение на уведомления не выдано — включите его в настройках сайта"
-    : "Не удалось включить push. В режиме инкогнито браузеры его не поддерживают.";
-}
 
 /** Android-приложение: push идут через приложение ntfy (UnifiedPush) и только через наш сервер ntfy. */
 const NATIVE_STATUS: Record<Exclude<NativePushReason, null>, string> = {
@@ -118,7 +113,7 @@ export function PushDeviceCard({ devices }: { devices: number }) {
               onClick={async () => {
                 if (await push.subscribe()) toast.success("Push включён");
                 // В приложении причина видна в карточке (подсказка выше)
-                else toast.error(push.native ? "Не удалось включить push" : subscribeError());
+                else toast.error(push.native ? "Не удалось включить push" : subscribeErrorText({ native: false, nativeReason: null, permission: readNotificationPermission() }));
               }}
             >
               {push.busy ? <Loader2 className="animate-spin" /> : <BellRing />}
