@@ -36,11 +36,12 @@ export default async function TrainingPage() {
 
   if (!workout) {
     const { muscles, whoop: whoopOf } = recoveryAndWhoop();
-    const [options, plans, recovery, whoop] = await Promise.all([
+    const [options, plans, recovery, whoop, together] = await Promise.all([
       getStartOptions(user.id),
       getTodayPlan(user.id, timeZone),
       getRecoveryPlan(user.id, undefined, muscles),
       whoopOf,
+      isEnabled("together", user.id).then((on) => (on ? togetherInitial(user.id) : null)),
     ]);
     // Невыполненный план на сегодня (или пропущенный вчера) — первым вариантом
     const plan = plans.today[0] ?? plans.missedYesterday;
@@ -52,6 +53,7 @@ export default async function TrainingPage() {
           plan={plan}
           recovery={{ groups: recovery.groups, exercises: recovery.exercises.length }}
           whoop={whoop}
+          together={together?.status === "ACTIVE" && together.role === "guest" ? together.partnerName : null}
         />
         <OfflineCleanup />
       </>

@@ -104,3 +104,11 @@ export async function runningWorkoutId(client: Client, userId: string): Promise<
   });
   return w?.id ?? null;
 }
+
+/** Живое приглашение, где человек — гость (карточка на дашборде). */
+export async function pendingInviteFor(userId: string, now: Date): Promise<{ id: string; hostName: string } | null> {
+  const s = await openSessionOf(db, userId, now);
+  if (!s || s.status !== "INVITED" || s.guestId !== userId) return null;
+  const host = await db.user.findUniqueOrThrow({ where: { id: s.hostId }, select: { nickname: true } });
+  return { id: s.id, hostName: partnerName(host.nickname) };
+}
