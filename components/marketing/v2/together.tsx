@@ -6,7 +6,8 @@ import { MiniLeague, MiniRecap } from "@/components/marketing/infographics";
 import { RaidInfographic } from "@/components/marketing/raid-infographics";
 import { Section, glass } from "@/components/marketing/v2/section";
 import { buttonVariants } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HashTabs } from "@/components/marketing/v2/hash-tabs";
 
 const FRIEND_POINTS = [
   "Недельная лига друзей по XP за тренировки и рекорды",
@@ -41,7 +42,8 @@ function Points({ items }: { items: string[] }) {
 
 function Panel({ value, lead, points, actions, visual }: { value: string; lead: string; points: string[]; actions: ReactNode; visual: ReactNode }) {
   return (
-    <TabsContent value={value} className="mt-8">
+    // keepMounted — неактивные вкладки остаются в HTML (hidden): их тексты и ссылки видят поисковики
+    <TabsContent value={value} keepMounted className="mt-8">
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
         <div className="space-y-6">
           <p className="text-lg text-pretty text-muted-foreground">{lead}</p>
@@ -67,7 +69,7 @@ export function Together({ clubs, authed, cities }: { clubs: boolean; authed: bo
       {/* Якоря шапки «Гильдии» и «Клубы» ведут сюда */}
       <span id="guilds" className="absolute -top-20" aria-hidden />
       {clubs ? <span id="clubs" className="absolute -top-20" aria-hidden /> : null}
-      <Tabs defaultValue="friends">
+      <HashTabs defaultValue="friends" values={clubs ? ["guilds", "clubs"] : ["guilds"]}>
         <TabsList className="h-auto! w-full flex-wrap gap-1 rounded-2xl p-1 sm:w-fit">
           <TabsTrigger value="friends" className="h-10 rounded-xl px-4">
             Друзья и лига
@@ -137,7 +139,7 @@ export function Together({ clubs, authed, cities }: { clubs: boolean; authed: bo
             visual={<ClubInfographic />}
           />
         ) : null}
-      </Tabs>
+      </HashTabs>
     </Section>
   );
 }

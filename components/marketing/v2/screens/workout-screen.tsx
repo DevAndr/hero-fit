@@ -22,7 +22,15 @@ export function WorkoutScreen() {
   const [left, setLeft] = useState(REST);
   useEffect(() => {
     if (!live || reduce || !visible) return;
-    const id = window.setInterval(() => setLeft((s) => (s > 0 ? s - 1 : REST)), 1000);
+    // Отсчёт до нуля и стоп — как у настоящего таймера (бесконечных анимаций нет)
+    const id = window.setInterval(
+      () =>
+        setLeft((s) => {
+          if (s <= 1) window.clearInterval(id);
+          return Math.max(0, s - 1);
+        }),
+      1000,
+    );
     return () => window.clearInterval(id);
   }, [live, reduce, visible]);
 
@@ -63,6 +71,7 @@ export function WorkoutScreen() {
         </span>
         <span className="font-display text-2xl font-black tabular-nums">{clock(left)}</span>
       </div>
+      {left === 0 ? <p className="text-center text-[12px] font-semibold text-primary">Пора к следующему подходу</p> : null}
       <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
         <span className="rounded-xl border bg-card py-2">−15 с</span>
         <span className="rounded-xl border bg-card py-2">+15 с</span>

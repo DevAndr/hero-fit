@@ -33,7 +33,7 @@ const TOOLS = [
 
 function ToolLinks() {
   return (
-    <ul className="grid gap-2 sm:grid-cols-3">
+    <ul className="grid gap-2 lg:grid-cols-3">
       {TOOLS.map((t) => (
         <li key={t.href}>
           <Link
