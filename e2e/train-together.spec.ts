@@ -239,3 +239,35 @@ test("flag off — no «Вместе» button, /together/<id> is 404", async ({ 
   expect(res?.status()).toBe(404);
   expect((await host.page.request.get(`/api/together/${id}`)).status()).toBe(404);
 });
+
+test("partner deletes the account mid-session — the bar goes away", async ({ page, browser }) => {
+  const [host, guest] = await pair(browser, page);
+  await startWorkout(host.page, host.login, SQUAT);
+  await startWorkout(guest.page, guest.login, BENCH);
+  await seedTogether(host.login, guest.login, { status: "ACTIVE", hostWorkoutId: await activeWorkoutId(host.login), guestWorkoutId: await activeWorkoutId(guest.login) });
+  await host.page.reload();
+  const bar = host.page.getByRole("region", { name: "Партнёр" });
+  await expect(bar).toContainText(`Вместе с ${guest.nick}`);
+  await withDb((db) => db.query(`delete from "User" where login = $1`, [guest.login]));
+  await expect(bar).toHaveCount(0, { timeout: 15_000 });
+  await expect(host.page.getByRole("button", { name: "Вместе", exact: true })).toBeVisible();
+});
+
+test("the one who finished first is free: no join banner, a new workout has no old partner bar", async ({ page, browser }) => {
+  test.slow();
+  const [host, guest] = await pair(browser, page);
+  await startWorkout(host.page, host.login, SQUAT);
+  await startWorkout(guest.page, guest.login, BENCH);
+  await seedTogether(host.login, guest.login, { status: "ACTIVE", hostWorkoutId: await activeWorkoutId(host.login), guestWorkoutId: await activeWorkoutId(guest.login) });
+  await guest.page.reload();
+  await doneSet(guest.page, BENCH, 1, "60", "8");
+  await finish(guest.page);
+
+  await guest.page.goto("/training");
+  await expect(guest.page.getByRole("button", { name: /Пустая тренировка/ })).toBeVisible();
+  await expect(guest.page.getByRole("region", { name: "Совместная тренировка" })).toHaveCount(0);
+  await startWorkout(guest.page, guest.login, SQUAT);
+  await expect(guest.page.getByRole("button", { name: "Вместе", exact: true })).toBeVisible();
+  await expect(guest.page.getByRole("region", { name: "Партнёр" })).toHaveCount(0);
+  expect((await togetherSessionOf(host.login))?.status).toBe("ACTIVE");
+});

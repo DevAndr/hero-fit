@@ -4,7 +4,7 @@ import { TrainingSessionStatus, WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { friendIds } from "@/lib/social/queries";
-import { sessionState } from "@/lib/together/rules";
+import { holdsSession, sessionState } from "@/lib/together/rules";
 
 type Client = Prisma.TransactionClient | typeof db;
 
@@ -21,13 +21,18 @@ export async function settle(client: Client, s: TrainingSession, now: Date): Pro
   return { ...s, ...data };
 }
 
-/** Открытая сессия человека (INVITED или ACTIVE) с учётом истечения. */
+/**
+ * Открытая сессия человека (INVITED или ACTIVE) с учётом истечения. Закончивший свою тренировку в ней
+ * уже свободен (holdsSession): сессия ждёт только партнёра.
+ */
 export async function openSessionOf(client: Client, userId: string, now: Date): Promise<TrainingSession | null> {
   const rows = await client.trainingSession.findMany({
     where: { status: { in: OPEN }, OR: [{ hostId: userId }, { guestId: userId }] },
     orderBy: { createdAt: "desc" },
+    include: { hostWorkout: { select: { status: true } }, guestWorkout: { select: { status: true } } },
   });
-  for (const row of rows) {
+  for (const { hostWorkout, guestWorkout, ...row } of rows) {
+    if (!holdsSession({ ...row, hostWorkout: hostWorkout?.status ?? null, guestWorkout: guestWorkout?.status ?? null }, userId)) continue;
     const s = await settle(client, row, now);
     if (s.status === "INVITED" || s.status === "ACTIVE") return s;
   }

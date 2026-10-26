@@ -104,3 +104,15 @@ export function bonusNote(i: {
   if (why === "not_finished") return `${i.partner} не закончил тренировку вместе с вами — бонуса нет`;
   return "Бонус за совместную тренировку сегодня уже был";
 }
+
+/**
+ * Занимает ли сессия человека: закончивший свою тренировку свободен (сессия ждёт только партнёра) —
+ * может звать и принимать новых, а экран тренировки не показывает ему старую полосу и баннер.
+ */
+export function holdsSession(
+  s: { hostId: string; guestId: string; hostWorkout: WorkoutStatus | null; guestWorkout: WorkoutStatus | null },
+  userId: string,
+): boolean {
+  const mine = s.hostId === userId ? s.hostWorkout : s.guestWorkout;
+  return mine !== "COMPLETED";
+}

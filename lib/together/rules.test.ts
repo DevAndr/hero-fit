@@ -4,6 +4,7 @@ import {
   bonusNote,
   bonusXp,
   canCheer,
+  holdsSession,
   inviteExpiresAt,
   overlapMinutes,
   partnerSnapshot,
@@ -132,5 +133,18 @@ describe("bonusNote", () => {
     expect(bonusNote({ ...ended, endReason: null, theirs: w("10:00", "11:00", 0) })).toBe("В одной из тренировок нет подходов — бонуса нет");
     expect(bonusNote({ ...ended, endReason: null, theirs: w("10:00", "11:00") })).toBe("Бонус за совместную тренировку сегодня уже был");
     expect(bonusNote({ ...ended, endReason: "timeout", theirs: { status: null, startedAt: null, finishedAt: null, totalSets: 0 } })).toBe("Аня не закончил тренировку вместе с вами — бонуса нет");
+  });
+});
+
+describe("holdsSession", () => {
+  const s = { hostId: "h", guestId: "g", hostWorkout: "IN_PROGRESS" as const, guestWorkout: null };
+  it("закончивший свою тренировку свободен — сессия ждёт только партнёра", () => {
+    expect(holdsSession({ ...s, hostWorkout: "COMPLETED" }, "h")).toBe(false);
+    expect(holdsSession({ ...s, guestWorkout: "COMPLETED" }, "g")).toBe(false);
+  });
+  it("идущая тренировка или гость без тренировки — занят", () => {
+    expect(holdsSession(s, "h")).toBe(true);
+    expect(holdsSession(s, "g")).toBe(true);
+    expect(holdsSession({ ...s, guestWorkout: "IN_PROGRESS" }, "g")).toBe(true);
   });
 });

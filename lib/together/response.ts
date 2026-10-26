@@ -15,7 +15,8 @@ export type SnapshotResponse = {
     hideWeights: boolean;
   } | null;
   cheers: { at: string }[];
-  events: { kind: "record" | "finished" | "left"; exercise?: string; at: string }[];
+  /** события по времени сервера (выход/отмена); рекорд и финиш партнёра — partnerEvents на клиенте */
+  events: { kind: "left"; at: string }[];
   /** время сервера — следующий since (часы устройства не участвуют) */
   now: string;
 };
@@ -56,13 +57,6 @@ export function buildResponse(i: ResponseInput): SnapshotResponse {
       exercises: snap.exercises,
       hideWeights: i.partner.hideWeights,
     };
-    w.exercises.forEach((e, idx) => {
-      if (!snap.exercises[idx].record) return;
-      const best = i.bests.get(e.exerciseId) ?? Infinity;
-      const at = e.sets.find((s) => s.completedAt && s.weight > best)?.completedAt ?? null;
-      if (after(at)) events.push({ kind: "record", exercise: e.name, at: at.toISOString() });
-    });
-    if (w.status === "COMPLETED" && after(w.finishedAt)) events.push({ kind: "finished", at: w.finishedAt.toISOString() });
   }
   if (status === "ENDED" && (i.session.endReason === "left" || i.session.endReason === "cancelled") && after(i.session.endedAt)) {
     events.push({ kind: "left", at: i.session.endedAt.toISOString() });
@@ -78,4 +72,20 @@ export function buildResponse(i: ResponseInput): SnapshotResponse {
     events,
     now: i.now.toISOString(),
   };
+}
+
+export type PartnerEvent = { kind: "record"; exercise: string } | { kind: "finished" };
+
+/**
+ * Рекорд и финиш партнёра — по смене снимка между опросами, а не по времени подхода: completedAt и finishedAt
+ * ставит устройство партнёра, а черновик доходит до сервера позже (сеть, офлайн) — событие «до since» терялось бы.
+ */
+export function partnerEvents(prev: SnapshotResponse["partner"], next: SnapshotResponse["partner"]): PartnerEvent[] {
+  if (!prev || !next) return [];
+  const out: PartnerEvent[] = [];
+  next.exercises.forEach((e, i) => {
+    if (e.record && !prev.exercises[i]?.record) out.push({ kind: "record", exercise: e.name });
+  });
+  if (next.finished && !prev.finished) out.push({ kind: "finished" });
+  return out;
 }

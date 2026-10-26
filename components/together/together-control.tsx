@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { InviteSheet } from "@/components/together/invite-sheet";
 import { PartnerBar } from "@/components/together/partner-bar";
 import { useTogether } from "@/components/together/use-together";
 import { cancelInviteAction, cheerAction, inviteAction, leaveAction } from "@/lib/together/actions";
-import type { SnapshotResponse } from "@/lib/together/response";
+import { partnerEvents, type SnapshotResponse } from "@/lib/together/response";
 
 export type TogetherInitial = { id: string; status: "INVITED" | "ACTIVE"; role: "host" | "guest"; partnerName: string; expiresAt: string | null } | null;
 
@@ -28,25 +28,38 @@ export function TogetherControl({ workoutId, initial }: { workoutId: string; ini
   const [session, setSession] = useState(initial);
   const [inviteOpen, setInviteOpen] = useState(false);
 
+  // Прошлый снимок партнёра — рекорд и финиш находим по его смене (время устройства партнёра ненадёжно)
+  const prev = useRef<SnapshotResponse["partner"]>(null);
   const onUpdate = useCallback((r: SnapshotResponse) => {
     const name = r.partnerName;
     for (let i = 0; i < r.cheers.length; i++) toast(`${name} прислал 👊`);
-    for (const e of r.events) {
+    for (const e of partnerEvents(prev.current, r.partner)) {
       if (e.kind === "record") toast.success(`${name}: новый рекорд — ${e.exercise}!`);
       if (e.kind === "finished") toast(`${name} закончил тренировку`);
-      if (e.kind === "left") toast(`${name} вышел из сессии`);
     }
+    prev.current = r.partner;
+    for (const e of r.events) if (e.kind === "left") toast(`${name} вышел из сессии`);
     if (r.status === "DECLINED") toast(`${name} не сможет сейчас`);
     if (r.status === "EXPIRED") toast("Приглашение истекло");
-    if (r.status === "ENDED" || r.status === "DECLINED" || r.status === "EXPIRED") setSession(null);
+    if (r.status === "ENDED" || r.status === "DECLINED" || r.status === "EXPIRED") {
+      prev.current = null;
+      setSession(null);
+    }
     else setSession((s) => (s ? { ...s, status: r.status as "INVITED" | "ACTIVE", partnerName: name } : s));
   }, []);
-  const { data, offline } = useTogether(session?.id ?? null, onUpdate);
+  const name = session?.partnerName;
+  const onGone = useCallback(() => {
+    if (name) toast(`${name} вышел из сессии`);
+    prev.current = null;
+    setSession(null);
+  }, [name]);
+  const { data, offline } = useTogether(session?.id ?? null, onUpdate, onGone);
 
   const invite = async (f: { id: string; name: string }) => {
     const res = await inviteAction(workoutId, f.id);
     if (!res.ok) return void toast.error(res.error);
     setInviteOpen(false);
+    prev.current = null;
     setSession({ id: res.sessionId, status: "INVITED", role: "host", partnerName: f.name, expiresAt: res.expiresAt });
   };
   const cancel = async () => {

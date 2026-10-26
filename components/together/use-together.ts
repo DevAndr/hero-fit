@@ -8,15 +8,17 @@ const FINAL = new Set(["ENDED", "DECLINED", "EXPIRED"]);
 
 /**
  * Опрос совместной тренировки раз в 5 с, пока вкладка видима; на конечном статусе — стоп.
- * onUpdate получает каждый ответ (тосты 👊 и событий). offline — 30 с без успешного ответа.
+ * onUpdate получает каждый ответ (тосты 👊 и событий), onGone — сессия исчезла (404). offline — 30 с без успешного ответа.
  */
-export function useTogether(sessionId: string | null, onUpdate: (r: SnapshotResponse) => void) {
+export function useTogether(sessionId: string | null, onUpdate: (r: SnapshotResponse) => void, onGone: () => void) {
   const [data, setData] = useState<SnapshotResponse | null>(null);
   const [offline, setOffline] = useState(false);
   const update = useRef(onUpdate);
+  const gone = useRef(onGone);
   useEffect(() => {
     update.current = onUpdate;
-  }, [onUpdate]);
+    gone.current = onGone;
+  }, [onUpdate, onGone]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -43,7 +45,9 @@ export function useTogether(sessionId: string | null, onUpdate: (r: SnapshotResp
             update.current(body);
             if (FINAL.has(body.status)) return;
           } else if (res.status === 404) {
+            // Сессии больше нет (партнёр удалил аккаунт — каскад) — полоса не должна застыть
             stopped = true;
+            gone.current();
             return;
           }
         } catch {

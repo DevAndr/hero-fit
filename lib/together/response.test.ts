@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildResponse, type ResponseInput } from "./response";
+import { buildResponse, partnerEvents, type ResponseInput, type SnapshotResponse } from "./response";
 
 const t = (hhmm: string) => new Date(`2026-10-26T${hhmm}:00Z`);
 
@@ -35,13 +35,12 @@ describe("buildResponse", () => {
     expect(r.partnerName).toBe("Аня");
     expect(r.partner?.current).toEqual({ exercise: "Присед", doneSets: 1, totalSets: 2 });
     expect(r.cheers).toEqual([{ at: t("10:21").toISOString() }]);
-    expect(r.events).toEqual([{ kind: "record", exercise: "Присед", at: t("10:20").toISOString() }]);
+    // рекорд и финиш сервер не выводит по времени устройства — их находит клиент сравнением снимков (partnerEvents)
+    expect(r.events).toEqual([]);
     expect(r.now).toBe(t("10:22").toISOString());
   });
 
-  it("рекорд до since — без повторного события; первый опрос (since = null) — без событий", () => {
-    expect(buildResponse({ ...base, since: t("10:20") }).events).toEqual([]);
-    expect(buildResponse({ ...base, since: null }).events).toEqual([]);
+  it("первый опрос (since = null) — без 👊", () => {
     expect(buildResponse({ ...base, since: null }).cheers).toEqual([]);
   });
 
@@ -63,15 +62,36 @@ describe("buildResponse", () => {
     expect(r.events).toEqual([{ kind: "left", at: t("10:21").toISOString() }]);
   });
 
-  it("партнёр закончил — событие finished", () => {
+  it("партнёр закончил — finished в срезе", () => {
     const r = buildResponse({ ...base, workout: { ...base.workout!, status: "COMPLETED", finishedAt: t("10:21") } });
     expect(r.partner?.finished).toBe(true);
-    expect(r.events.map((e) => e.kind)).toContain("finished");
   });
 
   it("приглашение — срок истечения; истёкшее — EXPIRED", () => {
     const invited = { ...base, session: { ...base.session, status: "INVITED" as const, acceptedAt: null }, workout: null, now: t("10:10") };
     expect(buildResponse(invited).inviteExpiresAt).toBe(t("10:15").toISOString());
     expect(buildResponse({ ...invited, now: t("10:15") }).status).toBe("EXPIRED");
+  });
+});
+
+describe("partnerEvents", () => {
+  const snap = (record: boolean, finished: boolean): SnapshotResponse["partner"] => ({
+    startedAt: null,
+    finished,
+    current: null,
+    hideWeights: false,
+    exercises: [{ name: "Присед", sets: [], record }],
+  });
+  it("рекорд и финиш — по смене снимка, без времени устройства (черновик мог дойти позже опроса)", () => {
+    expect(partnerEvents(snap(false, false), snap(true, false))).toEqual([{ kind: "record", exercise: "Присед" }]);
+    expect(partnerEvents(snap(true, false), snap(true, true))).toEqual([{ kind: "finished" }]);
+  });
+  it("первый снимок и без изменений — без событий", () => {
+    expect(partnerEvents(null, snap(true, true))).toEqual([]);
+    expect(partnerEvents(snap(true, false), snap(true, false))).toEqual([]);
+  });
+  it("новое упражнение сразу с рекордом — событие", () => {
+    const next = snap(false, false)!;
+    expect(partnerEvents(next, { ...next, exercises: [...next.exercises, { name: "Тяга", sets: [], record: true }] })).toEqual([{ kind: "record", exercise: "Тяга" }]);
   });
 });
