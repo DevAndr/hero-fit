@@ -332,6 +332,11 @@ export type FeatureUsage = {
   catalogCoaches: number;
   contactClicks7: number;
   contactClicks30: number;
+  /** Совместные тренировки: принятые сессии за 7/30 дней, приглашений за 30 дней, сессий с бонусом за 30 дней. */
+  togetherSessions7: number;
+  togetherSessions30: number;
+  togetherInvites30: number;
+  togetherBonus30: number;
 };
 
 /** Срез использования фич на сейчас. */
@@ -363,7 +368,11 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(*) FROM "User" WHERE "onboardedAt" IS NOT NULL)::int AS onboarded,
       (SELECT COUNT(*) FROM "User")::int AS users,
       (SELECT COALESCE(SUM(count), 0) FROM "CoachContactClick" WHERE day > CURRENT_DATE - 7)::int AS "contactClicks7",
-      (SELECT COALESCE(SUM(count), 0) FROM "CoachContactClick" WHERE day > CURRENT_DATE - 30)::int AS "contactClicks30"
+      (SELECT COALESCE(SUM(count), 0) FROM "CoachContactClick" WHERE day > CURRENT_DATE - 30)::int AS "contactClicks30",
+      (SELECT COUNT(*) FROM "TrainingSession" WHERE "acceptedAt" > now() - interval '7 days')::int AS "togetherSessions7",
+      (SELECT COUNT(*) FROM "TrainingSession" WHERE "acceptedAt" > now() - interval '30 days')::int AS "togetherSessions30",
+      (SELECT COUNT(*) FROM "TrainingSession" WHERE "createdAt" > now() - interval '30 days')::int AS "togetherInvites30",
+      (SELECT COUNT(DISTINCT meta->>'sessionId') FROM "XpEvent" WHERE reason = 'TOGETHER_BONUS' AND "createdAt" > now() - interval '30 days')::int AS "togetherBonus30"
   `;
   return { ...row, catalogCoaches: await catalogCount() };
 }

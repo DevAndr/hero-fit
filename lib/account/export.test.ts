@@ -66,6 +66,8 @@ const raw = (): ExportRaw => ({
   respectsReceived: [{ workoutDate: new Date("2026-10-11T10:00:00Z"), exercise: "Присед", from: null, id: "rr_secret2" }],
   kudosGiven: [{ workoutDate: new Date("2026-10-12T10:00:00Z"), to: "Маша", id: "k_secret" }],
   kudosReceived: [{ workoutDate: new Date("2026-10-13T10:00:00Z"), from: "Петя", id: "k_secret2" }],
+  trainingSessions: [{ date: new Date("2026-10-26T10:00:00Z"), role: "позвал", partner: "Маша", status: "ENDED", bonusXp: 12, id: "ts_secret", guestId: "u_secret2" }],
+  cheersSent: 3,
   favoriteExercises: [{ exercise: "Присед", createdAt: new Date("2026-10-14T10:00:00Z"), exerciseId: "e_secret", userId: "u_secret" }],
   feedback: [
     { kind: "IDEA", body: "Добавьте тёмную тему", status: "DONE", page: "/settings", createdAt: new Date("2026-10-15T10:00:00Z"), id: "fb_secret", adminNote: "заметка_админа", userAgent: "UA_secret" },
@@ -174,6 +176,16 @@ describe("export — coach notes", () => {
     const o = buildExport(raw(), new Date("2026-10-16T00:00:00Z"));
     expect(o.coachNotesAboutMe).toEqual([{ text: "Колено: без глубоких выпадов", updatedAt: new Date("2026-10-14T00:00:00Z"), coach: "Coach_Demo" }]);
     expect(o.clientNotes).toEqual([{ text: "Цель — 100 кг в жиме", updatedAt: new Date("2026-10-15T00:00:00Z"), client: "Петя" }]);
+  });
+});
+
+describe("export — train together", () => {
+  it("совместные тренировки — дата, роль, ник партнёра, статус и бонус, без id; число отправленных 👊", () => {
+    const o = buildExport(raw(), new Date("2026-10-27T00:00:00Z"));
+    expect(EXPORT_SECTIONS).toEqual(expect.arrayContaining(["trainingSessions", "cheersSent"]));
+    expect(o.trainingSessions).toEqual([{ date: new Date("2026-10-26T10:00:00Z"), role: "позвал", partner: "Маша", status: "ENDED", bonusXp: 12 }]);
+    expect(o.cheersSent).toBe(3);
+    expect(JSON.stringify(o)).not.toMatch(/ts_secret|u_secret2/);
   });
 });
 

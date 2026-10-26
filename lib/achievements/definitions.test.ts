@@ -324,6 +324,19 @@ describe("respect ladder", () => {
   });
 });
 
+describe("together ladder", () => {
+  it("совместные тренировки с бонусом: 1 «Вдвоём веселее», 10 «Напарники», 50 «Неразлучные»; категория SOCIAL", () => {
+    expect(codesOf("together", { togetherBonuses: 0 })).toEqual([]);
+    expect(codesOf("together", { togetherBonuses: 1 })).toEqual(["together:1"]);
+    expect(codesOf("together", { togetherBonuses: 50 })).toEqual(["together:1", "together:10", "together:50"]);
+    const earned = earnedAchievements({ ...empty, togetherBonuses: 50 });
+    const by = (code: string) => earned.find((a) => a.code === code);
+    expect(by("together:1")).toMatchObject({ category: "SOCIAL", title: "Вдвоём веселее", xpReward: 30, description: "Потренироваться вместе с другом" });
+    expect(by("together:10")).toMatchObject({ category: "SOCIAL", title: "Напарники", xpReward: 60, description: "10 совместных тренировок" });
+    expect(by("together:50")).toMatchObject({ category: "SOCIAL", title: "Неразлучные", xpReward: 120, description: "50 совместных тренировок" });
+  });
+});
+
 describe("raids", () => {
   it("лестница побед в рейдах: 1, 5, 10, 25", () => {
     expect(codesOf("clubtask", { clubTaskRewards: 5 })).toEqual(["clubtask:1", "clubtask:5"]);

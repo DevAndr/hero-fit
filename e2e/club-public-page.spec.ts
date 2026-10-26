@@ -214,12 +214,15 @@ test("landing: clubs section, menu item and FAQ only when clubs are open to ever
 
     await setFlag("clubs", FULL);
     const { citySlug } = await publishedClub(page);
+    // Клубы — вкладка секции «Вместе веселее»; ссылка /#clubs открывает её
+    // Перезагрузка — флаг читает сервер; переход на /#clubs только по якорю страницу не перезагружает
     await g.page.reload();
-    await expect(g.page.locator("#clubs")).toBeVisible();
+    await g.page.goto("/#clubs");
+    await expect(g.page.locator("#clubs")).toHaveCount(1);
     await expect(g.page.getByRole("banner").getByRole("link", { name: "Клубы", exact: true })).toBeVisible();
     await expect(g.page.getByText("Как добавить свой зал?")).toBeVisible();
     expect((await g.page.locator('script[type="application/ld+json"]').allTextContents()).join()).toContain("Как добавить свой зал?");
-    const section = g.page.getByRole("region", { name: "Клубы залов" });
+    const section = g.page.getByRole("tabpanel", { name: "Клубы залов" });
     await expect(section.locator(`a[href="/gym/${citySlug}"]`)).toBeVisible();
     await section.getByRole("link", { name: "Найти свой зал" }).click();
     await expect(g.page).toHaveURL(/\/register\?next=%2Fclubs$/);
