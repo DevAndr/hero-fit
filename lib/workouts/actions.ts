@@ -16,6 +16,7 @@ import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
 import { clampClientTime, workoutDraftSchema, type WorkoutDraft, type WorkoutDraftParsed } from "@/lib/workouts/schema";
 import { skipOccurrence } from "@/lib/plans/mutations";
 import { normalizeGroups } from "@/lib/workouts/supersets";
+import { attachGuestWorkout, endSessionOfWorkout } from "@/lib/together/queries";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -123,6 +124,8 @@ export async function startWorkoutAction(
     data: { status: WorkoutStatus.IN_PROGRESS, startedAt },
   });
   if (count === 0) return { ok: false, error: "Тренировку нельзя начать" };
+  // Принял приглашение без тренировки — эта входит в совместную
+  if (await isEnabled("together", user.id)) await db.$transaction((tx) => attachGuestWorkout(tx, user.id, workoutId, new Date()));
   await queueGoal("workout_start");
   return { ok: true, startedAt: startedAt.toISOString() };
 }
@@ -168,7 +171,11 @@ export async function cancelWorkoutAction(workoutId: string, skipPlan = false) {
     select: { planKey: true },
   });
   if (workout) {
-    await db.workout.deleteMany({ where: { id: workoutId, userId: user.id, status: { in: ACTIVE_STATUSES } } });
+    // Отмена удаляет тренировку — совместная сессия с ней закрывается раньше (партнёр увидит «вышел»)
+    await db.$transaction(async (tx) => {
+      await endSessionOfWorkout(tx, workoutId, new Date());
+      await tx.workout.deleteMany({ where: { id: workoutId, userId: user.id, status: { in: ACTIVE_STATUSES } } });
+    });
     if (skipPlan === true && workout.planKey) await skipOccurrence(user.id, workout.planKey);
   }
   revalidatePath("/calendar");
