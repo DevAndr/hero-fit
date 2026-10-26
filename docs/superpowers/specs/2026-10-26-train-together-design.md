@@ -24,16 +24,17 @@ model TrainingSession {
   id             String                @id @default(cuid())
   hostId         String
   guestId        String
-  hostWorkoutId  String                @unique
+  hostWorkoutId  String?               @unique
   guestWorkoutId String?               @unique
   status         TrainingSessionStatus @default(INVITED)
   createdAt      DateTime              @default(now())
   acceptedAt     DateTime?
   endedAt        DateTime?
   bonusAt        DateTime?             // бонус выдан (обоим или тому, кому положен)
+  endReason      String?               // "left" | "cancelled" | "timeout" — для причины в сводке
   host  User @relation("SessionHost", ..., onDelete: Cascade)
   guest User @relation("SessionGuest", ..., onDelete: Cascade)
-  hostWorkout  Workout  @relation("SessionHostWorkout", ..., onDelete: Cascade)
+  hostWorkout  Workout? @relation("SessionHostWorkout", ..., onDelete: SetNull)
   guestWorkout Workout? @relation("SessionGuestWorkout", ..., onDelete: SetNull)
   cheers SessionCheer[]
   @@index([hostId, status])
@@ -60,7 +61,8 @@ model SessionCheer {
 3. **Принятие** — `acceptAction(sessionId)`: только гость, приглашение живо, у гостя нет другой открытой сессии → `ACTIVE`, `acceptedAt`. Если у гостя есть тренировка `IN_PROGRESS` — она становится `guestWorkoutId`; иначе `guestWorkoutId = null`, и гость попадает на обычный экран старта `/training` (баннер «Тренировка с <Имя>»): первая тренировка гостя, перешедшая в `IN_PROGRESS` (`startWorkoutAction`), пока сессия `ACTIVE` с пустым `guestWorkoutId`, привязывается к ней.
 4. **Отклонение** — `declineAction` → `DECLINED`, хозяину — тихое уведомление в приложении (без push).
 5. **Конец** — `ENDED`, когда:
-   - обе тренировки в конечном состоянии (`COMPLETED` или отменены) — проверка `closeIfDone(sessionId)` в `finishWorkout` и в отмене тренировки;
+   - обе тренировки `COMPLETED` — проверка `closeIfDone(workoutId)` после `finishWorkout`;
+   - кто-то отменил тренировку — отмена её удаляет (`cancelWorkoutAction`), поэтому ссылки на тренировки — `SetNull`, а сессия закрывается до удаления, как «Выйти» (`endReason: "cancelled"`), без бонуса;
    - кто-то нажал «Выйти из сессии» (`leaveAction`) — его тренировка продолжается как обычная, бонуса в этой сессии нет никому;
    - прошло 4 часа с `acceptedAt` (`SESSION_MAX_H`) — лениво, как истечение приглашения; бонус не выдаётся.
 6. Гость принял, но так и не начал тренировку, а хозяин завершил — сессия `ENDED` при завершении хозяина, без бонуса.
