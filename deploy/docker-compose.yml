@@ -3,9 +3,17 @@
 # Образы собирает задача deploy в .gitlab-ci.yml и пушит в registry ниже, тег — IMAGE_TAG (sha коммита).
 name: hero-fit
 
+# Логи контейнеров (json-file) по умолчанию растут без предела и забивают диск: не больше 3 файлов по 10 МБ на сервис
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17-alpine
+    logging: *logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-herofit}
@@ -24,6 +32,7 @@ services:
 
   migrate:
     image: ${IMAGE_REPO:-localhost:5000/hero-fit}-migrate:${IMAGE_TAG:-latest}
+    logging: *logging
     env_file: .env
     depends_on:
       db:
@@ -32,6 +41,7 @@ services:
 
   app:
     image: ${IMAGE_REPO:-localhost:5000/hero-fit}:${IMAGE_TAG:-latest}
+    logging: *logging
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -40,6 +50,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    logging: *logging
     restart: unless-stopped
     ports:
       - "80:80"
@@ -61,6 +72,7 @@ services:
   # копируются только этот файл и Caddyfile). Доступ к топикам up* открывается один раз командой из deploy/README.md.
   ntfy:
     image: binwiederhier/ntfy:v2.11.0
+    logging: *logging
     command: serve
     restart: unless-stopped
     environment:
@@ -79,6 +91,7 @@ services:
   # Хранится только latest, прошлые слои чистит garbage-collect после деплоя.
   registry:
     image: registry:2
+    logging: *logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:5000:5000"
@@ -88,6 +101,7 @@ services:
   # pg_dump раз в сутки в ./backups, хранится 14 дней.
   backup:
     image: postgres:17-alpine
+    logging: *logging
     restart: unless-stopped
     environment:
       PGHOST: db
