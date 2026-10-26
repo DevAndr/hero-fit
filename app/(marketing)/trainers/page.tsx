@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SearchX } from "lucide-react";
+import { ReachGoal } from "@/components/analytics/reach-goal";
 import { TrainerCard } from "@/components/coach/catalog-card";
 import { buttonVariants } from "@/components/ui/button";
-import { queueGoal } from "@/lib/analytics/queue";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { CATALOG_PAGE_SIZE, catalogFilterSchema, type CatalogFilter } from "@/lib/coach/catalog";
 import { getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
@@ -45,13 +45,13 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
   const viewer = await getCurrentUser();
   const f = parse(await searchParams);
   const [{ items, total }, cities] = await Promise.all([getCatalog(f), getCatalogCities()]);
-  await queueGoal("trainers_catalog_view");
   const here = hrefOf(f);
   const hasMore = f.page * CATALOG_PAGE_SIZE < total;
   const filtered = Boolean(f.city || f.format || f.specialty);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:py-14">
+      <ReachGoal goal="trainers_catalog_view" />
       <header className="space-y-2">
         <h1 className="font-display text-3xl font-extrabold tracking-tight">Тренеры Hero Fit</h1>
         <p className="text-pretty text-muted-foreground">
