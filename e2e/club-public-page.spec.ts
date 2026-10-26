@@ -215,6 +215,8 @@ test("landing: clubs section, menu item and FAQ only when clubs are open to ever
     await setFlag("clubs", FULL);
     const { citySlug } = await publishedClub(page);
     // Клубы — вкладка секции «Вместе веселее»; ссылка /#clubs открывает её
+    // Перезагрузка — флаг читает сервер; переход на /#clubs только по якорю страницу не перезагружает
+    await g.page.reload();
     await g.page.goto("/#clubs");
     await expect(g.page.locator("#clubs")).toHaveCount(1);
     await expect(g.page.getByRole("banner").getByRole("link", { name: "Клубы", exact: true })).toBeVisible();
