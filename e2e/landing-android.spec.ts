@@ -17,6 +17,25 @@ test("without native_app for everyone the landing does not mention the Android a
   await expect(page.getByRole("link", { name: /Приложение для Android/ })).toHaveCount(0);
 });
 
+test("header with Android, clubs and trainers fits 1280px; «Тренеры» in the header, footer and FAQ", async ({ page }) => {
+  await setFlag("native_app", { enabled: true, percent: 100 });
+  await setFlag("clubs", { enabled: true, percent: 100 });
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    const nav = page.getByRole("navigation", { name: "Разделы сайта" });
+    await expect(nav.getByRole("link", { name: "Тренеры" })).toHaveAttribute("href", "/trainers");
+    await expect(nav.getByRole("link", { name: "Android" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Клубы" })).toBeVisible();
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Найти тренера" })).toHaveAttribute("href", "/trainers");
+    await expect(page.getByRole("heading", { name: "Как найти тренера?" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(page.getByRole("banner").getByRole("link", { name: "Начать бесплатно" })).toBeInViewport();
+  } finally {
+    await resetFlag("clubs");
+  }
+});
+
 test("native_app for everyone: Android section with the APK link, FAQ and the guide mention it", async ({ page }) => {
   await setFlag("native_app", { enabled: true, percent: 100 });
   await page.goto("/");

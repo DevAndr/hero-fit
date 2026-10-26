@@ -3,7 +3,6 @@ import { MyDataCard } from "@/components/account/my-data-card";
 import { getDeletionInput } from "@/lib/account/delete";
 import { deletionPreview } from "@/lib/account/rules";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, MessageSquare, Watch } from "lucide-react";
@@ -35,7 +34,7 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop, trainers] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
@@ -45,7 +44,6 @@ export default async function SettingsPage() {
     getDeletionInput(user.id),
     // null — браслеты недоступны (флаг whoop / WHOOP не настроен), иначе — подключён ли WHOOP
     whoopAvailable(user.id).then(async (ok) => (ok ? (await getWhoopStatus(user.id)).connected : null)),
-    isEnabled("coach_catalog", user.id),
   ]);
 
   // Скин — только при флаге shop: без него тема магазина не применяется
@@ -61,7 +59,7 @@ export default async function SettingsPage() {
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
-      {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : trainers && !user.isCoach ? <FindCoachCard /> : null}
+      {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : !user.isCoach ? <FindCoachCard /> : null}
       <CoachModeCard initial={user.isCoach} hasNickname={Boolean(nickname)} />
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
       {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}

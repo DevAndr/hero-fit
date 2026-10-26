@@ -33,7 +33,8 @@ describe("sitemapEntries", () => {
   it("статические страницы — дата сборки, а не время запроса", () => {
     const home = entries.find((e) => e.url === "https://hero-fit.ru/");
     expect(home).toMatchObject({ lastModified: built, priority: 1, changeFrequency: "weekly" });
-    expect(entries.filter((e) => e.lastModified === built)).toHaveLength(13);
+    expect(entries.filter((e) => e.lastModified === built)).toHaveLength(14);
+    expect(entries.find((e) => e.url === "https://hero-fit.ru/trainers")).toMatchObject({ lastModified: built, changeFrequency: "weekly" });
   });
   it("страница тренера — дата её изменения, ник в адресе закодирован", () => {
     expect(entries.at(-1)).toEqual({
@@ -83,7 +84,7 @@ describe("sitemapEntries: клубы и города", () => {
     expect(entries).toContainEqual({ url: "https://hero-fit.ru/gym/kazan", lastModified: cityUpdated, changeFrequency: "weekly", priority: 0.5 });
   });
   it("без клубов — как раньше", () => {
-    expect(sitemapEntries("https://hero-fit.ru", built, [])).toHaveLength(13);
+    expect(sitemapEntries("https://hero-fit.ru", built, [])).toHaveLength(14);
   });
 });
 

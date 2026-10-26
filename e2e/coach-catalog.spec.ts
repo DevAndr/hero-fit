@@ -1,10 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, coachProfile, contactClicks, createUserRow, enableCoach, withDb } from "./db";
+import { coachProfile, contactClicks, createUserRow, enableCoach, withDb } from "./db";
 import { PASSWORD, registerUser, uniqueLogin } from "./helpers";
 
-// Каталог тренеров (спека 2026-10-25-coach-catalog): флаг coach_catalog — на смотрящего, поэтому параллельно.
-// Гость и глобальный флаг — coach-catalog-global.spec.ts. Экран не важен — только desktop.
+// Каталог тренеров (спека 2026-10-25-coach-catalog): у каждого теста свой город и тренеры — параллельно. Экран не важен — только desktop.
 test.beforeEach(async ({}, info) => {
   test.skip(info.project.name !== "desktop", "Логика каталога от ширины экрана не зависит");
 });
@@ -19,7 +18,6 @@ async function coachWithPage(page: Page, extra: Partial<Parameters<typeof coachP
   const nick = nickOf(coach.login);
   await enableCoach(coach.login, nick);
   await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", ...extra });
-  await addFlagUser("coach_catalog", coach.login);
   return { coach, nick, tg: tgOf(coach.login) };
 }
 
@@ -66,15 +64,6 @@ test("editor: switch on → in the catalog; consent off → out, values kept", a
   await expect(contactsSection(page).getByLabel("Telegram")).toHaveValue(tg);
 });
 
-test("editor: without the flag there is no catalog section, contacts are still editable", async ({ page }) => {
-  const coach = await registerUser(page, "Тренер");
-  await enableCoach(coach.login, nickOf(coach.login));
-  await coachProfile(coach.login, { about: ABOUT, publish: true });
-  await page.goto("/coach/page");
-  await expect(contactsSection(page).getByLabel("Telegram")).toBeVisible();
-  await expect(catalogSection(page)).toHaveCount(0);
-});
-
 test("trainer page: a signed-in user sees contact links; a click is counted for the coach", async ({ page, browser }) => {
   const { coach, nick, tg } = await coachWithPage(page);
   await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { telegram: tgOf(coach.login), phone: "+79991234567" }, consent: true });
@@ -82,8 +71,7 @@ test("trainer page: a signed-in user sees contact links; a click is counted for 
   const ctx = await browser.newContext();
   try {
     const viewer = await ctx.newPage();
-    const v = await registerUser(viewer);
-    await addFlagUser("coach_catalog", v.login);
+    await registerUser(viewer);
     await ctx.route("https://t.me/**", (r) => r.fulfill({ body: "" }));
     await viewer.goto(`/trainer/${nick}`);
     const contacts = viewer.getByRole("region", { name: "Контакты" });
@@ -122,26 +110,10 @@ test("trainer page: no consent — no contacts block", async ({ page, browser })
   const ctx = await browser.newContext();
   try {
     const viewer = await ctx.newPage();
-    const v = await registerUser(viewer);
-    await addFlagUser("coach_catalog", v.login);
-    await viewer.goto(`/trainer/${nick}`);
-    await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(viewer.getByRole("region", { name: "Контакты" })).toHaveCount(0);
-    expect(await viewer.content()).not.toContain("79991234567");
-  } finally {
-    await ctx.close();
-  }
-});
-
-test("trainer page: without the viewer's flag — no contacts block", async ({ page, browser }) => {
-  const { coach, nick } = await coachWithPage(page);
-  await coachProfile(coach.login, { about: ABOUT, publish: true, city: "Казань", contacts: { phone: "+79991234567" }, consent: true });
-  const ctx = await browser.newContext();
-  try {
-    const viewer = await ctx.newPage();
     await registerUser(viewer);
     await viewer.goto(`/trainer/${nick}`);
     await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(viewer.getByRole("region", { name: "Контакты" })).toHaveCount(0);
     expect(await viewer.content()).not.toContain("79991234567");
   } finally {
     await ctx.close();
@@ -163,7 +135,6 @@ const cityOf = () => `Город${uniqueLogin().replace(/[^a-z0-9]/g, "").slice(
 
 async function viewer(page: Page) {
   const v = await registerUser(page);
-  await addFlagUser("coach_catalog", v.login);
   return v;
 }
 
@@ -227,20 +198,8 @@ test("catalog: empty state with reset", async ({ page }) => {
   await expect(page).toHaveURL(/\/trainers$/);
 });
 
-test("catalog: 404 without the flag", async ({ page }) => {
-  await registerUser(page);
-  const res = await page.goto("/trainers");
-  expect(res?.status()).toBe(404);
-});
-
-test("entry points: sidebar and profile menu «Найти тренера», settings link — only with the flag, not for coaches", async ({ page }) => {
+test("entry points: sidebar and profile menu «Найти тренера», settings link — not for coaches", async ({ page }) => {
   const v = await registerUser(page);
-  await page.goto("/dashboard");
-  await expect(page.getByRole("link", { name: "Найти тренера" })).toHaveCount(0);
-  await page.goto("/settings");
-  await expect(page.getByRole("link", { name: "Найти тренера в каталоге" })).toHaveCount(0);
-
-  await addFlagUser("coach_catalog", v.login);
   await page.goto("/dashboard");
   await page.getByRole("navigation").getByRole("link", { name: "Найти тренера" }).click();
   await expect(page).toHaveURL(/\/trainers$/);
@@ -290,4 +249,29 @@ test("my data: contacts, consent, catalog switch and contact opens; deleting the
   await page.goto(`/trainers?city=${encodeURIComponent(city)}`);
   await expect(page.getByText("По этим условиям тренеров пока нет")).toBeVisible();
   expect(await withDb(async (db) => (await db.query(`select 1 from "CoachContactClick" where "coachId" = $1`, [coachId])).rowCount)).toBe(0);
+});
+
+test("guest: the catalog and the trainer page are public, contacts are hidden", async ({ page }) => {
+  const login = uniqueLogin();
+  await createUserRow(login);
+  const nick = nickOf(login);
+  const city = `Гость${login.replace(/[^a-z0-9]/g, "").slice(-8)}`;
+  await enableCoach(login, nick);
+  await coachProfile(login, { about: ABOUT, publish: true, city, contacts: { phone: "+79991234567" }, consent: true, listed: true });
+
+  await page.goto(`/trainers?city=${encodeURIComponent(city)}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Тренеры Hero Fit" })).toBeVisible();
+  const login1 = page.getByRole("link", { name: "Войдите, чтобы увидеть контакты" });
+  await expect(login1).toHaveCount(1);
+  expect(await login1.getAttribute("href")).toMatch(/^\/login\?next=%2Ftrainers/);
+  expect(await page.content()).not.toContain("79991234567");
+
+  await page.goto(`/trainer/${nick}`);
+  await expect(page.getByRole("link", { name: "Войдите, чтобы увидеть контакты" })).toBeVisible();
+  expect(await page.content()).not.toContain("79991234567");
+});
+
+test("sitemap lists /trainers", async ({ request }) => {
+  const xml = await (await request.get("/sitemap.xml")).text();
+  expect(xml).toMatch(/<loc>[^<]*\/trainers<\/loc>/);
 });

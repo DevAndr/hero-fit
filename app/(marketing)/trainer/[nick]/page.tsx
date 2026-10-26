@@ -13,7 +13,6 @@ import { FORMAT_LABELS, publicAwards, SPECIALTIES, visibleStats } from "@/lib/co
 import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { isEnabled } from "@/lib/flags/server";
 import { absoluteUrl, shortDescription, coachJsonLd, jsonLd } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramJoinUrl } from "@/lib/telegram/links";
@@ -56,13 +55,12 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
   const isOwner = viewer?.id === coach.id;
   if (!coach.profile.publishedAt && !isOwner) notFound();
 
-  const [stats, link, earned, catalog] = await Promise.all([
+  const [stats, link, earned] = await Promise.all([
     getCoachPublicStats(coach.id, new Date(), coach.profile.hiddenStats),
     viewer && !isOwner ? db.coachLink.findFirst({ where: { coachId: coach.id, clientId: viewer.id, endedAt: null }, select: { id: true } }) : null,
     coach.profile.showAwards
       ? db.userAchievement.findMany({ where: { userId: coach.id, category: "COACH" }, select: { code: true, title: true } })
       : [],
-    isEnabled("coach_catalog", viewer?.id ?? null),
   ]);
   const titles = new Map(earned.map((a) => [a.code, a.title]));
   const awards = publicAwards(earned.map((a) => a.code)).map((code) => ({ code, title: titles.get(code)! }));
@@ -147,7 +145,7 @@ export default async function TrainerPage({ params }: PageProps<"/trainer/[nick]
 
       {action ? <div className="mt-6">{action}</div> : null}
 
-      {catalog && contactsVisible(coach.profile) ? (
+      {contactsVisible(coach.profile) ? (
         <section aria-labelledby="contacts" className="mt-6 space-y-3">
           <h2 id="contacts" className="font-display text-xl font-bold">
             Контакты

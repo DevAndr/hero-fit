@@ -7,7 +7,6 @@ import { requireUser } from "@/lib/auth/dal";
 import { canCountClick } from "@/lib/coach/catalog";
 import { createClickThrottle } from "@/lib/coach/click-throttle";
 import { db } from "@/lib/db";
-import { isEnabled } from "@/lib/flags/server";
 
 const throttle = createClickThrottle(10 * 60_000);
 
@@ -16,7 +15,6 @@ export async function contactClickAction(coachId: unknown): Promise<void> {
   if (typeof coachId !== "string" || coachId.length > 64) return;
   const viewer = await requireUser();
   if (isBot((await headers()).get("user-agent"))) return;
-  if (!(await isEnabled("coach_catalog", viewer.id))) return;
   const coach = await db.user.findUnique({ where: { id: coachId }, select: { isCoach: true, coachProfile: true } });
   if (!coach?.coachProfile || !canCountClick(coach.coachProfile, coach.isCoach, viewer.id, coachId)) return;
   if (!throttle.take(viewer.id, coachId)) return;

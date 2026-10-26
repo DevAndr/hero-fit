@@ -56,7 +56,7 @@ export function UserMenu({
   const clubs = useFlag("clubs");
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
-  const trainers = useFlag("coach_catalog") && !isCoach;
+  const trainers = !isCoach;
   const campaigns = useFlag("campaigns");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
   const pathname = usePathname();
