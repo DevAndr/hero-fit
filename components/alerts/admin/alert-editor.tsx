@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { saveAlertAction } from "@/lib/alerts/admin-actions";
-import type { AlertDismiss, AlertKind, AlertTone, AlertView } from "@/lib/alerts/rules";
+import type { AlertAudience, AlertDismiss, AlertKind, AlertTone, AlertView } from "@/lib/alerts/rules";
 import { BODY_MAX, CTA_LABEL_MAX, TITLE_MAX } from "@/lib/alerts/schema";
 import { cn } from "@/lib/utils";
 import { AlertBanner } from "../alert-banner";
@@ -25,6 +25,7 @@ export type AlertDraft = {
   ctaLabel: string;
   ctaHref: string;
   dismiss: AlertDismiss;
+  audience: AlertAudience;
   startsAt: string;
   endsAt: string;
 };
@@ -44,6 +45,12 @@ const DISMISS: { value: AlertDismiss; label: string }[] = [
   { value: "FOREVER", label: "Можно закрыть навсегда" },
 ];
 
+const AUDIENCES: { value: AlertAudience; label: string }[] = [
+  { value: "ALL", label: "Всем" },
+  { value: "USERS", label: "Обычным пользователям" },
+  { value: "COACHES", label: "Тренерам" },
+];
+
 /** Date → значение datetime-local в поясе браузера. */
 export function toLocalInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -57,7 +64,7 @@ function toIso(local: string): string {
 }
 
 export function emptyDraft(): AlertDraft {
-  return { kind: "BANNER", tone: "INFO", title: "", body: "", ctaLabel: "", ctaHref: "", dismiss: "FOREVER", startsAt: toLocalInput(new Date()), endsAt: "" };
+  return { kind: "BANNER", tone: "INFO", title: "", body: "", ctaLabel: "", ctaHref: "", dismiss: "FOREVER", audience: "ALL", startsAt: toLocalInput(new Date()), endsAt: "" };
 }
 
 function Choice<T extends string>({ name, items, value, onChange }: { name: string; items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -178,6 +185,7 @@ export function AlertEditor({ id, initial, open, onOpenChange }: { id: string | 
             </div>
           </div>
           <Choice name="Закрытие" items={draft.kind === "POPUP" ? DISMISS.filter((d) => d.value !== "NEVER") : DISMISS} value={draft.dismiss} onChange={(v) => set("dismiss", v)} />
+          <Choice name="Кому" items={AUDIENCES} value={draft.audience} onChange={(v) => set("audience", v)} />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="alert-starts">Начало показа</Label>

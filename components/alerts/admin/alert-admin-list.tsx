@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { deleteAlertAction, toggleAlertAction } from "@/lib/alerts/admin-actions";
-import type { AlertDismiss, AlertKind, AlertTone } from "@/lib/alerts/rules";
+import type { AlertAudience, AlertDismiss, AlertKind, AlertTone } from "@/lib/alerts/rules";
 import { cn } from "@/lib/utils";
 import { TONE_ICON, TONE_TEXT } from "../alert-style";
 import { AlertEditor, emptyDraft, toLocalInput, type AlertDraft } from "./alert-editor";
@@ -32,6 +32,7 @@ export type AlertAdminItem = {
   ctaLabel: string | null;
   ctaHref: string | null;
   dismiss: AlertDismiss;
+  audience: AlertAudience;
   startsAt: Date;
   endsAt: Date | null;
   enabled: boolean;
@@ -41,6 +42,8 @@ export type AlertAdminItem = {
 
 const KIND_LABEL: Record<AlertKind, string> = { BANNER: "Строка", POPUP: "Попап" };
 const TONE_LABEL: Record<AlertTone, string> = { INFO: "Инфо", WARNING: "Важно", CRITICAL: "Критично" };
+/** «Всем» не подписываем — так было до выбора аудитории. */
+const AUDIENCE_LABEL: Record<AlertAudience, string | null> = { ALL: null, USERS: "обычным пользователям", COACHES: "тренерам" };
 const DISMISS_LABEL: Record<AlertDismiss, string> = { NEVER: "нельзя закрыть", SESSION: "закрывается до следующего захода", FOREVER: "закрывается навсегда" };
 
 function draftOf(a: AlertAdminItem): AlertDraft {
@@ -52,6 +55,7 @@ function draftOf(a: AlertAdminItem): AlertDraft {
     ctaLabel: a.ctaLabel ?? "",
     ctaHref: a.ctaHref ?? "",
     dismiss: a.dismiss,
+    audience: a.audience,
     startsAt: toLocalInput(a.startsAt),
     endsAt: a.endsAt ? toLocalInput(a.endsAt) : "",
   };
@@ -96,6 +100,7 @@ function AlertItem({ alert }: { alert: AlertAdminItem }) {
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Icon className={cn("size-3.5", TONE_TEXT[alert.tone])} aria-hidden />
               {KIND_LABEL[alert.kind]} · {TONE_LABEL[alert.tone]} · {DISMISS_LABEL[alert.dismiss]}
+              {AUDIENCE_LABEL[alert.audience] ? ` · ${AUDIENCE_LABEL[alert.audience]}` : ""}
             </p>
             {alert.title ? <h3 className="font-bold">{alert.title}</h3> : null}
             <p className="text-sm break-words whitespace-pre-line">{alert.body}</p>

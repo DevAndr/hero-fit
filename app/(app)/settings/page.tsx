@@ -9,7 +9,7 @@ import { ChevronRight, MessageSquare, Watch } from "lucide-react";
 import { buildLabel } from "@/lib/changelog/version";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
-import { CoachModeCard, MyCoachCard } from "@/components/coach/coach-settings";
+import { CoachModeCard, FindCoachCard, MyCoachCard } from "@/components/coach/coach-settings";
 import { RestartTourButton } from "@/components/onboarding/restart-button";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { PrivacySettings } from "@/components/social/privacy-settings";
@@ -59,7 +59,7 @@ export default async function SettingsPage() {
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
-      {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : null}
+      {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : !user.isCoach ? <FindCoachCard /> : null}
       <CoachModeCard initial={user.isCoach} hasNickname={Boolean(nickname)} />
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}
       {user.embedded ? null : <PushDeviceCard devices={_count.pushSubscriptions} />}

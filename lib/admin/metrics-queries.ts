@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
+import { catalogCount } from "@/lib/coach/catalog-queries";
 import { db } from "@/lib/db";
 import { cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
@@ -327,6 +328,10 @@ export type FeatureUsage = {
   coins: number;
   onboarded: number;
   users: number;
+  /** Каталог тренеров: тренеров в нём сейчас, открытий контактов за 7 и 30 дней. */
+  catalogCoaches: number;
+  contactClicks7: number;
+  contactClicks30: number;
 };
 
 /** Срез использования фич на сейчас. */
@@ -356,7 +361,9 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(DISTINCT "userId") FROM "UserItem")::int AS buyers,
       (SELECT COALESCE(SUM(coins), 0) FROM "User")::int AS coins,
       (SELECT COUNT(*) FROM "User" WHERE "onboardedAt" IS NOT NULL)::int AS onboarded,
-      (SELECT COUNT(*) FROM "User")::int AS users
+      (SELECT COUNT(*) FROM "User")::int AS users,
+      (SELECT COALESCE(SUM(count), 0) FROM "CoachContactClick" WHERE day > CURRENT_DATE - 7)::int AS "contactClicks7",
+      (SELECT COALESCE(SUM(count), 0) FROM "CoachContactClick" WHERE day > CURRENT_DATE - 30)::int AS "contactClicks30"
   `;
-  return row;
+  return { ...row, catalogCoaches: await catalogCount() };
 }

@@ -21,6 +21,7 @@ export const alertInputSchema = z
     ctaLabel: optionalText(CTA_LABEL_MAX, `Подпись кнопки — до ${CTA_LABEL_MAX} символов`),
     ctaHref: optionalText(500, "Слишком длинная ссылка"),
     dismiss: z.enum(["NEVER", "SESSION", "FOREVER"]),
+    audience: z.enum(["ALL", "USERS", "COACHES"]).default("ALL"),
     startsAt: isoDate,
     endsAt: z.preprocess((v) => (v === "" || v === null ? undefined : v), isoDate.optional()),
   })

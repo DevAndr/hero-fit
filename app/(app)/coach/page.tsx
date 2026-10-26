@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, CalendarRange, Globe, Users } from "lucide-react";
+import { BarChart3, CalendarDays, CalendarRange, Globe, Users } from "lucide-react";
 import { AchievementToaster } from "@/components/achievements/achievement-toaster";
 import { PageHeader } from "@/components/app/app-shell";
 import { programBadges } from "@/lib/coach/program-queries";
@@ -72,6 +72,10 @@ export default async function CoachPage({ searchParams }: PageProps<"/coach">) {
         actions={
           <>
             {/* Программы — и без клиентов: их готовят заранее */}
+            <Link href="/coach/calendar" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <CalendarDays />
+              Календарь клиентов
+            </Link>
             <Link href="/coach/programs" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <CalendarRange />
               Программы

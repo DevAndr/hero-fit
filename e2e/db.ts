@@ -414,7 +414,7 @@ export async function coachGroupMembers(coachLogin: string) {
   });
 }
 
-/** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован. */
+/** Профиль публичной страницы тренера (минуя UI); publish — сразу опубликован; contacts/consent/listed — каталог тренеров. */
 export async function coachProfile(
   coachLogin: string,
   p: {
@@ -425,13 +425,23 @@ export async function coachProfile(
     hiddenStats?: string[];
     specialties?: string[];
     showAwards?: boolean;
+    format?: "ONLINE" | "OFFLINE" | "BOTH";
+    contacts?: Partial<Record<"telegram" | "whatsapp" | "vk" | "phone" | "email", string>>;
+    consent?: boolean;
+    listed?: boolean;
+    /** Кнопка «Заниматься» на странице; по умолчанию включена. */
+    join?: boolean;
   },
 ) {
+  const c = p.contacts ?? {};
   await withDb(async (db) => {
     await db.query(
-      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, now())
-       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7, "showAwards" = $8, "updatedAt" = now()`,
+      `insert into "CoachProfile" ("userId", "displayName", city, about, specialties, "hiddenStats", "publishedAt", "showAwards", format,
+         telegram, whatsapp, vk, phone, email, "contactsConsentAt", "catalogListed", "joinEnabled", "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now())
+       on conflict ("userId") do update set "displayName" = $2, city = $3, about = $4, specialties = $5, "hiddenStats" = $6, "publishedAt" = $7,
+         "showAwards" = $8, format = $9, telegram = $10, whatsapp = $11, vk = $12, phone = $13, email = $14, "contactsConsentAt" = $15,
+         "catalogListed" = $16, "joinEnabled" = $17, "updatedAt" = now()`,
       [
         await userId(db, coachLogin),
         p.displayName ?? null,
@@ -441,8 +451,28 @@ export async function coachProfile(
         p.hiddenStats ?? [],
         p.publish ? new Date() : null,
         p.showAwards ?? true,
+        p.format ?? "BOTH",
+        c.telegram ?? null,
+        c.whatsapp ?? null,
+        c.vk ?? null,
+        c.phone ?? null,
+        c.email ?? null,
+        p.consent ? new Date() : null,
+        p.listed ?? false,
+        p.join ?? true,
       ],
     );
+  });
+}
+
+/** Открытия контактов тренера, всего. */
+export async function contactClicks(coachLogin: string): Promise<number> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: number }>(
+      `select coalesce(sum(count), 0)::int n from "CoachContactClick" where "coachId" = $1`,
+      [await userId(db, coachLogin)],
+    );
+    return rows[0].n;
   });
 }
 
@@ -1651,6 +1681,8 @@ type AlertSeed = {
   /** сдвиг конца от «сейчас», мс; не задан — без конца */
   endsInMs?: number;
   enabled?: boolean;
+  /** кому: по умолчанию — всем */
+  audience?: "ALL" | "USERS" | "COACHES";
 };
 
 /** Оповещение минуя админку; возвращает id. Живое видят все — только в проекте alerts-global. */
@@ -1659,8 +1691,8 @@ export async function createAlert(a: AlertSeed): Promise<string> {
   const now = Date.now();
   await withDb((db) =>
     db.query(
-      `insert into "SystemAlert" (id, kind, tone, title, body, "ctaLabel", "ctaHref", dismiss, "startsAt", "endsAt", enabled, "updatedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())`,
+      `insert into "SystemAlert" (id, kind, tone, title, body, "ctaLabel", "ctaHref", dismiss, "startsAt", "endsAt", enabled, audience, "updatedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())`,
       [
         id,
         a.kind,
@@ -1673,6 +1705,7 @@ export async function createAlert(a: AlertSeed): Promise<string> {
         new Date(now + (a.startsInMs ?? -60_000)),
         a.endsInMs === undefined ? null : new Date(now + a.endsInMs),
         a.enabled ?? true,
+        a.audience ?? "ALL",
       ],
     ),
   );
@@ -1860,4 +1893,31 @@ export async function addLandingVisit(hour: Date, landing: string, referrer: str
       [hour, landing, referrer, count],
     );
   });
+}
+
+/** Группа клиентов тренера (минуя UI); возвращает id. */
+export async function coachGroup(coachLogin: string, name: string, clientLogins: string[]): Promise<string> {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "CoachGroup" (id, "coachId", name, "nameKey") values ($1, $2, $3, lower($3))`, [id, await userId(db, coachLogin), name]);
+    for (const login of clientLogins) await db.query(`insert into "CoachGroupMember" ("groupId", "clientId") values ($1, $2)`, [id, await userId(db, login)]);
+    return id;
+  });
+}
+
+/** Завершённая тренировка клиента по вхождению плана (planKey) — закрывает назначение. */
+export async function completeAssignment(clientLogin: string, planKey: string, finishedAt: Date) {
+  await withDb(async (db) => {
+    const started = new Date(finishedAt.getTime() - 3600 * 1000);
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "planKey", "startedAt", "finishedAt", "durationSec", "totalVolume", "totalSets", "totalReps", "createdAt", "updatedAt")
+       values ($1, $2, 'По плану', 'COMPLETED', $3, $4, $5, 3600, 0, 0, 0, $4, $5)`,
+      [randomUUID(), await userId(db, clientLogin), planKey, started, finishedAt],
+    );
+  });
+}
+
+/** Клиент отменил разовое назначение (`e:<id>`). */
+export async function cancelAssignment(planKey: string) {
+  await withDb((db) => db.query(`update "PlanEntry" set cancelled = true where id = $1`, [planKey.replace(/^e:/, "")]));
 }

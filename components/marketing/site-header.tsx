@@ -15,6 +15,7 @@ const NAV: { href: string; label: string; clubs?: true; android?: true }[] = [
   { href: "/#guilds", label: "Гильдии" },
   { href: "/#clubs", label: "Клубы", clubs: true },
   { href: "/#coaches", label: "Тренерам" },
+  { href: "/trainers", label: "Тренеры" },
   { href: "/#android", label: "Android", android: true },
   { href: "/#pricing", label: "Тарифы" },
   { href: "/#faq", label: "Вопросы" },
