@@ -6,6 +6,16 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2027-08-hotfix-jsonld",
+    version: "0.28.3",
+    date: "2026-10-26",
+    title: "Главная без ошибки на iPhone",
+    summary: "Главная страница больше не вызывает ошибку в некоторых встроенных браузерах на iPhone.",
+    new: [],
+    improved: [],
+    fixed: [{ text: "Ошибка на главной в некоторых встроенных браузерах на iPhone" }],
+  },
+  {
     id: "2027-08-hotfix-trainers-seo",
     version: "0.28.2",
     date: "2026-10-26",
@@ -17,7 +27,6 @@ export const RELEASES: Release[] = [
       {
         text: "Ссылка на каталог тренеров, программы тренировок и калькуляторы в Telegram и VK показывалась без картинки, а у каталога — с общим описанием сайта",
       },
-      { text: "Ошибка на главной в некоторых встроенных браузерах на iPhone" },
     ],
   },
   {
