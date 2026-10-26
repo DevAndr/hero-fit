@@ -6,6 +6,16 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2027-08-hotfix-trainers",
+    version: "0.28.1",
+    date: "2026-10-26",
+    title: "Каталог тренеров открывается",
+    summary: "Страница «Тренеры Hero Fit» снова работает.",
+    new: [],
+    improved: [],
+    fixed: [{ text: "Каталог тренеров показывал ошибку вместо списка тренеров", href: "/trainers" }],
+  },
+  {
     id: "2027-08-trainers",
     version: "0.28.0",
     date: "2026-10-26",
