@@ -51,6 +51,8 @@ import { isStreakUrgent, streakMessage } from "@/lib/progress/streak-copy";
 import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type RestoreOffer } from "@/lib/progress/weekly-streak";
 import { cn } from "@/lib/utils";
 import { isEnabled } from "@/lib/flags/server";
+import { DashboardInvite } from "@/components/together/dashboard-invite";
+import { pendingInviteFor } from "@/lib/together/queries";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
@@ -173,6 +175,7 @@ export default async function DashboardPage() {
     />
   );
   const coachBlock = coachCard ? <MyCoachCard card={coachCard} /> : null;
+  const togetherInvite = (await isEnabled("together", user.id)) ? await pendingInviteFor(user.id, new Date()) : null;
   const recapBlock = recap ? <RecapCard recap={recap} strength={await isEnabled("strength_analytics", user.id)} /> : null;
   const nearestGoal = (
     <section aria-label="Ближайшая ачивка" className="flex flex-col gap-2">
@@ -349,6 +352,7 @@ export default async function DashboardPage() {
         hero={<WeekHero {...heroProps} strip={v3data.strip} />}
         today={
           <>
+            {togetherInvite ? <DashboardInvite invite={togetherInvite} /> : null}
             {todayPlan}
             {coachBlock}
             {recapBlock}

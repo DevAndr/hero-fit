@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, History, Play, Plus } from "lucide-react";
+import { Activity, CalendarDays, History, Play, Plus, Users } from "lucide-react";
 import { SkipPlanButton } from "@/components/calendar/skip-plan-button";
 import { RecoveryLine } from "@/components/training/recovery-line";
 import { Button } from "@/components/ui/button";
@@ -35,12 +35,15 @@ export function StartScreen({
   plan,
   recovery,
   whoop,
+  together,
 }: StartOptions & {
   plan?: { key: string; title: string; time: string } | null;
   /** Что соберёт «По восстановлению» (`getRecoveryPlan`). */
   recovery: { groups: MuscleGroup[]; exercises: number };
   /** Восстановление WHOOP — строка зоны (без «Облегчить»: облегчать пока нечего). */
   whoop?: WhoopRecoveryView | null;
+  /** Принял приглашение без тренировки: имя партнёра — первая начатая тренировка станет совместной. */
+  together?: string | null;
 }) {
   const mine = templates.filter((t) => t.userId);
   const programs = Map.groupBy(
@@ -51,6 +54,12 @@ export function StartScreen({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <RecoveryLine view={whoop} />
+      {together ? (
+        <p role="region" aria-label="Совместная тренировка" className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+          <Users className="size-4 shrink-0 text-primary" aria-hidden />
+          Тренировка с {together}: начните любую — она станет совместной
+        </p>
+      ) : null}
       {plan ? (
         <div className="space-y-1">
           <StartForm source={`plan:${plan.key}`} size="lg" className="h-auto w-full flex-col gap-1 py-4">

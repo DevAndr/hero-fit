@@ -1,6 +1,7 @@
 import type { FeatureUsage as Usage } from "@/lib/admin/metrics-queries";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU");
+const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)} %` : "—");
 
 /** Срез использования фич на сейчас. */
 export function FeatureUsage({ usage: u }: { usage: Usage }) {
@@ -16,6 +17,11 @@ export function FeatureUsage({ usage: u }: { usage: Usage }) {
         (u.appVersion ? `, версия ${u.appVersion}` : ""),
     ],
     ["Каталог тренеров", `в каталоге ${fmt(u.catalogCoaches)}, открытий контактов ${fmt(u.contactClicks7)} / ${fmt(u.contactClicks30)} (7 дн. / 30 дн.)`],
+    [
+      "Совместные тренировки",
+      `сессий ${fmt(u.togetherSessions7)} / ${fmt(u.togetherSessions30)} (7 дн. / 30 дн.), ` +
+        `принято ${pct(u.togetherSessions30, u.togetherInvites30)}, с бонусом ${pct(u.togetherBonus30, u.togetherSessions30)} (за 30 дн.)`,
+    ],
     ["Гильдии", `${fmt(u.guilds)}, игроков ${fmt(u.guildMembers)}`],
     ["Клубы", `${fmt(u.clubs)}, участников ${fmt(u.clubMembers)}`],
     ["Активные цели", fmt(u.activeGoals)],

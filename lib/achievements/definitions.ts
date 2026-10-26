@@ -96,6 +96,8 @@ export type AchievementStats = {
   /** Полученных сундуков заданий клуба (выполненные задания). */
   clubTaskRewards: number;
   respectsReceived: number;
+  /** совместные тренировки с бонусом (XpEvent TOGETHER_BONUS) */
+  togetherBonuses: number;
   /** Выполненные личные цели (Goal ACHIEVED). */
   goalsAchieved: number;
   /** Режим тренера включён (User.isCoach): без него тренерские ачивки не выдаются и не показываются целями. */
@@ -204,6 +206,7 @@ export const EMPTY_STATS: AchievementStats = {
   raidMvps: 0,
   clubTaskRewards: 0,
   respectsReceived: 0,
+  togetherBonuses: 0,
   goalsAchieved: 0,
   coachMode: false,
   coach: EMPTY_COACH_STATS,
@@ -843,6 +846,20 @@ function ladders(s: AchievementStats): Ladder[] {
           title: n === 5 ? "Заметили" : n === 25 ? "Уважаемый" : "Легенда зала",
           description: `Получить ${n} ${plural(n, "респект", "респекта", "респектов")} за рекорды`,
           xpReward: n === 5 ? 30 : n === 25 ? 60 : 120,
+        }),
+    },
+
+    // Совместные тренировки (lib/together)
+    {
+      fixed: [1, 10, 50],
+      value: s.togetherBonuses,
+      def: (n) =>
+        def(n, {
+          code: `together:${n}`,
+          category: "SOCIAL",
+          title: n === 1 ? "Вдвоём веселее" : n === 10 ? "Напарники" : "Неразлучные",
+          description: n === 1 ? "Потренироваться вместе с другом" : `${n} совместных тренировок`,
+          xpReward: n === 1 ? 30 : n === 10 ? 60 : 120,
         }),
     },
 
