@@ -132,3 +132,11 @@ test("favicon: ICO plus a 120×120 PNG for search engines (Yandex recommends 120
   const png = await icon.body();
   expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([120, 120]);
 });
+
+test("public pages with their own social preview keep the site image", async ({ page }) => {
+  for (const path of ["/training-programs", "/tools/1rm", "/tools/plates", "/tools/dots-wilks", "/trainers"]) {
+    await page.goto(path);
+    await expect(page.locator('meta[property="og:image"]'), path).toHaveAttribute("content", /\/opengraph-image/);
+    await expect(page.locator('meta[property="og:site_name"]'), path).toHaveAttribute("content", "Hero Fit");
+  }
+});

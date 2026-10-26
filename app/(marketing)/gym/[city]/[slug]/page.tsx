@@ -11,7 +11,7 @@ import { getClubPublicStats, resolveClubPage } from "@/lib/club/public-queries";
 import { getClubTasks } from "@/lib/club/tasks-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { absoluteUrl, clubJsonLd, jsonLd, shortDescription } from "@/lib/seo";
+import { absoluteUrl, clubJsonLd, jsonLd, shortDescription, pageOpenGraph } from "@/lib/seo";
 
 const STEPS = [
   "Нажмите «Вступить» и создайте аккаунт — это бесплатно",
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: PageProps<"/gym/[city]/[slug]
     title: { absolute: title },
     description,
     alternates: { canonical: path },
-    openGraph: { title, description, url: path },
+    openGraph: pageOpenGraph({ title, description, url: path }),
     ...(page.access === "preview" ? { robots: { index: false, follow: false } } : {}),
   };
 }

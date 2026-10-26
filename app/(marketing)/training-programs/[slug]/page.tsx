@@ -6,7 +6,7 @@ import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { buttonVariants } from "@/components/ui/button";
 import { env } from "@/lib/env";
 import { BUILTIN_PROGRAMS, programBySlug } from "@/lib/programs/builtin";
-import { jsonLd, programCrumbs, programJsonLd } from "@/lib/seo";
+import { jsonLd, programCrumbs, programJsonLd, pageOpenGraph } from "@/lib/seo";
 
 export const dynamicParams = false;
 
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: { absolute: p.metaTitle },
     description: p.description,
     alternates: { canonical: path },
-    openGraph: { title: p.metaTitle, description: p.description, url: path },
+    openGraph: pageOpenGraph({ title: p.metaTitle, description: p.description, url: path }),
   };
 }
 

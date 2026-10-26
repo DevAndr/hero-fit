@@ -8,10 +8,21 @@ export const CATALOG_PAGE_SIZE = 20;
 /** «Активный» тренер — входил за последние N дней. */
 export const ACTIVE_DAYS = 14;
 export const ABOUT_PREVIEW = 140;
-/** Кнопка «Найти тренера» в секции «Тренерам» на лендинге — от стольких тренеров в каталоге (пустой каталог не рекламируем). */
+/** От стольких тренеров каталог рекламируем и индексируем: кнопка на лендинге и `index` у /trainers (пустой — тонкая страница). */
 export const CATALOG_LANDING_MIN = 5;
 
 export function showCatalogOnLanding(coachesInCatalog: number): boolean {
+  return coachesInCatalog >= CATALOG_LANDING_MIN;
+}
+
+/** «Вы тренер?» на /trainers: куда вести, чтобы попасть в каталог (/coach/page без режима тренера — 404). */
+export function joinCatalogLink(viewer: { isCoach: boolean } | null): { href: string; label: string } {
+  if (viewer?.isCoach) return { href: "/coach/page", label: "Добавить свою страницу в каталог" };
+  if (viewer) return { href: "/settings", label: "Включить режим тренера" };
+  return { href: "/register?coach=1", label: "Стать тренером в Hero Fit" };
+}
+
+export function catalogIndexable(coachesInCatalog: number): boolean {
   return coachesInCatalog >= CATALOG_LANDING_MIN;
 }
 

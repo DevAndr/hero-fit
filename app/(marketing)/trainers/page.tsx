@@ -5,8 +5,10 @@ import { ReachGoal } from "@/components/analytics/reach-goal";
 import { TrainerCard } from "@/components/coach/catalog-card";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { CATALOG_PAGE_SIZE, catalogFilterSchema, type CatalogFilter } from "@/lib/coach/catalog";
-import { getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
+import { CATALOG_PAGE_SIZE, catalogFilterSchema, catalogIndexable, joinCatalogLink, type CatalogFilter } from "@/lib/coach/catalog";
+import { catalogCount, getCatalog, getCatalogCities } from "@/lib/coach/catalog-queries";
+import { env } from "@/lib/env";
+import { absoluteUrl, jsonLd, trainersJsonLd, pageOpenGraph } from "@/lib/seo";
 import { FORMAT_LABELS, SPECIALTIES } from "@/lib/coach/profile";
 
 // Каталог тренеров (спека 2026-10-25-coach-catalog): контакты — только вошедшим, решается на каждый запрос
@@ -26,15 +28,20 @@ const hrefOf = (f: CatalogFilter, page = f.page) => {
   return s ? `/trainers?${s}` : "/trainers";
 };
 
+const TITLE = "Тренеры Hero Fit — найдите тренера";
+const DESCRIPTION = "Каталог тренеров Hero Fit: выберите город, формат и специализацию и свяжитесь с тренером напрямую.";
+
 export async function generateMetadata({ searchParams }: PageProps<"/trainers">): Promise<Metadata> {
   const f = parse(await searchParams);
   const filtered = Boolean(f.city || f.format || f.specialty || f.page > 1);
+  // В индексе — только сам каталог (не каждая комбинация фильтров) и только не пустой
+  const indexable = !filtered && catalogIndexable(await catalogCount());
   return {
-    title: { absolute: "Тренеры Hero Fit — найдите тренера" },
-    description: "Каталог тренеров Hero Fit: выберите город, формат и специализацию и свяжитесь с тренером напрямую.",
+    title: { absolute: TITLE },
+    description: DESCRIPTION,
     alternates: { canonical: "/trainers" },
-    // В индексе — только сам каталог, не каждая комбинация фильтров
-    ...(filtered ? { robots: { index: false, follow: true } } : {}),
+    openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/trainers" }),
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
   };
 }
 
@@ -48,10 +55,24 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
   const here = hrefOf(f);
   const hasMore = f.page * CATALOG_PAGE_SIZE < total;
   const filtered = Boolean(f.city || f.format || f.specialty);
+  const join = joinCatalogLink(viewer);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:py-14">
       <ReachGoal goal="trainers_catalog_view" />
+      {items.length ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLd(
+              trainersJsonLd({
+                url: absoluteUrl(env.APP_URL, "/trainers"),
+                items: items.map((i) => ({ name: i.name, url: absoluteUrl(env.APP_URL, `/trainer/${encodeURIComponent(i.nickname)}`) })),
+              }),
+            ),
+          }}
+        />
+      ) : null}
       <header className="space-y-2">
         <h1 className="font-display text-3xl font-extrabold tracking-tight">Тренеры Hero Fit</h1>
         <p className="text-pretty text-muted-foreground">
@@ -134,6 +155,16 @@ export default async function TrainersPage({ searchParams }: PageProps<"/trainer
           ) : null}
         </nav>
       ) : null}
+
+      <section aria-label="Тренерам" className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="font-bold">Вы тренер?</h2>
+          <p className="text-sm text-muted-foreground">Добавьте свою страницу в каталог — клиенты найдут вас по городу и специализации и напишут напрямую.</p>
+        </div>
+        <Link href={join.href} className={buttonVariants({ variant: "outline", className: "shrink-0" })}>
+          {join.label}
+        </Link>
+      </section>
     </div>
   );
 }

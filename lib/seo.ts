@@ -163,6 +163,39 @@ export function coachJsonLd(c: { name: string; url: string; city: string | null;
   };
 }
 
+export const OG_IMAGE_ALT = "Hero Fit — дневник тренировок в игровом стиле: уровни, streak, ачивки";
+
+/**
+ * openGraph страницы: свой openGraph целиком заменяет layout (Next не сливает вложенные поля) — картинку сайта,
+ * название и локаль добавляем сами, иначе превью ссылки в Telegram и VK без картинки.
+ */
+export function pageOpenGraph(p: { title: string; description: string; url: string }) {
+  return {
+    type: "website" as const,
+    locale: "ru_RU",
+    siteName: SITE_NAME,
+    title: p.title,
+    description: p.description,
+    url: p.url,
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: OG_IMAGE_ALT }],
+  };
+}
+
+/** JSON-LD каталога тренеров: CollectionPage со списком страниц тренеров текущей страницы каталога. */
+export function trainersJsonLd(c: { url: string; items: { name: string; url: string }[] }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Тренеры Hero Fit",
+    url: c.url,
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: c.items.length,
+      itemListElement: c.items.map((i, n) => ({ "@type": "ListItem", position: n + 1, name: i.name, url: i.url })),
+    },
+  };
+}
+
 /** JSON-LD публичной страницы клуба: ExerciseGym с почтовым адресом. */
 export function clubJsonLd(c: { name: string; url: string; city: string; address: string; description: string }) {
   return {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   aboutPreview,
   showCatalogOnLanding,
+  catalogIndexable,
+  joinCatalogLink,
   CATALOG_LANDING_MIN,
   canCountClick,
   ABOUT_PREVIEW,
@@ -139,5 +141,25 @@ describe("showCatalogOnLanding", () => {
     expect(showCatalogOnLanding(0)).toBe(false);
     expect(showCatalogOnLanding(4)).toBe(false);
     expect(showCatalogOnLanding(5)).toBe(true);
+  });
+});
+
+describe("catalogIndexable", () => {
+  it("пустой или почти пустой каталог — не в индекс (тонкая страница); с порога — в индекс", () => {
+    expect(catalogIndexable(0)).toBe(false);
+    expect(catalogIndexable(CATALOG_LANDING_MIN - 1)).toBe(false);
+    expect(catalogIndexable(CATALOG_LANDING_MIN)).toBe(true);
+  });
+});
+
+describe("joinCatalogLink", () => {
+  it("тренеру — сразу его публичная страница с переключателем каталога", () => {
+    expect(joinCatalogLink({ isCoach: true }).href).toBe("/coach/page");
+  });
+  it("вошедшему не тренеру — включить режим тренера в настройках (/coach/page без него — 404)", () => {
+    expect(joinCatalogLink({ isCoach: false }).href).toBe("/settings");
+  });
+  it("гостю — регистрация с отмеченной галочкой «Я тренер»", () => {
+    expect(joinCatalogLink(null).href).toBe("/register?coach=1");
   });
 });

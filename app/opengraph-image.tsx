@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { SITE_NAME } from "@/lib/seo";
+import { OG_IMAGE_ALT, SITE_NAME } from "@/lib/seo";
 
-export const alt = "Hero Fit — дневник тренировок в игровом стиле: уровни, streak, ачивки";
+export const alt = OG_IMAGE_ALT;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

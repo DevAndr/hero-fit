@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PlateCalculator } from "@/components/marketing/plate-calculator";
 import { Breadcrumbs, ToolCta } from "@/components/marketing/tool-cta";
 import { env } from "@/lib/env";
-import { jsonLd, toolJsonLd } from "@/lib/seo";
+import { jsonLd, toolJsonLd, pageOpenGraph } from "@/lib/seo";
 
 const TITLE = "Калькулятор блинов для штанги и разминки — онлайн";
 const DESCRIPTION =
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: ["калькулятор блинов", "сколько блинов вешать на штангу", "калькулятор штанги", "разминочные подходы", "вес грифа"],
   alternates: { canonical: "/tools/plates" },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: "/tools/plates" },
+  openGraph: pageOpenGraph({ title: TITLE, description: DESCRIPTION, url: "/tools/plates" }),
 };
 
 const CRUMBS = [

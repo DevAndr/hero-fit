@@ -13,7 +13,7 @@ import { FORMAT_LABELS, publicAwards, SPECIALTIES, visibleStats } from "@/lib/co
 import { getCoachPublicStats, getPublicCoach } from "@/lib/coach/profile-queries";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { absoluteUrl, shortDescription, coachJsonLd, jsonLd } from "@/lib/seo";
+import { absoluteUrl, shortDescription, coachJsonLd, jsonLd, pageOpenGraph } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
 import { telegramJoinUrl } from "@/lib/telegram/links";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: PageProps<"/trainer/[nick]">)
     title: { absolute: title },
     description,
     alternates: { canonical: pathOf(coach.nickname) },
-    openGraph: { title, description, url: pathOf(coach.nickname) },
+    openGraph: pageOpenGraph({ title, description: description ?? "", url: pathOf(coach.nickname) }),
     ...(coach.profile.publishedAt ? {} : { robots: { index: false, follow: false } }),
   };
 }

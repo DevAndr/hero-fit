@@ -285,3 +285,38 @@ test("landing: «Найти тренера» in the coaches block once the catal
   await block.getByRole("link", { name: "Найти тренера" }).click();
   await expect(page).toHaveURL(/\/trainers$/);
 });
+
+test("SEO: catalog title in social preview, JSON-LD list of trainer pages, indexable with enough coaches", async ({ page }) => {
+  const city = cityOf();
+  for (let i = 0; i < 5; i++) await dbCoach(city);
+  await page.goto("/trainers");
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Тренеры Hero Fit — найдите тренера");
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", /\/trainers$/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /opengraph-image/);
+  // Свой noindex каталог ставит только пустому каталогу и фильтрам («noindex, follow»); иначе robots — общий layout
+  // (в e2e площадка вне индекса — «noindex, nofollow», на проде — «index, follow»)
+  await expect(page.locator('meta[name="robots"]')).not.toHaveAttribute("content", "noindex, follow");
+  await page.goto("/trainers?format=ONLINE");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+  await page.goto("/trainers");
+  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent())!);
+  expect(ld["@type"]).toBe("CollectionPage");
+  expect(ld.mainEntity.itemListElement.length).toBeGreaterThan(0);
+  expect(ld.mainEntity.itemListElement[0].url).toMatch(/\/trainer\//);
+});
+
+test("«Вы тренер?» on /trainers: guest → sign-up as coach, user → settings, coach → own page with the catalog switch", async ({ page }) => {
+  const block = page.getByRole("region", { name: "Тренерам" });
+  await page.goto("/trainers");
+  await expect(block.getByRole("link", { name: "Стать тренером в Hero Fit" })).toHaveAttribute("href", "/register?coach=1");
+
+  const user = await registerUser(page, "Ученик");
+  await page.goto("/trainers");
+  await expect(block.getByRole("link", { name: "Включить режим тренера" })).toHaveAttribute("href", "/settings");
+
+  await enableCoach(user.login, nickOf(user.login));
+  await page.goto("/trainers");
+  await block.getByRole("link", { name: "Добавить свою страницу в каталог" }).click();
+  await expect(page).toHaveURL(/\/coach\/page$/);
+  await expect(catalogSection(page)).toBeVisible();
+});

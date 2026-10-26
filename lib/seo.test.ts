@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_PROGRAMS } from "./programs/builtin";
-import { absoluteUrl, cityJsonLd, clubJsonLd, isIndexable, jsonLd, programJsonLd, robotsRules, shortDescription, sitemapEntries } from "./seo";
+import { absoluteUrl, cityJsonLd, clubJsonLd, isIndexable, jsonLd, programJsonLd, robotsRules, shortDescription, pageOpenGraph, sitemapEntries, trainersJsonLd } from "./seo";
 
 describe("isIndexable", () => {
   it("only production on a public host", () => {
@@ -144,5 +144,47 @@ describe("robotsRules", () => {
 
   it("keeps private pages and the program start handler closed", () => {
     for (const p of ["/training", "/training-programs/5x5/start", "/dashboard"]) expect(allowed(p), p).toBe(false);
+  });
+});
+
+describe("trainersJsonLd", () => {
+  it("CollectionPage со списком страниц тренеров по порядку", () => {
+    expect(
+      trainersJsonLd({
+        url: "https://hero-fit.ru/trainers",
+        items: [
+          { name: "Анна", url: "https://hero-fit.ru/trainer/Anna" },
+          { name: "Иван", url: "https://hero-fit.ru/trainer/Ivan" },
+        ],
+      }),
+    ).toEqual({
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Тренеры Hero Fit",
+      url: "https://hero-fit.ru/trainers",
+      mainEntity: {
+        "@type": "ItemList",
+        numberOfItems: 2,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Анна", url: "https://hero-fit.ru/trainer/Anna" },
+          { "@type": "ListItem", position: 2, name: "Иван", url: "https://hero-fit.ru/trainer/Ivan" },
+        ],
+      },
+    });
+  });
+});
+
+describe("pageOpenGraph", () => {
+  // Свой openGraph страницы целиком заменяет layout — без картинки превью в Telegram и VK было пустым
+  it("всегда с картинкой сайта, названием и локалью", () => {
+    expect(pageOpenGraph({ title: "Т", description: "О", url: "/trainers" })).toEqual({
+      type: "website",
+      locale: "ru_RU",
+      siteName: "Hero Fit",
+      title: "Т",
+      description: "О",
+      url: "/trainers",
+      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Hero Fit — дневник тренировок в игровом стиле: уровни, streak, ачивки" }],
+    });
   });
 });
