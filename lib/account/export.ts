@@ -166,6 +166,7 @@ const PROFILE_FIELDS = [
   "longestStreak",
   "hideWeights",
   "shareActivity",
+  "shareRecordCards",
 ] as const;
 
 const people = <T extends { nickname: string | null }>(list: T[], keys: (keyof T)[]) =>
