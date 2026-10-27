@@ -72,6 +72,7 @@ export function WorkoutSummaryView({
   exerciseHref,
   renderComment,
   feedback,
+  recordCard,
   wearable,
   goalChests = [],
   goblinOpened = true,
@@ -92,6 +93,8 @@ export function WorkoutSummaryView({
   renderComment?: (workoutExerciseId: string | null) => ReactNode;
   /** Оценка тренировки: форма у владельца, блок «Оценка клиента» у тренера. */
   feedback?: ReactNode;
+  /** Кнопка и окно «Карточка рекорда» под списком рекордов (своя сводка при включённом тумблере). */
+  recordCard?: ReactNode;
   /** Данные браслета (WHOOP) — только у владельца; выводятся перед оценкой. */
   wearable?: ReactNode;
   /** Цели этой тренировки с ещё не открытым сундуком. */
@@ -199,6 +202,7 @@ export function WorkoutSummaryView({
               </li>
             ))}
           </ul>
+          {recordCard}
         </section>
       ) : null}
 

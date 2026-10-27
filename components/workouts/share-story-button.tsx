@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { sharePng } from "@/lib/share/share-png";
 
 /**
  * Картинка тренировки для сторис: на телефоне — системное «Поделиться» с файлом (Telegram, VK, Instagram…),
@@ -15,25 +16,7 @@ export function ShareStoryButton({ workoutId, day }: { workoutId: string; day: s
   async function share() {
     setBusy(true);
     try {
-      const res = await fetch(`/workouts/${workoutId}/story`);
-      if (!res.ok) throw new Error(String(res.status));
-      const name = `hero-fit-${day}.png`;
-      const file = new File([await res.blob()], name, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], text: "Моя тренировка в Hero Fit — hero-fit.ru" });
-        } catch (e) {
-          // Закрыли меню «Поделиться» — не ошибка
-          if ((e as Error).name !== "AbortError") throw e;
-        }
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await sharePng(`/workouts/${workoutId}/story`, `hero-fit-${day}.png`, "Моя тренировка в Hero Fit — hero-fit.ru");
     } catch {
       toast.error("Не удалось подготовить картинку — попробуйте ещё раз");
     } finally {

@@ -43,7 +43,7 @@ const MAX_RECORDS = 3;
 const num = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
 
 /** Узкий пробел U+202F (разделитель разрядов ru-RU) — обычным неразрывным: его глиф есть в подмножествах шрифта. */
-function kg(v: number) {
+export function kg(v: number) {
   return `${num.format(v).replace(/\u202f/g, "\u00a0")}\u00a0кг`;
 }
 
@@ -58,15 +58,20 @@ function recordValue(type: RecordType, value: number, hideWeights: boolean) {
 const PRIORITY: RecordType[] = ["MAX_WEIGHT", "ONE_RM", "MAX_REPS"];
 const PRIORITY_HIDDEN: RecordType[] = ["MAX_REPS", "MAX_WEIGHT", "ONE_RM"];
 
-/** Одна строка на упражнение (в порядке первого рекорда). */
-function recordRows(records: FinishMeta["records"], hideWeights: boolean) {
+/** Лучший рекорд каждого упражнения (в порядке первого рекорда) — для сторис и карточек рекордов. */
+export function bestRecordPerExercise(records: FinishMeta["records"], hideWeights: boolean): FinishMeta["records"] {
   const order = hideWeights ? PRIORITY_HIDDEN : PRIORITY;
   const byExercise = new Map<string, FinishMeta["records"]>();
   for (const r of records) byExercise.set(r.exerciseName, [...(byExercise.get(r.exerciseName) ?? []), r]);
-  return [...byExercise].map(([exercise, list]) => {
-    const best = [...list].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    return { exercise, value: recordValue(best.type, best.value, hideWeights) };
-  });
+  return [...byExercise.values()].map((list) => [...list].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0]);
+}
+
+/** Одна строка на упражнение (в порядке первого рекорда). */
+function recordRows(records: FinishMeta["records"], hideWeights: boolean) {
+  return bestRecordPerExercise(records, hideWeights).map((best) => ({
+    exercise: best.exerciseName,
+    value: recordValue(best.type, best.value, hideWeights),
+  }));
 }
 
 function duration(sec: number) {

@@ -33,6 +33,7 @@ export async function getNotificationSettings(userId: string) {
       nickname: true,
       shareActivity: true,
       hideWeights: true,
+      shareRecordCards: true,
       _count: { select: { pushSubscriptions: true } },
     },
   });

@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
   // Картинка для сторис рисуется на лету и читает шрифты и спрайты боссов с диска — в standalone их нужно положить явно
   outputFileTracingIncludes: {
     "/workouts/\\[id\\]/story": ["./assets/fonts/**/*", "./assets/icons/game/bosses/**/*"],
+    "/workouts/\\[id\\]/records/\\[n\\]/card": ["./assets/fonts/**/*"],
   },
   async headers() {
     return [
