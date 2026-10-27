@@ -13,6 +13,7 @@ import { CoachModeCard, FindCoachCard, MyCoachCard } from "@/components/coach/co
 import { RestartTourButton } from "@/components/onboarding/restart-button";
 import { NicknameForm } from "@/components/social/nickname-form";
 import { PrivacySettings } from "@/components/social/privacy-settings";
+import { RecordCardsSetting } from "@/components/share/record-cards-setting";
 import { TitleSelect } from "@/components/social/title-select";
 import { TelegramThemeNote, ThemeSettings } from "@/components/app/theme-settings";
 import { NotificationPrefs, PushDeviceCard } from "@/components/notifications/notification-settings";
@@ -34,7 +35,7 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, shareRecordCards, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
@@ -59,6 +60,7 @@ export default async function SettingsPage() {
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
+      <RecordCardsSetting initial={shareRecordCards} />
       {coach ? <MyCoachCard name={clientDisplayName(coach)} since={coach.linkedAt} /> : !user.isCoach ? <FindCoachCard /> : null}
       <CoachModeCard initial={user.isCoach} hasNickname={Boolean(nickname)} />
       {/* Во webview Telegram Web Push не работает — уведомления идут через бота */}

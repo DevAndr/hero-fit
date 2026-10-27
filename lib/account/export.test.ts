@@ -16,6 +16,7 @@ const raw = (): ExportRaw => ({
     longestStreak: 5,
     hideWeights: false,
     shareActivity: true,
+    shareRecordCards: true,
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",
@@ -136,6 +137,9 @@ describe("buildExport", () => {
   });
   it("профиль — whitelist + telegramLinked", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });
+  });
+  it("профиль содержит настройку карточек рекордов", () => {
+    expect(out.profile).toMatchObject({ shareRecordCards: true });
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });

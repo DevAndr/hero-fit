@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { CoachCommentSection, CoachExerciseNote } from "@/components/coach/coach-comment-note";
 import { buttonVariants } from "@/components/ui/button";
 import { SaveTemplateButton } from "@/components/workouts/save-template-button";
+import { RecordCardDialog } from "@/components/workouts/record-card-dialog";
 import { ShareStoryButton } from "@/components/workouts/share-story-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
 import { WhoopCard } from "@/components/workouts/whoop-card";
@@ -18,6 +19,7 @@ import { commentCaption } from "@/lib/coach/comments";
 import { getWorkoutComments, markCommentsRead } from "@/lib/coach/comments-queries";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { differsFromTemplate } from "@/lib/templates/from-workout";
+import { bestRecordPerExercise } from "@/lib/share/story";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { getWhoopCard, whoopAvailable } from "@/lib/whoop/queries";
@@ -25,6 +27,9 @@ import { TogetherSummaryBlock } from "@/components/together/summary-block";
 import { getTogetherSummary } from "@/lib/together/summary";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
+
+/** Окно «Новый рекорд!» всплывает само, если тренировка завершена не раньше 6 ч назад (а не при просмотре старой). */
+const RECORD_CARD_FRESH_MS = 6 * 60 * 60 * 1000;
 
 export default async function WorkoutSummaryPage({ params }: PageProps<"/workouts/[id]">) {
   const user = await requireUser();
@@ -48,6 +53,10 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   // Пульс и strain из WHOOP — только владельцу (страница и так только его), при флаге и подключении
   const whoopCard = (await whoopAvailable(user.id)) ? await getWhoopCard(user.id, workout) : null;
   const together = (await isEnabled("together", user.id)) ? await getTogetherSummary(user.id, workout.id) : null;
+  // Карточки рекордов — по тумблеру в /settings; сами всплывают только у только что завершённой тренировки
+  const { shareRecordCards } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { shareRecordCards: true } });
+  const recordExercises = shareRecordCards && meta?.records.length ? bestRecordPerExercise(meta.records, false).map((r) => r.exerciseName) : [];
+  const freshFinish = workout.finishedAt !== null && new Date().getTime() - workout.finishedAt.getTime() < RECORD_CARD_FRESH_MS;
 
   return (
     <WorkoutSummaryView
@@ -67,6 +76,16 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
             {together ? <TogetherSummaryBlock summary={together} /> : null}
             {whoopCard ? <WhoopCard workoutId={workout.id} initial={whoopCard} /> : null}
           </div>
+        ) : null
+      }
+      recordCard={
+        recordExercises.length && workout.finishedAt ? (
+          <RecordCardDialog
+            workoutId={workout.id}
+            exercises={recordExercises}
+            day={dayKey(workout.finishedAt, safeTimeZone(user.timeZone))}
+            autoOpen={freshFinish}
+          />
         ) : null
       }
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
