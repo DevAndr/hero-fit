@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { deltaPercent } from "@/lib/admin/metrics";
+import { ACTIVE_WORKOUT_HOURS, deltaPercent } from "@/lib/admin/metrics";
 import type { Overview } from "@/lib/admin/metrics-queries";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU");
@@ -68,6 +68,9 @@ export function MetricTiles({ overview: o }: { overview: Overview }) {
         </Line>
         <Line label="30 дн" value={o.workouts30}>
           <Delta now={o.workouts30} prev={o.workouts30Prev} period="30 дн" />
+        </Line>
+        <Line label="Идут сейчас" value={o.activeWorkouts}>
+          {o.staleWorkouts ? <span className="text-muted-foreground">+ {fmt(o.staleWorkouts)} не завершены дольше {ACTIVE_WORKOUT_HOURS} ч</span> : null}
         </Line>
       </Tile>
       <Tile label="Часов в зале" value={o.hours30.toLocaleString("ru-RU")}>

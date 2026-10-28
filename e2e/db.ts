@@ -2007,3 +2007,14 @@ export async function togetherBonuses(login: string): Promise<number[]> {
     return rows.map((r) => r.amount);
   });
 }
+
+/** Незавершённая тренировка игрока (IN_PROGRESS, без упражнений), запущенная в startedAt. */
+export async function startWorkoutRow(login: string, startedAt: Date) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "createdAt", "updatedAt") values ($1, $2, 'Seed', 'IN_PROGRESS', $3, $3, $3)`,
+      [randomUUID(), uid, startedAt],
+    );
+  });
+}

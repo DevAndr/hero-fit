@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { dayKey } from "@/lib/daily-login";
 import { catalogCount } from "@/lib/coach/catalog-queries";
 import { db } from "@/lib/db";
-import { cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
+import { ACTIVE_WORKOUT_HOURS, cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
 import { addDays, weekStart } from "@/lib/dates";
 
 /*
@@ -57,6 +57,9 @@ export type Overview = {
   hours30: number;
   hours30Prev: number;
   avgMinutes30: number | null;
+  /** Идут сейчас (IN_PROGRESS, запущены за последние ACTIVE_WORKOUT_HOURS ч) и забытые (запущены раньше). */
+  activeWorkouts: number;
+  staleWorkouts: number;
 };
 
 /** Плитки: «7 дн» — сегодня и 6 дней до него, «пред.» — 7 дней перед ними; так же 30. */
@@ -68,6 +71,7 @@ export async function getOverview(tz: string): Promise<Overview> {
   const d60 = addDays(today, -59);
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
+  const activeSince = new Date(Date.now() - ACTIVE_WORKOUT_HOURS * 3600 * 1000);
   const [row] = await db.$queryRaw<(Omit<Overview, "hours30" | "hours30Prev" | "avgMinutes30"> & { sec30: number; sec30Prev: number; timed30: number })[]>`
     WITH a AS (${activitySql(d60)}),
     u AS (SELECT ${signup} AS day FROM "User" WHERE "createdAt" >= ${utcFloor(d60)}),
@@ -95,7 +99,9 @@ export async function getOverview(tz: string): Promise<Overview> {
       (SELECT COUNT(*) FROM w WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "workouts30Prev",
       (SELECT COALESCE(SUM(sec), 0) FROM w WHERE day >= ${d30}::date)::int AS sec30,
       (SELECT COUNT(sec) FROM w WHERE day >= ${d30}::date)::int AS timed30,
-      (SELECT COALESCE(SUM(sec), 0) FROM w WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "sec30Prev"
+      (SELECT COALESCE(SUM(sec), 0) FROM w WHERE day >= ${d60}::date AND day < ${d30}::date)::int AS "sec30Prev",
+      (SELECT COUNT(*) FROM "Workout" WHERE status = 'IN_PROGRESS' AND "startedAt" >= ${activeSince})::int AS "activeWorkouts",
+      (SELECT COUNT(*) FROM "Workout" WHERE status = 'IN_PROGRESS' AND "startedAt" < ${activeSince})::int AS "staleWorkouts"
   `;
   const { sec30, sec30Prev, timed30, ...counts } = row;
   return {
