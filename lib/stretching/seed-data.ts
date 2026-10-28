@@ -55,7 +55,7 @@ export type StretchProgram = {
   skill?: StretchSkillKey;
 };
 
-const SPLIT_CAUTION = "Тянитесь до натяжения, не до боли, и только после разминки — шпагат приходит за месяцы.";
+export const SPLIT_CAUTION = "Тянитесь до натяжения, не до боли, и только после разминки — шпагат приходит за месяцы.";
 
 export const STRETCH_PROGRAMS: StretchProgram[] = [
   {

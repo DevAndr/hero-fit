@@ -17,6 +17,7 @@ import { processCoachRecaps } from "@/lib/coach/recap-tick";
 import { processProgramReminders } from "@/lib/coach/program-tick";
 import { processRaidReminders } from "@/lib/raid/tick";
 import { processGoals } from "@/lib/goals/tick";
+import { processCourseReminders } from "@/lib/stretching/course-tick";
 import { processCampaigns } from "@/lib/campaigns/tick";
 
 type Client = Prisma.TransactionClient;
@@ -219,7 +220,7 @@ export async function processPlanReminders(now = new Date()) {
 let lastErrorsPrune = 0;
 
 /** Шаги тика, которые e2e может запустить по одному (`?only=`): тик с тестовыми часами в будущем иначе прогоняет все шаги по всей тестовой базе и задевает соседние тесты. */
-export const TICK_STEPS = ["reminders", "recaps", "signals", "coachRecaps", "programs", "raids", "goals", "campaigns"] as const;
+export const TICK_STEPS = ["reminders", "recaps", "signals", "coachRecaps", "programs", "raids", "goals", "course", "campaigns"] as const;
 export type TickStep = (typeof TICK_STEPS)[number];
 
 /**
@@ -276,6 +277,14 @@ export async function runNotificationTick(now?: Date, only?: TickStep) {
     if (goals) pushes += await processDuePushes();
   } catch (e) {
     console.error("[goals] шаг сроков целей упал", e);
+  }
+  if (step("course")) try {
+    // Курс «Сесть на шпагат»: напоминание в выбранные дни с 17:00 по местному времени
+    const course = await processCourseReminders(at);
+    reminders += course;
+    if (course) pushes += await processDuePushes();
+  } catch (e) {
+    console.error("[course] шаг напоминаний курса упал", e);
   }
   if (step("campaigns")) try {
     // Рассылки по условиям («вернись в зал»): не чаще раза в 10 минут, с тестовыми часами — каждый тик

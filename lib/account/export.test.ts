@@ -17,6 +17,7 @@ const raw = (): ExportRaw => ({
     hideWeights: false,
     shareActivity: true,
     shareRecordCards: true,
+    gender: "FEMALE",
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",
@@ -49,6 +50,9 @@ const raw = (): ExportRaw => ({
   plans: [],
   goals: [],
   stretchMeasurements: [{ skill: "splits", date: "2026-10-20", cm: 12.5 }],
+  stretchCourses: [
+    { id: "sc_secret", userId: "u_secret", goalId: "g_secret", skill: "SPLIT_SIDE", status: "ACTIVE", remindDays: [0, 2], nextSession: 3, startedAt: new Date("2026-10-20T10:00:00Z"), finishedAt: null, remindedDay: "2026-10-21" },
+  ],
   bodyWeight: [],
   records: [],
   achievements: [],
@@ -140,11 +144,17 @@ describe("buildExport", () => {
     expect(EXPORT_SECTIONS).toContain("stretchMeasurements");
     expect(out.stretchMeasurements).toEqual([{ skill: "splits", date: "2026-10-20", cm: 12.5 }]);
   });
+  it("курс шпагата: без id/userId/goalId", () => {
+    expect(EXPORT_SECTIONS).toContain("stretchCourses");
+    expect(out.stretchCourses).toEqual([
+      { skill: "SPLIT_SIDE", status: "ACTIVE", remindDays: [0, 2], nextSession: 3, startedAt: new Date("2026-10-20T10:00:00Z"), finishedAt: null },
+    ]);
+  });
   it("профиль — whitelist + telegramLinked", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });
   });
   it("профиль содержит настройку карточек рекордов", () => {
-    expect(out.profile).toMatchObject({ shareRecordCards: true });
+    expect(out.profile).toMatchObject({ shareRecordCards: true, gender: "FEMALE" });
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });

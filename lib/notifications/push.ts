@@ -31,6 +31,7 @@ const TAGS: Record<NotificationType, string> = {
   RAID: "hero-fit-raid",
   COACH: "hero-fit-coach",
   GOAL: "hero-fit-goal",
+  COURSE_REMINDER: "hero-fit-course",
   FEEDBACK: "hero-fit-feedback",
   COMEBACK: "hero-fit-comeback",
 };

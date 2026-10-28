@@ -9,6 +9,12 @@ datasource db {
 
 // ───────────────────────────── Справочники ─────────────────────────────
 
+/// Пол в профиле (настройки); null у User.gender — «не указан». Пока только хранится
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum MuscleGroup {
   CHEST // Грудь
   LEGS // Ноги
@@ -103,6 +109,7 @@ enum NotificationType {
   RAID // рейд-босс гильдии: повержен, «не хватает урона»
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
   GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
+  COURSE_REMINDER // напоминание о занятии курса «Сесть на шпагат»
   FEEDBACK // обратная связь: обращение сделано или отклонено
   COMEBACK // рассылки «вернись»
 }
@@ -164,6 +171,8 @@ model User {
   passwordHash      String?
   name              String?
   bodyWeight        Float? // кг; для ачивок «1RM к весу тела»
+  /// пол из настроек, видит только сам пользователь; null — не указан
+  gender            Gender?
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
@@ -226,6 +235,7 @@ model User {
   notifyPlan         Boolean   @default(true)
   notifyRecap        Boolean   @default(true)
   notifyGoal         Boolean   @default(true)
+  notifyCourse       Boolean   @default(true)
   notifyComeback     Boolean   @default(true)
   /// Telegram-бот: личный чат (один Telegram — один аккаунт), уведомления дублируются туда, кроме таймера отдыха
   telegramChatId     BigInt?   @unique
@@ -312,6 +322,7 @@ model User {
   sessionCheers              SessionCheer[]
   favoriteExercises          FavoriteExercise[]
   goals                      Goal[]
+  stretchCourses             StretchCourse[]
   stretchMeasurements        StretchMeasurement[]
   campaignSends              CampaignSend[]
   bodyWeights                BodyWeightEntry[]
@@ -563,6 +574,10 @@ model Workout {
   goblin           GoblinEncounter?
   /// Золотой гоблин: до скольких выполненных рабочих подходов уже бросали (повторная отметка не даёт броска)
   goblinRolledSets Int               @default(0)
+  /// курс «Сесть на шпагат»: занятие курса (lib/stretching/course.ts)
+  courseId         String?
+  course           StretchCourse?    @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseSessionNo  Int?
 
   @@index([userId, status])
   @@index([userId, finishedAt])
@@ -1302,6 +1317,7 @@ model Goal {
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise     Exercise?            @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   measurements StretchMeasurement[]
+  courses      StretchCourse[]
 
   @@index([userId, status])
   /// тик сроков: активные по дате срока (processGoals, lib/goals/tick.ts)
@@ -1938,4 +1954,30 @@ model CoachContactClick {
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
 
   @@id([coachId, day])
+}
+
+enum StretchCourseStatus {
+  ACTIVE // идёт, nextSession 1…30
+  MAINTENANCE // поддержка после финала, nextSession > 30
+  COMPLETED // «Закончить» после финала
+  ABANDONED // «Бросить курс»
+}
+
+/// Курс «Сесть на шпагат». Частичный уникальный индекс StretchCourse_active (userId при ACTIVE/MAINTENANCE) — в SQL миграции.
+model StretchCourse {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill       String // SPLIT_LEFT | SPLIT_RIGHT | SPLIT_SIDE (проверка в коде)
+  goalId      String?
+  goal        Goal?               @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  remindDays  Int[] // 0 = пн … 6 = вс; пусто — без напоминаний
+  nextSession Int                 @default(1)
+  status      StretchCourseStatus @default(ACTIVE)
+  startedAt   DateTime            @default(now())
+  finishedAt  DateTime? // 30-е занятие пройдено
+  remindedDay String? // местный день последнего напоминания (YYYY-MM-DD)
+  workouts    Workout[]
+
+  @@index([userId])
 }

@@ -15,6 +15,9 @@ export type CohortRow = {
 
 const COHORT_WEEKS = 7;
 
+/** Тренировка «идёт сейчас», если запущена не раньше стольких часов назад; старше — забытая (не завершили). */
+export const ACTIVE_WORKOUT_HOURS = 4;
+
 export function parseRange(raw: string | string[] | undefined): 30 | 90 {
   return raw === "90" ? 90 : 30;
 }

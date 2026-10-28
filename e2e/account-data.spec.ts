@@ -16,6 +16,7 @@ import {
   seedCoachRecap,
   errorEventUsers,
   clubAdminLogin,
+  courseCount,
   clubOf,
   coinTx,
   equipItem,
@@ -73,6 +74,34 @@ test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({
   expect(rows).toContain(";Жим штанги лёжа;1;нет;62,5;8;");
 
   expect((await page.request.get("/account/export/xml")).status()).toBe(404);
+});
+
+test("stretch course: export lists it, deletion removes it", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("stretching", me.login);
+  await addFlagUser("stretch_course", me.login);
+  await page.goto("/stretching");
+  const card = page.getByRole("region", { name: "Курс «Сесть на шпагат»" });
+  await card.getByRole("button", { name: "Начать курс" }).click();
+  const dialog = page.getByRole("dialog", { name: "Начать курс" });
+  await dialog.getByRole("radio", { name: "Поперечный шпагат" }).click();
+  await dialog.getByLabel("Сейчас, см до пола").fill("25");
+  await dialog.getByRole("button", { name: "Начать курс" }).click();
+  await expect(dialog).toBeHidden();
+  expect(await courseCount(me.login)).toBe(1);
+
+  await page.goto("/settings");
+  const block = page.getByRole("region", { name: "Мои данные" });
+  const [json] = await Promise.all([page.waitForEvent("download"), block.getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.stretchCourses[0].skill).toBe("SPLIT_SIDE");
+  expect(data.stretchCourses[0]).not.toHaveProperty("id");
+  expect(data.stretchCourses[0]).not.toHaveProperty("userId");
+
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await userExists(me.login)).toBe(false);
+  expect(await courseCount(me.login)).toBe(0);
 });
 
 /** Удалить аккаунт из настроек; `secret` — пароль или логин (учётка без пароля). */

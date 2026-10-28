@@ -75,6 +75,7 @@ import type { Target } from "@/lib/coach/targets";
 import { RecoveryLine, whoopZone } from "@/components/training/recovery-line";
 import type { WhoopRecoveryView } from "@/lib/whoop/queries";
 import { TogetherControl, type TogetherInitial } from "@/components/together/together-control";
+import { CourseBanner, type CourseInfo } from "@/components/training/course-banner";
 
 type Props = {
   workout: ActiveWorkout;
@@ -94,6 +95,8 @@ type Props = {
   whoop?: WhoopRecoveryView | null;
   /** Совместная тренировка (флаг together): открытая сессия на момент загрузки. */
   together?: { initial: TogetherInitial } | null;
+  /** Занятие курса «Сесть на шпагат» (флаги stretching и stretch_course). */
+  course?: CourseInfo | null;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -188,7 +191,7 @@ const NO_TARGETS: Record<string, Target> = {};
 /** «Облегчить» уже нажимали в этой тренировке — повторно не предлагаем (и после перезагрузки). */
 const lightenedKey = (workoutId: string) => `hf:lightened:${workoutId}`;
 
-function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS, whoop, together }: Props) {
+function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, targets = NO_TARGETS, own = NO_TARGETS, whoop, together, course }: Props) {
   const [state, dispatch] = useReducer(reducer, workout, initState);
   // Выполненные упражнения сворачиваются (isCollapsed); ручной выбор — поверх правила (ключ упражнения → свёрнуто)
   const [manualCollapse, setManualCollapse] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -456,6 +459,8 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
                 {together && state.status === "IN_PROGRESS" ? <TogetherControl workoutId={workout.id} initial={together.initial} /> : null}
               </div>
             </div>
+
+            {course ? <CourseBanner course={course} /> : null}
 
             <RecoveryLine view={whoop} onLighten={canLighten ? lighten : undefined} />
 
