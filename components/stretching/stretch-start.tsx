@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Play, Plus, StretchHorizontal } from "lucide-react";
+import { Play, Plus, StretchHorizontal, Target } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createWorkoutAction } from "@/lib/workouts/actions";
 import type { StretchTemplate } from "@/lib/stretching/queries";
+import { STRETCH_SKILLS } from "@/lib/stretching/skills";
 
 /** «Начать растяжку»: готовая программа, свой шаблон или пустая тренировка; идёт тренировка — «Продолжить». */
 export function StretchStart({ templates, active }: { templates: StretchTemplate[]; active: boolean }) {
@@ -40,6 +41,17 @@ export function StretchStart({ templates, active }: { templates: StretchTemplate
                   {t.own ? <span className="ml-2 text-xs font-normal text-primary">моё</span> : null}
                 </p>
                 {t.description ? <p className="text-sm text-muted-foreground">{t.description}</p> : null}
+                {t.skill ? (
+                  // Программа ведёт к навыку — цель с замерами открывается на этой же странице
+                  <Link
+                    href={`/stretching?skill=${t.skill}`}
+                    onClick={() => setOpen(false)}
+                    className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    <Target className="size-4" aria-hidden />
+                    Цель: {STRETCH_SKILLS[t.skill].title}
+                  </Link>
+                ) : null}
               </div>
               <Button type="submit" variant="secondary" aria-label={`Начать «${t.name}»`}>
                 <Play />

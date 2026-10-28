@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STRETCH_ZONES } from "./zones";
-import { STRETCH_PROGRAMS, STRETCH_SEED } from "./seed-data";
+import { programSkill, STRETCH_PROGRAMS, STRETCH_SEED } from "./seed-data";
 
 describe("STRETCH_SEED", () => {
   it("не меньше 18 упражнений, отдых 15 с", () => {
@@ -32,16 +32,35 @@ describe("STRETCH_SEED", () => {
 });
 
 describe("STRETCH_PROGRAMS", () => {
-  it("две программы по 6–8 упражнений, все из каталога", () => {
-    expect(STRETCH_PROGRAMS.map((p) => p.name)).toEqual(["Утренняя растяжка", "Заминка после силовой"]);
+  it("четыре программы по 6–8 упражнений, все из каталога", () => {
+    expect(STRETCH_PROGRAMS.map((p) => p.name)).toEqual(["Утренняя растяжка", "Заминка после силовой", "Шпагат: продольный", "Шпагат: поперечный"]);
     const names = new Set(STRETCH_SEED.map((s) => s.name));
     for (const p of STRETCH_PROGRAMS) {
       expect(p.exercises.length).toBeGreaterThanOrEqual(6);
       expect(p.exercises.length).toBeLessThanOrEqual(8);
       for (const [n, sets] of p.exercises) {
         expect(names.has(n)).toBe(true);
-        expect(sets).toBe(2);
+        expect([2, 3]).toContain(sets);
       }
     }
+  });
+
+  it("программы на шпагат ведут к цели-навыку и предупреждают о боли", () => {
+    const skills = Object.fromEntries(STRETCH_PROGRAMS.map((p) => [p.name, p.skill ?? null]));
+    expect(skills).toEqual({
+      "Утренняя растяжка": null,
+      "Заминка после силовой": null,
+      "Шпагат: продольный": "SPLIT_LEFT",
+      "Шпагат: поперечный": "SPLIT_SIDE",
+    });
+    for (const p of STRETCH_PROGRAMS.filter((x) => x.skill)) expect(p.description).toContain("не до боли");
+  });
+});
+
+describe("programSkill", () => {
+  it("навык встроенной программы по названию, у остальных — null", () => {
+    expect(programSkill("Шпагат: поперечный")).toBe("SPLIT_SIDE");
+    expect(programSkill("Утренняя растяжка")).toBeNull();
+    expect(programSkill("Мой шпагат")).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import type { StretchZone } from "@/generated/prisma/enums";
+import type { StretchSkillKey } from "./skills";
 
 // Встроенная растяжка и готовые программы — единый источник для сида (prisma/seed.ts) и теста.
 // Имена — ключ поиска в БД (userId = null): менять нельзя, иначе на проде появятся дубли.
@@ -36,6 +37,12 @@ export const STRETCH_SEED: StretchSeed[] = [
   s("Широкая складка сидя", ["ADDUCTORS", "HAMSTRINGS"]),
   s("Растяжка икры у стены", ["CALVES"], true),
   s("Собака мордой вниз", ["CALVES", "HAMSTRINGS"]),
+  // Подводящие к шпагату
+  s("Полушпагат", ["HAMSTRINGS", "CALVES"], true),
+  s("Ящерица", ["HIPS", "ADDUCTORS"], true),
+  s("Боковой выпад", ["ADDUCTORS", "HAMSTRINGS"], true),
+  s("Продольный шпагат с опорой", ["HIPS", "HAMSTRINGS", "QUADS"], true),
+  s("Поперечный шпагат с опорой", ["ADDUCTORS", "HIPS"]),
 ];
 
 export type StretchProgram = {
@@ -44,7 +51,11 @@ export type StretchProgram = {
   description: string;
   /** [упражнение, подходов]; время удержания (30 с) подставляется при запуске. */
   exercises: [name: string, sets: number][];
+  /** Навык цели, к которому ведёт программа: кнопка «Цель: …» в «Начать растяжку». */
+  skill?: StretchSkillKey;
 };
+
+const SPLIT_CAUTION = "Тянитесь до натяжения, не до боли, и только после разминки — шпагат приходит за месяцы.";
 
 export const STRETCH_PROGRAMS: StretchProgram[] = [
   {
@@ -74,4 +85,38 @@ export const STRETCH_PROGRAMS: StretchProgram[] = [
       ["Растяжка задней поверхности бедра лёжа", 2],
     ],
   },
+  {
+    program: "Растяжка",
+    name: "Шпагат: продольный",
+    description: `Около 20 минут, 3 раза в неделю: сгибатели бедра, задняя поверхность и квадрицепс. ${SPLIT_CAUTION}`,
+    skill: "SPLIT_LEFT",
+    exercises: [
+      ["Выпад на сгибатели бедра", 3],
+      ["Ящерица", 2],
+      ["Полушпагат", 3],
+      ["Голубь", 2],
+      ["Растяжка квадрицепса лёжа на боку", 2],
+      ["Растяжка задней поверхности бедра лёжа", 2],
+      ["Продольный шпагат с опорой", 3],
+    ],
+  },
+  {
+    program: "Растяжка",
+    name: "Шпагат: поперечный",
+    description: `Около 20 минут, 3 раза в неделю: приводящие, тазобедренные и задняя поверхность. ${SPLIT_CAUTION}`,
+    skill: "SPLIT_SIDE",
+    exercises: [
+      ["Бабочка", 2],
+      ["Лягушка", 3],
+      ["Боковой выпад", 3],
+      ["Ящерица", 2],
+      ["Широкая складка сидя", 3],
+      ["Поперечный шпагат с опорой", 3],
+    ],
+  },
 ];
+
+/** Навык, к которому ведёт встроенная программа (по названию шаблона). */
+export function programSkill(name: string): StretchSkillKey | null {
+  return STRETCH_PROGRAMS.find((p) => p.name === name)?.skill ?? null;
+}

@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
 import { stretchOnlyWhere } from "@/lib/templates/queries";
+import { programSkill } from "@/lib/stretching/seed-data";
+import type { StretchSkillKey } from "@/lib/stretching/skills";
 
-export type StretchTemplate = { id: string; name: string; description: string | null; own: boolean; exercises: number };
+export type StretchTemplate = { id: string; name: string; description: string | null; own: boolean; exercises: number; skill: StretchSkillKey | null };
 
 /** Шаблоны только из растяжки: готовые программы и свои. */
 export async function listStretchTemplates(userId: string): Promise<StretchTemplate[]> {
@@ -11,7 +13,14 @@ export async function listStretchTemplates(userId: string): Promise<StretchTempl
     orderBy: [{ userId: { sort: "desc", nulls: "last" } }, { name: "asc" }],
     select: { id: true, userId: true, name: true, description: true, _count: { select: { exercises: true } } },
   });
-  return rows.map((t) => ({ id: t.id, name: t.name, description: t.description, own: t.userId !== null, exercises: t._count.exercises }));
+  return rows.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    own: t.userId !== null,
+    exercises: t._count.exercises,
+    skill: t.userId === null ? programSkill(t.name) : null,
+  }));
 }
 
 /** Рекорд удержания (секунды) по упражнениям растяжки — только у сделанных. */

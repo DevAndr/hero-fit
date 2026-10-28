@@ -13,12 +13,16 @@ import { isEnabled } from "@/lib/flags/server";
 import { getGoalFormData, getStretchGoals } from "@/lib/goals/queries";
 import { getStretchStats } from "@/lib/stats/queries";
 import { getHoldRecords, hasActiveWorkout, listStretchTemplates } from "@/lib/stretching/queries";
+import { isSkillKey } from "@/lib/stretching/skills";
 
 export const metadata: Metadata = { title: "Растяжка" };
 
-export default async function StretchingPage() {
+export default async function StretchingPage({ searchParams }: PageProps<"/stretching">) {
   const user = await requireUser();
   if (!(await isEnabled("stretching", user.id))) notFound();
+  // «Цель: …» у программы на шпагат — диалог цели сразу открыт с этим навыком
+  const { skill } = await searchParams;
+  const preset = typeof skill === "string" && isSkillKey(skill) ? { type: "STRETCH_SKILL" as const, stretchSkill: skill } : null;
   const tz = safeTimeZone(user.timeZone);
   const [stats, templates, active, exercises, records, goals, form, activeGoals] = await Promise.all([
     getStretchStats(user.id, tz),
@@ -57,7 +61,7 @@ export default async function StretchingPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Целей по растяжке пока нет — поставьте цель на удержание позы.</p>
           )}
-          <NewGoal form={form} activeCount={activeGoals} suggestions={[]} again={null} initialGroup="stretch" />
+          <NewGoal key={preset?.stretchSkill ?? "new"} form={form} activeCount={activeGoals} suggestions={[]} again={preset} initialGroup="stretch" />
         </section>
 
         <StretchCatalog exercises={exercises} records={records} />

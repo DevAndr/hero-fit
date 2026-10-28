@@ -260,6 +260,30 @@ test("weekly goal: set from /stretching, a counted week from history, a week wit
   await expect(again.getByLabel("Сколько недель")).toHaveValue("2");
 });
 
+test("split programs: caution in the description, «Цель: …» opens the skill goal, the program starts", async ({ page }) => {
+  const u = await registerUser(page, "Шпагат");
+  await addFlagUser("stretching", u.login);
+  await page.goto("/stretching");
+  await page.getByRole("button", { name: "Начать растяжку" }).click();
+  const start = page.getByRole("dialog", { name: "Начать растяжку" });
+  await expect(start.getByRole("button", { name: "Начать «Шпагат: продольный»" })).toBeVisible();
+  await expect(start).toContainText("не до боли");
+  await start.getByRole("link", { name: "Цель: Поперечный шпагат" }).click();
+
+  await expect(page).toHaveURL(/\/stretching\?skill=SPLIT_SIDE$/);
+  const dialog = page.getByRole("dialog", { name: "Новая цель" });
+  await expect(dialog.getByRole("radio", { name: "Поперечный шпагат" })).toBeChecked();
+  await dialog.getByLabel("Замер сейчас, см").fill("25");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("region", { name: "Цели по растяжке" }).getByRole("article", { name: "Поперечный шпагат" })).toContainText("Осталось 25 см");
+
+  await page.getByRole("button", { name: "Начать растяжку" }).click();
+  await start.getByRole("button", { name: "Начать «Шпагат: поперечный»" }).click();
+  await expect(page).toHaveURL(/\/training/);
+  await expect(page.getByRole("region", { name: "Поперечный шпагат с опорой" })).toBeVisible();
+});
+
 test("skill goal: set, one measurement per day (a repeat replaces it), 0 reaches it with a chest; data export and account deletion", async ({ page }) => {
   test.slow();
   const u = await registerUser(page, "Цель_навык");
