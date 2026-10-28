@@ -101,15 +101,19 @@ test("own one-sided stretch: zone and «each side», a set × 2, summary minutes
   const u = await registerUser(page, "Своя_растяжка");
   await addFlagUser("stretching", u.login);
   const name = `Голубь у стены ${u.login.slice(-6)}`;
-  await page.goto("/exercises");
-  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  // Добавление прямо из каталога /stretching — вид «Растяжка» уже выбран, правка — в «Упражнениях»
+  await page.goto("/stretching");
+  const catalog = page.getByRole("region", { name: "Каталог растяжки" });
+  await expect(catalog.getByRole("link", { name: "Изменить в «Упражнениях»" })).toHaveAttribute("href", "/exercises?group=STRETCH");
+  await catalog.getByRole("button", { name: "Новое упражнение" }).click();
   const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("radio", { name: "Растяжка" })).toBeChecked();
   await dialog.getByLabel("Название").fill(name);
-  await dialog.getByRole("radio", { name: "Растяжка" }).click();
   await dialog.getByRole("button", { name: "Тазобедренные", exact: true }).click();
   await dialog.getByRole("checkbox", { name: "Одностороннее (каждая сторона)" }).check();
   await dialog.getByRole("button", { name: "Добавить" }).click();
   await expect(dialog).toBeHidden();
+  await expect(catalog.getByRole("heading", { name })).toBeVisible();
 
   await page.goto("/training");
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();

@@ -35,11 +35,14 @@ const toErrors = (messages?: string[]) => messages?.map((message) => ({ message 
 /** Неконтролируемый (с trigger) или контролируемый (open/onOpenChange) диалог. */
 export function ExerciseFormDialog({
   exercise,
+  defaultKind,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }: {
   exercise?: ExerciseItem;
+  /** Вид нового упражнения (кнопка на /stretching — сразу «Растяжка»). */
+  defaultKind?: ExerciseKindName;
   trigger?: ReactElement;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -57,7 +60,7 @@ export function ExerciseFormDialog({
           <DialogDescription>Укажите группы мышц — по ним строится статистика.</DialogDescription>
         </DialogHeader>
         {/* Форма монтируется заново при каждом открытии — состояние сбрасывается. */}
-        {open ? <ExerciseForm exercise={exercise} onDone={() => setOpen(false)} /> : null}
+        {open ? <ExerciseForm exercise={exercise} defaultKind={defaultKind} onDone={() => setOpen(false)} /> : null}
       </DialogContent>
     </Dialog>
   );
@@ -70,12 +73,12 @@ const KINDS: { value: ExerciseKindName; label: string; hint: string }[] = [
   { value: "STRETCH", label: "Растяжка", hint: "Подход — время удержания: бабочка, голубь, наклон к ногам" },
 ];
 
-function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: () => void }) {
+function ExerciseForm({ exercise, defaultKind, onDone }: { exercise?: ExerciseItem; defaultKind?: ExerciseKindName; onDone: () => void }) {
   const [groups, setGroups] = useState<MuscleGroup[]>(exercise?.muscleGroups ?? []);
   const [rest, setRest] = useState(String(exercise?.defaultRestSec ?? 90));
   const formatsOn = useFlag("workout_formats");
   const stretchOn = useFlag("stretching");
-  const [kind, setKind] = useState<ExerciseKindName>(exercise?.kind ?? "REPS");
+  const [kind, setKind] = useState<ExerciseKindName>(exercise?.kind ?? defaultKind ?? "REPS");
   const [zones, setZones] = useState<StretchZone[]>(exercise?.stretchZones ?? []);
   // Виды независимы: «на время» и кардио — от workout_formats, растяжка — от stretching
   const kinds = KINDS.filter((k) => (k.value === "STRETCH" ? stretchOn : k.value === "REPS" || formatsOn));

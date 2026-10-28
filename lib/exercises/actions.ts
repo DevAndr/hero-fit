@@ -71,6 +71,7 @@ export async function saveExerciseAction(
   }
 
   revalidatePath("/exercises");
+  revalidatePath("/stretching");
   return { success: true };
 }
 
@@ -99,6 +100,7 @@ export async function deleteExerciseAction(id: string): Promise<{ ok: boolean; m
   if (count === 0) return { ok: false, message: "Упражнение не найдено или его нельзя удалить" };
 
   revalidatePath("/exercises");
+  revalidatePath("/stretching");
   return { ok: true };
 }
 

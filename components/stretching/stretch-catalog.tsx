@@ -1,5 +1,8 @@
-import { Timer } from "lucide-react";
+import Link from "next/link";
+import { Plus, Timer } from "lucide-react";
+import { ExerciseFormDialog } from "@/components/exercises/exercise-form-dialog";
 import { FavoriteButton, FavoritesProvider } from "@/components/exercises/favorites";
+import { Button, buttonVariants } from "@/components/ui/button";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import { STRETCH_ZONES, primaryZone, stretchZoneLabel } from "@/lib/stretching/zones";
 import { formatClock } from "@/lib/workouts/kinds";
@@ -13,7 +16,24 @@ export function StretchCatalog({ exercises, records }: { exercises: ExerciseItem
 
   return (
     <section aria-label="Каталог растяжки" className="space-y-6">
-      <h2 className="text-lg font-bold">Каталог</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold">Каталог</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Свои упражнения меняются и удаляются в «Упражнениях» — здесь только добавление */}
+          <Link href="/exercises?group=STRETCH" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            Изменить в «Упражнениях»
+          </Link>
+          <ExerciseFormDialog
+            defaultKind="STRETCH"
+            trigger={
+              <Button variant="outline" size="sm">
+                <Plus />
+                Новое упражнение
+              </Button>
+            }
+          />
+        </div>
+      </div>
       <FavoritesProvider exercises={exercises} refreshAfterSave>
         {sections.map(({ zone, items }) => (
           <div key={zone} className="space-y-3">
