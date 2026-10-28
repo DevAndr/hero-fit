@@ -45,7 +45,7 @@ export const FLAGS = {
     expires: "2027-06-30",
   },
   stretching: {
-    description: "Растяжка: упражнения-растяжки, страница /stretching, цели по гибкости",
+    description: "Растяжка: вид упражнений, раздел /stretching, цели по растяжке",
     expires: "2027-06-30",
   },
 } as const satisfies Record<string, { description: string; expires: string }>;
