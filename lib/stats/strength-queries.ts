@@ -64,7 +64,7 @@ async function monthTotals(userId: string, timeZone: string, from: string, to: s
              WHERE x."userId" = ${userId} AND x.reason = 'PERSONAL_RECORD' AND jsonb_typeof(x.meta->'records') = 'array'
                AND rw."finishedAt" >= ${start} AND rw."finishedAt" < ${end})::int AS records
     FROM "Workout"
-    WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "finishedAt" >= ${start} AND "finishedAt" < ${end}
+    WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly" AND "finishedAt" >= ${start} AND "finishedAt" < ${end}
   `;
   return row;
 }

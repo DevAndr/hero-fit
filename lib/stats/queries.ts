@@ -245,7 +245,7 @@ async function dailyRows(userId: string, timeZone: string, since: Date): Promise
                FROM "XpEvent" x WHERE x."workoutId" = w.id AND x.reason = 'PERSONAL_RECORD'
              ), 0) AS prs
       FROM "Workout" w
-      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w."finishedAt" >= ${since}
     )
     SELECT day,
            SUM("totalVolume")::float8 AS volume,
