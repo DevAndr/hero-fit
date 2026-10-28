@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/dal", () => ({ requireUser: vi.fn(async () => ({ id: "u1", timeZone: "Europe/Moscow" })) }));
 const { findFirst, create } = vi.hoisted(() => ({ findFirst: vi.fn(), create: vi.fn() }));
 const tx = { $queryRaw: vi.fn(), goal: { findMany: vi.fn(async () => []), create } };
+create.mockResolvedValue({ id: "g1" });
 vi.mock("@/lib/db", () => ({ db: { exercise: { findFirst }, $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) } }));
 vi.mock("@/lib/achievements/engine", () => ({}));
 vi.mock("@/lib/analytics/queue", () => ({ queueGoal: vi.fn() }));

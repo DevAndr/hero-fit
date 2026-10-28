@@ -13,6 +13,7 @@ import { getOwnTemplateTargets } from "@/lib/templates/queries";
 import { getLastPerformance } from "@/lib/workouts/queries";
 import { normalizeGroups } from "@/lib/workouts/supersets";
 import { plannedTimedSets } from "@/lib/workouts/kinds";
+import { COURSE_REST_SEC, isCourseSkill, sessionPlan, sessionTitle } from "@/lib/stretching/course";
 
 /** `group` — суперсет из шаблона или прошлой тренировки; план календаря — без групп. */
 type PlannedExercise = {
@@ -55,7 +56,7 @@ async function fromTemplate(userId: string, id: string, day?: string): Promise<{
 }
 
 /**
- * source: "empty" | "template:<id>" | "repeat:<workoutId>" | "plan:<ключ вхождения календаря>" | "recovery".
+ * source: "empty" | "template:<id>" | "repeat:<workoutId>" | "plan:<ключ вхождения календаря>" | "recovery" | "course:<id курса>".
  * Создаёт тренировку в статусе PLANNED — её можно дособрать перед стартом. Активную тренировку проверяет вызывающий.
  */
 export async function createPlannedWorkout(userId: string, source: string): Promise<void> {
@@ -65,6 +66,8 @@ export async function createPlannedWorkout(userId: string, source: string): Prom
   let planned: PlannedExercise[] = [];
 
   let planKey: string | undefined;
+  let courseId: string | undefined;
+  let courseSessionNo: number | undefined;
 
   if (kind === "template" && id) {
     const fromTpl = await fromTemplate(userId, id);
@@ -92,6 +95,23 @@ export async function createPlannedWorkout(userId: string, source: string): Prom
         restSec: e.restSec,
         sets: last[e.id]?.sets.length ? last[e.id].sets : Array.from({ length: 3 }, () => ({ weight: 0, reps: 10 })),
       }));
+    }
+  } else if (kind === "course" && id) {
+    // Занятие курса «Шпагат»: план — в коде, упражнения встроенные (по названию); время держим из плана, не из прошлого раза
+    const course = await db.stretchCourse.findFirst({ where: { id, userId, status: { in: ["ACTIVE", "MAINTENANCE"] } } });
+    if (course && isCourseSkill(course.skill)) {
+      const plan = sessionPlan(course.skill, course.nextSession);
+      const found = await db.exercise.findMany({ where: { userId: null, archivedAt: null, name: { in: plan.map((e) => e.name) } }, select: { id: true, name: true } });
+      const byName = new Map(found.map((e) => [e.name, e.id]));
+      courseId = course.id;
+      courseSessionNo = course.nextSession;
+      name = sessionTitle(course.nextSession);
+      // Нет упражнения в базе — пропускаем
+      planned = plan.flatMap((e) => {
+        const exerciseId = byName.get(e.name);
+        if (!exerciseId) return [];
+        return [{ exerciseId, restSec: COURSE_REST_SEC, sets: Array.from({ length: e.sets }, () => ({ weight: 0, reps: 0, durationSec: e.holdSec })) }];
+      });
     }
   } else if (kind === "repeat" && id) {
     const previous = await db.workout.findFirst({
@@ -125,7 +145,7 @@ export async function createPlannedWorkout(userId: string, source: string): Prom
 
   // На время и кардио: без веса и повторов (их мог дать шаблон, задание тренера или план), время и дистанция — как в прошлый раз
   const timedIds = new Set(
-    (await db.exercise.findMany({ where: { id: { in: planned.map((e) => e.exerciseId) }, kind: { not: "REPS" } }, select: { id: true } })).map((e) => e.id),
+    courseId ? [] : (await db.exercise.findMany({ where: { id: { in: planned.map((e) => e.exerciseId) }, kind: { not: "REPS" } }, select: { id: true } })).map((e) => e.id),
   );
   if (timedIds.size) {
     const lastTimed = await getLastPerformance(userId, [...timedIds]);
@@ -138,6 +158,8 @@ export async function createPlannedWorkout(userId: string, source: string): Prom
       name,
       templateId,
       planKey,
+      courseId,
+      courseSessionNo,
       status: WorkoutStatus.PLANNED,
       exercises: {
         // Архивные упражнения выпали из шаблона/повтора — группы суперсетов пересчитываются

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STRETCH_SEED } from "./seed-data";
 import {
   COURSE_SKILLS,
+  courseStartSchema,
   isCourseSkill,
   isMeasureSession,
   nextHoldSec,
@@ -128,5 +129,22 @@ describe("nextHoldSec", () => {
     expect(nextHoldSec("SPLIT_LEFT", 7)).toBe(45);
     expect(nextHoldSec("SPLIT_SIDE", 19)).toBe(60);
     expect(nextHoldSec("SPLIT_SIDE", 25)).toBe(90);
+  });
+});
+
+describe("courseStartSchema", () => {
+  const ok = { skill: "SPLIT_SIDE", remindDays: [0, 2, 4], cm: 25 };
+
+  it("принимает корректный старт", () => {
+    expect(courseStartSchema.safeParse(ok).success).toBe(true);
+    expect(courseStartSchema.safeParse({ ...ok, remindDays: [], cm: 0 }).success).toBe(true);
+  });
+
+  it("отклоняет чужой навык, день 7, повтор дня и неверный замер", () => {
+    expect(courseStartSchema.safeParse({ ...ok, skill: "BRIDGE" }).success).toBe(false);
+    expect(courseStartSchema.safeParse({ ...ok, remindDays: [7] }).success).toBe(false);
+    expect(courseStartSchema.safeParse({ ...ok, remindDays: [1, 1] }).success).toBe(false);
+    expect(courseStartSchema.safeParse({ ...ok, cm: 200.5 }).success).toBe(false);
+    expect(courseStartSchema.safeParse({ ...ok, cm: 12.3 }).success).toBe(false);
   });
 });

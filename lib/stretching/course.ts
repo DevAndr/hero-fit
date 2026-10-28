@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { cmSchema } from "@/lib/goals/cm-schema";
+
 // Курс «Сесть на шпагат»: 30 занятий, 5 этапов по 6. План — в коде, в БД только прогресс.
 
 export const COURSE_SKILLS = ["SPLIT_LEFT", "SPLIT_RIGHT", "SPLIT_SIDE"] as const;
@@ -6,6 +9,16 @@ export type CourseSkill = (typeof COURSE_SKILLS)[number];
 export function isCourseSkill(k: string): k is CourseSkill {
   return (COURSE_SKILLS as readonly string[]).includes(k);
 }
+
+/** Старт курса: навык, дни напоминаний (0 = пн … 6 = вс, без повторов), стартовый замер. */
+export const courseStartSchema = z.object({
+  skill: z.enum(COURSE_SKILLS),
+  remindDays: z
+    .array(z.number().int().min(0).max(6))
+    .max(7)
+    .refine((d) => new Set(d).size === d.length, "Дни не должны повторяться"),
+  cm: cmSchema,
+});
 
 export const COURSE_SESSIONS = 30;
 export const STAGE_SIZE = 6;
