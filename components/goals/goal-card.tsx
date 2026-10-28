@@ -5,6 +5,7 @@ import { EllipsisVertical, Loader2, Target, TrendingUp, TriangleAlert } from "lu
 import { toast } from "sonner";
 import { DeadlinePicker } from "@/components/goals/deadline-picker";
 import { GoalChestButton } from "@/components/goals/goal-chest-button";
+import { StretchMeasure } from "@/components/goals/stretch-measure";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,7 @@ import type { GoalView } from "@/lib/goals/queries";
 import { cn } from "@/lib/utils";
 
 export type GoalCardData = Pick<GoalView, "id" | "type" | "metric" | "title" | "target" | "current" | "progress" | "pace" | "deadline" | "status" | "chestOpenedAt"> &
-  Partial<Pick<GoalView, "forecast" | "weekly" | "stretchUnit">>;
+  Partial<Pick<GoalView, "forecast" | "weekly" | "stretchUnit" | "skill">>;
 
 /** Полоса прогресса цели (общая для страницы, дашборда и тренера). */
 export function GoalBar({ goal }: { goal: Pick<GoalCardData, "title" | "progress" | "status"> }) {
@@ -77,6 +78,7 @@ export function GoalCard({ goal, today, readOnly = false }: { goal: GoalCardData
           Отстаёшь от темпа
         </p>
       ) : null}
+      {!achieved && !readOnly && goal.skill ? <StretchMeasure goalId={goal.id} title={goal.title} skill={goal.skill} /> : null}
       {achieved && !readOnly ? <GoalChestButton goalId={goal.id} title={goal.title} available={!goal.chestOpenedAt} /> : null}
     </article>
   );

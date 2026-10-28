@@ -22,14 +22,14 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
     getGoalsPage(user.id, tz),
     getGoalFormData(user.id, tz),
     againId
-      ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true, stretchUnit: true, createdAt: true, deadline: true } })
+      ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true, stretchUnit: true, stretchSkill: true, skillTitle: true, startValue: true, createdAt: true, deadline: true } })
       : null,
   ]);
   const activeCount = page.active.filter((g) => g.status === "ACTIVE").length;
   // «Поставить снова»: при 5 активных — не открываем (сохранить нельзя); упражнение в архиве — без него, выберешь заново
   const againExercise = againGoal?.exerciseId && [...form.exercises, ...form.stretchExercises].some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
   const again: Partial<GoalInput> | null =
-    // типы, которых форма ещё не принимает (навык — задача 11), и растяжка без флага — без «Поставить снова»
+    // растяжка без флага — без «Поставить снова»
     againGoal && isInputGoalType(againGoal.type) && (form.stretch || !isStretchGoal(againGoal.type)) && activeCount < GOALS_ACTIVE_MAX
       ? {
           type: againGoal.type,
@@ -39,6 +39,10 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
           // регулярность — та же норма и то же число недель
           ...(againGoal.type === "STRETCH_WEEKLY"
             ? { stretchUnit: againGoal.stretchUnit ?? undefined, weeks: goalStretchWeeks(againGoal, tz).length || undefined }
+            : {}),
+          // навык — тот же навык, замер — стартовый прежней цели (хозяин обновит на актуальный)
+          ...(againGoal.type === "STRETCH_SKILL"
+            ? { stretchSkill: againGoal.stretchSkill ?? undefined, skillTitle: againGoal.skillTitle ?? undefined, startCm: againGoal.startValue || undefined }
             : {}),
         }
       : null;

@@ -6,6 +6,7 @@ import { isEnabled } from "@/lib/flags/server";
 import { getGoalForecasts, type GoalForecastView } from "@/lib/goals/forecast-queries";
 import { dayKey } from "@/lib/daily-login";
 import { localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
+import { skillMeasure } from "@/lib/stretching/skills";
 import { goalStretchWeeks, weeklyStatus, weeklySums, weeklyValue, type WeekSum, type WeeklyStatus } from "@/lib/goals/stretch-weekly";
 import {
   deadlineEnd,
@@ -32,8 +33,12 @@ export type GoalView = GoalRow & {
   forecast: GoalForecastView | null;
   /** Только STRETCH_WEEKLY: засчитанные недели и «эта неделя». */
   weekly: Pick<WeeklyStatus, "done" | "total" | "current"> | null;
+  /** Только STRETCH_SKILL: что мерить, стартовый замер (день постановки) и замеры за 90 дней. */
+  skill: SkillView | null;
   closedAt: Date | null;
 };
+
+export type SkillView = { measure: string; start: { date: string; cm: number }; measurements: { date: string; cm: number }[] };
 
 const goalSelect = {
   id: true,
@@ -44,6 +49,8 @@ const goalSelect = {
   startValue: true,
   deadline: true,
   stretchUnit: true,
+  stretchSkill: true,
+  skillTitle: true,
   status: true,
   createdAt: true,
   achievedAt: true,
@@ -105,6 +112,11 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
   const weight = needWeight ? await latestWeight(client, userId) : null;
   // Регулярность не зависит от флага `stretching`: поставленные цели считаются и без него
   const weekly = await getWeeklyStatuses(client, userId, goals, tz);
+  // Навык: значение — последний замер (нет замеров — стартовый, он в startValue)
+  const skillIds = goals.filter((g) => g.type === "STRETCH_SKILL").map((g) => g.id);
+  const lastCm = skillIds.length
+    ? await client.stretchMeasurement.findMany({ where: { goalId: { in: skillIds } }, orderBy: { date: "desc" }, distinct: ["goalId"], select: { goalId: true, cm: true } })
+    : [];
 
   for (const g of goals) {
     switch (g.type) {
@@ -118,6 +130,11 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
       case "BODY_WEIGHT":
         out.set(g.id, weight ?? g.startValue);
         break;
+      case "STRETCH_SKILL": {
+        const last = lastCm.find((m) => m.goalId === g.id);
+        out.set(g.id, last ? Number(last.cm) : g.startValue);
+        break;
+      }
       case "STRETCH_WEEKLY": {
         const w = weekly.get(g.id);
         out.set(g.id, w ? weeklyValue(w) : 0);
@@ -195,11 +212,32 @@ function toRow(g: GoalWithExercise): GoalRow & { closedAt: Date | null; exercise
   return { ...rest, exerciseName: exercise?.name ?? null };
 }
 
+/** Навыки: замеры за 90 дней и «стартовая» точка графика — на день постановки цели. */
+async function getSkillViews(client: Client, goals: GoalRow[], tz: string, now: Date): Promise<Map<string, SkillView>> {
+  const out = new Map<string, SkillView>();
+  if (!goals.length) return out;
+  const from = new Date(Date.parse(`${dayKey(now, tz)}T12:00:00Z`) - 90 * 86_400_000).toISOString().slice(0, 10);
+  const rows = await client.stretchMeasurement.findMany({
+    where: { goalId: { in: goals.map((g) => g.id) }, date: { gte: from } },
+    orderBy: { date: "asc" },
+    select: { goalId: true, date: true, cm: true },
+  });
+  for (const g of goals) {
+    out.set(g.id, {
+      measure: skillMeasure(g),
+      start: { date: dayKey(g.createdAt, tz), cm: g.startValue },
+      measurements: rows.filter((m) => m.goalId === g.id).map((m) => ({ date: m.date, cm: Number(m.cm) })),
+    });
+  }
+  return out;
+}
+
 async function toViews(client: Client, userId: string, goals: GoalWithExercise[], tz: string, now = new Date()): Promise<GoalView[]> {
   const rows = goals.map(toRow);
   const active = rows.filter((g) => g.status === GoalStatus.ACTIVE);
   const values = await getCurrentValues(client, userId, active, tz);
   const weekly = await getWeeklyStatuses(client, userId, rows, tz, now);
+  const skills = await getSkillViews(client, rows.filter((g) => g.type === "STRETCH_SKILL"), tz, now);
   const forecasts = await getGoalForecasts(
     client,
     userId,
@@ -219,6 +257,7 @@ async function toViews(client: Client, userId: string, goals: GoalWithExercise[]
       pace: closed ? null : paceStatus(g, progress, now, tz),
       forecast: closed ? null : (forecasts.get(g.id) ?? null),
       weekly: weekly.get(g.id) ?? null,
+      skill: skills.get(g.id) ?? null,
     };
   });
 }

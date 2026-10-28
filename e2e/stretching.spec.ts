@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { addFlagUser, createGoal, goalOf, goalsOf, makeFriends, mondayWeeksAgo, notificationTitles, notificationUrls, seedStretchSessions, userId, withDb } from "./db";
-import { addToWorkout, registerUser, runTick } from "./helpers";
+import { addFlagUser, createGoal, goalOf, goalsOf, makeFriends, mondayWeeksAgo, notificationTitles, notificationUrls, seedStretchSessions, userExists, userId, withDb } from "./db";
+import { addToWorkout, PASSWORD, registerUser, runTick } from "./helpers";
 import { localAt } from "./tz";
 
 const STRETCH = "Кошка-корова";
@@ -213,4 +213,72 @@ test("weekly goal: set from /stretching, a counted week from history, a week wit
   await expect(again.getByRole("radio", { name: "Сессии" })).toBeChecked();
   await expect(again.getByLabel("Сессий в неделю")).toHaveValue("2");
   await expect(again.getByLabel("Сколько недель")).toHaveValue("2");
+});
+
+test("skill goal: set, one measurement per day (a repeat replaces it), 0 reaches it with a chest; data export and account deletion", async ({ page }) => {
+  test.slow();
+  const u = await registerUser(page, "Цель_навык");
+  await addFlagUser("stretching", u.login);
+
+  await page.goto("/stretching");
+  await page.getByRole("button", { name: "Поставить цель" }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая цель" });
+  await dialog.getByRole("button", { name: "Навык" }).click();
+  // Проверки: без навыка и с нулевым замером — отказ
+  await dialog.getByLabel("Замер сейчас, см").fill("10");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Выбери навык или назови свой");
+  await dialog.getByRole("radio", { name: "Ладони в пол в наклоне" }).click();
+  await dialog.getByLabel("Замер сейчас, см").fill("0");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Замер — от 0,5 до 200 см, шаг 0,5");
+  await dialog.getByLabel("Замер сейчас, см").fill("10");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog).toBeHidden();
+
+  const title = "Ладони в пол в наклоне";
+  const card = page.getByRole("region", { name: "Цели по растяжке" }).getByRole("article", { name: title });
+  await expect(card).toContainText("Осталось 10 см");
+  await expect(card).toContainText("Замеряйте раз в неделю в одно и то же время после разминки");
+
+  // Вторая активная цель по тому же навыку — отказ
+  await page.getByRole("button", { name: "Поставить цель" }).click();
+  await dialog.getByRole("button", { name: "Навык" }).click();
+  await dialog.getByRole("radio", { name: "Ладони в пол в наклоне" }).click();
+  await dialog.getByLabel("Замер сейчас, см").fill("8");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Цель по этому навыку уже есть");
+  await page.keyboard.press("Escape");
+
+  // Замер, повтор в тот же день заменяет
+  await card.getByLabel("Замер, см").fill("6");
+  await card.getByRole("button", { name: "Записать замер" }).click();
+  await expect(card).toContainText("Осталось 6 см");
+  await card.getByLabel("Замер, см").fill("4");
+  await card.getByRole("button", { name: "Записать замер" }).click();
+  await expect(card).toContainText("Осталось 4 см");
+  await expect(card.getByTestId("stretch-measurement")).toHaveCount(1);
+
+  // Выгрузка «Мои данные»
+  const exported = await (await page.request.get("/account/export/json")).json();
+  expect(exported.stretchMeasurements).toEqual([{ skill: "FOLD_STANDING", date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), cm: 4 }]);
+
+  // 0 — цель достигнута, сундук на /goals
+  await card.getByLabel("Замер, см").fill("0");
+  await card.getByRole("button", { name: "Записать замер" }).click();
+  await expect(card).toBeHidden(); // достигнутая цель ушла с /stretching
+  await page.goto("/goals");
+  const done = page.getByRole("region", { name: "Активные цели" }).getByRole("article", { name: title });
+  await expect(done).toContainText("Цель достигнута");
+  await expect(done.getByRole("button", { name: "Открыть сундук" })).toBeVisible();
+  expect(await notificationTitles(u.login)).toContain("🎯 Цель достигнута");
+
+  // Удаление аккаунта уносит и замеры
+  await page.goto("/settings");
+  await page.getByRole("region", { name: "Удаление аккаунта" }).getByRole("button", { name: "Удалить аккаунт" }).click();
+  const del = page.getByRole("alertdialog", { name: "Удалить аккаунт?" });
+  await del.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await del.getByRole("button", { name: "Удалить навсегда" }).click();
+  await expect(page).toHaveURL(/\/\?deleted=1$/);
+  expect(await userExists(u.login)).toBe(false);
 });

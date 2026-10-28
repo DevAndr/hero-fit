@@ -31,7 +31,8 @@ export async function getGoalForecasts(
   const strength = goals.filter((g) => g.type === "STRENGTH" && g.exerciseId && g.metric);
   const weightGoals = goals.filter((g) => g.type === "BODY_WEIGHT");
   const holdGoals = goals.filter((g) => g.type === "STRETCH_HOLD" && g.exerciseId);
-  if (!strength.length && !weightGoals.length && !holdGoals.length) return out;
+  const skillGoals = goals.filter((g) => g.type === "STRETCH_SKILL");
+  if (!strength.length && !weightGoals.length && !holdGoals.length && !skillGoals.length) return out;
   if (!(await isEnabled("strength_analytics", userId))) return out; // флаг владельца целей
 
   const today = dayKey(now, tz);
@@ -73,6 +74,21 @@ export async function getGoalForecasts(
       const points = bests.filter((b) => b.exerciseId === g.exerciseId).map((b) => ({ week: b.week, value: b.value }));
       const f = forecastGoal({ points, current: g.current, target: g.target, deadline: g.deadline, today });
       if (f) out.set(g.id, { text: forecastText(f, { unit: "с", bodyWeight: false, today }), short: forecastShort(f, today) });
+    }
+  }
+  if (skillGoals.length) {
+    // Последний замер недели; ниже — лучше, как у веса тела вниз
+    const rows = await client.stretchMeasurement.findMany({
+      where: { goalId: { in: skillGoals.map((g) => g.id) }, date: { gte: firstWeek } },
+      orderBy: { date: "asc" },
+      select: { goalId: true, date: true, cm: true },
+    });
+    for (const g of skillGoals) {
+      const byWeek = new Map<string, number>();
+      for (const m of rows) if (m.goalId === g.id) byWeek.set(weekStart(m.date), Number(m.cm));
+      const points = [...byWeek].map(([week, value]) => ({ week, value }));
+      const f = forecastGoal({ points, current: g.current, target: g.target, deadline: g.deadline, today });
+      if (f) out.set(g.id, { text: forecastText(f, { unit: "см", bodyWeight: false, today }), short: forecastShort(f, today) });
     }
   }
   if (weightGoals.length) {

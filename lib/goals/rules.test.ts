@@ -11,6 +11,7 @@ import {
   goalSchema,
   goalTitle,
   isAchieved,
+  isInputGoalType,
   isStretchGoal,
   paceStatus,
   suggestGoals,
@@ -272,5 +273,45 @@ describe("цель «Регулярность» (растяжка)", () => {
       title: "Неделя без растяжки — цель «3 растяжки в неделю · 4 недели» не выполнена",
       body: "Пройдено 25 %. Поставить снова?",
     });
+  });
+});
+
+describe("цель «Навык»", () => {
+  const skill = { type: "STRETCH_SKILL" as const, stretchSkill: "FOLD_STANDING" as const, startCm: 10, target: 0, deadline: null };
+
+  test("схема: навык или своё название, стартовый замер 0,5…200 шаг 0,5", () => {
+    expect(goalSchema.safeParse(skill).success).toBe(true);
+    expect(goalSchema.safeParse({ ...skill, stretchSkill: undefined }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...skill, stretchSkill: undefined, skillTitle: "Складка у стены" }).success).toBe(true);
+    expect(goalSchema.safeParse({ ...skill, stretchSkill: undefined, skillTitle: "x".repeat(61) }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...skill, startCm: 0 }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...skill, startCm: 200.5 }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...skill, startCm: 10.3 }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...skill, startCm: 12.5 }).success).toBe(true);
+    expect(goalSchema.safeParse({ ...skill, target: 5 }).success).toBe(false);
+    expect(isInputGoalType("STRETCH_SKILL")).toBe(true);
+  });
+
+  test("canCreate: одна активная цель на навык", () => {
+    const ctx = { active: [{ type: "STRETCH_SKILL" as const, stretchSkill: "FOLD_STANDING" }], current: 0, isBodyweight: false, hasWeight: true };
+    expect(canCreate(skill, ctx)).toBe("Цель по этому навыку уже есть");
+    expect(canCreate({ ...skill, stretchSkill: "FOLD_SEATED" }, ctx)).toBeNull();
+    const own = { ...skill, stretchSkill: undefined, skillTitle: "Складка у стены" };
+    const ctxOwn = { ...ctx, active: [{ type: "STRETCH_SKILL" as const, stretchSkill: null, skillTitle: "складка у стены " }] };
+    expect(canCreate(own, ctxOwn)).toBe("Цель по этому навыку уже есть");
+    expect(canCreate(own, ctx)).toBeNull();
+  });
+
+  test("название, текст значения и прогресс «ниже — лучше»", () => {
+    const g = { type: "STRETCH_SKILL" as const, metric: null, target: 0, startValue: 10, stretchSkill: "FOLD_STANDING" };
+    expect(goalTitle(g)).toBe("Ладони в пол в наклоне");
+    expect(goalTitle({ ...g, stretchSkill: null, skillTitle: "Складка у стены" })).toBe("Складка у стены");
+    expect(goalValueText(g, 6, 0)).toBe("Осталось 6 см");
+    expect(goalValueText(g, 2.5, 0)).toBe("Осталось 2,5 см");
+    expect(goalProgress(g, 10)).toBe(0);
+    expect(goalProgress(g, 4)).toBeCloseTo(0.6);
+    expect(isAchieved(g, 0.5)).toBe(false);
+    expect(isAchieved(g, 0)).toBe(true);
+    expect(goalProgress(g, 0)).toBe(1);
   });
 });

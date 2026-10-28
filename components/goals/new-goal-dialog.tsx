@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
-import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, PersonStanding, Plus, Repeat, Scale, Sparkles, Target } from "lucide-react";
+import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, PersonStanding, Plus, Repeat, Ruler, Scale, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { DeadlinePicker } from "@/components/goals/deadline-picker";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { formatClock, plural } from "@/lib/format";
 import { createGoalAction } from "@/lib/goals/actions";
 import type { GoalFormData } from "@/lib/goals/queries";
 import { GOALS_ACTIVE_MAX, isStretchGoal, type GoalInput, type GoalSuggestion, type StrengthMetric } from "@/lib/goals/rules";
+import { CUSTOM_SKILL_MEASURE, isSkillKey, STRETCH_SKILL_KEYS, STRETCH_SKILLS } from "@/lib/stretching/skills";
 import { WEEKLY_WEEKS_MAX, WEEKLY_WEEKS_MIN } from "@/lib/goals/stretch-weekly";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const TYPES: { type: GoalInput["type"]; label: string; icon: typeof Dumbbell; hi
 const STRETCH_TYPES: typeof TYPES = [
   { type: "STRETCH_WEEKLY", label: "Регулярность", icon: Repeat, hint: "Растяжка каждую неделю: сессии или минуты (заминка тоже считается)" },
   { type: "STRETCH_HOLD", label: "Удержание", icon: PersonStanding, hint: "Сколько секунд держать позу" },
+  { type: "STRETCH_SKILL", label: "Навык", icon: Ruler, hint: "Шпагат, наклон, мостик: замеряйте расстояние до цели, пока оно не станет 0" },
 ];
 
 type StretchUnit = "SESSIONS" | "MINUTES";
@@ -67,6 +69,8 @@ function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null, uni
       return "Цель, секунд (или м:сс)";
     case "STRETCH_WEEKLY":
       return unit === "MINUTES" ? "Минут в неделю" : "Сессий в неделю";
+    case "STRETCH_SKILL":
+      return "Цель, см";
   }
 }
 
@@ -80,8 +84,12 @@ type Draft = {
   /** Регулярность: что считаем и сколько недель. */
   stretchUnit: StretchUnit;
   weeks: string;
+  /** Навык: ключ из списка или «custom» (своё название), стартовый замер в см. */
+  skill: string | null;
+  skillTitle: string;
+  startCm: string;
 };
-const emptyDraft: Draft = { type: null, exerciseId: null, metric: null, target: "", deadline: null, currentWeight: "", stretchUnit: "SESSIONS", weeks: "4" };
+const emptyDraft: Draft = { type: null, exerciseId: null, metric: null, target: "", deadline: null, currentWeight: "", stretchUnit: "SESSIONS", weeks: "4", skill: null, skillTitle: "", startCm: "" };
 
 function draftOf(g: Partial<GoalInput>): Draft {
   return {
@@ -93,6 +101,9 @@ function draftOf(g: Partial<GoalInput>): Draft {
     currentWeight: "",
     stretchUnit: g.stretchUnit ?? "SESSIONS",
     weeks: g.weeks !== undefined ? String(g.weeks) : "4",
+    skill: g.stretchSkill ?? (g.skillTitle ? "custom" : null),
+    skillTitle: g.skillTitle ?? "",
+    startCm: g.startCm !== undefined ? String(g.startCm).replace(".", ",") : "",
   };
 }
 
@@ -186,16 +197,27 @@ export function NewGoal({
   const submit = () =>
     startTransition(async () => {
       if (!draft.type) return;
+      const skill = draft.type === "STRETCH_SKILL";
       const input: GoalInput = {
         type: draft.type,
-        target: draft.type === "STRETCH_HOLD" ? seconds(draft.target) : num(draft.target),
+        target: skill ? 0 : draft.type === "STRETCH_HOLD" ? seconds(draft.target) : num(draft.target),
+        ...(skill
+          ? {
+              ...(isSkillKey(draft.skill) ? { stretchSkill: draft.skill } : draft.skill === "custom" ? { skillTitle: draft.skillTitle } : {}),
+              startCm: num(draft.startCm),
+            }
+          : {}),
         deadline: draft.deadline,
         ...(draft.type === "STRETCH_HOLD" ? { exerciseId: draft.exerciseId ?? undefined } : {}),
         ...(draft.type === "STRETCH_WEEKLY" ? { stretchUnit: draft.stretchUnit, weeks: num(draft.weeks), deadline: null } : {}),
         ...(draft.type === "STRENGTH" ? { exerciseId: draft.exerciseId ?? undefined, metric: draft.metric ?? undefined } : {}),
         ...(draft.type === "BODY_WEIGHT" && form.weight === null ? { currentWeight: num(draft.currentWeight) } : {}),
       };
-      if (!draft.target.trim() || !Number.isFinite(input.target)) {
+      if (skill && (!draft.startCm.trim() || !Number.isFinite(input.startCm))) {
+        setErrors({ startCm: "Укажи замер" });
+        return;
+      }
+      if (!skill && (!draft.target.trim() || !Number.isFinite(input.target))) {
         setErrors({ target: "Укажи цель" });
         return;
       }
@@ -254,7 +276,7 @@ export function NewGoal({
           {!draft.type ? (
             <div className="grid grid-cols-2 gap-2">
               {types.map(({ type, label, icon: Icon }) => (
-                <Button key={type} type="button" variant="outline" className="h-16 flex-col gap-1" onClick={() => set({ type, metric: null, exerciseId: null, target: "", stretchUnit: "SESSIONS", weeks: "4" })}>
+                <Button key={type} type="button" variant="outline" className="h-16 flex-col gap-1" onClick={() => set({ type, metric: null, exerciseId: null, target: "", stretchUnit: "SESSIONS", weeks: "4", skill: null, skillTitle: "", startCm: "" })}>
                   <Icon className="size-5 text-primary" />
                   {label}
                 </Button>
@@ -383,7 +405,62 @@ export function NewGoal({
                 </div>
               ) : null}
 
-              {draft.type !== "STRENGTH" || draft.metric ? (
+              {draft.type === "STRETCH_SKILL" ? (
+                <>
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium">Навык</p>
+                    <RadioGroup
+                      aria-label="Навык"
+                      aria-invalid={errors.stretchSkill ? true : undefined}
+                      aria-describedby={errors.stretchSkill ? "goal-skill-error" : undefined}
+                      value={draft.skill ?? ""}
+                      onValueChange={(v) => set({ skill: v as string })}
+                      className="flex flex-col gap-1"
+                    >
+                      {[...STRETCH_SKILL_KEYS.map((k) => ({ key: k as string, label: STRETCH_SKILLS[k].title })), { key: "custom", label: "Свой навык" }].map((s) => (
+                        <Radio.Root
+                          key={s.key}
+                          value={s.key}
+                          aria-label={s.label}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-left text-sm transition-colors outline-none",
+                            "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                            "data-checked:border-primary data-checked:bg-primary/10",
+                          )}
+                        >
+                          {s.label}
+                        </Radio.Root>
+                      ))}
+                    </RadioGroup>
+                    <FieldError id="goal-skill-error" text={errors.stretchSkill} />
+                  </div>
+                  {draft.skill === "custom" ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="goal-skill-title">Название навыка</Label>
+                      <Input id="goal-skill-title" maxLength={60} value={draft.skillTitle} aria-invalid={errors.skillTitle ? true : undefined} onChange={(e) => set({ skillTitle: e.target.value })} />
+                      <FieldError id="goal-skill-title-error" text={errors.skillTitle} />
+                    </div>
+                  ) : null}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="goal-start-cm">Замер сейчас, см</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Мерка: {isSkillKey(draft.skill) ? STRETCH_SKILLS[draft.skill].measure : CUSTOM_SKILL_MEASURE}. Цель — 0 см
+                    </p>
+                    <Input
+                      id="goal-start-cm"
+                      inputMode="decimal"
+                      className="max-w-32"
+                      value={draft.startCm}
+                      aria-invalid={errors.startCm ? true : undefined}
+                      aria-describedby={errors.startCm ? "goal-start-cm-error" : undefined}
+                      onChange={(e) => set({ startCm: e.target.value })}
+                    />
+                    <FieldError id="goal-start-cm-error" text={errors.startCm} />
+                  </div>
+                </>
+              ) : null}
+
+              {draft.type !== "STRETCH_SKILL" && (draft.type !== "STRENGTH" || draft.metric) ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="goal-target">{targetLabel(draft.type, draft.metric, draft.stretchUnit)}</Label>
                   {currentText ? <p className="text-sm text-muted-foreground">Сейчас: {currentText}</p> : null}

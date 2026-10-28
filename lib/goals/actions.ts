@@ -51,7 +51,7 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
   if (!deadline.success) return { ok: false, error: deadline.error.issues[0].message, field: "deadline" };
   const g = { ...parsed.data, deadline: deadline.data };
 
-  if (weekly && !(await isEnabled("stretching", user.id))) return { ok: false, error: "Цели растяжки недоступны" };
+  if ((weekly || g.type === "STRETCH_SKILL") && !(await isEnabled("stretching", user.id))) return { ok: false, error: "Цели растяжки недоступны" };
   let isBodyweight = false;
   if (g.type === "STRETCH_HOLD") {
     // Новые типы растяжки ставятся только при флаге; уже поставленные от него не зависят
@@ -82,10 +82,11 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
     }
     const current = await currentValueFor(tx, user.id, g, tz);
     if (current === null) return { ok: false, error: "Сначала запиши текущий вес", field: "currentWeight" };
-    const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true } });
+    const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true, stretchSkill: true, skillTitle: true } });
     const refusal = canCreate(g, { active, current, isBodyweight, hasWeight: true });
     // Отказ — откатом: взвешивание из формы без цели не сохраняется
     if (refusal) throw new Refused({ ok: false, error: refusal, field: refusal === "Уже достигнуто" ? "target" : undefined });
+    const skill = g.type === "STRETCH_SKILL";
     const counter = g.type === "WORKOUTS" || g.type === "HOURS" || weekly;
     await tx.goal.create({
       data: {
@@ -94,9 +95,12 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
         exerciseId: g.type === "STRENGTH" || g.type === "STRETCH_HOLD" ? g.exerciseId : null,
         metric: g.type === "STRENGTH" ? g.metric : null,
         target: g.target,
-        startValue: counter ? 0 : current,
+        startValue: skill ? g.startCm! : counter ? 0 : current,
         deadline: g.deadline,
         stretchUnit: weekly ? g.stretchUnit : null,
+        // Навык: ключ из списка или своё название
+        stretchSkill: skill ? (g.stretchSkill ?? null) : null,
+        skillTitle: skill && !g.stretchSkill ? g.skillTitle : null,
         createdAt: now,
         reminderAt: initialReminderAt(g.deadline, now, tz),
       },
