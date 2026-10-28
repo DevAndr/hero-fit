@@ -309,7 +309,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
     }
   }, [workout, restore]);
 
-  const totals = workoutTotals(draft.exercises.map((e, i) => ({ ...e, kind: state.exercises[i]?.exercise.kind })));
+  const totals = workoutTotals(draft.exercises.map((e, i) => ({ ...e, kind: state.exercises[i]?.exercise.kind, perSide: state.exercises[i]?.exercise.perSide })));
   const pendingSets = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => !s.completedAt).length, 0);
   const added = useMemo(() => new Set(state.exercises.map((e) => e.exercise.id)), [state.exercises]);
 
@@ -322,6 +322,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
           name: e.name,
           muscleGroups: e.muscleGroups,
           stretchZones: e.stretchZones,
+          perSide: e.perSide,
           isBodyweight: e.isBodyweight,
           kind: e.kind,
         },

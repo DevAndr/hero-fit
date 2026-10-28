@@ -1,7 +1,7 @@
 "use client";
 
 import { SupersetLabel } from "@/components/training/superset-frame";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ChevronUp, EllipsisVertical, MessageCircleQuestion, Minus, Play, Plus, Timer, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type Dispatch, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,11 @@ import { LottiePlayer, preloadLottie, prefersReducedMotion } from "@/components/
 import { PlateTools } from "@/components/training/plate-tools";
 import type { ProgressionHint } from "@/lib/progress/progression";
 import type { LastPerformance } from "@/lib/workouts/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
 import { cardioWarning, typoWarning, type TypoReference } from "@/lib/workouts/typo";
-import { isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
+import { formatClock, isStretch, isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
+import { areaLabels } from "@/lib/exercises/area";
+import { holdTarget, startHold, stoppedSec, type HoldRun } from "@/lib/stretching/hold";
+import { HoldTimer } from "@/components/training/hold-timer";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
 import { ExerciseSwapDialog, type SwapSource } from "@/components/training/exercise-swap-dialog";
@@ -58,7 +60,7 @@ function CollapsedExercise({
   const kind: ExerciseKindName = item.exercise.kind ?? "REPS";
   const working = item.sets.filter((s) => !s.isWarmup);
   const summary = isTimed(kind)
-    ? working.map((s) => timedSetText(kind, { durationSec: setDurationSec(kind, s.duration), distanceM: Math.round(parseNumber(s.distance) * 1000) })).join(", ")
+    ? working.map((s) => timedSetText(kind, { durationSec: setDurationSec(kind, s.duration), distanceM: Math.round(parseNumber(s.distance) * 1000) }, item.exercise.perSide)).join(", ")
     : formatSets(working.map((s) => ({ weight: parseNumber(s.weight), reps: Math.round(parseNumber(s.reps)) })));
   return (
     <section className="rounded-xl border bg-card" aria-label={item.exercise.name} data-exercise-key={item.key} data-collapsed>
@@ -134,7 +136,14 @@ export function ExerciseBlock({
   const kind: ExerciseKindName = exercise.kind ?? "REPS";
   // На время и кардио: без веса, повторов, разминки и запаса повторов; у кардио своё «точно столько?» (cardioWarning)
   const timed = isTimed(kind);
-  const columns = kind === "TIME" ? "grid-cols-[2.5rem_1fr_2.75rem_2rem]" : "grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem]";
+  // Растяжка: время удержания и кнопка ▶ «Держать»
+  const stretch = isStretch(kind);
+  const columns =
+    kind === "TIME"
+      ? "grid-cols-[2.5rem_1fr_2.75rem_2rem]"
+      : stretch
+        ? "grid-cols-[2.5rem_1fr_2.25rem_2.75rem_2rem]"
+        : "grid-cols-[2.5rem_1fr_1fr_2.75rem_2rem]";
   const doneCount = item.sets.filter((s) => s.completedAt).length;
   // Подходы, у которых сейчас играет анимация «готово» вместо кнопки
   // Строка, где сейчас печатают: «точно столько?» не мигает на промежуточных цифрах
@@ -148,6 +157,36 @@ export function ExerciseBlock({
     });
   useEffect(() => preloadLottie("success"), []);
 
+  // Идущий отсчёт «Держать» (один на упражнение)
+  const [hold, setHold] = useState<{ setKey: string; run: HoldRun } | null>(null);
+  /** Прошлое время: ближайший выше подход с временем, иначе тот же по счёту в прошлый раз. */
+  const prevDuration = (i: number) => {
+    for (let j = i - 1; j >= 0; j--) {
+      const sec = setDurationSec(kind, item.sets[j].duration);
+      if (sec > 0) return sec;
+    }
+    return (last?.sets[i] ?? last?.sets.at(-1))?.durationSec ?? null;
+  };
+  const beginHold = (set: SetState, i: number, now: number) => {
+    const sec = holdTarget({ durationSec: setDurationSec(kind, set.duration) || null }, prevDuration(i));
+    setHold({ setKey: set.key, run: startHold(now, sec, Boolean(exercise.perSide)) });
+  };
+  /** Удержали `sec` — время в подход, подход выполнен, дальше обычный отдых. */
+  const finishHold = (setKey: string, sec: number | null) => {
+    setHold(null);
+    const set = item.sets.find((s) => s.key === setKey);
+    if (!set) return;
+    if (sec === null) {
+      toast("Меньше 5 секунд — подход не отмечен");
+      return;
+    }
+    dispatch({ type: "updateSet", key: item.key, setKey, patch: { duration: formatClock(sec) } });
+    if (set.completedAt) return;
+    dispatch({ type: "toggleComplete", key: item.key, setKey, now: new Date().toISOString() });
+    haptic("light");
+    onComplete(item, set);
+  };
+
   const [swapOpen, setSwapOpen] = useState(false);
   const swappedTo = useRef<string | null>(null);
   const freshHeading = (key: string) => document.querySelector<HTMLElement>(`[data-exercise-key="${key}"] h3`);
@@ -159,7 +198,7 @@ export function ExerciseBlock({
     dispatch({
       type: "replaceExercise",
       key: item.key,
-      exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, stretchZones: target.stretchZones, isBodyweight: target.isBodyweight, kind: target.kind },
+      exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, stretchZones: target.stretchZones, perSide: target.perSide, isBodyweight: target.isBodyweight, kind: target.kind },
       restSec: target.defaultRestSec,
       last: swap?.last ?? {},
       newKey,
@@ -183,13 +222,14 @@ export function ExerciseBlock({
             {exercise.name}
           </h3>
           <p className="text-xs text-muted-foreground">
-            {exercise.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")} · {doneCount}/{item.sets.length}
+            {areaLabels(exercise).join(" · ")}
+            {exercise.perSide ? " · каждая сторона" : null} · {doneCount}/{item.sets.length}
           </p>
           {last?.sets.length ? (
             <p className="mt-1 text-xs text-muted-foreground">
               Прошлый раз:{" "}
               <span className="text-foreground">
-                {timed ? last.sets.map((s) => timedSetText(kind, s)).join(", ") : formatSets(last.sets)}
+                {timed ? last.sets.map((s) => timedSetText(kind, s, exercise.perSide)).join(", ") : formatSets(last.sets)}
               </span>
             </p>
           ) : null}
@@ -289,6 +329,7 @@ export function ExerciseBlock({
           {kind === "CARDIO" ? <span>км</span> : null}
           {timed ? <span>время</span> : <span>{exercise.isBodyweight ? "доп. кг" : "кг"}</span>}
           {timed ? null : <span>повт.</span>}
+          {stretch ? <span className="sr-only">Держать</span> : null}
           <span className="sr-only">Выполнен</span>
           <span className="sr-only">Удалить</span>
         </div>
@@ -297,7 +338,7 @@ export function ExerciseBlock({
           const done = Boolean(set.completedAt);
           const workingNumber = item.sets.slice(0, i + 1).filter((s) => !s.isWarmup).length;
           const typo =
-            set.isWarmup || editing === set.key || kind === "TIME"
+            set.isWarmup || editing === set.key || kind === "TIME" || stretch
               ? null
               : kind === "CARDIO"
                 ? cardioWarning({ durationSec: setDurationSec(kind, set.duration), distanceM: Math.round(parseNumber(set.distance) * 1000) })
@@ -348,7 +389,7 @@ export function ExerciseBlock({
                     value={set.duration}
                     placeholder="0:00"
                     aria-label={`Время, подход ${i + 1}`}
-                    title="Минуты и секунды: 1:30, 1,30 или 90"
+                    title={stretch ? "Секунды или минуты: 45, 1:30" : "Минуты и секунды: 1:30, 1,30 или 90"}
                     onChange={(e) => dispatch({ type: "updateSet", key: item.key, setKey: set.key, patch: { duration: e.target.value } })}
                     onBlur={(e) => {
                       // «1,30» и «90» → «1:30»: видно, как поняли ввод
@@ -358,6 +399,24 @@ export function ExerciseBlock({
                     }}
                     className="h-9 text-center tabular-nums"
                   />
+                ) : null}
+                {stretch ? (
+                  done ? (
+                    <span />
+                  ) : (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Держать"
+                      title="Держать: отсчёт удержания"
+                      disabled={Boolean(hold)}
+                      onClick={() => beginHold(set, i, Date.now())}
+                      className="size-9 text-primary"
+                    >
+                      <Play />
+                    </Button>
+                  )
                 ) : null}
                 {timed ? null : (
                   <>
@@ -438,6 +497,15 @@ export function ExerciseBlock({
                   <X className="size-4" />
                 </button>
               </div>
+              {hold?.setKey === set.key ? (
+                <HoldTimer
+                  run={hold.run}
+                  title={exercise.name}
+                  onDone={() => finishHold(set.key, Math.round((hold.run.phases[0].endsAt - hold.run.startedAt) / 1000))}
+                  onStop={() => finishHold(set.key, stoppedSec(hold.run, Date.now()))}
+                  onCancel={() => setHold(null)}
+                />
+              ) : null}
               {typo ? (
                 <p className="-mt-0.5 px-2 pl-12 text-xs text-streak" data-testid="typo-warning">
                   {typo}

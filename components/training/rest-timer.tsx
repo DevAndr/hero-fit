@@ -47,7 +47,8 @@ export function useRestTimer() {
   return api;
 }
 
-function createTicker(onTick: () => void) {
+/** Тики раз в 250 мс из Web Worker (в фоне троттлятся меньше); возвращает остановку. Им же идёт отсчёт «Держать». */
+export function createTicker(onTick: () => void) {
   try {
     const source = "let id;onmessage=e=>{clearInterval(id);if(e.data==='start')id=setInterval(()=>postMessage(0),250)}";
     const worker = new Worker(URL.createObjectURL(new Blob([source], { type: "text/javascript" })));
@@ -79,15 +80,18 @@ function playBeep() {
   }
 }
 
-function notifyDone(label: string) {
+/** Сигнал конца отсчёта: вибрация + звук + уведомление, если вкладка в фоне (отдых и «Держать» у растяжки). */
+export function signalTimerEnd(title: string, body: string, tag = "hero-fit-rest") {
   navigator.vibrate?.([300, 150, 300]);
   // В Telegram (и на iOS, где navigator.vibrate нет) — вибрация Telegram
   haptic("warning");
   playBeep();
   if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.hidden) {
-    new Notification("Отдых окончен 💪", { body: `Следующий подход: ${label}`, tag: "hero-fit-rest" });
+    new Notification(title, { body, tag });
   }
 }
+
+const notifyDone = (label: string) => signalTimerEnd("Отдых окончен 💪", `Следующий подход: ${label}`);
 
 function readStored(): Rest | null {
   try {
