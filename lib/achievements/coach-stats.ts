@@ -19,7 +19,7 @@ export async function coachStats(client: Client, coachId: string, isCoach: boole
     done AS (
       SELECT w."userId", w."templateId"
       FROM "Workout" w JOIN win ON w."userId" = win."clientId" AND w."finishedAt" >= win.s AND w."finishedAt" < win.e
-      WHERE w.status = 'COMPLETED'
+      WHERE w.status = 'COMPLETED' AND NOT w."stretchOnly" -- сессия растяжки клиента — не тренировка
     ),
     xp AS (
       SELECT x.reason, x.meta

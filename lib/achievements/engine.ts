@@ -143,7 +143,7 @@ async function weekStats(client: Client, userId: string, tz: string) {
              COUNT(DISTINCT e."muscleGroups"[1])::int AS groups
       FROM w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH'
       GROUP BY w.week
     `,
     client.$queryRaw<{ currentWeek: string }[]>`
@@ -163,7 +163,7 @@ async function varietyStats(client: Client, userId: string) {
       SELECT e."muscleGroups"[1]::text AS "group", COUNT(DISTINCT w.id)::int AS workouts
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH'
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND cardinality(e."muscleGroups") > 0
       GROUP BY 1
     `,
@@ -171,6 +171,7 @@ async function varietyStats(client: Client, userId: string) {
       SELECT COUNT(DISTINCT we."exerciseId")::int AS n
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
+      JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH' -- растяжка — не разнообразие упражнений
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
     `,
   ]);
@@ -218,7 +219,7 @@ function programStats(client: Client, userId: string) {
     SELECT t.program, COUNT(*)::int AS workouts
     FROM "Workout" w
     JOIN "WorkoutTemplate" t ON t.id = w."templateId"
-    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND t."userId" IS NULL AND t.program IS NOT NULL
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND t."userId" IS NULL AND t.program IS NOT NULL
     GROUP BY t.program
   `;
 }

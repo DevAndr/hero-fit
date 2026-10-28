@@ -9,7 +9,7 @@ import { FINISH_REASONS } from "@/lib/progress/xp";
 import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
-import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
+import { friendIds, LEAGUE_XP, weekPercentile } from "@/lib/social/queries";
 import { isFinishMeta } from "@/lib/recap/meta";
 import { isEnabled } from "@/lib/flags/server";
 import { exerciseWeekBests } from "@/lib/stats/strength-queries";
@@ -43,7 +43,7 @@ async function leagueMembers(userId: string, start: Date, end: Date): Promise<Re
     SELECT u.id, COALESCE(u.nickname, '') AS nickname,
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
-             WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
+             WHERE x."userId" = u.id AND ${LEAGUE_XP}
                AND x."createdAt" >= ${start} AND x."createdAt" < ${end}
            ), 0)::int AS xp,
            (
@@ -69,7 +69,7 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
     JOIN "Workout" w ON w.id = we."workoutId"
     JOIN "Exercise" e ON e.id = we."exerciseId"
     WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${from} AND w."finishedAt" < ${end}
-      AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND cardinality(e."muscleGroups") > 0
+      AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND cardinality(e."muscleGroups") > 0 AND e.kind <> 'STRETCH'
     GROUP BY 1, 2
   `;
 }

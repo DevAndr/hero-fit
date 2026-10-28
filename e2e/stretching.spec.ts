@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, makeFriends } from "./db";
+import { randomUUID } from "node:crypto";
+import { addFlagUser, makeFriends, userId, withDb } from "./db";
 import { addToWorkout, registerUser } from "./helpers";
 
 const STRETCH = "Кошка-корова";
@@ -28,6 +29,14 @@ test("stretch session does not count toward the week, a lift with a cool-down do
     const b = await registerUser(pageB, "Друг");
     const alpha = `Flex_${a.login.slice(-8)}`;
     await makeFriends(a.login, alpha, b.login, `Pal_${b.login.slice(-8)}`);
+    // Прежний рекорд удержания 30 с: сессия ниже его побьёт (+25 XP за рекорд — не в лигу)
+    await withDb(async (db) =>
+      db.query(
+        `insert into "PersonalRecord" (id, "userId", "exerciseId", type, value)
+         select $1, $2, e.id, 'MAX_DURATION', 30 from "Exercise" e where e.name = $3 and e."userId" is null`,
+        [randomUUID(), await userId(db, a.login), STRETCH],
+      ),
+    );
 
     // Сессия из одной растяжки: неделя серии не двигается
     await page.goto("/training");
@@ -44,6 +53,11 @@ test("stretch session does not count toward the week, a lift with a cool-down do
     await expect(card).toBeVisible();
     await expect(card.getByTestId("feed-stretch")).toHaveText("Растяжка · 1 мин");
     await expect(card.getByTestId("feed-volume")).toHaveCount(0);
+
+    // Лига друзей: ни XP сессии, ни XP её рекорда
+    await pageB.goto("/leaderboard");
+    const row = pageB.getByRole("list", { name: "Места" }).getByRole("listitem").filter({ hasText: alpha });
+    await expect(row.getByTestId("league-xp")).toHaveText("0 XP");
 
     // Силовая с заминкой — обычная тренировка: +1 к неделе (сессия растяжки в счёт не идёт)
     await page.goto("/training");

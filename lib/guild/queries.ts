@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { LEAGUE_REASONS, weekBounds } from "@/lib/social/queries";
+import { LEAGUE_XP, weekBounds } from "@/lib/social/queries";
 import { normalizeFriendCode } from "@/lib/social/league";
 import type { Cosmetics } from "@/lib/shop/cosmetics";
 import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
@@ -21,7 +21,7 @@ export async function getMyGuild(userId: string, timeZone: string) {
     SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode",
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
-             WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
+             WHERE x."userId" = u.id AND ${LEAGUE_XP}
                AND (x."createdAt" AT TIME ZONE 'UTC') >= b.start_at AND (x."createdAt" AT TIME ZONE 'UTC') < b.end_at
            ), 0)::int AS xp,
            (
