@@ -5,7 +5,9 @@ import {
   courseStartSchema,
   isCourseSkill,
   courseAdvance,
+  courseAwaitsChoice,
   courseReminderBody,
+  courseSummary,
   shouldRemindCourse,
   isMeasureSession,
   nextHoldSec,
@@ -135,12 +137,29 @@ describe("nextHoldSec", () => {
   });
 });
 
+describe("courseSummary", () => {
+  it("следующее — по номеру самой тренировки", () => {
+    expect(courseSummary("SPLIT_LEFT", 6)).toEqual({ session: 6, total: 30, nextStage: 2, nextHoldSec: 45, maintenance: false, finished: false });
+    expect(courseSummary("SPLIT_SIDE", 24)).toMatchObject({ nextStage: 5, nextHoldSec: 90 });
+  });
+  it("30-е — курс пройден, после 30 — поддержка", () => {
+    expect(courseSummary("SPLIT_LEFT", 30)).toMatchObject({ finished: true, maintenance: false });
+    expect(courseSummary("SPLIT_LEFT", 31)).toMatchObject({ finished: false, maintenance: true });
+  });
+});
+
 describe("courseStartSchema", () => {
   const ok = { skill: "SPLIT_SIDE", remindDays: [0, 2, 4], cm: 25 };
 
   it("принимает корректный старт", () => {
     expect(courseStartSchema.safeParse(ok).success).toBe(true);
-    expect(courseStartSchema.safeParse({ ...ok, remindDays: [], cm: 0 }).success).toBe(true);
+    expect(courseStartSchema.safeParse({ ...ok, remindDays: [], cm: 0.5 }).success).toBe(true);
+  });
+
+  it("стартовый замер 0 не принимает: от 0,5 см", () => {
+    const res = courseStartSchema.safeParse({ ...ok, cm: 0 });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues[0].message).toBe("Замер — от 0,5 до 200 см");
   });
 
   it("отклоняет чужой навык, день 7, повтор дня и неверный замер", () => {
@@ -180,7 +199,7 @@ describe("courseAdvance", () => {
 });
 
 describe("shouldRemindCourse", () => {
-  const base = { timeZone: "Europe/Moscow", remindDays: [0], remindedDay: null, trainedToday: false };
+  const base = { timeZone: "Europe/Moscow", remindDays: [0], remindedDay: null, trainedToday: false, awaitingChoice: false };
   // 2026-10-26 — понедельник
   it("в выбранный день после 17:00", () => {
     expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T14:05:00Z") })).toEqual({ day: "2026-10-26" });
@@ -197,11 +216,25 @@ describe("shouldRemindCourse", () => {
   it("сегодня уже занимался — нет", () => {
     expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T15:00:00Z"), trainedToday: true })).toBeNull();
   });
+  it("курс ждёт выбора после 30-го занятия — нет", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T15:00:00Z"), awaitingChoice: true })).toBeNull();
+  });
   it("местный день — по поясу пользователя", () => {
     // UTC вт 04:30 = Etc/GMT+11 пн 17:30 (по UTC день уже вторник)
     expect(shouldRemindCourse({ ...base, timeZone: "Etc/GMT+11", now: new Date("2026-10-27T04:30:00Z") })).toEqual({ day: "2026-10-26" });
     // и наоборот: UTC пн 20:00 = Etc/GMT-14 вт 10:00 — не понедельник и рано
     expect(shouldRemindCourse({ ...base, timeZone: "Etc/GMT-14", now: new Date("2026-10-26T20:00:00Z") })).toBeNull();
+  });
+});
+
+describe("courseAwaitsChoice", () => {
+  const at = new Date("2026-10-28T10:00:00Z");
+  it("ACTIVE с finishedAt — ждёт выбора", () => {
+    expect(courseAwaitsChoice({ status: "ACTIVE", finishedAt: at })).toBe(true);
+  });
+  it("идущий курс и поддержка — нет", () => {
+    expect(courseAwaitsChoice({ status: "ACTIVE", finishedAt: null })).toBe(false);
+    expect(courseAwaitsChoice({ status: "MAINTENANCE", finishedAt: at })).toBe(false);
   });
 });
 

@@ -106,7 +106,7 @@ test("finishing with no set checked does not count", async ({ page }) => {
   await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
   await expect(page.getByText("Отметьте хотя бы один выполненный подход")).toBeVisible();
   await expect(page).toHaveURL(/\/training$/);
-  if (await page.getByRole("alertdialog").isVisible()) await page.keyboard.press("Escape");
+  // отказ сервера сам закрывает диалог подтверждения (queueFinish → "rejected")
   await expect(page.getByRole("alertdialog")).toBeHidden();
   await cancelWorkout(page);
   await page.goto("/stretching");
@@ -143,6 +143,12 @@ test("final: session 30 → summary, «Закрепить» → maintenance", as
   await expect(card).toContainText("Было 25 см");
   await expect(card.getByRole("button", { name: "Пройти заново" })).toBeVisible();
   await expect(card.getByRole("button", { name: "Закончить" })).toBeVisible();
+  // на итоговой карточке бросать курс нельзя
+  await card.getByRole("button", { name: "Действия с курсом" }).click();
+  await expect(page.getByRole("menuitem", { name: "Дни напоминаний" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Бросить курс" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "Дни напоминаний" })).toBeHidden();
   await card.getByRole("button", { name: "Закрепить" }).click();
   await expect(card.getByTestId("course-progress")).toContainText("Поддержка");
 
@@ -198,7 +204,9 @@ test("days and abandoning from the «⋯» menu", async ({ page }) => {
   await card.getByRole("button", { name: "Действия с курсом" }).click();
   await page.getByRole("menuitem", { name: "Дни напоминаний" }).click();
   await expect(days.getByRole("checkbox", { name: "сб" })).toBeChecked();
+  await expect(days.getByRole("checkbox", { name: "ср" })).toBeChecked();
   await page.keyboard.press("Escape");
+  await expect(days).toBeHidden();
 
   await card.getByRole("button", { name: "Действия с курсом" }).click();
   await page.getByRole("menuitem", { name: "Бросить курс" }).click();

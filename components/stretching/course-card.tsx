@@ -34,6 +34,14 @@ export function CourseCard({ course, active }: { course: CourseView | null; acti
   const [start, setStart] = useState<{ skill: CourseSkill | null } | null>(null);
   const [dialog, setDialog] = useState<"days" | "abandon" | null>(null);
   const [days, setDays] = useState<number[]>([]);
+  // Последние сохранённые дни: обновлённый проп с сервера может прийти позже закрытия диалога
+  const [savedDays, setSavedDays] = useState<number[] | null>(null);
+  const daysKey = course?.remindDays.join(",") ?? "";
+  const [seenDaysKey, setSeenDaysKey] = useState(daysKey);
+  if (seenDaysKey !== daysKey) {
+    setSeenDaysKey(daysKey);
+    setSavedDays(null);
+  }
   const [pending, startTransition] = useTransition();
 
   const run = (fn: () => Promise<Result>, after?: () => void) =>
@@ -63,15 +71,18 @@ export function CourseCard({ course, active }: { course: CourseView | null; acti
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem
                 onClick={() => {
-                  setDays(course.remindDays);
+                  setDays(savedDays ?? course.remindDays);
                   setDialog("days");
                 }}
               >
                 Дни напоминаний
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDialog("abandon")}>
-                Бросить курс
-              </DropdownMenuItem>
+              {/* на итоговой карточке курс уже пройден — бросать нечего */}
+              {course.finished ? null : (
+                <DropdownMenuItem variant="destructive" onClick={() => setDialog("abandon")}>
+                  Бросить курс
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -140,7 +151,7 @@ export function CourseCard({ course, active }: { course: CourseView | null; acti
           </DialogHeader>
           <DaysPicker value={days} onChange={setDays} />
           <DialogFooter>
-            <Button disabled={pending} onClick={() => run(() => setCourseDaysAction(days))}>
+            <Button disabled={pending} onClick={() => run(() => setCourseDaysAction(days), () => setSavedDays(days))}>
               {pending ? <Loader2 className="animate-spin" /> : null}
               Сохранить
             </Button>

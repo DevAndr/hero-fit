@@ -39,6 +39,7 @@ export async function startCourseAction(input: { skill: string; remindDays: numb
   const { skill, remindDays, cm } = parsed.data;
   const now = new Date();
 
+  let created = false;
   try {
     const achieved = await db.$transaction(async (tx) => {
       if (await tx.stretchCourse.findFirst({ where: { userId: user.id, status: { in: [...RUNNING_STATUSES] } }, select: { id: true } })) {
@@ -48,6 +49,7 @@ export async function startCourseAction(input: { skill: string; remindDays: numb
         where: { userId: user.id, type: "STRETCH_SKILL", status: GoalStatus.ACTIVE, stretchSkill: skill },
         select: { id: true },
       });
+      created = !existing;
       const goalId =
         existing?.id ?? (await createGoalInTx(tx, user, { type: "STRETCH_SKILL", target: 0, deadline: null, stretchSkill: skill, startCm: cm }, false, now));
       await tx.stretchCourse.create({ data: { userId: user.id, skill, goalId, remindDays: [...remindDays].sort((a, b) => a - b), startedAt: now } });
@@ -62,7 +64,8 @@ export async function startCourseAction(input: { skill: string; remindDays: numb
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return RUNNING;
     throw e;
   }
-  await queueGoal("goal_create");
+  // цель Метрики — только если цель-навык создана, а не взята своя активная
+  if (created) await queueGoal("goal_create");
   refresh();
   return { ok: true };
 }

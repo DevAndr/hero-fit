@@ -20,7 +20,8 @@ export const courseStartSchema = z.object({
     .array(z.number().int().min(0).max(6))
     .max(7)
     .refine((d) => new Set(d).size === d.length, "Дни не должны повторяться"),
-  cm: cmSchema,
+  // Старт без растяжки некуда вести: от 0,5 см (замер на занятии допускает 0 — цель достигнута)
+  cm: cmSchema.refine((v) => v >= 0.5, "Замер — от 0,5 до 200 см"),
 });
 
 export const COURSE_SESSIONS = 30;
@@ -80,6 +81,18 @@ export function nextHoldSec(skill: CourseSkill, n: number): number {
   return Math.max(...sessionPlan(skill, n).map((e) => e.holdSec));
 }
 
+/** Строка курса в сводке тренировки — по самой тренировке (номер занятия), не по текущему состоянию курса. */
+export function courseSummary(skill: CourseSkill, session: number) {
+  return {
+    session,
+    total: COURSE_SESSIONS,
+    nextStage: stageOf(session + 1),
+    nextHoldSec: nextHoldSec(skill, session + 1),
+    maintenance: session > COURSE_SESSIONS,
+    finished: session === COURSE_SESSIONS,
+  };
+}
+
 /**
  * Что делает завершённое занятие с курсом; null — курс не двигается.
  * Условие `courseSessionNo === nextSession` делает повторное завершение и старую тренировку безопасными.
@@ -97,14 +110,24 @@ export function courseAdvance(
 
 export const COURSE_REMIND_HOUR = 17;
 
-/** Напоминание о занятии: выбранный местный день недели, с 17:00, раз в день, если сегодня ещё не занимался. */
+/** 30-е занятие пройдено, выбор («Закрепить» / «Пройти заново» / «Закончить») ещё не сделан. */
+export function courseAwaitsChoice(c: { status: string; finishedAt: Date | null }): boolean {
+  return c.status === "ACTIVE" && c.finishedAt !== null;
+}
+
+/**
+ * Напоминание о занятии: выбранный местный день недели, с 17:00, раз в день, если сегодня ещё не занимался.
+ * Курс, ждущий выбора после 30-го занятия, не напоминает (иначе — «занятие 31 из 30»).
+ */
 export function shouldRemindCourse(input: {
   now: Date;
   timeZone: string;
   remindDays: number[];
   remindedDay: string | null;
   trainedToday: boolean;
+  awaitingChoice: boolean;
 }): { day: string } | null {
+  if (input.awaitingChoice) return null;
   const day = dayKey(input.now, input.timeZone);
   if (!input.remindDays.includes(weekdayOf(day))) return null;
   if (localHour(input.now, input.timeZone) < COURSE_REMIND_HOUR) return null;

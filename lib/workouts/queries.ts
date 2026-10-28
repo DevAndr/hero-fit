@@ -5,7 +5,7 @@ import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
 import { FINISH_REASONS } from "@/lib/progress/xp";
 import { isEnabled } from "@/lib/flags/server";
-import { COURSE_SESSIONS, isCourseSkill, nextHoldSec, stageOf } from "@/lib/stretching/course";
+import { courseSummary, isCourseSkill } from "@/lib/stretching/course";
 import { stretchOnlyWhere } from "@/lib/templates/queries";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
@@ -158,23 +158,13 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
           exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true, supersetGroup: true } },
         },
       },
-      course: { select: { skill: true, nextSession: true, status: true } },
+      course: { select: { skill: true } },
     },
   });
   if (!workout) return null;
   const { course: c, ...rest } = workout;
-  // Строка курса в сводке: «следующее» — по текущему состоянию курса, N — по самой тренировке
-  const course =
-    c && workout.courseSessionNo && isCourseSkill(c.skill)
-      ? {
-          session: workout.courseSessionNo,
-          total: COURSE_SESSIONS,
-          nextStage: stageOf(c.nextSession),
-          nextHoldSec: nextHoldSec(c.skill, c.nextSession),
-          maintenance: workout.courseSessionNo > COURSE_SESSIONS,
-          finished: workout.courseSessionNo === COURSE_SESSIONS,
-        }
-      : null;
+  // Строка курса в сводке: и N, и «следующее» — по самой тренировке
+  const course = c && workout.courseSessionNo && isCourseSkill(c.skill) ? courseSummary(c.skill, workout.courseSessionNo) : null;
   return { ...rest, course };
 }
 

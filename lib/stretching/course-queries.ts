@@ -16,7 +16,7 @@ export type CourseView = {
   startCm: number | null;
   /** 30-е занятие пройдено, выбор ещё не сделан — показать итог. */
   finished: boolean;
-  /** Недель с начала курса (целых, минимум 1). */
+  /** Недель с начала курса до 30-го занятия (идущий — до сейчас; целых, минимум 1). */
   weeks: number;
 };
 
@@ -50,6 +50,6 @@ export async function getActiveCourse(userId: string): Promise<CourseView | null
     lastCm,
     startCm,
     finished: course.finishedAt !== null && course.status === "ACTIVE",
-    weeks: Math.max(1, Math.floor((Date.now() - course.startedAt.getTime()) / (7 * 86_400_000))),
+    weeks: Math.max(1, Math.floor(((course.finishedAt?.getTime() ?? Date.now()) - course.startedAt.getTime()) / (7 * 86_400_000))),
   };
 }
