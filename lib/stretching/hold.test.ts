@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { holdState, holdTarget, startHold, stoppedSec } from "./hold";
+import { activeHold, holdState, holdTarget, startHold, stoppedSec } from "./hold";
 
 describe("holdTarget — сколько держать", () => {
   it("введённое в подходе — главное", () => {
@@ -59,5 +59,21 @@ describe("stoppedSec — «Стоп»", () => {
   });
   it("не больше цели", () => {
     expect(stoppedSec(startHold(0, 30, false), 90_000)).toBe(30);
+  });
+});
+
+describe("activeHold — отсчёт живёт, пока его подход есть и не отмечен", () => {
+  const hold = { setKey: "b", run: startHold(0, 30, false) };
+  it("подход на месте и не выполнен — активен", () => {
+    expect(activeHold(hold, [{ key: "a", completedAt: "x" }, { key: "b", completedAt: null }])).toBe(hold);
+  });
+  it("подход удалён — нет отсчёта", () => {
+    expect(activeHold(hold, [{ key: "a", completedAt: null }])).toBeNull();
+  });
+  it("подход отмечен вручную — нет отсчёта", () => {
+    expect(activeHold(hold, [{ key: "b", completedAt: "2026-10-28T12:00:00Z" }])).toBeNull();
+  });
+  it("отсчёта не было — null", () => {
+    expect(activeHold(null, [{ key: "b", completedAt: null }])).toBeNull();
   });
 });

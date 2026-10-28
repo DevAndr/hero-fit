@@ -49,3 +49,10 @@ export function stoppedSec(run: HoldRun, now: number): number | null {
   const held = state.done || state.pausing ? target : Math.min(target, Math.floor((now - phaseStart(run, state.phase)) / 1000));
   return held < HOLD_MIN_SEC ? null : held;
 }
+
+/** Отсчёт действует, только пока его подход есть и не отмечен: удалили или отметили ✓ вручную — отсчёта нет. */
+export function activeHold<H extends { setKey: string }>(hold: H | null, sets: { key: string; completedAt: unknown }[]): H | null {
+  if (!hold) return null;
+  const set = sets.find((s) => s.key === hold.setKey);
+  return set && !set.completedAt ? hold : null;
+}

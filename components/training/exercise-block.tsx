@@ -22,7 +22,7 @@ import type { LastPerformance } from "@/lib/workouts/queries";
 import { cardioWarning, typoWarning, type TypoReference } from "@/lib/workouts/typo";
 import { formatClock, isStretch, isTimed, timedSetText, type ExerciseKindName } from "@/lib/workouts/kinds";
 import { areaLabels } from "@/lib/exercises/area";
-import { holdTarget, startHold, stoppedSec, type HoldRun } from "@/lib/stretching/hold";
+import { activeHold, holdTarget, startHold, stoppedSec, type HoldRun } from "@/lib/stretching/hold";
 import { HoldTimer } from "@/components/training/hold-timer";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/telegram/webapp";
@@ -158,7 +158,9 @@ export function ExerciseBlock({
   useEffect(() => preloadLottie("success"), []);
 
   // Идущий отсчёт «Держать» (один на упражнение)
-  const [hold, setHold] = useState<{ setKey: string; run: HoldRun } | null>(null);
+  const [holdRaw, setHold] = useState<{ setKey: string; run: HoldRun } | null>(null);
+  // Подход удалили или отметили вручную — отсчёт снят (и кнопки «Держать» снова доступны)
+  const hold = activeHold(holdRaw, item.sets);
   /** Прошлое время: ближайший выше подход с временем, иначе тот же по счёту в прошлый раз. */
   const prevDuration = (i: number) => {
     for (let j = i - 1; j >= 0; j--) {
@@ -175,13 +177,13 @@ export function ExerciseBlock({
   const finishHold = (setKey: string, sec: number | null) => {
     setHold(null);
     const set = item.sets.find((s) => s.key === setKey);
-    if (!set) return;
+    // Подход удалён или уже отмечен вручную — его время не трогаем
+    if (!set || set.completedAt) return;
     if (sec === null) {
       toast("Меньше 5 секунд — подход не отмечен");
       return;
     }
     dispatch({ type: "updateSet", key: item.key, setKey, patch: { duration: formatClock(sec) } });
-    if (set.completedAt) return;
     dispatch({ type: "toggleComplete", key: item.key, setKey, now: new Date().toISOString() });
     haptic("light");
     onComplete(item, set);
@@ -448,6 +450,8 @@ export function ExerciseBlock({
                   aria-label={`Подход ${i + 1} выполнен`}
                   onClick={() => {
                     dispatch({ type: "toggleComplete", key: item.key, setKey: set.key, now: new Date().toISOString() });
+                    // Ручная отметка снимает отсчёт этого подхода: иначе после снятия ✓ он «доиграл» бы и перезаписал время
+                    if (holdRaw?.setKey === set.key) setHold(null);
                     if (done) stopCelebrating(set.key);
                     else {
                       haptic("light");
@@ -477,6 +481,7 @@ export function ExerciseBlock({
                   aria-label={`Удалить подход ${i + 1}`}
                   onClick={() => {
                     dispatch({ type: "removeSet", key: item.key, setKey: set.key });
+                    if (holdRaw?.setKey === set.key) setHold(null);
                     toast("Подход удалён", {
                       action: {
                         label: "Вернуть",
