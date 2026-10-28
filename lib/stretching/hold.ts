@@ -41,13 +41,17 @@ export function holdState(run: HoldRun, now: number): HoldState {
   return { phase: i, leftSec: Math.ceil((run.phases[i].endsAt - now) / 1000), pausing: false, done: false };
 }
 
-/** Фактически удержанное за текущую сторону (целые секунды, не больше цели); `null` — меньше 5 с. */
+/**
+ * Фактически удержанное за текущую сторону (целые секунды, не больше цели); `null` — меньше 5 с.
+ * Вторая сторона раньше 5 с — засчитывается первая, удержанная целиком (подход не пропадает).
+ */
 export function stoppedSec(run: HoldRun, now: number): number | null {
   const target = Math.round((run.phases[0].endsAt - run.startedAt) / 1000);
   const state = holdState(run, now);
   // В паузе предыдущая сторона уже удержана целиком
   const held = state.done || state.pausing ? target : Math.min(target, Math.floor((now - phaseStart(run, state.phase)) / 1000));
-  return held < HOLD_MIN_SEC ? null : held;
+  if (held >= HOLD_MIN_SEC) return held;
+  return state.phase > 0 ? target : null;
 }
 
 /** Отсчёт действует, только пока его подход есть и не отмечен: удалили или отметили ✓ вручную — отсчёта нет. */

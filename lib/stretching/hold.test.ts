@@ -57,6 +57,13 @@ describe("stoppedSec — «Стоп»", () => {
   it("в паузе — первая сторона удержана целиком", () => {
     expect(stoppedSec(startHold(0, 30, true), 32_000)).toBe(30);
   });
+  it("вторая сторона раньше 5 с — засчитана первая сторона целиком", () => {
+    expect(stoppedSec(startHold(0, 30, true), 35_000 + 3_000)).toBe(30);
+    expect(stoppedSec(startHold(0, 30, true), 35_000)).toBe(30);
+  });
+  it("первая сторона раньше 5 с — не засчитано", () => {
+    expect(stoppedSec(startHold(0, 30, true), 4_000)).toBeNull();
+  });
   it("не больше цели", () => {
     expect(stoppedSec(startHold(0, 30, false), 90_000)).toBe(30);
   });
