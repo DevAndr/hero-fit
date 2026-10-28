@@ -1,5 +1,6 @@
 import type { StretchUnit } from "@/generated/prisma/enums";
 import { dayKey } from "@/lib/daily-login";
+import { addDays } from "@/lib/dates";
 import { deadlineEnd, isAchieved, type GoalRow } from "@/lib/goals/rules";
 import { goalStretchWeeks, weeklyStatus, type WeekSum } from "@/lib/goals/stretch-weekly";
 
@@ -23,6 +24,9 @@ export function goalTickAction(
   if (!goal.reminderAt && now.getTime() < end && end - now.getTime() <= REMIND_BEFORE_MS) return "remind";
   return null;
 }
+
+/** Сколько местных дней после закрытия недели (с форой) тик проверяет регулярность. */
+const WEEKLY_CHECK_DAYS = 2;
 
 type WeeklyGoal = Pick<GoalRow, "createdAt" | "deadline" | "target" | "stretchUnit"> & { reminderAt: Date | null };
 
@@ -52,10 +56,11 @@ export function goalDue(
   tz: string,
 ): boolean {
   if (!goal.deadline) return false;
-  // Регулярность может провалиться до срока — проверяется, как только закрыта (с форой) первая неделя
+  // Регулярность может провалиться до срока — проверяется в окне 2 дня после закрытия (с форой) очередной недели
   if (goal.type === "STRETCH_WEEKLY" && goal.createdAt) {
-    const [first] = goalStretchWeeks({ createdAt: goal.createdAt, deadline: goal.deadline }, tz);
-    if (first && first.end < closedBy(now, tz)) return true;
+    const closed = closedBy(now, tz);
+    const last = goalStretchWeeks({ createdAt: goal.createdAt, deadline: goal.deadline }, tz).findLast((w) => w.end < closed);
+    if (last && closed <= addDays(last.end, WEEKLY_CHECK_DAYS)) return true;
   }
   const end = deadlineEnd(goal.deadline, tz).getTime();
   const t = now.getTime();

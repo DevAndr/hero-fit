@@ -86,8 +86,24 @@ describe("weeklyTickAction — регулярность растяжки (фла
   test("напоминание за 7 дней — как у обычных целей", () => {
     expect(weeklyTickAction({ ...weekly, reminderAt: null }, first, at("2026-11-02T12:00:00Z"), "UTC")).toBe("remind");
   });
-  test("goalDue: регулярность проверяется, когда закрыта хотя бы одна неделя", () => {
+  test("goalDue: регулярность — только в окне после закрытия недели (с форой), не на каждом тике", () => {
     expect(goalDue(weekly, at("2026-11-02T12:00:00Z"), "UTC")).toBe(false);
+    // неделя 26.10–01.11 закрыта с форой — окно 2 дня
     expect(goalDue(weekly, at("2026-11-03T00:00:00Z"), "UTC")).toBe(true);
+    expect(goalDue(weekly, at("2026-11-04T23:59:00Z"), "UTC")).toBe(true);
+    // середина следующей недели — не проверяем
+    expect(goalDue(weekly, at("2026-11-05T12:00:00Z"), "UTC")).toBe(false);
+    // срок + фора — как у всех целей
+    expect(goalDue(weekly, at("2026-11-10T00:00:00Z"), "UTC")).toBe(true);
+  });
+  test("постановка в пт: дни до первой недели не дают ни сессий, ни провала", () => {
+    // пт 2026-10-30 → недели 02.11–08.11, 09.11–15.11
+    const fri = { ...weekly, createdAt: at("2026-10-30T10:00:00Z"), deadline: "2026-11-15" };
+    const before = new Map<string, WeekSum>([["2026-10-26", { sessions: 5, sec: 3000 }]]);
+    expect(goalDue(fri, at("2026-11-03T00:00:00Z"), "UTC")).toBe(false);
+    expect(weeklyTickAction(fri, before, at("2026-11-03T00:00:00Z"), "UTC")).toBeNull();
+    // первая неделя прошла пустой (сессии до неё не в счёт) — провал
+    expect(goalDue(fri, at("2026-11-10T00:00:00Z"), "UTC")).toBe(true);
+    expect(weeklyTickAction(fri, before, at("2026-11-10T00:00:00Z"), "UTC")).toBe("fail");
   });
 });

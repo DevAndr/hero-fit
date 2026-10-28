@@ -19,22 +19,33 @@ function utcDay(now: Date, days: number) {
 /**
  * Сроки целей: напоминание за 7 дней (один раз — `reminderAt`), провал после конца срока + фора 24 ч
  * (финиш офлайн-тренировки принимается до 24 ч назад). Выборка — грубо по датам (пояса ±14 ч), точно — `goalDue`.
- * Регулярность растяжки проваливается и до срока — после недели без нормы (`weeklyTickAction`), поэтому берётся вся.
+ * Регулярность растяжки проваливается и до срока — после недели без нормы (`weeklyTickAction`): она выбирается
+ * отдельным запросом после остальных (со своим `take`), чтобы не вытеснять их, а `goalDue` пускает её к SQL
+ * только в окне после закрытия недели, после срока и в окне напоминания.
  */
 export async function processGoals(now: Date): Promise<number> {
   const started = Date.now();
-  const candidates = await db.goal.findMany({
+  const include = { exercise: { select: { name: true } }, user: { select: { timeZone: true, notifyGoal: true } } } as const;
+  const dated = await db.goal.findMany({
     where: {
       status: GoalStatus.ACTIVE,
+      type: { not: "STRETCH_WEEKLY" },
       deadline: { not: null },
-      OR: [{ reminderAt: null, deadline: { lte: utcDay(now, 8) } }, { deadline: { lt: utcDay(now, 0) } }, { type: "STRETCH_WEEKLY" }],
+      OR: [{ reminderAt: null, deadline: { lte: utcDay(now, 8) } }, { deadline: { lt: utcDay(now, 0) } }],
     },
-    include: { exercise: { select: { name: true } }, user: { select: { timeZone: true, notifyGoal: true } } },
+    include,
+    orderBy: { deadline: "asc" },
+    take: 200,
+  });
+  // Регулярность: первая неделя не закрывается раньше чем через 2 дня после постановки
+  const weeklyGoals = await db.goal.findMany({
+    where: { status: GoalStatus.ACTIVE, type: "STRETCH_WEEKLY", deadline: { not: null }, createdAt: { lte: new Date(now.getTime() - 2 * 86_400_000) } },
+    include,
     orderBy: { deadline: "asc" },
     take: 200,
   });
   let sent = 0;
-  for (const { exercise, user, ...goal } of candidates) {
+  for (const { exercise, user, ...goal } of [...dated, ...weeklyGoals]) {
     if (Date.now() - started > BUDGET_MS) break;
     const tz = safeTimeZone(user.timeZone);
     if (!goalDue(goal, now, tz)) continue;

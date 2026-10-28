@@ -256,6 +256,14 @@ describe("цель «Регулярность» (растяжка)", () => {
     expect(goalProgress(shape, 0.5)).toBe(0.5);
     expect(goalProgress(shape, 0)).toBe(0);
   });
+  test("темп не показывается: прогресс ступенчатый, темп — строка «эта неделя»", () => {
+    const g = { type: "STRETCH_WEEKLY" as const, createdAt: new Date("2026-10-26T00:00:00Z"), deadline: "2026-11-22" };
+    expect(paceStatus(g, 0, new Date("2026-11-20T12:00:00Z"), "UTC")).toBeNull();
+    expect(paceStatus({ ...g, type: "WORKOUTS" }, 0, new Date("2026-11-20T12:00:00Z"), "UTC")).toBe("behind");
+  });
+  test("недели: нечисло — понятная ошибка", () => {
+    expect(issue({ ...weekly, weeks: "4" })).toEqual({ message: "От 2 до 12 недель", path: "weeks" });
+  });
   test("ставится с нуля — «Уже достигнуто» не бывает", () => {
     expect(canCreate(weekly, { active: [], current: 0, isBodyweight: false, hasWeight: true })).toBeNull();
   });

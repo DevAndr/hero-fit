@@ -185,9 +185,10 @@ test("weekly goal: set from /stretching, a counted week from history, a week wit
   const created = page.getByRole("region", { name: "Цели по растяжке" }).getByRole("article", { name: "30 минут растяжки в неделю · 4 недели" });
   await expect(created).toContainText("0 из 4 недель");
 
-  // История: цель с понедельника 3 недели назад на 4 недели; первая неделя — 2 сессии (засчитана), вторая — пусто
+  // История: цель с понедельника 3 недели назад на 2 недели; первая — 2 сессии (засчитана), вторая — пусто.
+  // Срок с форой уже прошёл — тик берёт цель в любой день недели (окно «после закрытия недели» — в unit-тестах)
   const start = mondayWeeksAgo(3);
-  const sunday = new Date(Date.parse(`${mondayWeeksAgo(-1)}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const sunday = new Date(Date.parse(`${mondayWeeksAgo(1)}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   const id = await createGoal(u.login, {
     type: "STRETCH_WEEKLY",
     stretchUnit: "SESSIONS",
@@ -196,11 +197,11 @@ test("weekly goal: set from /stretching, a counted week from history, a week wit
     deadline: sunday,
   });
   await seedStretchSessions(u.login, STRETCH, [localAt(start, "19:00"), localAt(start, "19:00", 2)]);
-  const title = "2 растяжки в неделю · 4 недели";
+  const title = "2 растяжки в неделю · 2 недели";
   await page.goto("/goals");
-  await expect(page.getByRole("region", { name: "Активные цели" }).getByRole("article", { name: title })).toContainText("1 из 4 недель");
+  await expect(page.getByRole("region", { name: "Активные цели" }).getByRole("article", { name: title })).toContainText("1 из 2 недель");
 
-  // Тик: прошлая неделя без нормы (и фора 24 ч) — провал, уведомление со ссылкой «Поставить снова»
+  // Тик: неделя без нормы (и фора 24 ч) — провал, уведомление со ссылкой «Поставить снова»
   await runTick(request, new Date(), "goals");
   expect((await goalOf(id))?.status).toBe("FAILED");
   expect(await notificationTitles(u.login)).toContain(`Неделя без растяжки — цель «${title}» не выполнена`);
@@ -211,5 +212,5 @@ test("weekly goal: set from /stretching, a counted week from history, a week wit
   const again = page.getByRole("dialog", { name: "Новая цель" });
   await expect(again.getByRole("radio", { name: "Сессии" })).toBeChecked();
   await expect(again.getByLabel("Сессий в неделю")).toHaveValue("2");
-  await expect(again.getByLabel("Сколько недель")).toHaveValue("4");
+  await expect(again.getByLabel("Сколько недель")).toHaveValue("2");
 });

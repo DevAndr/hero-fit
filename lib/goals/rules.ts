@@ -52,7 +52,7 @@ export const goalSchema = z
     deadline: z.string().nullable(),
     /** Только STRETCH_WEEKLY: что считаем и сколько недель (срок вычисляет сервер — воскресенье последней недели). */
     stretchUnit: z.enum(["SESSIONS", "MINUTES"]).optional(),
-    weeks: z.number().optional(),
+    weeks: z.number({ error: `От ${WEEKLY_WEEKS_MIN} до ${WEEKLY_WEEKS_MAX} недель` }).optional(),
     /** Только BODY_WEIGHT без взвешиваний: текущий вес пишется вместе с целью. */
     currentWeight: z.number({ error: "Вес — от 30 до 300 кг" }).min(30, "Вес — от 30 до 300 кг").max(300, "Вес — от 30 до 300 кг").optional(),
   })
@@ -148,13 +148,14 @@ export function goalOpenAt(goal: { deadline: string | null }, at: Date, tz: stri
   return !goal.deadline || at < deadlineEnd(goal.deadline, tz);
 }
 
+/** Темп — линейный; у регулярности прогресс ступенчатый (недели), её темп — строка «эта неделя», поэтому null. */
 export function paceStatus(
-  goal: { createdAt: Date; deadline: string | null },
+  goal: { type?: GoalType; createdAt: Date; deadline: string | null },
   progress: number,
   now: Date,
   tz: string,
 ): "ahead" | "behind" | null {
-  if (!goal.deadline) return null;
+  if (!goal.deadline || goal.type === "STRETCH_WEEKLY") return null;
   const start = goal.createdAt.getTime();
   const total = deadlineEnd(goal.deadline, tz).getTime() - start;
   if (total <= 0) return null;
