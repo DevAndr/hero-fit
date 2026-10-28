@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { addFlagUser, makeFriends, userId, withDb } from "./db";
-import { addToWorkout, registerUser } from "./helpers";
+import { addFlagUser, createGoal, goalOf, goalsOf, makeFriends, mondayWeeksAgo, notificationTitles, notificationUrls, seedStretchSessions, userId, withDb } from "./db";
+import { addToWorkout, registerUser, runTick } from "./helpers";
+import { localAt } from "./tz";
 
 const STRETCH = "Кошка-корова";
 const LIFT = "Жим штанги лёжа";
@@ -161,4 +162,54 @@ test("hold goal: set from /stretching, reached by a stretch session, refused wit
   await holdDone(page, "Складка стоя", "25");
   await finish(page);
   await expect(page.getByRole("region", { name: "Цели", exact: true })).toContainText(`Цель достигнута: ${title}`);
+});
+
+test("weekly goal: set from /stretching, a counted week from history, a week without stretching fails it by the tick", async ({ page, request }) => {
+  test.slow();
+  const u = await registerUser(page, "Цель_регулярность");
+  await addFlagUser("stretching", u.login);
+
+  // Постановка из /stretching: минуты, проверка нормы
+  await page.goto("/stretching");
+  await page.getByRole("button", { name: "Поставить цель" }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая цель" });
+  await dialog.getByRole("button", { name: "Регулярность" }).click();
+  await dialog.getByRole("radio", { name: "Минуты" }).click();
+  await dialog.getByLabel("Минут в неделю").fill("4");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("От 5 до 300");
+  await dialog.getByLabel("Минут в неделю").fill("30");
+  await expect(dialog.getByLabel("Сколько недель")).toHaveValue("4");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog).toBeHidden();
+  const created = page.getByRole("region", { name: "Цели по растяжке" }).getByRole("article", { name: "30 минут растяжки в неделю · 4 недели" });
+  await expect(created).toContainText("0 из 4 недель");
+
+  // История: цель с понедельника 3 недели назад на 4 недели; первая неделя — 2 сессии (засчитана), вторая — пусто
+  const start = mondayWeeksAgo(3);
+  const sunday = new Date(Date.parse(`${mondayWeeksAgo(-1)}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const id = await createGoal(u.login, {
+    type: "STRETCH_WEEKLY",
+    stretchUnit: "SESSIONS",
+    target: 2,
+    createdAt: localAt(start, "09:00"),
+    deadline: sunday,
+  });
+  await seedStretchSessions(u.login, STRETCH, [localAt(start, "19:00"), localAt(start, "19:00", 2)]);
+  const title = "2 растяжки в неделю · 4 недели";
+  await page.goto("/goals");
+  await expect(page.getByRole("region", { name: "Активные цели" }).getByRole("article", { name: title })).toContainText("1 из 4 недель");
+
+  // Тик: прошлая неделя без нормы (и фора 24 ч) — провал, уведомление со ссылкой «Поставить снова»
+  await runTick(request, new Date(), "goals");
+  expect((await goalOf(id))?.status).toBe("FAILED");
+  expect(await notificationTitles(u.login)).toContain(`Неделя без растяжки — цель «${title}» не выполнена`);
+  expect(await notificationUrls(u.login)).toContain(`/goals?again=${id}`);
+  // Поставленная в UI цель (её первая неделя ещё идёт или не началась) не тронута
+  expect((await goalsOf(u.login)).map((g) => g.status)).toEqual(["FAILED", "ACTIVE"]);
+  await page.goto(`/goals?again=${id}`);
+  const again = page.getByRole("dialog", { name: "Новая цель" });
+  await expect(again.getByRole("radio", { name: "Сессии" })).toBeChecked();
+  await expect(again.getByLabel("Сессий в неделю")).toHaveValue("2");
+  await expect(again.getByLabel("Сколько недель")).toHaveValue("4");
 });

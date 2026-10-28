@@ -3,17 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/dal", () => ({ requireUser: vi.fn(async () => ({ id: "u1", timeZone: "Europe/Moscow" })) }));
-const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { exercise: { findFirst } } }));
+const { findFirst, create } = vi.hoisted(() => ({ findFirst: vi.fn(), create: vi.fn() }));
+const tx = { $queryRaw: vi.fn(), goal: { findMany: vi.fn(async () => []), create } };
+vi.mock("@/lib/db", () => ({ db: { exercise: { findFirst }, $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) } }));
 vi.mock("@/lib/achievements/engine", () => ({}));
-vi.mock("@/lib/analytics/queue", () => ({}));
+vi.mock("@/lib/analytics/queue", () => ({ queueGoal: vi.fn() }));
 const { isEnabled } = vi.hoisted(() => ({ isEnabled: vi.fn() }));
 vi.mock("@/lib/flags/server", () => ({ isEnabled }));
-vi.mock("@/lib/goals/queries", () => ({}));
+vi.mock("@/lib/goals/queries", () => ({ currentValueFor: vi.fn(async () => 0) }));
 vi.mock("@/lib/goals/mutations", () => ({}));
 vi.mock("@/lib/shop/earn", () => ({}));
 
 import { createGoalAction } from "./actions";
+import { weeklyDeadline } from "./stretch-weekly";
 
 describe("createGoalAction", () => {
   it("силовая цель — только по силовому упражнению: кардио и на время не подходят", async () => {
@@ -36,5 +38,17 @@ describe("createGoalAction", () => {
     findFirst.mockResolvedValue(null);
     await expect(createGoalAction(input)).resolves.toMatchObject({ ok: false, field: "exerciseId" });
     expect(findFirst.mock.calls[0][0].where).toMatchObject({ kind: "STRETCH" });
+  });
+
+  it("регулярность — только при флаге; срок — воскресенье последней недели, считаем с нуля", async () => {
+    const input = { type: "STRETCH_WEEKLY", stretchUnit: "MINUTES", target: 30, weeks: 4, deadline: null } as never;
+    isEnabled.mockResolvedValue(false);
+    await expect(createGoalAction(input)).resolves.toEqual({ ok: false, error: "Цели растяжки недоступны" });
+    expect(create).not.toHaveBeenCalled();
+    isEnabled.mockResolvedValue(true);
+    await expect(createGoalAction(input)).resolves.toEqual({ ok: true });
+    const data = create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ type: "STRETCH_WEEKLY", stretchUnit: "MINUTES", target: 30, startValue: 0, exerciseId: null });
+    expect(data.deadline).toBe(weeklyDeadline(data.createdAt, 4, "Europe/Moscow"));
   });
 });

@@ -1,8 +1,9 @@
 import { z } from "zod";
-import type { GoalStatus, GoalType, RecordType } from "@/generated/prisma/enums";
+import type { GoalStatus, GoalType, RecordType, StretchUnit } from "@/generated/prisma/enums";
 import { addDays } from "@/lib/dates";
 import { formatClock, plural } from "@/lib/format";
 import { localMidnight } from "@/lib/progress/weekly-streak";
+import { goalStretchWeeks, WEEKLY_WEEKS_MAX, WEEKLY_WEEKS_MIN } from "@/lib/goals/stretch-weekly";
 
 /** Личные цели — чистые правила (спека docs/superpowers/specs/2026-10-11-goals-design.md). */
 
@@ -18,6 +19,8 @@ export type GoalRow = {
   startValue: number;
   deadline: string | null;
   status: GoalStatus;
+  /** Только STRETCH_WEEKLY: норма — сессии или минуты. */
+  stretchUnit: StretchUnit | null;
   createdAt: Date;
   achievedAt: Date | null;
   chestOpenedAt: Date | null;
@@ -27,8 +30,8 @@ type Shape = { type: GoalType; startValue: number; target: number };
 
 const onStep = (step: number) => (v: number) => Math.abs(v / step - Math.round(v / step)) < 1e-9;
 
-/** Типы, которые принимает форма постановки (типы растяжки добавляются по мере задач 10–11). */
-const INPUT_TYPES = ["STRENGTH", "WORKOUTS", "STREAK", "HOURS", "BODY_WEIGHT", "STRETCH_HOLD"] as const;
+/** Типы, которые принимает форма постановки (навык растяжки — задача 11). */
+const INPUT_TYPES = ["STRENGTH", "WORKOUTS", "STREAK", "HOURS", "BODY_WEIGHT", "STRETCH_WEEKLY", "STRETCH_HOLD"] as const;
 export const isInputGoalType = (t: GoalType): t is GoalInput["type"] => (INPUT_TYPES as readonly string[]).includes(t);
 
 /** Цели группы «Растяжка» (под флагом `stretching`). */
@@ -47,6 +50,9 @@ export const goalSchema = z
     metric: z.enum(["ONE_RM", "MAX_WEIGHT", "MAX_REPS"]).optional(),
     target: z.number().finite(),
     deadline: z.string().nullable(),
+    /** Только STRETCH_WEEKLY: что считаем и сколько недель (срок вычисляет сервер — воскресенье последней недели). */
+    stretchUnit: z.enum(["SESSIONS", "MINUTES"]).optional(),
+    weeks: z.number().optional(),
     /** Только BODY_WEIGHT без взвешиваний: текущий вес пишется вместе с целью. */
     currentWeight: z.number({ error: "Вес — от 30 до 300 кг" }).min(30, "Вес — от 30 до 300 кг").max(300, "Вес — от 30 до 300 кг").optional(),
   })
@@ -65,6 +71,14 @@ export const goalSchema = z
       case "STRETCH_HOLD":
         if (!g.exerciseId) bad("Выбери упражнение", "exerciseId");
         within(10, 600, 1);
+        break;
+      case "STRETCH_WEEKLY":
+        if (!g.stretchUnit) bad("Выбери, что считаем", "stretchUnit");
+        else if (g.stretchUnit === "SESSIONS") within(1, 7, 1);
+        else within(5, 300, 1);
+        if (g.weeks === undefined || !Number.isInteger(g.weeks) || g.weeks < WEEKLY_WEEKS_MIN || g.weeks > WEEKLY_WEEKS_MAX) {
+          bad(`От ${WEEKLY_WEEKS_MIN} до ${WEEKLY_WEEKS_MAX} недель`, "weeks");
+        }
         break;
       case "WORKOUTS":
         within(1, 1000, 1);
@@ -109,13 +123,16 @@ export function deadlineSchema(today: string) {
 /** Снижение веса: старт выше цели. */
 const losing = (g: Shape) => g.type === "BODY_WEIGHT" && g.startValue > g.target;
 
+/** У регулярности значение — доля засчитанных недель (0…1), норма недели — в `target`. */
 export function isAchieved(goal: Shape, current: number): boolean {
+  if (goal.type === "STRETCH_WEEKLY") return current >= 1;
   return losing(goal) ? current <= goal.target : current >= goal.target;
 }
 
 /** Доля пути от старта к цели, 0…1. */
 export function goalProgress(goal: Shape, current: number): number {
   if (isAchieved(goal, current)) return 1;
+  if (goal.type === "STRETCH_WEEKLY") return Math.max(0, current);
   const span = goal.target - goal.startValue;
   if (span === 0) return 0;
   return Math.min(1, Math.max(0, (current - goal.startValue) / span));
@@ -153,7 +170,7 @@ export function canCreate(
   if (ctx.active.length >= GOALS_ACTIVE_MAX) return `Максимум ${GOALS_ACTIVE_MAX} активных целей`;
   if (input.type === "BODY_WEIGHT" && ctx.active.some((g) => g.type === "BODY_WEIGHT")) return "Цель по весу уже есть";
   if (input.type === "STRENGTH" && ctx.isBodyweight && input.metric !== "MAX_REPS") return "Для упражнения со своим весом — только повторы";
-  const counter = input.type === "WORKOUTS" || input.type === "HOURS";
+  const counter = input.type === "WORKOUTS" || input.type === "HOURS" || input.type === "STRETCH_WEEKLY";
   if (input.type === "BODY_WEIGHT") {
     if (ctx.current === input.target) return "Уже достигнуто";
   } else if (!counter && ctx.current >= input.target) {
@@ -166,13 +183,20 @@ function fmt(n: number) {
   return String(Math.round(n * 10) / 10).replace(".", ",");
 }
 
-export function goalTitle(g: {
-  type: GoalType;
-  metric: RecordType | null;
-  target: number;
-  startValue: number;
-  exerciseName?: string | null;
-}): string {
+/** `tz` — пояс пользователя: у регулярности по нему считается число недель (из createdAt и срока). */
+export function goalTitle(
+  g: {
+    type: GoalType;
+    metric: RecordType | null;
+    target: number;
+    startValue: number;
+    exerciseName?: string | null;
+    stretchUnit?: StretchUnit | null;
+    createdAt?: Date;
+    deadline?: string | null;
+  },
+  tz = "UTC",
+): string {
   const n = g.target;
   switch (g.type) {
     case "STRENGTH": {
@@ -190,11 +214,23 @@ export function goalTitle(g: {
       return `Вес тела — ${fmt(n)} кг ${g.startValue > n ? "↓" : "↑"}`;
     case "STRETCH_HOLD":
       return `${g.exerciseName ?? "Упражнение"} — удержание ${formatClock(n)}`;
-    // Типы растяжки заполнят задачи 10–11
-    case "STRETCH_WEEKLY":
+    case "STRETCH_WEEKLY": {
+      const norm =
+        g.stretchUnit === "MINUTES"
+          ? `${n} ${plural(n, "минута", "минуты", "минут")} растяжки в неделю`
+          : `${n} ${plural(n, "растяжка", "растяжки", "растяжек")} в неделю`;
+      const weeks = g.createdAt ? goalStretchWeeks({ createdAt: g.createdAt, deadline: g.deadline ?? null }, tz).length : 0;
+      return weeks ? `${norm} · ${weeks} ${plural(weeks, "неделя", "недели", "недель")}` : norm;
+    }
+    // Навык заполнит задача 11
     case "STRETCH_SKILL":
       return "";
   }
+}
+
+/** «эта неделя: 1/3», у минут — «эта неделя: 20/60 мин». */
+export function weeklyWeekText(unit: StretchUnit | null, week: { value: number; target: number }): string {
+  return `эта неделя: ${week.value}/${week.target}${unit === "MINUTES" ? " мин" : ""}`;
 }
 
 /** Цель, выполненная тренировкой (FinishMeta.goals.achieved → сводка и лента). */
@@ -233,7 +269,7 @@ export function suggestGoals(
   return out;
 }
 
-export function goalNotice(kind: "achieved" | "reminder" | "failed", title: string, progress: number): { title: string; body: string } {
+export function goalNotice(kind: "achieved" | "reminder" | "failed" | "weekFailed", title: string, progress: number): { title: string; body: string } {
   const pct = Math.floor(progress * 100);
   switch (kind) {
     case "achieved":
@@ -242,11 +278,18 @@ export function goalNotice(kind: "achieved" | "reminder" | "failed", title: stri
       return { title: "До срока цели 7 дней", body: `${title}: пройдено ${pct} %` };
     case "failed":
       return { title: "Срок цели вышел", body: `${title}: пройдено ${pct} %. Поставить снова?` };
+    case "weekFailed":
+      return { title: `Неделя без растяжки — цель «${title}» не выполнена`, body: `Пройдено ${pct} %. Поставить снова?` };
   }
 }
 
-/** «87,5 / 100 кг», «3 / 12 недель», вес тела — «84,8 → 80 кг». */
-export function goalValueText(g: { type: GoalType; metric: RecordType | null }, current: number, target: number): string {
+/** «87,5 / 100 кг», «3 / 12 недель», вес тела — «84,8 → 80 кг», регулярность — «2 из 4 недель» (по `weekly`). */
+export function goalValueText(
+  g: { type: GoalType; metric: RecordType | null },
+  current: number,
+  target: number,
+  weekly?: { done: number; total: number } | null,
+): string {
   const c = fmt(current);
   switch (g.type) {
     case "STRENGTH":
@@ -261,8 +304,9 @@ export function goalValueText(g: { type: GoalType; metric: RecordType | null }, 
       return `${c} → ${fmt(target)} кг`;
     case "STRETCH_HOLD":
       return `${formatClock(current)} / ${formatClock(target)}`;
-    // Типы растяжки заполнят задачи 10–11
     case "STRETCH_WEEKLY":
+      return weekly ? `${weekly.done} из ${weekly.total} ${plural(weekly.total, "недели", "недель", "недель")}` : `${Math.floor(current * 100)} %`;
+    // Навык заполнит задача 11
     case "STRETCH_SKILL":
       return "";
   }

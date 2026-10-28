@@ -36,7 +36,7 @@ export async function applyGoals(tx: Client, userId: string, finishedAt: Date, s
   const after = await getCurrentValues(tx, userId, eligible, snap.tz);
   const result: FinishGoals = { achieved: [], advanced: [] };
   for (const g of eligible) {
-    const title = goalTitle(g);
+    const title = goalTitle(g, snap.tz);
     const now = after.get(g.id) ?? 0;
     if (isAchieved(g, now)) {
       if (await markAchieved(tx, userId, { id: g.id, title }, finishedAt, false)) {

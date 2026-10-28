@@ -10,6 +10,7 @@ import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { getGoalFormData, getGoalsPage } from "@/lib/goals/queries";
 import { GOALS_ACTIVE_MAX, isInputGoalType, isStrengthMetric, isStretchGoal, type GoalInput } from "@/lib/goals/rules";
+import { goalStretchWeeks } from "@/lib/goals/stretch-weekly";
 
 export const metadata: Metadata = { title: "Цели" };
 
@@ -21,16 +22,25 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
     getGoalsPage(user.id, tz),
     getGoalFormData(user.id, tz),
     againId
-      ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true } })
+      ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true, stretchUnit: true, createdAt: true, deadline: true } })
       : null,
   ]);
   const activeCount = page.active.filter((g) => g.status === "ACTIVE").length;
   // «Поставить снова»: при 5 активных — не открываем (сохранить нельзя); упражнение в архиве — без него, выберешь заново
   const againExercise = againGoal?.exerciseId && [...form.exercises, ...form.stretchExercises].some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
   const again: Partial<GoalInput> | null =
-    // типы, которых форма ещё не принимает (регулярность и навык — задачи 10–11), и растяжка без флага — без «Поставить снова»
+    // типы, которых форма ещё не принимает (навык — задача 11), и растяжка без флага — без «Поставить снова»
     againGoal && isInputGoalType(againGoal.type) && (form.stretch || !isStretchGoal(againGoal.type)) && activeCount < GOALS_ACTIVE_MAX
-      ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: isStrengthMetric(againGoal.metric) ? againGoal.metric : undefined }
+      ? {
+          type: againGoal.type,
+          target: againGoal.target,
+          exerciseId: againExercise,
+          metric: isStrengthMetric(againGoal.metric) ? againGoal.metric : undefined,
+          // регулярность — та же норма и то же число недель
+          ...(againGoal.type === "STRETCH_WEEKLY"
+            ? { stretchUnit: againGoal.stretchUnit ?? undefined, weeks: goalStretchWeeks(againGoal, tz).length || undefined }
+            : {}),
+        }
       : null;
   const weightGoal = page.active.find((g) => g.type === "BODY_WEIGHT" && g.status === "ACTIVE");
 

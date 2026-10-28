@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
-import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, PersonStanding, Plus, Scale, Sparkles, Target } from "lucide-react";
+import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, PersonStanding, Plus, Repeat, Scale, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { DeadlinePicker } from "@/components/goals/deadline-picker";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { formatClock, plural } from "@/lib/format";
 import { createGoalAction } from "@/lib/goals/actions";
 import type { GoalFormData } from "@/lib/goals/queries";
-import { GOALS_ACTIVE_MAX, type GoalInput, type GoalSuggestion, type StrengthMetric } from "@/lib/goals/rules";
+import { GOALS_ACTIVE_MAX, isStretchGoal, type GoalInput, type GoalSuggestion, type StrengthMetric } from "@/lib/goals/rules";
+import { WEEKLY_WEEKS_MAX, WEEKLY_WEEKS_MIN } from "@/lib/goals/stretch-weekly";
 import { cn } from "@/lib/utils";
 
 const TYPES: { type: GoalInput["type"]; label: string; icon: typeof Dumbbell; hint: string }[] = [
@@ -25,7 +26,16 @@ const TYPES: { type: GoalInput["type"]; label: string; icon: typeof Dumbbell; hi
 ];
 
 /** Группа «Растяжка» — только при флаге `stretching`. */
-const STRETCH_TYPES: typeof TYPES = [{ type: "STRETCH_HOLD", label: "Удержание", icon: PersonStanding, hint: "Сколько секунд держать позу" }];
+const STRETCH_TYPES: typeof TYPES = [
+  { type: "STRETCH_WEEKLY", label: "Регулярность", icon: Repeat, hint: "Растяжка каждую неделю: сессии или минуты (заминка тоже считается)" },
+  { type: "STRETCH_HOLD", label: "Удержание", icon: PersonStanding, hint: "Сколько секунд держать позу" },
+];
+
+type StretchUnit = "SESSIONS" | "MINUTES";
+const UNITS: { unit: StretchUnit; label: string }[] = [
+  { unit: "SESSIONS", label: "Сессии" },
+  { unit: "MINUTES", label: "Минуты" },
+];
 
 const METRICS: { metric: StrengthMetric; label: string }[] = [
   { metric: "MAX_WEIGHT", label: "Рабочий вес" },
@@ -41,7 +51,7 @@ const seconds = (s: string) => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : num(s);
 };
 
-function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null) {
+function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null, unit: StretchUnit | null) {
   switch (type) {
     case "STRENGTH":
       return metric === "MAX_REPS" ? "Цель, повторов" : "Цель, кг";
@@ -55,11 +65,23 @@ function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null) {
       return "Цель, кг";
     case "STRETCH_HOLD":
       return "Цель, секунд (или м:сс)";
+    case "STRETCH_WEEKLY":
+      return unit === "MINUTES" ? "Минут в неделю" : "Сессий в неделю";
   }
 }
 
-type Draft = { type: GoalInput["type"] | null; exerciseId: string | null; metric: StrengthMetric | null; target: string; deadline: string | null; currentWeight: string };
-const emptyDraft: Draft = { type: null, exerciseId: null, metric: null, target: "", deadline: null, currentWeight: "" };
+type Draft = {
+  type: GoalInput["type"] | null;
+  exerciseId: string | null;
+  metric: StrengthMetric | null;
+  target: string;
+  deadline: string | null;
+  currentWeight: string;
+  /** Регулярность: что считаем и сколько недель. */
+  stretchUnit: StretchUnit;
+  weeks: string;
+};
+const emptyDraft: Draft = { type: null, exerciseId: null, metric: null, target: "", deadline: null, currentWeight: "", stretchUnit: "SESSIONS", weeks: "4" };
 
 function draftOf(g: Partial<GoalInput>): Draft {
   return {
@@ -69,6 +91,8 @@ function draftOf(g: Partial<GoalInput>): Draft {
     target: g.target !== undefined ? String(g.target).replace(".", ",") : "",
     deadline: g.deadline ?? null,
     currentWeight: "",
+    stretchUnit: g.stretchUnit ?? "SESSIONS",
+    weeks: g.weeks !== undefined ? String(g.weeks) : "4",
   };
 }
 
@@ -98,7 +122,7 @@ export function NewGoal({
   again: Partial<GoalInput> | null;
   initialGroup?: "stretch";
 }) {
-  const [group, setGroup] = useState<"main" | "stretch">(initialGroup ?? (again?.type === "STRETCH_HOLD" ? "stretch" : "main"));
+  const [group, setGroup] = useState<"main" | "stretch">(initialGroup ?? (again?.type && isStretchGoal(again.type) ? "stretch" : "main"));
   const [open, setOpen] = useState(again !== null);
   const [draft, setDraft] = useState<Draft>(again ? draftOf({ ...again, deadline: null }) : emptyDraft);
   const [query, setQuery] = useState("");
@@ -167,6 +191,7 @@ export function NewGoal({
         target: draft.type === "STRETCH_HOLD" ? seconds(draft.target) : num(draft.target),
         deadline: draft.deadline,
         ...(draft.type === "STRETCH_HOLD" ? { exerciseId: draft.exerciseId ?? undefined } : {}),
+        ...(draft.type === "STRETCH_WEEKLY" ? { stretchUnit: draft.stretchUnit, weeks: num(draft.weeks), deadline: null } : {}),
         ...(draft.type === "STRENGTH" ? { exerciseId: draft.exerciseId ?? undefined, metric: draft.metric ?? undefined } : {}),
         ...(draft.type === "BODY_WEIGHT" && form.weight === null ? { currentWeight: num(draft.currentWeight) } : {}),
       };
@@ -229,7 +254,7 @@ export function NewGoal({
           {!draft.type ? (
             <div className="grid grid-cols-2 gap-2">
               {types.map(({ type, label, icon: Icon }) => (
-                <Button key={type} type="button" variant="outline" className="h-16 flex-col gap-1" onClick={() => set({ type, metric: null, exerciseId: null, target: "" })}>
+                <Button key={type} type="button" variant="outline" className="h-16 flex-col gap-1" onClick={() => set({ type, metric: null, exerciseId: null, target: "", stretchUnit: "SESSIONS", weeks: "4" })}>
                   <Icon className="size-5 text-primary" />
                   {label}
                 </Button>
@@ -325,9 +350,42 @@ export function NewGoal({
                 </div>
               ) : null}
 
+              {draft.type === "STRETCH_WEEKLY" ? (
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium">Что считаем</p>
+                  <RadioGroup
+                    aria-label="Что считаем"
+                    aria-invalid={errors.stretchUnit ? true : undefined}
+                    aria-describedby={errors.stretchUnit ? "goal-unit-error" : undefined}
+                    value={draft.stretchUnit}
+                    onValueChange={(v) => set({ stretchUnit: v as StretchUnit, target: "" })}
+                    className="flex flex-wrap gap-2"
+                  >
+                    {UNITS.map((u) => (
+                      <Radio.Root
+                        key={u.unit}
+                        value={u.unit}
+                        aria-label={u.label}
+                        className={cn(
+                          "rounded-lg border px-3 py-1.5 text-sm transition-colors outline-none",
+                          "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                          "data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground",
+                        )}
+                      >
+                        {u.label}
+                      </Radio.Root>
+                    ))}
+                  </RadioGroup>
+                  <p className="text-xs text-muted-foreground">
+                    {draft.stretchUnit === "SESSIONS" ? "Сессия — тренировка с растяжкой, заминка в силовой тоже считается" : "Сумма времени удержаний за неделю"}
+                  </p>
+                  <FieldError id="goal-unit-error" text={errors.stretchUnit} />
+                </div>
+              ) : null}
+
               {draft.type !== "STRENGTH" || draft.metric ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="goal-target">{targetLabel(draft.type, draft.metric)}</Label>
+                  <Label htmlFor="goal-target">{targetLabel(draft.type, draft.metric, draft.stretchUnit)}</Label>
                   {currentText ? <p className="text-sm text-muted-foreground">Сейчас: {currentText}</p> : null}
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
@@ -351,7 +409,26 @@ export function NewGoal({
                 </div>
               ) : null}
 
-              <DeadlinePicker value={draft.deadline} onChange={(v) => set({ deadline: v })} today={form.today} error={errors.deadline} />
+              {draft.type === "STRETCH_WEEKLY" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-weeks">Сколько недель</Label>
+                  <Input
+                    id="goal-weeks"
+                    inputMode="numeric"
+                    className="max-w-32"
+                    value={draft.weeks}
+                    aria-invalid={errors.weeks ? true : undefined}
+                    aria-describedby={errors.weeks ? "goal-weeks-error" : "goal-weeks-hint"}
+                    onChange={(e) => set({ weeks: e.target.value })}
+                  />
+                  <p id="goal-weeks-hint" className="text-xs text-muted-foreground">
+                    От {WEEKLY_WEEKS_MIN} до {WEEKLY_WEEKS_MAX}. Неделя — с понедельника; поставленная в пятницу или выходные цель начнётся со следующей
+                  </p>
+                  <FieldError id="goal-weeks-error" text={errors.weeks} />
+                </div>
+              ) : (
+                <DeadlinePicker value={draft.deadline} onChange={(v) => set({ deadline: v })} today={form.today} error={errors.deadline} />
+              )}
               <FieldError id="goal-form-error" text={errors.form} />
 
               <DialogFooter>

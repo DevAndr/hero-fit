@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { getGoalForecasts, type GoalForecastView } from "@/lib/goals/forecast-queries";
 import { dayKey } from "@/lib/daily-login";
-import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
+import { localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
+import { goalStretchWeeks, weeklyStatus, weeklySums, weeklyValue, type WeekSum, type WeeklyStatus } from "@/lib/goals/stretch-weekly";
 import {
   deadlineEnd,
   goalProgress,
@@ -29,6 +30,8 @@ export type GoalView = GoalRow & {
   pace: "ahead" | "behind" | null;
   /** Прогноз по динамике (силовые и вес тела, от 3 недель данных); null — показывается pace. */
   forecast: GoalForecastView | null;
+  /** Только STRETCH_WEEKLY: засчитанные недели и «эта неделя». */
+  weekly: Pick<WeeklyStatus, "done" | "total" | "current"> | null;
   closedAt: Date | null;
 };
 
@@ -40,6 +43,7 @@ const goalSelect = {
   target: true,
   startValue: true,
   deadline: true,
+  stretchUnit: true,
   status: true,
   createdAt: true,
   achievedAt: true,
@@ -48,7 +52,42 @@ const goalSelect = {
   exercise: { select: { name: true } },
 } satisfies Prisma.GoalSelect;
 
-/** Текущее значение каждой цели (по id) — из рекордов, тренировок, серии и взвешиваний. */
+/**
+ * Регулярность растяжки: суммы по неделям с момента `since`. Сессия — тренировка с выполненным подходом растяжки
+ * (и заминка в силовой), секунды — удержания, у «каждой стороны» ×2. Неделя — по местному времени финиша.
+ */
+export async function stretchWeekSums(client: Client, userId: string, since: Date, tz: string): Promise<Map<string, WeekSum>> {
+  const rows = await client.$queryRaw<{ finishedAt: Date; sec: number }[]>`
+    SELECT w."finishedAt", COALESCE(SUM(s."durationSec" * CASE WHEN e."perSide" THEN 2 ELSE 1 END), 0)::int AS sec
+    FROM "WorkoutSet" s
+    JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+    JOIN "Exercise" e ON e.id = we."exerciseId"
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+      AND e.kind = 'STRETCH' AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s."durationSec" > 0
+    GROUP BY w.id, w."finishedAt"
+  `;
+  return weeklySums(rows, tz);
+}
+
+/** Статус недель каждой цели регулярности — один запрос на все цели (с понедельника самой ранней недели). */
+export async function getWeeklyStatuses(
+  client: Client,
+  userId: string,
+  goals: GoalRow[],
+  tz: string,
+  now = new Date(),
+): Promise<Map<string, WeeklyStatus>> {
+  const out = new Map<string, WeeklyStatus>();
+  const weekly = goals.filter((g) => g.type === "STRETCH_WEEKLY").map((g) => ({ g, weeks: goalStretchWeeks(g, tz) }));
+  const starts = weekly.flatMap(({ weeks }) => (weeks.length ? [weeks[0].start] : [])).sort();
+  const sums = starts.length ? await stretchWeekSums(client, userId, localMidnight(starts[0], tz), tz) : new Map<string, WeekSum>();
+  const today = dayKey(now, tz);
+  for (const { g, weeks } of weekly) out.set(g.id, weeklyStatus(weeks, sums, today, g.target, g.stretchUnit ?? "SESSIONS"));
+  return out;
+}
+
+/** Текущее значение каждой цели (по id) — из рекордов, тренировок, серии и взвешиваний; у регулярности — доля засчитанных недель. */
 export async function getCurrentValues(client: Client, userId: string, goals: GoalRow[], tz: string): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   if (goals.length === 0) return out;
@@ -64,6 +103,8 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
   const streak = goals.some((g) => g.type === "STREAK") ? await effectiveStreak(client, userId, tz) : 0;
   const needWeight = goals.some((g) => g.type === "BODY_WEIGHT");
   const weight = needWeight ? await latestWeight(client, userId) : null;
+  // Регулярность не зависит от флага `stretching`: поставленные цели считаются и без него
+  const weekly = await getWeeklyStatuses(client, userId, goals, tz);
 
   for (const g of goals) {
     switch (g.type) {
@@ -77,6 +118,11 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
       case "BODY_WEIGHT":
         out.set(g.id, weight ?? g.startValue);
         break;
+      case "STRETCH_WEEKLY": {
+        const w = weekly.get(g.id);
+        out.set(g.id, w ? weeklyValue(w) : 0);
+        break;
+      }
       case "WORKOUTS":
       case "HOURS": {
         const agg = await client.workout.aggregate({
@@ -153,6 +199,7 @@ async function toViews(client: Client, userId: string, goals: GoalWithExercise[]
   const rows = goals.map(toRow);
   const active = rows.filter((g) => g.status === GoalStatus.ACTIVE);
   const values = await getCurrentValues(client, userId, active, tz);
+  const weekly = await getWeeklyStatuses(client, userId, rows, tz, now);
   const forecasts = await getGoalForecasts(
     client,
     userId,
@@ -166,11 +213,12 @@ async function toViews(client: Client, userId: string, goals: GoalWithExercise[]
     const progress = g.status === GoalStatus.ACHIEVED ? 1 : goalProgress(g, current);
     return {
       ...g,
-      title: goalTitle(g),
+      title: goalTitle(g, tz),
       current,
       progress,
       pace: closed ? null : paceStatus(g, progress, now, tz),
       forecast: closed ? null : (forecasts.get(g.id) ?? null),
+      weekly: weekly.get(g.id) ?? null,
     };
   });
 }
