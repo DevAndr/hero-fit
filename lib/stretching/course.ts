@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { cmSchema } from "@/lib/goals/cm-schema";
+import { dayKey } from "@/lib/daily-login";
+import { weekdayOf } from "@/lib/dates";
+import { localHour } from "@/lib/progress/weekly-streak";
 
 // Курс «Сесть на шпагат»: 30 занятий, 5 этапов по 6. План — в коде, в БД только прогресс.
 
@@ -90,4 +93,26 @@ export function courseAdvance(
   if (!workout.hasDoneSet || workout.courseSessionNo !== course.nextSession) return null;
   const next = { nextSession: course.nextSession + 1 };
   return course.status === "ACTIVE" && course.nextSession === COURSE_SESSIONS ? { ...next, finishedAt: now } : next;
+}
+
+export const COURSE_REMIND_HOUR = 17;
+
+/** Напоминание о занятии: выбранный местный день недели, с 17:00, раз в день, если сегодня ещё не занимался. */
+export function shouldRemindCourse(input: {
+  now: Date;
+  timeZone: string;
+  remindDays: number[];
+  remindedDay: string | null;
+  trainedToday: boolean;
+}): { day: string } | null {
+  const day = dayKey(input.now, input.timeZone);
+  if (!input.remindDays.includes(weekdayOf(day))) return null;
+  if (localHour(input.now, input.timeZone) < COURSE_REMIND_HOUR) return null;
+  if (input.remindedDay === day || input.trainedToday) return null;
+  return { day };
+}
+
+export function courseReminderBody(c: { nextSession: number; status: string }): string {
+  if (c.status === "MAINTENANCE") return "Сегодня занятие поддержки шпагата";
+  return `Сегодня занятие курса: этап ${stageOf(c.nextSession)}, занятие ${c.nextSession} из ${COURSE_SESSIONS}`;
 }

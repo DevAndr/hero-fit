@@ -2029,3 +2029,32 @@ export async function startWorkoutRow(login: string, startedAt: Date) {
     );
   });
 }
+
+/** Дни напоминаний курса напрямую (0 = пн … 6 = вс). */
+export async function setCourseRemindDays(login: string, days: number[]) {
+  await withDb((db) =>
+    db.query(`update "StretchCourse" set "remindDays" = $2 where "userId" = (select id from "User" where login = $1)`, [login, days]),
+  );
+}
+
+/** Напоминания курса: сколько уведомлений COURSE_REMINDER у пользователя. */
+export async function courseReminders(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ body: string }>(
+      `select body from "Notification" where "userId" = (select id from "User" where login = $1) and type = 'COURSE_REMINDER'`,
+      [login],
+    );
+    return rows.map((r) => r.body);
+  });
+}
+
+/** Сколько push COURSE_REMINDER ставилось в очередь пользователю (в любом состоянии). */
+export async function courseReminderPushes(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: string }>(
+      `select count(*) n from "ScheduledPush" where "userId" = (select id from "User" where login = $1) and type = 'COURSE_REMINDER'`,
+      [login],
+    );
+    return Number(rows[0].n);
+  });
+}

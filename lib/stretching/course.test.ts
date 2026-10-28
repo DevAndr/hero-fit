@@ -5,6 +5,8 @@ import {
   courseStartSchema,
   isCourseSkill,
   courseAdvance,
+  courseReminderBody,
+  shouldRemindCourse,
   isMeasureSession,
   nextHoldSec,
   sessionPlan,
@@ -174,5 +176,40 @@ describe("courseAdvance", () => {
   });
   it("поддержка идёт без finishedAt", () => {
     expect(courseAdvance(c("MAINTENANCE", 35), w(35), now)).toEqual({ nextSession: 36 });
+  });
+});
+
+describe("shouldRemindCourse", () => {
+  const base = { timeZone: "Europe/Moscow", remindDays: [0], remindedDay: null, trainedToday: false };
+  // 2026-10-26 — понедельник
+  it("в выбранный день после 17:00", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T14:05:00Z") })).toEqual({ day: "2026-10-26" });
+  });
+  it("до 17:00 — нет", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T13:59:00Z") })).toBeNull();
+  });
+  it("не выбранный день — нет", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-27T15:00:00Z") })).toBeNull();
+  });
+  it("уже напоминали сегодня — нет", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T15:00:00Z"), remindedDay: "2026-10-26" })).toBeNull();
+  });
+  it("сегодня уже занимался — нет", () => {
+    expect(shouldRemindCourse({ ...base, now: new Date("2026-10-26T15:00:00Z"), trainedToday: true })).toBeNull();
+  });
+  it("местный день — по поясу пользователя", () => {
+    // UTC вт 04:30 = Etc/GMT+11 пн 17:30 (по UTC день уже вторник)
+    expect(shouldRemindCourse({ ...base, timeZone: "Etc/GMT+11", now: new Date("2026-10-27T04:30:00Z") })).toEqual({ day: "2026-10-26" });
+    // и наоборот: UTC пн 20:00 = Etc/GMT-14 вт 10:00 — не понедельник и рано
+    expect(shouldRemindCourse({ ...base, timeZone: "Etc/GMT-14", now: new Date("2026-10-26T20:00:00Z") })).toBeNull();
+  });
+});
+
+describe("courseReminderBody", () => {
+  it("этап и номер занятия", () => {
+    expect(courseReminderBody({ nextSession: 8, status: "ACTIVE" })).toBe("Сегодня занятие курса: этап 2, занятие 8 из 30");
+  });
+  it("поддержка", () => {
+    expect(courseReminderBody({ nextSession: 31, status: "MAINTENANCE" })).toBe("Сегодня занятие поддержки шпагата");
   });
 });

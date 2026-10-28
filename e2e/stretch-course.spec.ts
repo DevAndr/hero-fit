@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, setCourseSession } from "./db";
-import { registerUser } from "./helpers";
+import { addFlagUser, courseReminderPushes, courseReminders, setCourseRemindDays, setCourseSession, setTimeZone } from "./db";
+import { registerUser, runTick } from "./helpers";
+import { E2E_TZ, localAt } from "./tz";
 
 const COURSE = "Курс «Сесть на шпагат»";
 const SIDE = "Поперечный шпагат";
@@ -212,4 +213,44 @@ test("without stretch_course there is no course card", async ({ page }) => {
   await page.goto("/stretching");
   await expect(page.getByRole("region", { name: "Цели по растяжке" })).toBeVisible();
   await expect(page.getByRole("region", { name: COURSE })).toHaveCount(0);
+});
+
+/** Сегодняшний местный день в поясе e2e и его день недели (0 = пн). */
+function todayLocal() {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return { day, weekday: (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7 };
+}
+
+test("reminder: on a chosen day after 17:00 once; the toggle off — none", async ({ page, request, browser }) => {
+  const { day, weekday } = todayLocal();
+  const a = await courseUser(page, "Курс_напомин");
+  await startCourse(page, SIDE, "25");
+  await setTimeZone(a.login);
+  await setCourseRemindDays(a.login, [weekday]);
+
+  await runTick(request, localAt(day, "16:30"), "course");
+  expect(await courseReminders(a.login)).toEqual([]);
+  await runTick(request, localAt(day, "17:30"), "course");
+  await runTick(request, localAt(day, "18:30"), "course");
+  expect(await courseReminders(a.login)).toEqual(["Сегодня занятие курса: этап 1, занятие 1 из 30"]);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: /Уведомления/ }).click();
+  await expect(page.getByText("Сегодня занятие курса: этап 1, занятие 1 из 30")).toBeVisible();
+
+  const ctx = await browser.newContext();
+  page = await ctx.newPage();
+  const b = await courseUser(page, "Курс_без_напомин");
+  await startCourse(page, SIDE, "25");
+  await setTimeZone(b.login);
+  await setCourseRemindDays(b.login, [weekday]);
+  await page.goto("/settings");
+  await page.getByRole("switch", { name: "Курс растяжки — занятия по дням" }).click();
+  await expect(page.getByRole("switch", { name: "Курс растяжки — занятия по дням" })).not.toBeChecked();
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "Курс растяжки — занятия по дням" })).not.toBeChecked();
+  await runTick(request, localAt(day, "17:30"), "course");
+  // тумблер гасит push (запись в ленте остаётся, как у остальных типов); у первого пользователя push был
+  expect(await courseReminderPushes(b.login)).toBe(0);
+  expect(await courseReminderPushes(a.login)).toBe(1);
+  await ctx.close();
 });
