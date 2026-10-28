@@ -4,6 +4,7 @@ import { addWeeks, STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 import { epley1RM } from "@/lib/progress/records";
 import { rankLeague } from "@/lib/social/league";
 import { strengthTrend, trendWindows, type StrengthTrend } from "@/lib/stats/strength";
+import { stretchMinutes } from "@/lib/stats/stretch";
 import { RECAP_VERSION, type RecapData, type RecapInput, type RecapTotals } from "./types";
 
 const EPS = 0.01;
@@ -128,6 +129,7 @@ export function buildRecap(input: RecapInput): RecapData | null {
     boss: input.boss ?? undefined,
     raid: input.raid ?? undefined,
     strength: strength(input),
+    stretch: stretch(input),
   };
   for (const [key, value] of Object.entries(blocks)) if (value !== undefined) Object.assign(data, { [key]: value });
   return data;
@@ -154,6 +156,11 @@ export function recapHighlights(data: RecapData): string[] {
   if (data.streak?.credited) facts.push("неделя засчитана 🔥");
   if (!facts.length) facts.push(`${totals.workouts} ${plural(totals.workouts, "тренировка", "тренировки", "тренировок")} за неделю`);
   return facts.slice(0, 3);
+}
+
+function stretch(input: RecapInput): RecapData["stretch"] {
+  const minutes = stretchMinutes(input.stretchSec ?? 0);
+  return minutes > 0 ? { minutes } : undefined;
 }
 
 function strength(input: RecapInput): StrengthTrend | undefined {

@@ -55,6 +55,12 @@ describe("buildRecap", () => {
     expect(buildRecap(input({ workouts: [] }))).toBeNull();
   });
 
+  it("stretch minutes: floored, only when > 0", () => {
+    expect(buildRecap(input({ stretchSec: 5 * 60 + 59 }))!.stretch).toEqual({ minutes: 5 });
+    expect(buildRecap(input({ stretchSec: 59 }))!.stretch).toBeUndefined();
+    expect(buildRecap(input())!.stretch).toBeUndefined();
+  });
+
   it("totals with previous week", () => {
     const r = buildRecap(
       input({

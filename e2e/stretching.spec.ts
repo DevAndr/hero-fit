@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { addFlagUser, createGoal, goalOf, goalsOf, makeFriends, mondayWeeksAgo, notificationTitles, notificationUrls, seedStretchSessions, userExists, userId, withDb } from "./db";
+import { addFlagUser, createGoal, goalOf, goalsOf, makeFriends, mondayWeeksAgo, notificationTitles, notificationUrls, seedRecapWeek, seedStretchSessions, userExists, userId, withDb } from "./db";
 import { addToWorkout, PASSWORD, registerUser, runTick } from "./helpers";
 import { localAt } from "./tz";
 
@@ -75,6 +75,26 @@ test("stretch session does not count toward the week, a lift with a cool-down do
   } finally {
     await other.close();
   }
+});
+
+test("weekly recap: stretch minutes line from sessions and cool-downs", async ({ page }) => {
+  const u = await registerUser(page, "Итоги_растяжки");
+  const week = mondayWeeksAgo(2);
+  // Силовая с заминкой (сессия растяжки сама итогов не создаёт) и сессия растяжки: 90 с + 60 с = 2,5 мин → «2 мин»
+  const [lift] = await seedRecapWeek(u.login, week, [{ day: 1, time: "19:00", exercise: LIFT, weight: 60, reps: 5, sets: 3, xp: 80 }]);
+  await withDb(async (db) => {
+    const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null`, [STRETCH]);
+    const weId = randomUUID();
+    await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 1, 30)`, [weId, lift.workoutId, rows[0].id]);
+    await db.query(
+      `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "durationSec", "isWarmup", "completedAt") values ($1, $2, 0, 0, 0, 90, false, now())`,
+      [randomUUID(), weId],
+    );
+  });
+  await seedStretchSessions(u.login, STRETCH, [localAt(week, "20:00", 2)], 60);
+  await page.goto(`/recap/${week}`);
+  await expect(page.getByTestId("recap-total-workouts")).toHaveText("1");
+  await expect(page.getByTestId("recap-stretch")).toHaveText("Растяжка: 2 мин");
 });
 
 test("without the flag there is no stretch menu, page or catalog entries", async ({ page }) => {

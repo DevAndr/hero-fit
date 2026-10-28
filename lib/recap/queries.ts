@@ -74,6 +74,20 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
   `;
 }
 
+/** Секунды удержания растяжки за [start, end): все завершённые тренировки (сессии растяжки и заминки), ×2 у односторонних. */
+async function stretchSeconds(userId: string, start: Date, end: Date): Promise<number> {
+  const [row] = await db.$queryRaw<{ sec: number }[]>`
+    SELECT COALESCE(SUM(s."durationSec" * CASE WHEN e."perSide" THEN 2 ELSE 1 END), 0)::int AS sec
+    FROM "WorkoutSet" s
+    JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+    JOIN "Exercise" e ON e.id = we."exerciseId"
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
+      AND e.kind = 'STRETCH' AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s."durationSec" > 0
+  `;
+  return row?.sec ?? 0;
+}
+
 /**
  * Рейд гильдии недели: рейды, в которые игрок бил тренировками, завершёнными в [start, end) (его неделя — окно рейда
  * в поясе главы может не совпадать); при нескольких — с наибольшим моим уроном за весь рейд. Место — среди всех бивших,
@@ -108,7 +122,7 @@ export async function weekRaid(userId: string, start: Date, end: Date): Promise<
 export async function loadRecapInput(userId: string, week: string, tz: string): Promise<RecapInput> {
   const { start, end } = bounds(week, tz);
   const prev = bounds(addWeeks(week, -1), tz);
-  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests] = await Promise.all([
+  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests, stretchSec] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
     db.user.findUniqueOrThrow({
@@ -130,6 +144,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     weekRaid(userId, start, end),
     // 8 недель по неделю итогов: окна тренда силы (флаг strength_analytics владельца итогов)
     isEnabled("strength_analytics", userId).then((on) => (on ? exerciseWeekBests(userId, tz, bounds(addWeeks(week, -7), tz).start) : [])),
+    stretchSeconds(userId, start, end),
   ]);
 
   const ids = workouts.map((w) => w.id);
@@ -175,6 +190,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
       ? { code: bossWeek.bossCode, hp: bossWeek.hp, damage: bossHit.damage, defeatedAt: bossWeek.defeatedAt?.toISOString() ?? null }
       : null,
     raid,
+    stretchSec,
     plan: occurrences.length ? { done: occurrences.filter((o) => o.status === "done").length, planned: occurrences.length } : null,
   };
 }

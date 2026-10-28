@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatRecord, isTimedRecord } from "@/lib/progress/records";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
-import { ArrowDown, ArrowUp, Award, CalendarCheck, Crown, Flame, Medal, Shield, Snowflake, Swords, Trophy, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Award, CalendarCheck, Crown, Flame, Medal, PersonStanding, Shield, Snowflake, Swords, Trophy, Users } from "lucide-react";
 import { BossChestButton } from "@/components/boss/boss-chest-button";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { bossName } from "@/lib/boss/bosses";
@@ -252,6 +252,12 @@ export function RecapView({
       </section>
       {strength && data.strength ? <StrengthBlock strength={data.strength} /> : null}
       <Totals totals={data.totals} />
+      {data.stretch ? (
+        <p className="flex items-center gap-2 rounded-xl border bg-card px-4 py-3 font-semibold" data-testid="recap-stretch">
+          <PersonStanding className="size-4 text-primary" aria-hidden />
+          Растяжка: {data.stretch.minutes} мин
+        </p>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {data.bestSet ? <BestSet best={data.bestSet} /> : null}
         <League league={data.league} />
