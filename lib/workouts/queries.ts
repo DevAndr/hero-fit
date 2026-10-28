@@ -5,6 +5,7 @@ import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
 import { FINISH_REASONS } from "@/lib/progress/xp";
 import { isEnabled } from "@/lib/flags/server";
+import { courseSummary, isCourseSkill } from "@/lib/stretching/course";
 import { stretchOnlyWhere } from "@/lib/templates/queries";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
@@ -22,6 +23,9 @@ export type ActiveWorkout = {
   /** Ключ вхождения календаря, из которого начата тренировка. */
   planKey: string | null;
   templateId: string | null;
+  /** Занятие курса «Сесть на шпагат» (номер — на момент создания). */
+  courseId?: string | null;
+  courseSessionNo?: number | null;
   /** Самочувствие из чек-ина помощника. */
   wellbeing?: "GREAT" | "OK" | "TIRED" | null;
   /** Золотой гоблин этой тренировки (показывается только при флаге golden_goblin). */
@@ -55,6 +59,8 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     id: workout.id,
     planKey: workout.planKey,
     templateId: workout.templateId,
+    courseId: workout.courseId,
+    courseSessionNo: workout.courseSessionNo,
     wellbeing: workout.wellbeing,
     goblin: workout.goblin ? { spawnedAt: workout.goblin.spawnedAt.toISOString() } : null,
     name: workout.name,
@@ -134,7 +140,7 @@ export async function getStartOptions(userId: string) {
 export type StartOptions = Awaited<ReturnType<typeof getStartOptions>>;
 
 export async function getWorkoutSummary(userId: string, workoutId: string) {
-  return db.workout.findFirst({
+  const workout = await db.workout.findFirst({
     where: { id: workoutId, userId, status: WorkoutStatus.COMPLETED },
     include: {
       exercises: {
@@ -152,7 +158,13 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
           exercises: { orderBy: { order: "asc" }, select: { exerciseId: true, targetSets: true, supersetGroup: true } },
         },
       },
+      course: { select: { skill: true } },
     },
   });
+  if (!workout) return null;
+  const { course: c, ...rest } = workout;
+  // Строка курса в сводке: и N, и «следующее» — по самой тренировке
+  const course = c && workout.courseSessionNo && isCourseSkill(c.skill) ? courseSummary(c.skill, workout.courseSessionNo) : null;
+  return { ...rest, course };
 }
 

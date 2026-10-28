@@ -857,6 +857,17 @@ export async function addFlagUser(key: string, login: string) {
   );
 }
 
+/** Курс «Сесть на шпагат»: следующее занятие идущего курса — n (подготовка финала, середины курса). */
+export async function setCourseSession(login: string, n: number) {
+  await withDb((db) =>
+    db.query(
+      `update "StretchCourse" set "nextSession" = $2
+       where "userId" = (select id from "User" where login = $1) and status in ('ACTIVE', 'MAINTENANCE')`,
+      [login, n],
+    ),
+  );
+}
+
 /** Алфавит кода друга (lib/social/league.ts). */
 const CLUB_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -1013,6 +1024,11 @@ export async function clubTaskRewards(id: string): Promise<string[]> {
 /** Есть ли пользователь с таким логином (удаление аккаунта). */
 export async function userExists(login: string): Promise<boolean> {
   return withDb(async (db) => ((await db.query(`select 1 from "User" where login = $1`, [login])).rowCount ?? 0) > 0);
+}
+
+/** Сколько курсов шпагата у пользователя (по логину). */
+export async function courseCount(login: string): Promise<number> {
+  return withDb(async (db) => Number((await db.query(`select count(*) from "StretchCourse" c join "User" u on u.id = c."userId" where u.login = $1`, [login])).rows[0].count));
 }
 
 /** Ники строк лиги во всех снимках итогов недели пользователя. */
@@ -2016,5 +2032,34 @@ export async function startWorkoutRow(login: string, startedAt: Date) {
       `insert into "Workout" (id, "userId", name, status, "startedAt", "createdAt", "updatedAt") values ($1, $2, 'Seed', 'IN_PROGRESS', $3, $3, $3)`,
       [randomUUID(), uid, startedAt],
     );
+  });
+}
+
+/** Дни напоминаний курса напрямую (0 = пн … 6 = вс). */
+export async function setCourseRemindDays(login: string, days: number[]) {
+  await withDb((db) =>
+    db.query(`update "StretchCourse" set "remindDays" = $2 where "userId" = (select id from "User" where login = $1)`, [login, days]),
+  );
+}
+
+/** Напоминания курса: сколько уведомлений COURSE_REMINDER у пользователя. */
+export async function courseReminders(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ body: string }>(
+      `select body from "Notification" where "userId" = (select id from "User" where login = $1) and type = 'COURSE_REMINDER'`,
+      [login],
+    );
+    return rows.map((r) => r.body);
+  });
+}
+
+/** Сколько push COURSE_REMINDER ставилось в очередь пользователю (в любом состоянии). */
+export async function courseReminderPushes(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ n: string }>(
+      `select count(*) n from "ScheduledPush" where "userId" = (select id from "User" where login = $1) and type = 'COURSE_REMINDER'`,
+      [login],
+    );
+    return Number(rows[0].n);
   });
 }

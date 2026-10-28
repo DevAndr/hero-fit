@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/app-shell";
 import { StretchCatalog } from "@/components/stretching/stretch-catalog";
 import { StretchStart } from "@/components/stretching/stretch-start";
+import { CourseCard } from "@/components/stretching/course-card";
 import { GoalCard } from "@/components/goals/goal-card";
 import { NewGoal } from "@/components/goals/new-goal-dialog";
 import { requireUser } from "@/lib/auth/dal";
@@ -14,6 +15,8 @@ import { getGoalFormData, getStretchGoals } from "@/lib/goals/queries";
 import { getStretchStats } from "@/lib/stats/queries";
 import { getHoldRecords, hasActiveWorkout, listStretchTemplates } from "@/lib/stretching/queries";
 import { isSkillKey } from "@/lib/stretching/skills";
+import { courseAllowed } from "@/lib/stretching/course-access";
+import { getActiveCourse } from "@/lib/stretching/course-queries";
 
 export const metadata: Metadata = { title: "Растяжка" };
 
@@ -24,7 +27,7 @@ export default async function StretchingPage({ searchParams }: PageProps<"/stret
   const { skill } = await searchParams;
   const preset = typeof skill === "string" && isSkillKey(skill) ? { type: "STRETCH_SKILL" as const, stretchSkill: skill } : null;
   const tz = safeTimeZone(user.timeZone);
-  const [stats, templates, active, exercises, records, goals, form, activeGoals] = await Promise.all([
+  const [stats, templates, active, exercises, records, goals, form, activeGoals, course] = await Promise.all([
     getStretchStats(user.id, tz),
     listStretchTemplates(user.id),
     hasActiveWorkout(user.id),
@@ -33,6 +36,8 @@ export default async function StretchingPage({ searchParams }: PageProps<"/stret
     getStretchGoals(user.id, tz),
     getGoalFormData(user.id, tz),
     db.goal.count({ where: { userId: user.id, status: "ACTIVE" } }),
+    // Курс — только при флагах stretching и stretch_course; undefined — карточки нет
+    courseAllowed(user.id).then((on) => (on ? getActiveCourse(user.id) : undefined)),
   ]);
 
   return (
@@ -49,6 +54,8 @@ export default async function StretchingPage({ searchParams }: PageProps<"/stret
             <p className="mt-1 text-2xl font-black" data-testid="stretch-week-sessions">{stats.week.sessions}</p>
           </div>
         </section>
+
+        {course !== undefined ? <CourseCard course={course} active={active} /> : null}
 
         <section aria-label="Цели по растяжке" className="space-y-3">
           <h2 className="text-lg font-bold">Цели по растяжке</h2>

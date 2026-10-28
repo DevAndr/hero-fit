@@ -155,7 +155,7 @@
 
 ### Сквозные правила
 - Новая связь с `User` или со своим `Exercise` — проверить удаление аккаунта и выгрузку «Мои данные» (`lib/account/*`, `e2e/account-data.spec.ts`)
-- Частичные уникальные индексы, которых Prisma не видит (`CoachLink_active_client`, `CoachComment_workout_general`, `CoachSignal_open`), — не удалять при `prisma migrate dev`: проверять SQL новой миграции
+- Частичные уникальные индексы, которых Prisma не видит (`CoachLink_active_client`, `CoachComment_workout_general`, `CoachSignal_open`, `StretchCourse_active`), — не удалять при `prisma migrate dev`: проверять SQL новой миграции
 - Новое числовое поле ввода данных тренировки — с `selectOnFocus` (`components/ui/select-on-focus.ts`)
 - Рискованная фича — сразу под фича-флагом; пункт «Что нового» про неё — с `flag`; e2e с глобальным флагом — `mode: "serial"` и только desktop
 - Данные о здоровье (боль) на сервер не уходят (152-ФЗ) — только `localStorage`; исключение — данные WHOOP: на сервере по отдельному согласию при подключении, удаляются при отключении (`docs/features/training.md`)

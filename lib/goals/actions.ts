@@ -9,9 +9,9 @@ import { isEnabled } from "@/lib/flags/server";
 import { evaluateAchievements, evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
-import { currentValueFor } from "@/lib/goals/queries";
 import { markAchieved, syncLatestWeight, writeWeight } from "@/lib/goals/mutations";
-import { canCreate, deadlineSchema, GOAL_CHEST_XP, goalOpenAt, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
+import { createGoalInTx, GoalRefused } from "@/lib/goals/create";
+import { deadlineSchema, GOAL_CHEST_XP, goalOpenAt, goalSchema, goalTitle, isAchieved, type GoalInput } from "@/lib/goals/rules";
 import { grantChestCoins } from "@/lib/shop/earn";
 import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
@@ -25,13 +25,6 @@ const weightSchema = z.number().min(30, "Вес — от 30 до 300 кг").max(
 function refresh() {
   revalidatePath("/goals");
   revalidatePath("/dashboard");
-}
-
-/** Отказ внутри транзакции — бросается, чтобы откатить уже записанное (взвешивание из формы). */
-class Refused extends Error {
-  constructor(readonly result: Result) {
-    super("refused");
-  }
 }
 
 export async function createGoalAction(input: GoalInput): Promise<Result> {
@@ -72,44 +65,15 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
     isBodyweight = exercise.isBodyweight;
   }
 
-  const result = await db.$transaction(async (tx): Promise<Result> => {
-    // Строка пользователя — под блокировкой: две вкладки не обойдут лимит активных целей
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
-    if (g.type === "BODY_WEIGHT" && g.currentWeight !== undefined) {
-      const w = weightSchema.safeParse(g.currentWeight);
-      if (!w.success) return { ok: false, error: w.error.issues[0].message, field: "currentWeight" };
-      await writeWeight(tx, user.id, tz, w.data);
-    }
-    const current = await currentValueFor(tx, user.id, g, tz);
-    if (current === null) return { ok: false, error: "Сначала запиши текущий вес", field: "currentWeight" };
-    const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true, stretchSkill: true, skillTitle: true } });
-    const refusal = canCreate(g, { active, current, isBodyweight, hasWeight: true });
-    // Отказ — откатом: взвешивание из формы без цели не сохраняется
-    if (refusal) throw new Refused({ ok: false, error: refusal, field: refusal === "Уже достигнуто" ? "target" : undefined });
-    const skill = g.type === "STRETCH_SKILL";
-    const counter = g.type === "WORKOUTS" || g.type === "HOURS" || weekly;
-    await tx.goal.create({
-      data: {
-        userId: user.id,
-        type: g.type,
-        exerciseId: g.type === "STRENGTH" || g.type === "STRETCH_HOLD" ? g.exerciseId : null,
-        metric: g.type === "STRENGTH" ? g.metric : null,
-        target: g.target,
-        startValue: skill ? g.startCm! : counter ? 0 : current,
-        deadline: g.deadline,
-        stretchUnit: weekly ? g.stretchUnit : null,
-        // Навык: ключ из списка или своё название
-        stretchSkill: skill ? (g.stretchSkill ?? null) : null,
-        skillTitle: skill && !g.stretchSkill ? g.skillTitle : null,
-        createdAt: now,
-        reminderAt: initialReminderAt(g.deadline, now, tz),
-      },
+  const result = await db
+    .$transaction(async (tx): Promise<Result> => {
+      await createGoalInTx(tx, user, g, isBodyweight, now);
+      return { ok: true };
+    })
+    .catch((e: unknown) => {
+      if (e instanceof GoalRefused) return e.result;
+      throw e;
     });
-    return { ok: true };
-  }).catch((e: unknown) => {
-    if (e instanceof Refused) return e.result;
-    throw e;
-  });
   if (result.ok) {
     await queueGoal("goal_create");
     refresh();
