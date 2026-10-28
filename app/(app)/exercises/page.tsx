@@ -34,7 +34,6 @@ function filterHref(q: string, group?: PageGroup) {
   return query ? `/exercises?${query}` : "/exercises";
 }
 
-/** Без фильтра по группе — сначала «Избранное», затем секции по основной группе мышц в порядке справочника. */
 /** Растяжка — секции по основной зоне (порядок зон справочника); `prefix` отличает их от групп мышц («Грудь»). */
 function stretchSections(exercises: ExerciseItem[], prefix: string) {
   const stretches = exercises.filter((e) => e.kind === "STRETCH");
@@ -45,6 +44,7 @@ function stretchSections(exercises: ExerciseItem[], prefix: string) {
   })).filter((section) => section.items.length > 0);
 }
 
+/** Без фильтра по группе — сначала «Избранное», затем секции по основной группе мышц в порядке справочника, в конце — растяжка по зонам. */
 function groupByPrimary(exercises: ExerciseItem[]) {
   const favorites = exercises.filter((e) => e.favorite);
   return [

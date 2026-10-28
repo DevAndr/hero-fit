@@ -28,6 +28,7 @@ import { catalogCount } from "@/lib/coach/catalog-queries";
 import { isEnabled } from "@/lib/flags/server";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
+import { stretchOnlyWhere } from "@/lib/templates/queries";
 import { telegramAppUrl } from "@/lib/telegram/links";
 
 export const metadata: Metadata = {
@@ -66,9 +67,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
   // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ.
   // Android-приложение — так же: флаг `native_app` для всех (иначе скачавший не сможет включить уведомления)
+  // Растяжка (флаг `stretching`) в счётчиках — только когда открыта всем
+  const stretching = isEnabled("stretching", null);
   const [exercises, programs, clubs, android, cities, authed, catalogCoaches] = await Promise.all([
-    db.exercise.count({ where: { userId: null } }),
-    db.workoutTemplate.count({ where: { userId: null } }),
+    stretching.then((on) => db.exercise.count({ where: { userId: null, ...(on ? {} : { kind: { not: "STRETCH" as const } }) } })),
+    stretching.then((on) => db.workoutTemplate.count({ where: { userId: null, ...(on ? {} : { NOT: stretchOnlyWhere }) } })),
     isEnabled("clubs", null),
     isEnabled("native_app", null),
     getPopularCities(6),
