@@ -1026,6 +1026,11 @@ export async function userExists(login: string): Promise<boolean> {
   return withDb(async (db) => ((await db.query(`select 1 from "User" where login = $1`, [login])).rowCount ?? 0) > 0);
 }
 
+/** Сколько курсов шпагата у пользователя (по логину). */
+export async function courseCount(login: string): Promise<number> {
+  return withDb(async (db) => Number((await db.query(`select count(*) from "StretchCourse" c join "User" u on u.id = c."userId" where u.login = $1`, [login])).rows[0].count));
+}
+
 /** Ники строк лиги во всех снимках итогов недели пользователя. */
 export async function recapLeagueNicks(login: string): Promise<string[]> {
   return withDb(async (db) => {
