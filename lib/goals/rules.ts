@@ -171,6 +171,11 @@ export function goalTitle(g: {
       return `${n} ${plural(n, "час", "часа", "часов")} в зале`;
     case "BODY_WEIGHT":
       return `Вес тела — ${fmt(n)} кг ${g.startValue > n ? "↓" : "↑"}`;
+    // Типы растяжки заполнят задачи 9–11
+    case "STRETCH_WEEKLY":
+    case "STRETCH_HOLD":
+    case "STRETCH_SKILL":
+      return "";
   }
 }
 
@@ -236,6 +241,11 @@ export function goalValueText(g: { type: GoalType; metric: RecordType | null }, 
       return `${c} / ${target} ч`;
     case "BODY_WEIGHT":
       return `${c} → ${fmt(target)} кг`;
+    // Типы растяжки заполнят задачи 9–11
+    case "STRETCH_WEEKLY":
+    case "STRETCH_HOLD":
+    case "STRETCH_SKILL":
+      return "";
   }
 }
 

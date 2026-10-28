@@ -54,7 +54,7 @@ describe("workoutTotals", () => {
       { sets: [{ weight: 0, reps: 12, completedAt: done }] },
       { sets: [{ weight: 50, reps: 10, completedAt: null }] },
     ]);
-    expect(totals).toEqual({ sets: 3, reps: 22, volume: 1000, exercises: 2, workSec: 0, distanceM: 0 });
+    expect(totals).toEqual({ sets: 3, reps: 22, volume: 1000, exercises: 2, workSec: 0, distanceM: 0, stretchSec: 0 });
   });
 });
 
@@ -92,7 +92,7 @@ describe("workoutTotals — timed and cardio", () => {
       { kind: "CARDIO", sets: [{ weight: 0, reps: 0, durationSec: 1720, distanceM: 5200, completedAt: done }] },
       { kind: "TIME", sets: [{ weight: 0, reps: 0, durationSec: 90, completedAt: done }, { weight: 0, reps: 0, durationSec: 0, completedAt: done }] },
     ]);
-    expect(t).toEqual({ sets: 3, reps: 10, volume: 600, exercises: 3, workSec: 1810, distanceM: 5200 });
+    expect(t).toEqual({ sets: 3, reps: 10, volume: 600, exercises: 3, workSec: 1810, distanceM: 5200, stretchSec: 0 });
   });
 });
 
@@ -102,5 +102,18 @@ describe("workoutDraftSchema — time and distance", () => {
     expect(r.exercises[0].sets[0]).toMatchObject({ durationSec: null, distanceM: null });
     const bad = workoutDraftSchema.parse({ name: "X", exercises: [{ exerciseId: "e", restSec: 60, sets: [{ weight: 0, reps: 0, durationSec: "x", distanceM: -5, completedAt: null }] }] });
     expect(bad.exercises[0].sets[0]).toMatchObject({ durationSec: null, distanceM: null });
+  });
+});
+
+describe("workoutTotals — растяжка", () => {
+  it("stretchSec: секунды растяжки (с учётом perSide), workSec её не включает", () => {
+    const t = workoutTotals([
+      { kind: "STRETCH", perSide: true, sets: [{ weight: 0, reps: 0, durationSec: 30, completedAt: done }, { weight: 0, reps: 0, durationSec: 30, completedAt: done }] },
+      { kind: "TIME", sets: [{ weight: 0, reps: 0, durationSec: 60, completedAt: done }] },
+    ]);
+    expect(t.stretchSec).toBe(120);
+    expect(t.workSec).toBe(60);
+    expect(t.reps).toBe(0);
+    expect(t.volume).toBe(0);
   });
 });

@@ -16,6 +16,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     planSeries,
     planEntries,
     goals,
+    stretchMeasurements,
     bodyWeight,
     records,
     achievements,
@@ -77,7 +78,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
         },
       },
     }),
-    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, kind: true, defaultRestSec: true, archivedAt: true, createdAt: true } }),
+    db.exercise.findMany({ where: { userId }, select: { name: true, muscleGroups: true, description: true, isBodyweight: true, kind: true, defaultRestSec: true, stretchZones: true, perSide: true, archivedAt: true, createdAt: true } }),
     db.workoutTemplate.findMany({
       where: { userId },
       select: {
@@ -91,8 +92,9 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     db.planEntry.findMany({ where: { userId }, select: { title: true, date: true, time: true, durationMin: true, cancelled: true, originalDate: true, createdAt: true } }),
     db.goal.findMany({
       where: { userId },
-      select: { type: true, exercise: { select: { name: true } }, metric: true, target: true, startValue: true, deadline: true, status: true, createdAt: true, achievedAt: true, closedAt: true },
+      select: { type: true, exercise: { select: { name: true } }, metric: true, target: true, startValue: true, deadline: true, status: true, createdAt: true, achievedAt: true, closedAt: true, stretchUnit: true, stretchSkill: true, skillTitle: true },
     }),
+    db.stretchMeasurement.findMany({ where: { userId }, orderBy: [{ date: "asc" }], select: { date: true, cm: true, goal: { select: { stretchSkill: true, skillTitle: true } } } }),
     db.bodyWeightEntry.findMany({ where: { userId }, orderBy: { date: "asc" }, select: { date: true, weight: true } }),
     db.personalRecord.findMany({ where: { userId }, select: { exercise: { select: { name: true } }, type: true, value: true, achievedAt: true } }),
     db.userAchievement.findMany({ where: { userId }, orderBy: { earnedAt: "asc" }, select: { code: true, title: true, description: true, earnedAt: true } }),
@@ -195,6 +197,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     templates: templates.map(({ exercises, ...t }) => ({ ...t, exercises: exercises.map(({ exercise, ...row }) => ({ exercise: exercise.name, ...row })) })),
     plans: [...planSeries.map((p) => ({ kind: "weekly", ...p })), ...planEntries.map((p) => ({ kind: "single", ...p }))],
     goals: goals.map(({ exercise, ...g }) => ({ ...g, exercise: exercise?.name ?? null })),
+    stretchMeasurements: stretchMeasurements.map((m) => ({ skill: m.goal.stretchSkill ?? m.goal.skillTitle ?? "", date: m.date, cm: Number(m.cm) })),
     bodyWeight,
     records: records.map(({ exercise, ...r }) => ({ ...r, exercise: exercise.name })),
     achievements,

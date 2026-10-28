@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chartsDistance, formatClock, formatKm, formatPace, isDoneSet, parseClock, plannedTimedSets, timedSetText } from "./kinds";
+import { chartsDistance, formatClock, formatKm, formatPace, isDoneSet, parseClock, plannedTimedSets, timedSetText, isTimed, isStretch } from "./kinds";
 
 const done = "2026-10-15T10:00:00.000Z";
 
@@ -90,5 +90,22 @@ describe("chartsDistance", () => {
     expect(chartsDistance("CARDIO", [session([{ durationSec: 600, distanceM: 2000 }])])).toBe(true);
     expect(chartsDistance("CARDIO", [session([{ durationSec: 600, distanceM: null }])])).toBe(false);
     expect(chartsDistance("TIME", [session([{ durationSec: 60, distanceM: null }])])).toBe(false);
+  });
+});
+
+describe("STRETCH", () => {
+  it("растяжка — вид на время", () => {
+    expect(isTimed("STRETCH")).toBe(true);
+    expect(isStretch("STRETCH")).toBe(true);
+    expect(isStretch("TIME")).toBe(false);
+    expect(isStretch(undefined)).toBe(false);
+    expect(isDoneSet("STRETCH", { reps: 0, durationSec: 30, completedAt: 1 })).toBe(true);
+    expect(isDoneSet("STRETCH", { reps: 0, durationSec: 0, completedAt: 1 })).toBe(false);
+  });
+  it("подпись подхода: секунды до минуты, дальше часы; × 2 для каждой стороны", () => {
+    expect(timedSetText("STRETCH", { durationSec: 45 })).toBe("45 с");
+    expect(timedSetText("STRETCH", { durationSec: 90 })).toBe("1:30");
+    expect(timedSetText("STRETCH", { durationSec: 90 }, true)).toBe("1:30 × 2");
+    expect(timedSetText("STRETCH", { durationSec: 45 }, true)).toBe("45 с × 2");
   });
 });

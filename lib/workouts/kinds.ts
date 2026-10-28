@@ -1,10 +1,13 @@
 /**
- * Виды упражнений: силовые (вес × повторы), на время (подход — секунды) и кардио (время + дистанция).
+ * Виды упражнений: силовые (вес × повторы), на время (подход — секунды), кардио (время + дистанция)
+ * и растяжка (подход — секунды удержания, ведёт себя как «на время»).
  * Подход на время и кардио хранит reps = 0, weight = 0; состоялся — durationSec > 0.
  */
-export type ExerciseKindName = "REPS" | "TIME" | "CARDIO";
+export type ExerciseKindName = "REPS" | "TIME" | "CARDIO" | "STRETCH";
 
-export const isTimed = (kind: ExerciseKindName | undefined) => kind === "TIME" || kind === "CARDIO";
+export const isTimed = (kind: ExerciseKindName | undefined) => kind === "TIME" || kind === "CARDIO" || kind === "STRETCH";
+
+export const isStretch = (kind: ExerciseKindName | undefined) => kind === "STRETCH";
 
 /** Подход выполнен и с результатом: силовой — с повторами, на время и кардио — со временем. */
 export function isDoneSet(kind: ExerciseKindName | undefined, s: { reps: number; durationSec?: number | null; completedAt: unknown }) {
@@ -49,8 +52,15 @@ export function formatKm(m: number): string {
   return `${(m / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} км`;
 }
 
-/** Подпись подхода на время / кардио: «1:30»; «5,2 км · 28:40 · 5:31/км»; без дистанции — только время. */
-export function timedSetText(kind: ExerciseKindName, s: { durationSec?: number | null; distanceM?: number | null }): string {
+/**
+ * Подпись подхода на время / кардио: «1:30»; «5,2 км · 28:40 · 5:31/км»; без дистанции — только время.
+ * Растяжка: «45 с» до минуты, дальше «1:30»; для одностороннего (`perSide`) — « × 2».
+ */
+export function timedSetText(kind: ExerciseKindName, s: { durationSec?: number | null; distanceM?: number | null }, perSide = false): string {
+  if (kind === "STRETCH") {
+    const sec = s.durationSec ?? 0;
+    return `${sec < 60 ? `${sec} с` : formatClock(sec)}${perSide ? " × 2" : ""}`;
+  }
   const time = formatClock(s.durationSec ?? 0);
   if (kind !== "CARDIO" || !s.distanceM) return time;
   const pace = formatPace(s.durationSec ?? 0, s.distanceM);

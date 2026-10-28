@@ -135,7 +135,7 @@ async function rehomeExercises(tx: Tx, userId: string) {
   for (const { exerciseId: from, ownerId } of pairs) {
     const source = await tx.exercise.findUniqueOrThrow({
       where: { id: from },
-      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, kind: true, defaultRestSec: true },
+      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, kind: true, defaultRestSec: true, stretchZones: true, perSide: true },
     });
     const [inTemplate, taken] = await Promise.all([
       tx.templateExercise.count({ where: { exerciseId: from, template: { userId: ownerId } } }),

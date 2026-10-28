@@ -28,7 +28,8 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   // «Поставить снова»: при 5 активных — не открываем (сохранить нельзя); упражнение в архиве — без него, выберешь заново
   const againExercise = againGoal?.exerciseId && form.exercises.some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
   const again: Partial<GoalInput> | null =
-    againGoal && activeCount < GOALS_ACTIVE_MAX
+    // типы растяжки goalSchema ещё не принимает (задачи 9–11)
+    againGoal && againGoal.type !== "STRETCH_WEEKLY" && againGoal.type !== "STRETCH_HOLD" && againGoal.type !== "STRETCH_SKILL" && activeCount < GOALS_ACTIVE_MAX
       ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: isStrengthMetric(againGoal.metric) ? againGoal.metric : undefined }
       : null;
   const weightGoal = page.active.find((g) => g.type === "BODY_WEIGHT" && g.status === "ACTIVE");

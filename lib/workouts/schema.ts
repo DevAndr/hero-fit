@@ -38,11 +38,13 @@ export type WorkoutDraftParsed = z.output<typeof workoutDraftSchema>;
 
 /**
  * Итоги по выполненным рабочим подходам (разминка и неотмеченные не считаются).
- * Повторы и объём — только силовые; `workSec`/`distanceM` — подходы на время и кардио.
+ * Повторы и объём — только силовые; `workSec`/`distanceM` — подходы на время и кардио;
+ * `stretchSec` — растяжка (одностороннюю считаем с обеих сторон), в `workSec` не входит.
  */
 export function workoutTotals(
   exercises: {
     kind?: ExerciseKindName;
+    perSide?: boolean;
     sets: { weight: number; reps: number; durationSec?: number | null; distanceM?: number | null; isWarmup?: boolean; completedAt: unknown }[];
   }[],
 ) {
@@ -50,6 +52,7 @@ export function workoutTotals(
   let reps = 0;
   let volume = 0;
   let workSec = 0;
+  let stretchSec = 0;
   let distanceM = 0;
   let exerciseCount = 0;
   for (const exercise of exercises) {
@@ -57,7 +60,9 @@ export function workoutTotals(
     if (done.length) exerciseCount++;
     for (const s of done) {
       sets++;
-      if (isTimed(exercise.kind)) {
+      if (exercise.kind === "STRETCH") {
+        stretchSec += (s.durationSec ?? 0) * (exercise.perSide ? 2 : 1);
+      } else if (isTimed(exercise.kind)) {
         workSec += s.durationSec ?? 0;
         distanceM += s.distanceM ?? 0;
       } else {
@@ -66,7 +71,7 @@ export function workoutTotals(
       }
     }
   }
-  return { sets, reps, volume: Math.round(volume * 10) / 10, exercises: exerciseCount, workSec, distanceM };
+  return { sets, reps, volume: Math.round(volume * 10) / 10, exercises: exerciseCount, workSec, distanceM, stretchSec };
 }
 
 /**
