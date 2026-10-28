@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
-import { visibleExercisesWhere } from "@/lib/exercises/queries";
+import { hiddenKinds, visibleExercisesWhere } from "@/lib/exercises/queries";
 import { parseExerciseForm, type ExerciseInput } from "@/lib/exercises/schema";
 
 export type ExerciseFormState = {
@@ -26,10 +26,13 @@ export async function saveExerciseAction(
   if (!parsed.success) return { errors: parsed.errors };
 
   const { id, kind, ...rest } = parsed.data;
-  // Вид — только при флаге workout_formats: без него форма не присылает поле, и вид не трогаем (новое — силовое)
-  const formats = await isEnabled("workout_formats", user.id);
-  const data = formats ? { ...rest, kind } : rest;
-  if (formats && id) {
+  // Вид «на время»/кардио — только при флаге workout_formats, растяжка — только при stretching: без флага форма
+  // не присылает поле, и вид не трогаем (новое — силовое)
+  const [formats, stretching] = await Promise.all([isEnabled("workout_formats", user.id), isEnabled("stretching", user.id)]);
+  if (kind === "STRETCH" && !stretching) return { message: "Растяжка пока недоступна" };
+  const kindAllowed = kind === "STRETCH" ? stretching : kind === "REPS" ? formats || stretching : formats;
+  const data = kindAllowed ? { ...rest, kind } : rest;
+  if (kindAllowed && id) {
     const current = await db.exercise.findFirst({ where: { id, userId: user.id }, select: { kind: true } });
     if (current && current.kind !== kind) {
       const used = await db.workoutSet.count({ where: { workoutExercise: { exerciseId: id }, completedAt: { not: null } } });
@@ -38,11 +41,12 @@ export async function saveExerciseAction(
   }
 
   // Название должно быть уникальным среди видимых пользователю упражнений (без учёта регистра);
-  // без флага встроенные на время и кардио скрыты — их названия не заняты
+  // без флагов встроенные на время, кардио и растяжка скрыты — их названия не заняты
+  const hidden = hiddenKinds(formats, stretching);
   const clash = await db.exercise.findFirst({
     where: {
       archivedAt: null,
-      OR: [{ userId: null, ...(formats ? {} : { kind: "REPS" as const }) }, { userId: user.id }],
+      OR: [{ userId: null, ...(hidden.length ? { kind: { notIn: hidden } } : {}) }, { userId: user.id }],
       name: { equals: data.name, mode: "insensitive" },
       ...(id ? { id: { not: id } } : {}),
     },
@@ -67,6 +71,7 @@ export async function saveExerciseAction(
   }
 
   revalidatePath("/exercises");
+  revalidatePath("/stretching");
   return { success: true };
 }
 
@@ -95,6 +100,7 @@ export async function deleteExerciseAction(id: string): Promise<{ ok: boolean; m
   if (count === 0) return { ok: false, message: "Упражнение не найдено или его нельзя удалить" };
 
   revalidatePath("/exercises");
+  revalidatePath("/stretching");
   return { ok: true };
 }
 

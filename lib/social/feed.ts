@@ -8,7 +8,7 @@ import { isFinishMeta } from "@/lib/recap/meta";
 import type { FinishGoals } from "@/lib/goals/rules";
 import type { FinishClubTask } from "@/lib/club/tasks-apply";
 
-/** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
+/** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED / STRETCH_SESSION). */
 export type FeedRow = {
   id: string;
   userId: string;
@@ -37,6 +37,8 @@ export type FeedRow = {
     raid?: { raidId: string; code: string; defeated: boolean };
     goals?: FinishGoals;
     clubTasks?: FinishClubTask[];
+    stretchOnly?: true;
+    stretchSec?: number;
   } | null;
   /** Название гильдии рейда из meta.raid (на момент показа); рейд или гильдия удалены — null. */
   raidGuild?: string | null;
@@ -68,6 +70,8 @@ export type FeedEntry = {
   name: string;
   finishedAt: string;
   durationSec: number;
+  /** Сессия растяжки: минуты удержания (не меньше 1) — карточка «Растяжка · N мин» без объёма и повторов; иначе null. */
+  stretchMin: number | null;
   /** null — автор скрывает веса. */
   volume: number | null;
   sets: number;
@@ -115,7 +119,8 @@ export function toFeedEntry(row: FeedRow, viewerId: string, cosmetics?: Cosmetic
     name: row.name,
     finishedAt: row.finishedAt.toISOString(),
     durationSec: row.durationSec ?? 0,
-    volume: hide ? null : row.totalVolume,
+    stretchMin: meta.stretchOnly ? Math.max(1, Math.floor((meta.stretchSec ?? 0) / 60)) : null,
+    volume: hide || meta.stretchOnly ? null : row.totalVolume,
     sets: row.totalSets,
     reps: row.totalReps,
     exercises: exercises.slice(0, FEED_EXERCISES).map((e) => ({ name: e.name, top: hide || !e.top ? null : e.top })),

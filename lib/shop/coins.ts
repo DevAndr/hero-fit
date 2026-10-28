@@ -93,12 +93,14 @@ export type WorkoutCoinInput = {
   streak: number;
   levelBefore: number;
   levelAfter: number;
+  /** Сессия растяжки: без монет за тренировку (лимит дня не тратится); рекорды и уровни — как обычно. */
+  stretchOnly?: boolean;
 };
 
 /** Монеты за завершённую тренировку: сама тренировка, рекорды, неделя серии, уровни. */
 export function workoutCoinGrants(input: WorkoutCoinInput): CoinGrant[] {
   const out: CoinGrant[] = [];
-  const workout = workoutCoins(input.workingSets, input.paidToday);
+  const workout = input.stretchOnly ? 0 : workoutCoins(input.workingSets, input.paidToday);
   if (workout > 0) {
     out.push({ reason: "WORKOUT", key: `workout:${input.workoutId}`, amount: workout, meta: { day: input.day }, label: "Тренировка" });
   }

@@ -693,8 +693,9 @@ export async function seedRaidHits(login: string, week: string, hp: number, defe
 export async function createGoal(
   login: string,
   g: {
-    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT";
+    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT" | "STRETCH_HOLD" | "STRETCH_WEEKLY";
     target: number;
+    stretchUnit?: "SESSIONS" | "MINUTES";
     startValue?: number;
     exerciseName?: string;
     metric?: "ONE_RM" | "MAX_WEIGHT" | "MAX_REPS";
@@ -716,11 +717,34 @@ export async function createGoal(
     const id = randomUUID();
     const achieved = g.status === "ACHIEVED" ? new Date() : null;
     await db.query(
-      `insert into "Goal" (id, "userId", type, "exerciseId", metric, target, "startValue", deadline, status, "createdAt", "achievedAt", "closedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved],
+      `insert into "Goal" (id, "userId", type, "exerciseId", metric, target, "startValue", deadline, status, "createdAt", "achievedAt", "closedAt", "stretchUnit")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12)`,
+      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName && g.type === "STRENGTH" ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved, g.stretchUnit ?? null],
     );
     return id;
+  });
+}
+
+/** Завершённые сессии растяжки (одно встроенное упражнение, один выполненный подход `sec` с) в моменты `finishedAt`. */
+export async function seedStretchSessions(login: string, exerciseName: string, finishedAt: Date[], sec = 60) {
+  await withDb(async (db) => {
+    const uid = await userId(db, login);
+    const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where name = $1 and "userId" is null and kind = 'STRETCH'`, [exerciseName]);
+    for (const finished of finishedAt) {
+      const workoutId = randomUUID();
+      const weId = randomUUID();
+      const started = new Date(finished.getTime() - 15 * 60_000);
+      await db.query(
+        `insert into "Workout" (id, "userId", name, status, "startedAt", "finishedAt", "durationSec", "stretchOnly", "createdAt", "updatedAt")
+         values ($1, $2, 'Растяжка', 'COMPLETED', $3, $4, 900, true, $3, $4)`,
+        [workoutId, uid, started, finished],
+      );
+      await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, 0, 30)`, [weId, workoutId, rows[0].id]);
+      await db.query(
+        `insert into "WorkoutSet" (id, "workoutExerciseId", "order", weight, reps, "durationSec", "isWarmup", "completedAt") values ($1, $2, 0, 0, 0, $3, false, $4)`,
+        [randomUUID(), weId, sec, finished],
+      );
+    }
   });
 }
 

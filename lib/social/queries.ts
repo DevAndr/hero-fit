@@ -12,6 +12,12 @@ import { titleLabel } from "@/lib/titles/catalog";
 
 /** XP лиги — только за тренировки и побитые рекорды (ачивки и ежедневный вход не дают форы). */
 export const LEAGUE_REASONS = Prisma.sql`('WORKOUT_COMPLETED', 'PERSONAL_RECORD')`;
+/**
+ * Условие на событие опыта `x` для лиги: причины лиги и не из сессии растяжки (её рекорды в лигу не идут).
+ * Алиас события в запросе — всегда `x`.
+ */
+export const LEAGUE_XP = Prisma.sql`x.reason::text IN ${LEAGUE_REASONS}
+  AND NOT EXISTS (SELECT 1 FROM "Workout" lw WHERE lw.id = x."workoutId" AND lw."stretchOnly")`;
 const ACTIVE_DAYS = 28;
 
 /** Личный код для приглашений: создаётся при первом заходе в рейтинг. */
@@ -67,12 +73,12 @@ export async function getLeague(userId: string, timeZone: string, offset: 0 | 1)
              u."currentStreak", u."lastStreakWeek", u."streakFreezes", u."weekWorkouts", u."weekWorkoutsKey", u."freezeGrantedAt", u."timeZone",
              COALESCE((
                SELECT SUM(x.amount) FROM "XpEvent" x
-               WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
+               WHERE x."userId" = u.id AND ${LEAGUE_XP}
                  AND (x."createdAt" AT TIME ZONE 'UTC') >= b.start_at AND (x."createdAt" AT TIME ZONE 'UTC') < b.end_at
              ), 0)::int AS xp,
              (
                SELECT COUNT(*) FROM "Workout" w
-               WHERE w."userId" = u.id AND w.status = 'COMPLETED'
+               WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
                  AND (w."finishedAt" AT TIME ZONE 'UTC') >= b.start_at AND (w."finishedAt" AT TIME ZONE 'UTC') < b.end_at
              )::int AS workouts,
              EXISTS (
@@ -121,13 +127,13 @@ async function percentileQuery(userId: string, bounds: Prisma.Sql, activeWhen: P
     xp AS (
       SELECT x."userId", SUM(x.amount) AS xp
       FROM "XpEvent" x, b
-      WHERE x.reason::text IN ${LEAGUE_REASONS}
+      WHERE ${LEAGUE_XP}
         AND (x."createdAt" AT TIME ZONE 'UTC') >= b.start_at AND (x."createdAt" AT TIME ZONE 'UTC') < b.end_at
       GROUP BY x."userId"
     ),
     active AS (
       SELECT DISTINCT "userId" FROM "Workout"
-      WHERE status = 'COMPLETED' AND ${activeWhen}
+      WHERE status = 'COMPLETED' AND NOT "stretchOnly" AND ${activeWhen}
         AND "userId" <> ${userId}
     ),
     me AS (SELECT COALESCE((SELECT xp FROM xp WHERE "userId" = ${userId}), 0) AS xp)
@@ -279,7 +285,7 @@ async function feedPage(userId: string, ids: string[], cursor: string | null, li
            ) AS respects
     FROM "Workout" w
     JOIN "User" u ON u.id = w."userId"
-    LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'
+    LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION')
     WHERE w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND w."userId" = ANY(${ids})
       ${after ? Prisma.sql`AND (w."finishedAt", w.id) < (${after.at}, ${after.id})` : Prisma.empty}
     ORDER BY w."finishedAt" DESC, w.id DESC

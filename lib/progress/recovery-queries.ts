@@ -23,7 +23,7 @@ export async function getMuscleRecovery(userId: string, now = new Date()): Promi
                  * CASE s.rir WHEN 0 THEN 1.5 WHEN 1 THEN 1.25 ELSE 1 END)::float AS sets
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH' -- растяжка мышцы не нагружает
       JOIN "WorkoutSet" s ON s."workoutExerciseId" = we.id AND NOT s."isWarmup"
       CROSS JOIN LATERAL unnest(e."muscleGroups") WITH ORDINALITY AS g(grp, ord)
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
@@ -33,7 +33,7 @@ export async function getMuscleRecovery(userId: string, now = new Date()): Promi
       SELECT g.grp::text AS "group", MAX(w."finishedAt") AS at
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH'
       CROSS JOIN LATERAL unnest(e."muscleGroups") AS g(grp)
       WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL
         AND EXISTS (SELECT 1 FROM "WorkoutSet" s WHERE s."workoutExerciseId" = we.id AND NOT s."isWarmup")
@@ -53,7 +53,7 @@ export async function getMuscleBalance(userId: string, now = new Date()) {
     SELECT g.grp::text AS "group", SUM(CASE WHEN g.ord = 1 THEN 1 ELSE 0.5 END)::float AS sets
     FROM "Workout" w
     JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-    JOIN "Exercise" e ON e.id = we."exerciseId"
+    JOIN "Exercise" e ON e.id = we."exerciseId" AND e.kind <> 'STRETCH'
     JOIN "WorkoutSet" s ON s."workoutExerciseId" = we.id AND NOT s."isWarmup"
     CROSS JOIN LATERAL unnest(e."muscleGroups") WITH ORDINALITY AS g(grp, ord)
     WHERE w."userId" = ${userId} AND w.status = 'COMPLETED'

@@ -170,6 +170,29 @@ describe("replacementCandidates — exercise kinds", () => {
   });
 });
 
+describe("replacementCandidates — растяжка", () => {
+  it("совпадение по основной зоне", () => {
+    const st = (id: string, stretchZones: ("HIPS" | "NECK" | "CALVES")[]) => ({ id, muscleGroups: [] as MuscleGroup[], userId: null, kind: "STRETCH" as const, stretchZones });
+    const all = [st("pigeon", ["HIPS"]), st("butterfly", ["HIPS", "CALVES"]), st("neck", ["NECK"]), st("frog", ["CALVES", "HIPS"])];
+    const ids = replacementCandidates(all[0], all, { inWorkout: ["pigeon"], pain: [], lastDate: {}, today: "2026-10-12" }).map((e) => e.id);
+    expect(ids).toEqual(["butterfly"]);
+  });
+});
+
+describe("replacementCandidates — растяжка, форма ExerciseInfo", () => {
+  const info = (id: string, stretchZones?: ("HIPS" | "NECK")[]) => ({ id, name: id, muscleGroups: [] as MuscleGroup[], isBodyweight: true, kind: "STRETCH" as const, stretchZones });
+  const ctx = { inWorkout: [], pain: [], lastDate: {}, today: "2026-10-12" };
+  it("растяжка без зон — пусто, а не undefined === undefined", () => {
+    const all = [info("a"), info("b"), { id: "c", muscleGroups: [] as MuscleGroup[], userId: null, kind: "STRETCH" as const }];
+    expect(replacementCandidates(all[0], all.map((e) => ({ ...e, userId: null })), ctx)).toEqual([]);
+  });
+  it("находит кандидатов по объекту формы ExerciseInfo", () => {
+    const cur = info("pigeon", ["HIPS"]);
+    const all = [cur, info("frog", ["HIPS"]), info("neck", ["NECK"])].map((e) => ({ ...e, userId: null }));
+    expect(replacementCandidates(cur, all, ctx).map((e) => e.id)).toEqual(["frog"]);
+  });
+});
+
 describe("lastResultText", () => {
   const sets = (n: number, weight: number, reps: number) => ({ date: "2026-10-01", sets: Array.from({ length: n }, () => ({ weight, reps })) });
   it("без истории — «ещё не делали»", () => {

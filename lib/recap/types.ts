@@ -34,6 +34,8 @@ export type RecapData = {
   raid?: RecapRaid;
   /** Тренд силы: 4 недели по неделю итогов против 4 перед ними (lib/stats/strength). */
   strength?: StrengthTrend;
+  /** Растяжка за неделю (сессии и заминки), минуты вниз; 0 — блока нет. */
+  stretch?: { minutes: number };
 };
 
 /** Рейд недели: урон гильдии, мой вклад и место среди бивших (1 — больше всех). */
@@ -67,4 +69,6 @@ export type RecapInput = {
   boss?: RecapBoss | null;
   /** null — в рейдах недели игрок не бил. */
   raid?: RecapRaid | null;
+  /** Секунды удержания растяжки недели (×2 у односторонних), включая сессии растяжки и заминки. */
+  stretchSec?: number;
 };

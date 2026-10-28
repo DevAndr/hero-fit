@@ -162,16 +162,18 @@ export function repsOrWeight(input: { bodyweight: boolean; last: Sets | null }):
 }
 
 export function replacementCandidates<
-  E extends { id: string; muscleGroups: MuscleGroup[]; userId: string | null; archivedAt?: Date | string | null; kind?: string },
->(current: { id: string; muscleGroups: MuscleGroup[]; kind?: string }, all: E[], ctx: { inWorkout: string[]; pain: PainSpot[]; lastDate: Record<string, string>; today: string }): E[] {
-  const main = current.muscleGroups[0];
+  E extends { id: string; muscleGroups: MuscleGroup[]; userId: string | null; archivedAt?: Date | string | null; kind?: string; stretchZones?: string[] },
+>(current: { id: string; muscleGroups: MuscleGroup[]; kind?: string; stretchZones?: string[] }, all: E[], ctx: { inWorkout: string[]; pain: PainSpot[]; lastDate: Record<string, string>; today: string }): E[] {
+  const stretch = current.kind === "STRETCH";
+  const main = stretch ? current.stretchZones?.[0] : current.muscleGroups[0];
+  if (stretch && !main) return []; // у растяжки без зон нечего сравнивать
   const since = addDays(ctx.today, -90);
   const fit = all.filter(
     (e) =>
       e.id !== current.id &&
       !ctx.inWorkout.includes(e.id) &&
       !e.archivedAt &&
-      e.muscleGroups[0] === main &&
+      (stretch ? e.stretchZones?.[0] : e.muscleGroups[0]) === main && // растяжка — по основной зоне
       (e.kind ?? "REPS") === (current.kind ?? "REPS") && // замена того же вида: присед — не на бег
       !painRelated(e.muscleGroups, ctx.pain),
   );

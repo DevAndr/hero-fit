@@ -1,12 +1,15 @@
 import "server-only";
 import type { ExerciseKindName } from "@/lib/workouts/kinds";
-import { WorkoutStatus, type MuscleGroup } from "@/generated/prisma/enums";
+import { WorkoutStatus, type MuscleGroup, type StretchZone } from "@/generated/prisma/enums";
 import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
+import { isEnabled } from "@/lib/flags/server";
+import { stretchOnlyWhere } from "@/lib/templates/queries";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
 
-export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean; /** Нет — силовое (REPS). */ kind?: ExerciseKindName };
+export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean; /** Только у растяжки; первая — основная. */ stretchZones?: StretchZone[]; /** Растяжка на каждую сторону отдельно. */ perSide?: boolean; /** Нет — силовое (REPS). */ kind?: ExerciseKindName };
 
 /** Сериализуемое состояние активной тренировки для клиентского редактора. */
 export type ActiveWorkout = {
@@ -32,7 +35,7 @@ export type ActiveWorkout = {
   }[];
 };
 
-const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, isBodyweight: true, kind: true } as const;
+const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, stretchZones: true, perSide: true, isBodyweight: true, kind: true } as const;
 
 export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | null> {
   const workout = await db.workout.findFirst({
@@ -100,9 +103,11 @@ export async function getLastPerformance(userId: string, exerciseIds: string[]):
 }
 
 export async function getStartOptions(userId: string) {
+  const stretching = await isEnabled("stretching", userId);
   const [templates, lastWorkout, coachTemplates] = await Promise.all([
     db.workoutTemplate.findMany({
-      where: { OR: [{ userId }, { userId: null }] },
+      // Готовые программы из одной растяжки — только при флаге stretching
+      where: { OR: [{ userId }, { userId: null, ...(stretching ? {} : { NOT: stretchOnlyWhere }) }] },
       orderBy: [{ userId: { sort: "desc", nulls: "last" } }, { program: "asc" }, { name: "asc" }],
       select: {
         id: true,
@@ -135,11 +140,11 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
       exercises: {
         orderBy: { order: "asc" },
         include: {
-          exercise: { select: { name: true, muscleGroups: true, kind: true } },
+          exercise: { select: { name: true, muscleGroups: true, kind: true, perSide: true } },
           sets: { orderBy: { order: "asc" } },
         },
       },
-      xpEvents: { where: { reason: "WORKOUT_COMPLETED" }, select: { meta: true }, take: 1 },
+      xpEvents: { where: { reason: { in: [...FINISH_REASONS] } }, select: { meta: true }, take: 1 },
       template: {
         select: {
           userId: true,

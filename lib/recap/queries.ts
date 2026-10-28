@@ -2,13 +2,14 @@ import "server-only";
 import { weekDamage } from "@/lib/boss/queries";
 import { raidBossName } from "@/lib/raid/rules";
 import type { MuscleGroup } from "@/generated/prisma/enums";
-import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { StreakCoverReason, WorkoutStatus } from "@/generated/prisma/enums";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
-import { friendIds, LEAGUE_REASONS, weekPercentile } from "@/lib/social/queries";
+import { friendIds, LEAGUE_XP, weekPercentile } from "@/lib/social/queries";
 import { isFinishMeta } from "@/lib/recap/meta";
 import { isEnabled } from "@/lib/flags/server";
 import { exerciseWeekBests } from "@/lib/stats/strength-queries";
@@ -29,7 +30,7 @@ const bounds = (week: string, tz: string) => ({ start: localMidnight(week, tz), 
 
 async function weekWorkouts(userId: string, start: Date, end: Date) {
   return db.workout.findMany({
-    where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: start, lt: end } },
+    where: { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false, finishedAt: { gte: start, lt: end } },
     select: { id: true, durationSec: true, totalVolume: true, totalSets: true, finishedAt: true },
     orderBy: { finishedAt: "asc" },
   });
@@ -42,12 +43,12 @@ async function leagueMembers(userId: string, start: Date, end: Date): Promise<Re
     SELECT u.id, COALESCE(u.nickname, '') AS nickname,
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
-             WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
+             WHERE x."userId" = u.id AND ${LEAGUE_XP}
                AND x."createdAt" >= ${start} AND x."createdAt" < ${end}
            ), 0)::int AS xp,
            (
              SELECT COUNT(*) FROM "Workout" w
-             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
+             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
            )::int AS workouts
     FROM "User" u
     WHERE u.id = ANY(${[userId, ...friends]})
@@ -68,9 +69,23 @@ async function muscleSets(userId: string, week: string, tz: string): Promise<Rec
     JOIN "Workout" w ON w.id = we."workoutId"
     JOIN "Exercise" e ON e.id = we."exerciseId"
     WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${from} AND w."finishedAt" < ${end}
-      AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND cardinality(e."muscleGroups") > 0
+      AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND cardinality(e."muscleGroups") > 0 AND e.kind <> 'STRETCH'
     GROUP BY 1, 2
   `;
+}
+
+/** Секунды удержания растяжки за [start, end): все завершённые тренировки (сессии растяжки и заминки), ×2 у односторонних. */
+async function stretchSeconds(userId: string, start: Date, end: Date): Promise<number> {
+  const [row] = await db.$queryRaw<{ sec: number }[]>`
+    SELECT COALESCE(SUM(s."durationSec" * CASE WHEN e."perSide" THEN 2 ELSE 1 END), 0)::int AS sec
+    FROM "WorkoutSet" s
+    JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+    JOIN "Exercise" e ON e.id = we."exerciseId"
+    JOIN "Workout" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
+      AND e.kind = 'STRETCH' AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s."durationSec" > 0
+  `;
+  return row?.sec ?? 0;
 }
 
 /**
@@ -107,7 +122,7 @@ export async function weekRaid(userId: string, start: Date, end: Date): Promise<
 export async function loadRecapInput(userId: string, week: string, tz: string): Promise<RecapInput> {
   const { start, end } = bounds(week, tz);
   const prev = bounds(addWeeks(week, -1), tz);
-  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests] = await Promise.all([
+  const [workouts, prevWorkouts, user, cover, achievements, league, percentile, muscles, calendar, bossWeek, bossHit, raid, weekBests, stretchSec] = await Promise.all([
     weekWorkouts(userId, start, end),
     weekWorkouts(userId, prev.start, prev.end),
     db.user.findUniqueOrThrow({
@@ -129,6 +144,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
     weekRaid(userId, start, end),
     // 8 недель по неделю итогов: окна тренда силы (флаг strength_analytics владельца итогов)
     isEnabled("strength_analytics", userId).then((on) => (on ? exerciseWeekBests(userId, tz, bounds(addWeeks(week, -7), tz).start) : [])),
+    stretchSeconds(userId, start, end),
   ]);
 
   const ids = workouts.map((w) => w.id);
@@ -137,7 +153,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
       where: { workoutExercise: { workoutId: { in: ids } }, isWarmup: false, completedAt: { not: null } },
       select: { weight: true, reps: true, workoutExercise: { select: { exercise: { select: { id: true, name: true, isBodyweight: true } } } } },
     }),
-    db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: XpReason.WORKOUT_COMPLETED }, select: { workoutId: true, meta: true } }),
+    db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: { in: [...FINISH_REASONS] } }, select: { workoutId: true, meta: true } }),
   ]);
   // meta — в порядке тренировок недели
   const metaByWorkout = new Map(events.map((e) => [e.workoutId, e.meta]));
@@ -174,6 +190,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
       ? { code: bossWeek.bossCode, hp: bossWeek.hp, damage: bossHit.damage, defeatedAt: bossWeek.defeatedAt?.toISOString() ?? null }
       : null,
     raid,
+    stretchSec,
     plan: occurrences.length ? { done: occurrences.filter((o) => o.status === "done").length, planned: occurrences.length } : null,
   };
 }
@@ -182,7 +199,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
 export async function createRecap(userId: string, week: string, tz: string): Promise<boolean> {
   // Дешёвая проверка до тяжёлого сбора (процентиль, лига, календарь): пустая неделя — итогов нет
   const { start, end } = bounds(week, tz);
-  const any = await db.workout.findFirst({ where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: start, lt: end } }, select: { id: true } });
+  const any = await db.workout.findFirst({ where: { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false, finishedAt: { gte: start, lt: end } }, select: { id: true } });
   if (!any) return false;
   const data = buildRecap(await loadRecapInput(userId, week, tz));
   if (!data) return false;

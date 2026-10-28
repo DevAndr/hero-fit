@@ -9,7 +9,7 @@ import { ExerciseFilterControls, useExerciseFilter } from "@/components/training
 import type { ExerciseState } from "@/components/training/workout-state";
 import { lastResultText, replacementCandidates, type PainSpot } from "@/lib/assistant/rules";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { areaLabels } from "@/lib/exercises/area";
 import type { LastPerformance } from "@/lib/workouts/queries";
 
 export type SwapSource = {
@@ -130,7 +130,7 @@ function Similar({
 
 function Catalog({ item, source, onPick }: { item: ExerciseState; source: SwapSource; onPick: (target: ExerciseItem) => void }) {
   const choices = useMemo(() => source.exercises.filter((e) => !source.inWorkout.includes(e.id)), [source]);
-  const filter = useExerciseFilter(choices, item.exercise.muscleGroups[0] ?? null);
+  const filter = useExerciseFilter(choices, item.exercise.kind === "STRETCH" ? "STRETCH" : (item.exercise.muscleGroups[0] ?? null));
   return (
     <>
       <ExerciseFilterControls filter={filter} className="-mx-4 px-4" />
@@ -140,7 +140,7 @@ function Catalog({ item, source, onPick }: { item: ExerciseState; source: SwapSo
             <button type="button" onClick={() => onPick(e)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{e.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{e.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")}</span>
+                <span className="block truncate text-xs text-muted-foreground">{areaLabels(e).join(" · ")}</span>
               </span>
             </button>
             <FavoriteButton exercise={e} />

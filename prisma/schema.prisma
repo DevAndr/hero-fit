@@ -51,6 +51,21 @@ enum ExerciseKind {
   REPS
   TIME
   CARDIO
+  STRETCH // растяжка: подход — секунды удержания, как TIME; зоны — stretchZones
+}
+
+/// Зоны растяжки (lib/stretching/zones.ts)
+enum StretchZone {
+  NECK
+  SHOULDERS
+  CHEST
+  BACK
+  LOWER_BACK
+  HIPS
+  HAMSTRINGS
+  QUADS
+  ADDUCTORS
+  CALVES
 }
 
 enum AchievementCategory {
@@ -119,6 +134,7 @@ enum XpReason {
   CLUB_TASK_REWARD // сундук за задание клуба (lib/club/tasks)
   GOBLIN_REWARD // сундук Золотого гоблина (lib/goblin)
   TOGETHER_BONUS // бонус за совместную тренировку (lib/together)
+  STRETCH_SESSION // XP за сессию растяжки
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -127,8 +143,8 @@ model User {
   /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
   changelogSeen     String?
   /// монеты магазина (lib/shop): баланс и момент, с которого они считаются; журнал — CoinTx
-  coins             Int       @default(0)
-  coinsSince        DateTime  @default(now())
+  coins             Int              @default(0)
+  coinsSince        DateTime         @default(now())
   /// надетая косметика (код из каталога lib/shop); null — по умолчанию
   avatarCode        String?
   frameCode         String?
@@ -140,16 +156,16 @@ model User {
   whoopSleeps       WhoopSleep[]
   items             UserItem[]
   /// умный помощник: выключается в /settings
-  assistantEnabled  Boolean   @default(true)
-  id                String    @id @default(cuid())
-  login             String    @unique
+  assistantEnabled  Boolean          @default(true)
+  id                String           @id @default(cuid())
+  login             String           @unique
   /// null — аккаунт из Telegram Mini App (email и пароль задаются в «Вход на сайте»)
-  email             String?   @unique
+  email             String?          @unique
   passwordHash      String?
   name              String?
   bodyWeight        Float? // кг; для ачивок «1RM к весу тела»
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
-  timeZone          String    @default("UTC")
+  timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
   privacyAcceptedAt DateTime?
   /// Первая точка входа и откуда пришёл (cookie hf_src при регистрации; telegram/telegram — Mini App); null — до учёта
@@ -167,15 +183,15 @@ model User {
   friendCode  String? @unique
 
   // Режим тренера: раздел «Клиенты» и личный код приглашения (формат как у friendCode)
-  isCoach   Boolean @default(false)
-  coachCode String? @unique
+  isCoach            Boolean   @default(false)
+  coachCode          String?   @unique
   /// «Первые шаги тренера» на /coach скрыты вручную; null — показывать, пока не выполнены все шаги
   coachGuideHiddenAt DateTime?
-  titleCode String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
+  titleCode          String? // выбранный титул (lib/titles/catalog.ts); доступные вычисляются, не хранятся
 
   // Лента активности: видят только друзья. Настройки применяются при чтении — действуют и на прошлые тренировки.
-  shareActivity Boolean @default(true) // показывать мои тренировки друзьям
-  hideWeights   Boolean @default(false) // скрывать рабочие веса и объём (длительность и рекорды видны)
+  shareActivity    Boolean @default(true) // показывать мои тренировки друзьям
+  hideWeights      Boolean @default(false) // скрывать рабочие веса и объём (длительность и рекорды видны)
   /// Карточка рекорда в сводке после тренировки с рекордом (окно «Новый рекорд!» и PNG); по умолчанию выключена
   shareRecordCards Boolean @default(false)
 
@@ -233,75 +249,76 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions            Session[]
-  passwordResetTokens PasswordResetToken[]
-  exercises           Exercise[]
-  templates           WorkoutTemplate[]
-  workouts            Workout[]
-  personalRecords     PersonalRecord[]
-  achievements        UserAchievement[]
-  xpEvents            XpEvent[]
-  pushSubscriptions   PushSubscription[]
-  telegramLinkTokens  TelegramLinkToken[]
-  notifications       Notification[]
-  scheduledPushes     ScheduledPush[]
-  streakCoverWeeks    StreakCoverWeek[]
-  visits              UserVisit[]
-  visitHours          UserVisitHour[]
-  appVisits           AppVisit[]
-  alertDismissals     SystemAlertDismissal[]
-  feedback            Feedback[]
-  bossWeeks           BossWeek[]
-  planSeries          PlanSeries[]         @relation("PlanSeriesUser")
-  planEntries         PlanEntry[]          @relation("PlanEntryUser")
-  planReminders       PlanReminder[]
-  weeklyRecaps        WeeklyRecap[]
-  friendRequestsSent  Friendship[]         @relation("FriendshipRequester")
-  friendRequestsGot   Friendship[]         @relation("FriendshipAddressee")
-  coachClients        CoachLink[]          @relation("CoachLinkCoach")
-  coachLinks          CoachLink[]          @relation("CoachLinkClient")
-  coachPlanSeries     PlanSeries[]         @relation("PlanSeriesCoach")
-  coachPlanEntries    PlanEntry[]          @relation("PlanEntryCoach")
-  coachCommentsGiven  CoachComment[]       @relation("CoachCommentCoach")
-  coachCommentsGot    CoachComment[]       @relation("CoachCommentClient")
-  coachNotesWritten   CoachNote[]          @relation("CoachNoteCoach")
-  coachNotesAbout     CoachNote[]          @relation("CoachNoteClient")
-  coachPrograms             CoachProgram[]
-  programAssignmentsAsClient ProgramAssignment[] @relation("ProgramAssignmentClient")
-  programAssignmentsAsCoach  ProgramAssignment[] @relation("ProgramAssignmentCoach")
-  coachTargets        CoachTarget[]
-  coachSignals        CoachSignal[]        @relation("CoachSignalCoach")
-  coachGroups         CoachGroup[]         @relation("CoachGroupCoach")
-  guildLed            Guild[]              @relation("GuildLeader")
-  guildMember         GuildMember?         @relation("GuildMember")
-  clubsAdmin          Club[]               @relation("ClubAdmin")
-  clubMember          ClubMember?          @relation("ClubMember")
-  clubBans            ClubBan[]            @relation("ClubBan")
-  clubTasksCreated    ClubTask[]           @relation("ClubTaskCreator")
-  clubTaskHits        ClubTaskHit[]        @relation("ClubTaskHit")
-  clubTaskRewards     ClubTaskReward[]     @relation("ClubTaskReward")
-  raidMvp             RaidWeek[]           @relation("RaidMvp")
-  raidHits            RaidHit[]
-  raidRewards         RaidReward[]
-  coachGroupMembers   CoachGroupMember[]   @relation("CoachGroupClient")
-  clientSignals       CoachSignal[]        @relation("CoachSignalClient")
-  coachRecaps         CoachWeeklyRecap[]
-  coachRecapRows      CoachRecapClient[]
-  coachProfile        CoachProfile?
-  coachContactClicks  CoachContactClick[]
-  kudos               Kudos[]
-  recordRespects      RecordRespect[]
-  sessionsHosted      TrainingSession[]    @relation("SessionHost")
-  sessionsJoined      TrainingSession[]    @relation("SessionGuest")
-  sessionCheers       SessionCheer[]
-  favoriteExercises   FavoriteExercise[]
-  goals               Goal[]
-  campaignSends       CampaignSend[]
-  bodyWeights         BodyWeightEntry[]
-  errorEvents         ErrorEvent[]
-  goblinEncounters    GoblinEncounter[]
+  sessions                   Session[]
+  passwordResetTokens        PasswordResetToken[]
+  exercises                  Exercise[]
+  templates                  WorkoutTemplate[]
+  workouts                   Workout[]
+  personalRecords            PersonalRecord[]
+  achievements               UserAchievement[]
+  xpEvents                   XpEvent[]
+  pushSubscriptions          PushSubscription[]
+  telegramLinkTokens         TelegramLinkToken[]
+  notifications              Notification[]
+  scheduledPushes            ScheduledPush[]
+  streakCoverWeeks           StreakCoverWeek[]
+  visits                     UserVisit[]
+  visitHours                 UserVisitHour[]
+  appVisits                  AppVisit[]
+  alertDismissals            SystemAlertDismissal[]
+  feedback                   Feedback[]
+  bossWeeks                  BossWeek[]
+  planSeries                 PlanSeries[]           @relation("PlanSeriesUser")
+  planEntries                PlanEntry[]            @relation("PlanEntryUser")
+  planReminders              PlanReminder[]
+  weeklyRecaps               WeeklyRecap[]
+  friendRequestsSent         Friendship[]           @relation("FriendshipRequester")
+  friendRequestsGot          Friendship[]           @relation("FriendshipAddressee")
+  coachClients               CoachLink[]            @relation("CoachLinkCoach")
+  coachLinks                 CoachLink[]            @relation("CoachLinkClient")
+  coachPlanSeries            PlanSeries[]           @relation("PlanSeriesCoach")
+  coachPlanEntries           PlanEntry[]            @relation("PlanEntryCoach")
+  coachCommentsGiven         CoachComment[]         @relation("CoachCommentCoach")
+  coachCommentsGot           CoachComment[]         @relation("CoachCommentClient")
+  coachNotesWritten          CoachNote[]            @relation("CoachNoteCoach")
+  coachNotesAbout            CoachNote[]            @relation("CoachNoteClient")
+  coachPrograms              CoachProgram[]
+  programAssignmentsAsClient ProgramAssignment[]    @relation("ProgramAssignmentClient")
+  programAssignmentsAsCoach  ProgramAssignment[]    @relation("ProgramAssignmentCoach")
+  coachTargets               CoachTarget[]
+  coachSignals               CoachSignal[]          @relation("CoachSignalCoach")
+  coachGroups                CoachGroup[]           @relation("CoachGroupCoach")
+  guildLed                   Guild[]                @relation("GuildLeader")
+  guildMember                GuildMember?           @relation("GuildMember")
+  clubsAdmin                 Club[]                 @relation("ClubAdmin")
+  clubMember                 ClubMember?            @relation("ClubMember")
+  clubBans                   ClubBan[]              @relation("ClubBan")
+  clubTasksCreated           ClubTask[]             @relation("ClubTaskCreator")
+  clubTaskHits               ClubTaskHit[]          @relation("ClubTaskHit")
+  clubTaskRewards            ClubTaskReward[]       @relation("ClubTaskReward")
+  raidMvp                    RaidWeek[]             @relation("RaidMvp")
+  raidHits                   RaidHit[]
+  raidRewards                RaidReward[]
+  coachGroupMembers          CoachGroupMember[]     @relation("CoachGroupClient")
+  clientSignals              CoachSignal[]          @relation("CoachSignalClient")
+  coachRecaps                CoachWeeklyRecap[]
+  coachRecapRows             CoachRecapClient[]
+  coachProfile               CoachProfile?
+  coachContactClicks         CoachContactClick[]
+  kudos                      Kudos[]
+  recordRespects             RecordRespect[]
+  sessionsHosted             TrainingSession[]      @relation("SessionHost")
+  sessionsJoined             TrainingSession[]      @relation("SessionGuest")
+  sessionCheers              SessionCheer[]
+  favoriteExercises          FavoriteExercise[]
+  goals                      Goal[]
+  stretchMeasurements        StretchMeasurement[]
+  campaignSends              CampaignSend[]
+  bodyWeights                BodyWeightEntry[]
+  errorEvents                ErrorEvent[]
+  goblinEncounters           GoblinEncounter[]
   /// последнее появление Золотого гоблина — пауза 14 дней (не сбрасывается отменой тренировки)
-  goblinLastAt        DateTime?
+  goblinLastAt               DateTime?
 }
 
 /// Дружба взаимная: заявка → принятие. Принятая дружба = согласие показывать другу ник и недельный XP.
@@ -436,6 +453,8 @@ model Exercise {
   isBodyweight   Boolean       @default(false)
   kind           ExerciseKind  @default(REPS)
   defaultRestSec Int           @default(90)
+  stretchZones   StretchZone[] @default([]) // только у STRETCH; первая — основная
+  perSide        Boolean       @default(false) // одностороннее: подход = каждая сторона
   archivedAt     DateTime? // «удалённое» упражнение — скрыто, но история тренировок сохраняется
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -479,18 +498,18 @@ model WorkoutTemplate {
 }
 
 model TemplateExercise {
-  id           String @id @default(cuid())
-  templateId   String
-  exerciseId   String
-  order        Int
-  targetSets   Int    @default(3)
-  targetReps   Int?
-  targetWeight Float?
-  restSec      Int?
+  id            String @id @default(cuid())
+  templateId    String
+  exerciseId    String
+  order         Int
+  targetSets    Int    @default(3)
+  targetReps    Int?
+  targetWeight  Float?
+  restSec       Int?
   /// своя прогрессия: шаг, кг (0,5…20); работает при заданном targetWeight
-  step         Float?
+  step          Float?
   /// неудач подряд (своя прогрессия): на 3-й — разгрузка −10 %
-  fails        Int    @default(0)
+  fails         Int    @default(0)
   /// суперсет/круг: соседние упражнения с одним номером; null — вне группы
   supersetGroup Int?
 
@@ -523,36 +542,38 @@ model Workout {
   notes              String?
   /// самочувствие из чек-ина помощника; боль сюда не пишется (152-ФЗ — только на устройстве)
   wellbeing          Wellbeing?
+  /// ставится при завершении: все выполненные упражнения — STRETCH
+  stretchOnly        Boolean       @default(false)
   /// когда тренеру ушло уведомление об оценке (одно на тренировку)
   feedbackNotifiedAt DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  exercises    WorkoutExercise[]
-  xpEvents     XpEvent[]
-  kudos        Kudos[]
-  recordRespects RecordRespect[]
-  sessionAsHost  TrainingSession? @relation("SessionHostWorkout")
-  sessionAsGuest TrainingSession? @relation("SessionGuestWorkout")
-  comments     CoachComment[]
-  raidHit      RaidHit?
-  clubTaskHits ClubTaskHit[]
-  goblin       GoblinEncounter?
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template         WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  exercises        WorkoutExercise[]
+  xpEvents         XpEvent[]
+  kudos            Kudos[]
+  recordRespects   RecordRespect[]
+  sessionAsHost    TrainingSession?  @relation("SessionHostWorkout")
+  sessionAsGuest   TrainingSession?  @relation("SessionGuestWorkout")
+  comments         CoachComment[]
+  raidHit          RaidHit?
+  clubTaskHits     ClubTaskHit[]
+  goblin           GoblinEncounter?
   /// Золотой гоблин: до скольких выполненных рабочих подходов уже бросали (повторная отметка не даёт броска)
-  goblinRolledSets Int @default(0)
+  goblinRolledSets Int               @default(0)
 
   @@index([userId, status])
   @@index([userId, finishedAt])
 }
 
 model WorkoutExercise {
-  id         String @id @default(cuid())
-  workoutId  String
-  exerciseId String
-  order      Int
-  restSec    Int    @default(90)
+  id            String @id @default(cuid())
+  workoutId     String
+  exerciseId    String
+  order         Int
+  restSec       Int    @default(90)
   /// суперсет/круг: соседние упражнения с одним номером (lib/workouts/supersets.ts); null — вне группы
   supersetGroup Int?
 
@@ -877,10 +898,10 @@ model PlanSeries {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user     User             @relation("PlanSeriesUser", fields: [userId], references: [id], onDelete: Cascade)
-  coach    User?            @relation("PlanSeriesCoach", fields: [coachId], references: [id], onDelete: SetNull)
-  template WorkoutTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  entries  PlanEntry[]
+  user                User               @relation("PlanSeriesUser", fields: [userId], references: [id], onDelete: Cascade)
+  coach               User?              @relation("PlanSeriesCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  template            WorkoutTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  entries             PlanEntry[]
   /// серия программы тренера на несколько недель (lib/coach/program.ts)
   programAssignmentId String?
   programAssignment   ProgramAssignment? @relation(fields: [programAssignmentId], references: [id], onDelete: SetNull)
@@ -998,18 +1019,18 @@ enum CoachFormat {
 
 /// Публичная страница тренера /trainer/<ник>: видна всем, пока опубликована и режим тренера включён.
 model CoachProfile {
-  userId      String      @id
-  displayName String?
-  city        String?
-  format      CoachFormat @default(BOTH)
+  userId            String      @id
+  displayName       String?
+  city              String?
+  format            CoachFormat @default(BOTH)
   /// коды из SPECIALTIES (lib/coach/profile.ts)
-  specialties String[]    @default([])
-  about       String      @default("")
+  specialties       String[]    @default([])
+  about             String      @default("")
   /// скрытые цифры — коды STAT_CODES
-  hiddenStats String[]    @default([])
-  publishedAt DateTime?
+  hiddenStats       String[]    @default([])
+  publishedAt       DateTime?
   /// блок «Награды тренера» на публичной странице
-  showAwards  Boolean     @default(true)
+  showAwards        Boolean     @default(true)
   /// контакты (каталог тренеров) — нормализованные, см. lib/coach/contacts.ts
   telegram          String?
   whatsapp          String?
@@ -1022,8 +1043,8 @@ model CoachProfile {
   catalogListed     Boolean     @default(false)
   /// кнопка «Заниматься» на публичной странице; выключена — подключение только по личной ссылке /coach/join/<код>
   joinEnabled       Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1242,6 +1263,14 @@ enum GoalType {
   STREAK // недели серии (User.currentStreak)
   HOURS // часы в зале с момента постановки
   BODY_WEIGHT // последнее взвешивание
+  STRETCH_WEEKLY // сессии/минуты растяжки в неделю
+  STRETCH_HOLD // удержание растяжки, секунды
+  STRETCH_SKILL // навык гибкости: «см до цели»
+}
+
+enum StretchUnit {
+  SESSIONS
+  MINUTES
 }
 
 enum GoalStatus {
@@ -1252,7 +1281,7 @@ enum GoalStatus {
 
 /// Цель хранит условие и стартовое значение; текущее значение считается из данных (lib/goals/queries.ts).
 model Goal {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   userId        String
   type          GoalType
   exerciseId    String? // только STRENGTH
@@ -1260,19 +1289,39 @@ model Goal {
   target        Float
   startValue    Float // значение при постановке (полоса «от старта к цели», направление веса)
   deadline      String? // местная дата "YYYY-MM-DD" в User.timeZone
-  status        GoalStatus  @default(ACTIVE)
-  createdAt     DateTime    @default(now())
+  status        GoalStatus   @default(ACTIVE)
+  createdAt     DateTime     @default(now())
   achievedAt    DateTime? // из тренировки — её finishedAt
   closedAt      DateTime? // когда стала ACHIEVED/FAILED
   chestOpenedAt DateTime?
   reminderAt    DateTime? // «7 дней до срока» отправлено
+  stretchUnit   StretchUnit? // только STRETCH_WEEKLY
+  stretchSkill  String? // только STRETCH_SKILL: ключ навыка или null у своего
+  skillTitle    String? // только STRETCH_SKILL: название своего навыка (до 60 символов)
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise     Exercise?            @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  measurements StretchMeasurement[]
 
   @@index([userId, status])
   /// тик сроков: активные по дате срока (processGoals, lib/goals/tick.ts)
   @@index([status, deadline])
+}
+
+/// Замер гибкости («см до цели») по цели-навыку; один на местный день.
+model StretchMeasurement {
+  id        String   @id @default(cuid())
+  userId    String
+  goalId    String
+  date      String // местный день "YYYY-MM-DD"
+  cm        Decimal  @db.Decimal(5, 1) // 0…200
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, date])
+  @@index([userId])
 }
 
 /// Журнал взвешиваний: одна запись на местный день; последняя дублируется в User.bodyWeight.
@@ -1731,35 +1780,35 @@ model CoachProgramDay {
 
 /// Программа, назначенная клиенту: снимок названия и правила. Активная — endedAt = null и не кончился срок.
 model ProgramAssignment {
-  id          String      @id @default(cuid())
-  clientId    String
+  id               String      @id @default(cuid())
+  clientId         String
   /// null — аккаунт тренера удалён
-  coachId     String?
+  coachId          String?
   /// null — программа удалена из библиотеки
-  programId   String?
-  name        String
+  programId        String?
+  name             String
   /// понедельник старта, "YYYY-MM-DD"
-  startDate   String
-  weeks       Int
-  stepKind    ProgramStep
-  stepValue   Float
-  deloadEvery Int?
-  deloadPct   Float
-  endedAt     DateTime?
+  startDate        String
+  weeks            Int
+  stepKind         ProgramStep
+  stepValue        Float
+  deloadEvery      Int?
+  deloadPct        Float
+  endedAt          DateTime?
   /// тренеру отправлено «заканчивается через неделю»
-  remindedAt  DateTime?
-  createdAt   DateTime    @default(now())
+  remindedAt       DateTime?
+  createdAt        DateTime    @default(now())
   /// запущена из каталога (самостоятельно, coachId = null); null — назначил тренер
   catalogProgramId String?
   /// запущена из каталога — постоянный признак (catalogProgramId обнуляется, если автор удалил программу)
-  fromCatalog      Boolean  @default(false)
+  fromCatalog      Boolean     @default(false)
 
-  client  User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
-  coach   User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
-  program CoachProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  client         User          @relation("ProgramAssignmentClient", fields: [clientId], references: [id], onDelete: Cascade)
+  coach          User?         @relation("ProgramAssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  program        CoachProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
   catalogProgram CoachProgram? @relation("CatalogProgram", fields: [catalogProgramId], references: [id], onDelete: SetNull)
-  bases   ProgramBase[]
-  series  PlanSeries[]
+  bases          ProgramBase[]
+  series         PlanSeries[]
 
   @@index([clientId, endedAt])
   @@index([coachId, endedAt])
@@ -1780,17 +1829,17 @@ model ProgramBase {
 }
 
 model WhoopConnection {
-  userId       String   @id
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  whoopUserId  String   @unique // user_id WHOOP (int64 строкой) — поиск по вебхуку
+  userId       String    @id
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whoopUserId  String    @unique // user_id WHOOP (int64 строкой) — поиск по вебхуку
   accessToken  String // AES-256-GCM, lib/whoop/crypto.ts
   refreshToken String // AES-256-GCM
   expiresAt    DateTime
-  scopes       String   @default("") // выданные scope через пробел
+  scopes       String    @default("") // выданные scope через пробел
   consentAt    DateTime // время согласия на обработку данных о здоровье
-  needsReauth  Boolean  @default(false) // refresh отклонён — нужно переподключить
+  needsReauth  Boolean   @default(false) // refresh отклонён — нужно переподключить
   lastSyncAt   DateTime? // ограничение «Обновить» — раз в 60 с
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 }
 
 model WhoopWorkout {

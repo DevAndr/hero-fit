@@ -155,4 +155,10 @@ describe("storyData", () => {
   it("длинная тренировка — часы и минуты; один подход", () => {
     expect(storyData(input({ durationSec: 3900, totalSets: 1 })).stats).toEqual(["1 ч 05 мин", "8\u00a0400\u00a0кг", "1 подход"]);
   });
+  it("сессия растяжки: без объёма и серии, вместо объёма — минуты растяжки (вниз)", () => {
+    const d = storyData(input({ totalVolume: 0, totalSets: 4, meta: meta({ stretchOnly: true, stretchSec: 5 * 60 + 50, streak: 3, weekCount: 1 }) }));
+    expect(d.streak).toBeNull();
+    expect(d.weekCount).toBeNull();
+    expect(d.stats).toEqual(["58 мин", "Растяжка: 5 мин", "4 подхода"]);
+  });
 });

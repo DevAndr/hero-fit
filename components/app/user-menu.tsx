@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, CalendarRange, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
+import { Activity, Building2, CalendarRange, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, StretchHorizontal, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -56,6 +56,7 @@ export function UserMenu({
   const clubs = useFlag("clubs");
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
+  const stretching = useFlag("stretching");
   const trainers = !isCoach;
   const campaigns = useFlag("campaigns");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
@@ -182,6 +183,13 @@ export function UserMenu({
                 {coins} {coinWord(coins)}
               </span>
             ) : null}
+          </DropdownMenuItem>
+        ) : null}
+        {stretching ? (
+          // На телефоне в нижней панели растяжки нет; на ПК она в боковом меню
+          <DropdownMenuItem className="lg:hidden" render={<Link href="/stretching" />}>
+            <StretchHorizontal />
+            Растяжка
           </DropdownMenuItem>
         ) : null}
         {catalog ? (

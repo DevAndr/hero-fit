@@ -6,9 +6,32 @@ const BASE_XP = 50;
 const MAX_WORKOUT_XP = 600;
 export const PR_XP = 25;
 
-/** + 1 за минуту работы в подходах на время и кардио (`workSec`). */
-export function workoutXp({ sets, reps, volume, workSec = 0 }: { sets: number; reps: number; volume: number; workSec?: number }) {
+/** + 1 за минуту работы в подходах на время и кардио (`workSec`) и за минуту удержания растяжки (`stretchSec`). */
+export function workoutXp({
+  sets,
+  reps,
+  volume,
+  workSec = 0,
+  stretchSec = 0,
+}: {
+  sets: number;
+  reps: number;
+  volume: number;
+  workSec?: number;
+  stretchSec?: number;
+}) {
   if (sets <= 0) return 0;
-  const xp = BASE_XP + sets * 5 + Math.floor(reps / 5) + Math.floor(volume / 200) + Math.floor(workSec / 60);
+  const xp = BASE_XP + sets * 5 + Math.floor(reps / 5) + Math.floor(volume / 200) + Math.floor(workSec / 60) + Math.floor(stretchSec / 60);
   return Math.min(MAX_WORKOUT_XP, xp);
+}
+
+/** Причины XP-события завершения с meta сводки (FinishMeta): тренировка и сессия растяжки. */
+export const FINISH_REASONS = ["WORKOUT_COMPLETED", "STRETCH_SESSION"] as const;
+
+const STRETCH_BASE_XP = 15;
+const MAX_STRETCH_XP = 60;
+
+/** Сессия растяжки (только растяжка): 15 + минута удержания, не больше 60. */
+export function stretchSessionXp(stretchSec: number) {
+  return Math.min(MAX_STRETCH_XP, STRETCH_BASE_XP + Math.floor(Math.max(0, stretchSec) / 60));
 }

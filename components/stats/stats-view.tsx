@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CardioStats } from "@/lib/stats/queries";
+import type { CardioStats, StretchStats } from "@/lib/stats/queries";
 import { formatKm } from "@/lib/workouts/kinds";
 import { ChartColumn } from "lucide-react";
 import { ActivityHeatmap } from "@/components/stats/activity-heatmap";
@@ -9,6 +9,7 @@ import { MuscleChart } from "@/components/stats/muscle-chart";
 import { OneRmCalculator } from "@/components/stats/one-rm-calculator";
 import { RepRangeChart } from "@/components/stats/rep-range-chart";
 import { RhythmChart } from "@/components/stats/rhythm-chart";
+import { StretchCard } from "@/components/stats/stretch-card";
 import { StrengthChart } from "@/components/stats/strength-chart";
 import { WeeklyTrendChart } from "@/components/stats/weekly-trend-chart";
 import { formatClock } from "@/lib/format";
@@ -24,6 +25,8 @@ export type StatsViewData = {
   month: MonthCompare | null;
   /** Кардио за 7/30 дней; null — флаг workout_formats выключен или кардио не было. */
   cardio?: CardioStats | null;
+  /** Растяжка; null — флага нет и в истории растяжки нет (у тренера не передаётся). */
+  stretch?: StretchStats | null;
   /** Монеты по неделям — только на своей /stats при флаге shop (у тренера не передаётся). */
   coins?: CoinStats | null;
 };
@@ -69,6 +72,7 @@ export function StatsView({
           <p className="font-semibold">Пока нет данных</p>
           <p className="max-w-sm text-sm text-muted-foreground">{emptyText}</p>
         </div>
+        {data.stretch ? <div className="mt-6"><StretchCard data={data.stretch} /></div> : null}
         <div className="mt-6 max-w-md">
           <OneRmCalculator />
         </div>
@@ -104,6 +108,8 @@ export function StatsView({
           </div>
         </section>
       ) : null}
+
+      {data.stretch ? <StretchCard data={data.stretch} /> : null}
 
       <section aria-label="Время в зале" className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Время в зале</h2>

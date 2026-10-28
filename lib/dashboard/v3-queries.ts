@@ -31,7 +31,7 @@ export async function getWeekTotals(userId: string, tz: string, now = new Date()
                FROM "XpEvent" x WHERE x."workoutId" = w.id AND x.reason = 'PERSONAL_RECORD'
              ), 0) AS prs
       FROM "Workout" w
-      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w."finishedAt" >= ${since}
     )
     SELECT
       COALESCE(SUM(volume) FILTER (WHERE day >= ${monday}::date AND at <= ${now}), 0)::float8 AS cv,
@@ -44,7 +44,7 @@ export async function getWeekTotals(userId: string, tz: string, now = new Date()
       COALESCE(SUM(prs) FILTER (WHERE day >= ${prevMonday}::date AND day < ${monday}::date AND at <= ${weekAgo}), 0)::int AS pr,
       EXISTS (
         SELECT 1 FROM "Workout" b
-        WHERE b."userId" = ${userId} AND b.status = 'COMPLETED' AND ((b."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date < ${monday}::date
+        WHERE b."userId" = ${userId} AND b.status = 'COMPLETED' AND NOT b."stretchOnly" AND ((b."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date < ${monday}::date
       ) AS before
     FROM w
   `;
@@ -53,12 +53,12 @@ export async function getWeekTotals(userId: string, tz: string, now = new Date()
   return { cur, prev };
 }
 
-/** Местные дни завершённых тренировок в [monday, sunday]. */
+/** Местные дни завершённых тренировок в [monday, sunday]; сессия растяжки день тренировкой не отмечает. */
 export async function getWorkoutDays(userId: string, tz: string, monday: string, sunday: string): Promise<string[]> {
   const rows = await db.$queryRaw<{ day: string }[]>`
     SELECT DISTINCT to_char((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day
     FROM "Workout" w
-    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED'
+    WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
       AND w."finishedAt" >= ${new Date(new Date(`${monday}T00:00:00Z`).getTime() - DAY_MS)}
       AND ((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date BETWEEN ${monday}::date AND ${sunday}::date
   `;

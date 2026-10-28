@@ -60,6 +60,10 @@ describe("начисление за тренировку", () => {
     expect(g.some((x) => x.reason === "WORKOUT")).toBe(false);
     expect(g.some((x) => x.reason === "RECORD")).toBe(true);
   });
+  it("сессия растяжки: без монет за тренировку, рекорды и уровни — да", () => {
+    const g = workoutCoinGrants({ ...base, stretchOnly: true, records: [{ exerciseId: "e1", exerciseName: "Голубь" }], levelAfter: 2 });
+    expect(g.map((x) => x.reason)).toEqual(["RECORD", "LEVEL_UP"]);
+  });
   it("без засчитанной недели нет STREAK_WEEK; рекордов не больше 3 и по разным упражнениям", () => {
     const records = ["a", "a", "b", "c", "d"].map((id) => ({ exerciseId: id, exerciseName: id }));
     const g = workoutCoinGrants({ ...base, records });

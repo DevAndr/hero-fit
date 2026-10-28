@@ -19,12 +19,13 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { MuscleGroup } from "@/generated/prisma/enums";
+import type { MuscleGroup, StretchZone } from "@/generated/prisma/enums";
 import { saveExerciseAction, type ExerciseFormState } from "@/lib/exercises/actions";
 import type { ExerciseItem } from "@/lib/exercises/queries";
 import type { ExerciseKindName } from "@/lib/workouts/kinds";
 import { useFlag } from "@/components/flags/flags-provider";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
+import { STRETCH_ZONES, stretchZoneLabel } from "@/lib/stretching/zones";
 import { cn } from "@/lib/utils";
 
 const REST_PRESETS = [45, 60, 90, 120, 180];
@@ -34,11 +35,14 @@ const toErrors = (messages?: string[]) => messages?.map((message) => ({ message 
 /** Неконтролируемый (с trigger) или контролируемый (open/onOpenChange) диалог. */
 export function ExerciseFormDialog({
   exercise,
+  defaultKind,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }: {
   exercise?: ExerciseItem;
+  /** Вид нового упражнения (кнопка на /stretching — сразу «Растяжка»). */
+  defaultKind?: ExerciseKindName;
   trigger?: ReactElement;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -56,7 +60,7 @@ export function ExerciseFormDialog({
           <DialogDescription>Укажите группы мышц — по ним строится статистика.</DialogDescription>
         </DialogHeader>
         {/* Форма монтируется заново при каждом открытии — состояние сбрасывается. */}
-        {open ? <ExerciseForm exercise={exercise} onDone={() => setOpen(false)} /> : null}
+        {open ? <ExerciseForm exercise={exercise} defaultKind={defaultKind} onDone={() => setOpen(false)} /> : null}
       </DialogContent>
     </Dialog>
   );
@@ -66,13 +70,19 @@ const KINDS: { value: ExerciseKindName; label: string; hint: string }[] = [
   { value: "REPS", label: "Повторы", hint: "Вес и повторы — жим, присед, подтягивания" },
   { value: "TIME", label: "Время", hint: "Подход — время: планка, вис, стульчик" },
   { value: "CARDIO", label: "Кардио", hint: "Подход — дистанция и время: бег, велотренажёр, гребля" },
+  { value: "STRETCH", label: "Растяжка", hint: "Подход — время удержания: бабочка, голубь, наклон к ногам" },
 ];
 
-function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: () => void }) {
+function ExerciseForm({ exercise, defaultKind, onDone }: { exercise?: ExerciseItem; defaultKind?: ExerciseKindName; onDone: () => void }) {
   const [groups, setGroups] = useState<MuscleGroup[]>(exercise?.muscleGroups ?? []);
   const [rest, setRest] = useState(String(exercise?.defaultRestSec ?? 90));
   const formatsOn = useFlag("workout_formats");
-  const [kind, setKind] = useState<ExerciseKindName>(exercise?.kind ?? "REPS");
+  const stretchOn = useFlag("stretching");
+  const [kind, setKind] = useState<ExerciseKindName>(exercise?.kind ?? defaultKind ?? "REPS");
+  const [zones, setZones] = useState<StretchZone[]>(exercise?.stretchZones ?? []);
+  // Виды независимы: «на время» и кардио — от workout_formats, растяжка — от stretching
+  const kinds = KINDS.filter((k) => (k.value === "STRETCH" ? stretchOn : k.value === "REPS" || formatsOn));
+  const isStretch = kind === "STRETCH";
 
   const [state, action, pending] = useActionState(
     async (prev: ExerciseFormState, formData: FormData) => {
@@ -89,14 +99,22 @@ function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: (
   const toggle = (group: MuscleGroup) =>
     setGroups((current) => (current.includes(group) ? current.filter((g) => g !== group) : [...current, group]));
 
+  const toggleZone = (zone: StretchZone) =>
+    setZones((current) => (current.includes(zone) ? current.filter((z) => z !== zone) : [...current, zone]));
+
+  const makePrimaryZone = (zone: StretchZone) => setZones((current) => [zone, ...current.filter((z) => z !== zone)]);
+
   const makePrimary = (group: MuscleGroup) =>
     setGroups((current) => [group, ...current.filter((g) => g !== group)]);
 
   return (
     <form action={action} noValidate>
       {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
-      {groups.map((g) => (
+      {(isStretch ? [] : groups).map((g) => (
         <input key={g} type="hidden" name="muscleGroups" value={g} />
+      ))}
+      {(isStretch ? zones : []).map((z) => (
+        <input key={z} type="hidden" name="stretchZones" value={z} />
       ))}
 
       <FieldGroup>
@@ -115,6 +133,79 @@ function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: (
           <FieldError errors={toErrors(state.errors?.name)} />
         </Field>
 
+        {formatsOn || stretchOn ? (
+          <FieldSet>
+            <FieldLegend variant="label">Вид</FieldLegend>
+            <input type="hidden" name="kind" value={kind} />
+            {/* Base UI: стрелки переключают вид, Tab — один шаг на всю группу */}
+            <RadioGroup aria-label="Вид упражнения" value={kind} onValueChange={(v) => setKind(v as ExerciseKindName)} className="flex flex-wrap gap-2">
+              {kinds.map((k) => (
+                <Radio.Root
+                  key={k.value}
+                  value={k.value}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "data-checked:border-transparent data-checked:bg-secondary data-checked:text-secondary-foreground")}
+                >
+                  {k.label}
+                </Radio.Root>
+              ))}
+            </RadioGroup>
+            <FieldDescription>{kinds.find((k) => k.value === kind)?.hint}</FieldDescription>
+          </FieldSet>
+        ) : null}
+
+        {isStretch ? (
+          <>
+        <FieldSet data-invalid={Boolean(state.errors?.stretchZones) || undefined}>
+          <FieldLegend variant="label">Зоны растяжки</FieldLegend>
+          <FieldDescription>
+            Первая выбранная — основная <Star className="inline size-3 fill-current text-primary" />. Нажмите на звезду,
+            чтобы сделать зону основной.
+          </FieldDescription>
+          <div className="flex flex-wrap gap-2">
+            {STRETCH_ZONES.map((zone) => {
+              const index = zones.indexOf(zone);
+              const selected = index >= 0;
+              return (
+                <span
+                  key={zone}
+                  className={cn(
+                    "inline-flex items-center overflow-hidden rounded-full border text-sm transition-colors",
+                    selected ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {selected ? (
+                    <button
+                      type="button"
+                      onClick={() => makePrimaryZone(zone)}
+                      className="py-1 pl-2.5"
+                      aria-label={`Сделать «${stretchZoneLabel(zone)}» основной`}
+                    >
+                      <Star className={cn("size-3.5", index === 0 ? "fill-current" : "opacity-40")} />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleZone(zone)}
+                    className={cn("py-1 pr-3", selected ? "pl-1.5" : "pl-3")}
+                  >
+                    {stretchZoneLabel(zone)}
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+          <FieldError errors={toErrors(state.errors?.stretchZones)} />
+        </FieldSet>
+
+        <Field orientation="horizontal">
+          <Checkbox id="exercise-per-side" name="perSide" defaultChecked={exercise?.perSide} />
+          <FieldLabel htmlFor="exercise-per-side" className="font-normal">
+            Одностороннее (каждая сторона)
+          </FieldLabel>
+        </Field>
+          </>
+        ) : (
         <FieldSet data-invalid={Boolean(state.errors?.muscleGroups) || undefined}>
           <FieldLegend variant="label">Группы мышц</FieldLegend>
           <FieldDescription>
@@ -157,26 +248,7 @@ function ExerciseForm({ exercise, onDone }: { exercise?: ExerciseItem; onDone: (
           </div>
           <FieldError errors={toErrors(state.errors?.muscleGroups)} />
         </FieldSet>
-
-        {formatsOn ? (
-          <FieldSet>
-            <FieldLegend variant="label">Вид</FieldLegend>
-            <input type="hidden" name="kind" value={kind} />
-            {/* Base UI: стрелки переключают вид, Tab — один шаг на всю группу */}
-            <RadioGroup aria-label="Вид упражнения" value={kind} onValueChange={(v) => setKind(v as ExerciseKindName)} className="flex flex-wrap gap-2">
-              {KINDS.map((k) => (
-                <Radio.Root
-                  key={k.value}
-                  value={k.value}
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "data-checked:border-transparent data-checked:bg-secondary data-checked:text-secondary-foreground")}
-                >
-                  {k.label}
-                </Radio.Root>
-              ))}
-            </RadioGroup>
-            <FieldDescription>{KINDS.find((k) => k.value === kind)?.hint}</FieldDescription>
-          </FieldSet>
-        ) : null}
+        )}
 
         <Field data-invalid={Boolean(state.errors?.defaultRestSec) || undefined}>
           <FieldLabel htmlFor="exercise-rest">Отдых между подходами, сек</FieldLabel>

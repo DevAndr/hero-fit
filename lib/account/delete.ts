@@ -135,7 +135,7 @@ async function rehomeExercises(tx: Tx, userId: string) {
   for (const { exerciseId: from, ownerId } of pairs) {
     const source = await tx.exercise.findUniqueOrThrow({
       where: { id: from },
-      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, kind: true, defaultRestSec: true },
+      select: { name: true, description: true, muscleGroups: true, isBodyweight: true, kind: true, defaultRestSec: true, stretchZones: true, perSide: true },
     });
     const [inTemplate, taken] = await Promise.all([
       tx.templateExercise.count({ where: { exerciseId: from, template: { userId: ownerId } } }),
@@ -166,7 +166,7 @@ async function rehomeExercises(tx: Tx, userId: string) {
     await tx.$executeRaw`UPDATE "XpEvent" x SET meta = jsonb_set(x.meta, '{records}', (
         SELECT jsonb_agg(CASE WHEN r->>'exerciseId' = ${from} THEN jsonb_set(r, '{exerciseId}', to_jsonb(${to}::text)) ELSE r END ORDER BY i)
         FROM jsonb_array_elements(x.meta->'records') WITH ORDINALITY AS e(r, i)))
-      WHERE x."userId" = ${ownerId} AND x.reason IN ('WORKOUT_COMPLETED', 'PERSONAL_RECORD')
+      WHERE x."userId" = ${ownerId} AND x.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION', 'PERSONAL_RECORD')
         AND jsonb_typeof(x.meta->'records') = 'array'
         AND EXISTS (SELECT 1 FROM jsonb_array_elements(x.meta->'records') r WHERE r->>'exerciseId' = ${from})`;
   }

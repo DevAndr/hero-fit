@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { quietly } from "@/lib/achievements/quietly";
 import { notify } from "@/lib/notifications/service";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { nicknameKey, nicknameSchema, normalizeFriendCode } from "@/lib/social/league";
 import { recordExercise, respectNotice } from "@/lib/social/feed";
 import { canSeeWorkout, getFeed, getGuildFeed } from "@/lib/social/queries";
@@ -206,7 +207,7 @@ export async function toggleRespectAction(workoutId: string, exerciseId: string)
   if (workout.userId === user.id) return { ok: false, error: "Свой рекорд отметить нельзя" };
 
   const event = await db.xpEvent.findFirst({
-    where: { workoutId, reason: "WORKOUT_COMPLETED" },
+    where: { workoutId, reason: { in: [...FINISH_REASONS] } },
     select: { meta: true },
   });
   if (recordExercise(event?.meta, exerciseId) === null) return { ok: false, error: "Рекорд не найден" };
@@ -243,7 +244,7 @@ async function notifyRespect(workoutId: string, exerciseId: string, ownerId: str
       select: { user: { select: { nickname: true } } },
     }),
     db.user.findUniqueOrThrow({ where: { id: ownerId }, select: { notifySocial: true } }),
-    db.xpEvent.findFirst({ where: { workoutId, reason: "WORKOUT_COMPLETED" }, select: { meta: true } }),
+    db.xpEvent.findFirst({ where: { workoutId, reason: { in: [...FINISH_REASONS] } }, select: { meta: true } }),
   ]);
   const names = givers.map((g) => g.user.nickname ?? "Атлет");
   // Название — из сводки (на момент рекорда), как в ленте; упражнение могли переименовать

@@ -539,7 +539,7 @@ function Chat({ start, workout, whoop, onClose }: { start: NodeId; workout: Work
       w.dispatch({
         type: "replaceExercise",
         key,
-        exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, isBodyweight: target.isBodyweight, kind: target.kind },
+        exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, stretchZones: target.stretchZones, perSide: target.perSide, isBodyweight: target.isBodyweight, kind: target.kind },
         restSec: target.defaultRestSec,
         last: w.last,
       });

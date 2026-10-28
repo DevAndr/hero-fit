@@ -46,7 +46,7 @@ export async function storyImage(d: StoryData): Promise<ImageResponse> {
     asset("fonts", "unbounded-latin-800.woff"),
     d.boss ? bossSprite(d.boss.code) : Promise.resolve(null),
   ]);
-  const weeks = plural(d.streak, "неделя", "недели", "недель");
+  const weeks = plural(d.streak ?? 0, "неделя", "недели", "недель");
 
   return new ImageResponse(
     (
@@ -131,39 +131,42 @@ export async function storyImage(d: StoryData): Promise<ImageResponse> {
 
         {/* Streak и итоги */}
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 112,
-                height: 112,
-                borderRadius: 56,
-                background: `${STREAK}2e`,
-                color: STREAK,
-                fontSize: 56,
-                fontWeight: 800,
-              }}
-            >
-              {d.streak}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 38, fontWeight: 800 }}>
-                {d.streak ? `${weeks} подряд` : "Серия начинается"}
+          {/* Сессия растяжки серию не двигает — блока нет */}
+          {d.streak !== null ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 112,
+                  height: 112,
+                  borderRadius: 56,
+                  background: `${STREAK}2e`,
+                  color: STREAK,
+                  fontSize: 56,
+                  fontWeight: 800,
+                }}
+              >
+                {d.streak}
               </div>
-              {d.weekCount !== null ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {Array.from({ length: STREAK_WEEK_TARGET }, (_, i) => (
-                    <div key={i} style={{ display: "flex", width: 28, height: 28, borderRadius: 14, background: i < (d.weekCount ?? 0) ? STREAK : TRACK }} />
-                  ))}
-                  <span style={{ fontSize: 28, color: MUTED, marginLeft: 8 }}>
-                    {`${Math.min(d.weekCount, STREAK_WEEK_TARGET)}/${STREAK_WEEK_TARGET} за неделю`}
-                  </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 38, fontWeight: 800 }}>
+                  {d.streak ? `${weeks} подряд` : "Серия начинается"}
                 </div>
-              ) : null}
+                {d.weekCount !== null ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {Array.from({ length: STREAK_WEEK_TARGET }, (_, i) => (
+                      <div key={i} style={{ display: "flex", width: 28, height: 28, borderRadius: 14, background: i < (d.weekCount ?? 0) ? STREAK : TRACK }} />
+                    ))}
+                    <span style={{ fontSize: 28, color: MUTED, marginLeft: 8 }}>
+                      {`${Math.min(d.weekCount, STREAK_WEEK_TARGET)}/${STREAK_WEEK_TARGET} за неделю`}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
           <div style={{ fontSize: 32, fontWeight: 500, color: MUTED }}>{d.stats.join("  ·  ")}</div>
         </div>
 
