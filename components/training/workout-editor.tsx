@@ -321,6 +321,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
           id: e.id,
           name: e.name,
           muscleGroups: e.muscleGroups,
+          stretchZones: e.stretchZones,
           isBodyweight: e.isBodyweight,
           kind: e.kind,
         },

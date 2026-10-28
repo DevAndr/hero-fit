@@ -166,6 +166,7 @@ export function replacementCandidates<
 >(current: { id: string; muscleGroups: MuscleGroup[]; kind?: string; stretchZones?: string[] }, all: E[], ctx: { inWorkout: string[]; pain: PainSpot[]; lastDate: Record<string, string>; today: string }): E[] {
   const stretch = current.kind === "STRETCH";
   const main = stretch ? current.stretchZones?.[0] : current.muscleGroups[0];
+  if (stretch && !main) return []; // у растяжки без зон нечего сравнивать
   const since = addDays(ctx.today, -90);
   const fit = all.filter(
     (e) =>

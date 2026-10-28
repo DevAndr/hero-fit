@@ -179,6 +179,20 @@ describe("replacementCandidates — растяжка", () => {
   });
 });
 
+describe("replacementCandidates — растяжка, форма ExerciseInfo", () => {
+  const info = (id: string, stretchZones?: ("HIPS" | "NECK")[]) => ({ id, name: id, muscleGroups: [] as MuscleGroup[], isBodyweight: true, kind: "STRETCH" as const, stretchZones });
+  const ctx = { inWorkout: [], pain: [], lastDate: {}, today: "2026-10-12" };
+  it("растяжка без зон — пусто, а не undefined === undefined", () => {
+    const all = [info("a"), info("b"), { id: "c", muscleGroups: [] as MuscleGroup[], userId: null, kind: "STRETCH" as const }];
+    expect(replacementCandidates(all[0], all.map((e) => ({ ...e, userId: null })), ctx)).toEqual([]);
+  });
+  it("находит кандидатов по объекту формы ExerciseInfo", () => {
+    const cur = info("pigeon", ["HIPS"]);
+    const all = [cur, info("frog", ["HIPS"]), info("neck", ["NECK"])].map((e) => ({ ...e, userId: null }));
+    expect(replacementCandidates(cur, all, ctx).map((e) => e.id)).toEqual(["frog"]);
+  });
+});
+
 describe("lastResultText", () => {
   const sets = (n: number, weight: number, reps: number) => ({ date: "2026-10-01", sets: Array.from({ length: n }, () => ({ weight, reps })) });
   it("без истории — «ещё не делали»", () => {

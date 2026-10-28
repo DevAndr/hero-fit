@@ -54,9 +54,11 @@ export async function listExercises(
   const rows = await db.exercise.findMany({
     where: {
       ...visibleExercisesWhere(userId),
-      ...(hidden.length ? { kind: { notIn: hidden } } : {}),
+      // Скрытые флагами виды не возвращаются никогда — даже при group = "STRETCH" без флага
+      ...(filter.group === "STRETCH" ? { kind: "STRETCH" as const } : {}),
+      ...(hidden.length ? { AND: [{ kind: { notIn: hidden } }] } : {}),
       ...(filter.q ? { name: { contains: filter.q, mode: "insensitive" as const } } : {}),
-      ...(filter.group === "STRETCH" ? { kind: "STRETCH" as const } : filter.group ? { muscleGroups: { has: filter.group } } : {}),
+      ...(filter.group && filter.group !== "STRETCH" ? { muscleGroups: { has: filter.group } } : {}),
     },
     select: { ...exerciseSelect, favorites: { where: { userId }, select: { userId: true } } },
     orderBy: { name: "asc" },

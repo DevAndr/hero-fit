@@ -159,7 +159,7 @@ export function ExerciseBlock({
     dispatch({
       type: "replaceExercise",
       key: item.key,
-      exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, isBodyweight: target.isBodyweight, kind: target.kind },
+      exercise: { id: target.id, name: target.name, muscleGroups: target.muscleGroups, stretchZones: target.stretchZones, isBodyweight: target.isBodyweight, kind: target.kind },
       restSec: target.defaultRestSec,
       last: swap?.last ?? {},
       newKey,

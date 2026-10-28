@@ -1,6 +1,6 @@
 import "server-only";
 import type { ExerciseKindName } from "@/lib/workouts/kinds";
-import { WorkoutStatus, type MuscleGroup } from "@/generated/prisma/enums";
+import { WorkoutStatus, type MuscleGroup, type StretchZone } from "@/generated/prisma/enums";
 import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
@@ -8,7 +8,7 @@ import { stretchOnlyWhere } from "@/lib/templates/queries";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
 
-export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean; /** Нет — силовое (REPS). */ kind?: ExerciseKindName };
+export type ExerciseInfo = { id: string; name: string; muscleGroups: MuscleGroup[]; isBodyweight: boolean; /** Только у растяжки; первая — основная. */ stretchZones?: StretchZone[]; /** Нет — силовое (REPS). */ kind?: ExerciseKindName };
 
 /** Сериализуемое состояние активной тренировки для клиентского редактора. */
 export type ActiveWorkout = {
@@ -34,7 +34,7 @@ export type ActiveWorkout = {
   }[];
 };
 
-const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, isBodyweight: true, kind: true } as const;
+const exerciseInfoSelect = { id: true, name: true, muscleGroups: true, stretchZones: true, isBodyweight: true, kind: true } as const;
 
 export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | null> {
   const workout = await db.workout.findFirst({
