@@ -17,6 +17,7 @@ const raw = (): ExportRaw => ({
     hideWeights: false,
     shareActivity: true,
     shareRecordCards: true,
+    gender: "FEMALE",
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",
@@ -144,7 +145,7 @@ describe("buildExport", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });
   });
   it("профиль содержит настройку карточек рекордов", () => {
-    expect(out.profile).toMatchObject({ shareRecordCards: true });
+    expect(out.profile).toMatchObject({ shareRecordCards: true, gender: "FEMALE" });
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });

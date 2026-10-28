@@ -9,6 +9,7 @@ import { ChevronRight, MessageSquare, Watch } from "lucide-react";
 import { buildLabel } from "@/lib/changelog/version";
 import { PageHeader } from "@/components/app/app-shell";
 import { BodyWeightSettings } from "@/components/app/body-weight-settings";
+import { GenderSettings } from "@/components/app/gender-settings";
 import { CoachModeCard, FindCoachCard, MyCoachCard } from "@/components/coach/coach-settings";
 import { RestartTourButton } from "@/components/onboarding/restart-button";
 import { NicknameForm } from "@/components/social/nickname-form";
@@ -35,17 +36,19 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [{ _count, nickname, shareActivity, hideWeights, shareRecordCards, ...prefs }, title, coach, page, telegram, hasPassword, deletion, whoop] = await Promise.all([
+  const [{ _count, nickname, shareActivity, hideWeights, shareRecordCards, ...prefs }, title, coach, page, telegram, account, deletion, whoop] = await Promise.all([
     getNotificationSettings(user.id),
     getTitleSettings(user.id),
     activeCoachOf(user.id),
     db.coachProfile.findFirst({ where: { userId: user.id, publishedAt: { not: null } }, select: { userId: true } }),
     getTelegramStatus(user.id),
-    db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } }).then((u) => u.passwordHash !== null),
+    db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true, gender: true } }),
     getDeletionInput(user.id),
     // null — браслеты недоступны (флаг whoop / WHOOP не настроен), иначе — подключён ли WHOOP
     whoopAvailable(user.id).then(async (ok) => (ok ? (await getWhoopStatus(user.id)).connected : null)),
   ]);
+
+  const hasPassword = account.passwordHash !== null;
 
   // Скин — только при флаге shop: без него тема магазина не применяется
   const worn = (await shopAllowed(user.id)) ? skinOf(user.themeCode) : null;
@@ -57,6 +60,7 @@ export default async function SettingsPage() {
       {hasPassword ? null : <SiteLoginForm />}
       {user.embedded ? <TelegramThemeNote skin={skin} /> : <ThemeSettings skin={skin} />}
       <BodyWeightSettings initial={user.bodyWeight} />
+      <GenderSettings initial={account.gender} />
       <NicknameForm initial={nickname} publishedPage={Boolean(page) && user.isCoach} />
       <TitleSelect titles={title.titles} current={title.current} nickname={nickname} />
       <PrivacySettings initial={{ shareActivity, hideWeights }} />
