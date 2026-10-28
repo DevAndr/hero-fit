@@ -437,7 +437,14 @@ export function NewGoal({
                   {draft.skill === "custom" ? (
                     <div className="space-y-1.5">
                       <Label htmlFor="goal-skill-title">Название навыка</Label>
-                      <Input id="goal-skill-title" maxLength={60} value={draft.skillTitle} aria-invalid={errors.skillTitle ? true : undefined} onChange={(e) => set({ skillTitle: e.target.value })} />
+                      <Input
+                        id="goal-skill-title"
+                        maxLength={60}
+                        value={draft.skillTitle}
+                        aria-invalid={errors.skillTitle ? true : undefined}
+                        aria-describedby={errors.skillTitle ? "goal-skill-title-error" : undefined}
+                        onChange={(e) => set({ skillTitle: e.target.value })}
+                      />
                       <FieldError id="goal-skill-title-error" text={errors.skillTitle} />
                     </div>
                   ) : null}

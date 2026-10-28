@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { getGoalFormData, getGoalsPage } from "@/lib/goals/queries";
-import { GOALS_ACTIVE_MAX, isInputGoalType, isStrengthMetric, isStretchGoal, type GoalInput } from "@/lib/goals/rules";
+import { againSkillStartCm, GOALS_ACTIVE_MAX, isInputGoalType, isStrengthMetric, isStretchGoal, type GoalInput } from "@/lib/goals/rules";
 import { goalStretchWeeks } from "@/lib/goals/stretch-weekly";
 
 export const metadata: Metadata = { title: "Цели" };
@@ -18,11 +18,15 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   const user = await requireUser();
   const tz = safeTimeZone(user.timeZone);
   const { again: againId } = await searchParams;
-  const [page, form, againGoal] = await Promise.all([
+  const [page, form, againGoal, againLast] = await Promise.all([
     getGoalsPage(user.id, tz),
     getGoalFormData(user.id, tz),
     againId
       ? db.goal.findFirst({ where: { id: againId, userId: user.id, status: "FAILED" }, select: { type: true, exerciseId: true, metric: true, target: true, stretchUnit: true, stretchSkill: true, skillTitle: true, startValue: true, createdAt: true, deadline: true } })
+      : null,
+    // навык: последний замер прежней цели — стартовый у новой
+    againId
+      ? db.stretchMeasurement.findFirst({ where: { goalId: againId, userId: user.id }, orderBy: { date: "desc" }, select: { cm: true } })
       : null,
   ]);
   const activeCount = page.active.filter((g) => g.status === "ACTIVE").length;
@@ -40,9 +44,13 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
           ...(againGoal.type === "STRETCH_WEEKLY"
             ? { stretchUnit: againGoal.stretchUnit ?? undefined, weeks: goalStretchWeeks(againGoal, tz).length || undefined }
             : {}),
-          // навык — тот же навык, замер — стартовый прежней цели (хозяин обновит на актуальный)
+          // навык — тот же навык, замер — последний прежней цели, иначе её стартовый (хозяин обновит на актуальный)
           ...(againGoal.type === "STRETCH_SKILL"
-            ? { stretchSkill: againGoal.stretchSkill ?? undefined, skillTitle: againGoal.skillTitle ?? undefined, startCm: againGoal.startValue || undefined }
+            ? {
+                stretchSkill: againGoal.stretchSkill ?? undefined,
+                skillTitle: againGoal.skillTitle ?? undefined,
+                startCm: againSkillStartCm(againGoal.startValue, againLast ? Number(againLast.cm) : null),
+              }
             : {}),
         }
       : null;

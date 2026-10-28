@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  againSkillStartCm,
   canCreate,
   deadlineEnd,
   deadlineSchema,
@@ -313,5 +314,13 @@ describe("цель «Навык»", () => {
     expect(isAchieved(g, 0.5)).toBe(false);
     expect(isAchieved(g, 0)).toBe(true);
     expect(goalProgress(g, 0)).toBe(1);
+  });
+
+  test("«Поставить снова»: стартовый замер — последний замер прежней цели, иначе её старт", () => {
+    expect(againSkillStartCm(10, 4.5)).toBe(4.5);
+    expect(againSkillStartCm(10, null)).toBe(10);
+    // замер 0 — цель была бы достигнута; не подставляем
+    expect(againSkillStartCm(10, 0)).toBe(10);
+    expect(againSkillStartCm(0, null)).toBeUndefined();
   });
 });

@@ -133,6 +133,12 @@ export function deadlineSchema(today: string) {
     .nullable();
 }
 
+/** «Поставить снова» для навыка: стартовый замер — последний замер прежней цели (если не 0), иначе её старт. */
+export function againSkillStartCm(startValue: number, lastCm: number | null): number | undefined {
+  if (lastCm !== null && lastCm > 0) return lastCm;
+  return startValue > 0 ? startValue : undefined;
+}
+
 /** «Ниже — лучше»: снижение веса (старт выше цели) и навык (см до цели, цель — 0). */
 const losing = (g: Shape) => (g.type === "BODY_WEIGHT" && g.startValue > g.target) || g.type === "STRETCH_SKILL";
 
