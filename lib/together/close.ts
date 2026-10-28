@@ -12,11 +12,17 @@ import { partnerName } from "@/lib/together/queries";
 import { bonusEligible, bonusXp, type BonusInput } from "@/lib/together/rules";
 
 const DAY = 86_400_000;
-const WORKOUT = { id: true, status: true, startedAt: true, finishedAt: true, totalSets: true, xpEarned: true } as const;
+const WORKOUT = { id: true, status: true, startedAt: true, finishedAt: true, totalSets: true, xpEarned: true, stretchOnly: true } as const;
 const PERSON = { id: true, nickname: true, timeZone: true } as const;
 
-type W = { id: string; status: WorkoutStatus; startedAt: Date | null; finishedAt: Date | null; totalSets: number; xpEarned: number } | null;
-const input = (w: W): BonusInput => ({ status: w?.status ?? null, startedAt: w?.startedAt ?? null, finishedAt: w?.finishedAt ?? null, totalSets: w?.totalSets ?? 0 });
+type W = { id: string; status: WorkoutStatus; startedAt: Date | null; finishedAt: Date | null; totalSets: number; xpEarned: number; stretchOnly: boolean } | null;
+// Сессия растяжки — как тренировка без подходов: бонуса не даёт ни себе, ни партнёру
+const input = (w: W): BonusInput => ({
+  status: w?.status ?? null,
+  startedAt: w?.startedAt ?? null,
+  finishedAt: w?.finishedAt ?? null,
+  totalSets: w?.stretchOnly ? 0 : (w?.totalSets ?? 0),
+});
 
 /** Был ли уже бонус в местных сутках получателя (сутки — по завершению его тренировки). */
 async function hadBonusToday(tx: Prisma.TransactionClient, userId: string, timeZone: string, finishedAt: Date): Promise<boolean> {

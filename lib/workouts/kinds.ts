@@ -16,6 +16,17 @@ export function isDoneSet(kind: ExerciseKindName | undefined, s: { reps: number;
 }
 
 /**
+ * Сессия растяжки: есть выполненные подходы, и все упражнения с выполненными подходами — растяжка
+ * (силовые без отмеченных подходов при завершении удаляются и не мешают).
+ */
+export function isStretchOnly(
+  exercises: { kind: ExerciseKindName; sets: { reps: number; durationSec?: number | null; completedAt: unknown }[] }[],
+): boolean {
+  const withDone = exercises.filter((e) => e.sets.some((s) => isDoneSet(e.kind, s)));
+  return withDone.length > 0 && withDone.every((e) => e.kind === "STRETCH");
+}
+
+/**
  * «1:30» → 90, «90» → 90, «1:02:05» → 3725; мусор (и секунды/минуты ≥ 60 в частях) → 0.
  * Запятая и точка — тоже разделитель («1,30»): на цифровой клавиатуре телефона нет двоеточия.
  * Одна цифра после запятой или точки — доля минуты: «1,5» — 1:30, а не 1:05.

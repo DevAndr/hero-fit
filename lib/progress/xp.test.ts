@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PR_XP, workoutXp } from "./xp";
+import { PR_XP, stretchSessionXp, workoutXp } from "./xp";
 
 describe("workoutXp", () => {
   it("is 0 for a workout without completed sets", () => {
@@ -29,5 +29,20 @@ describe("workoutXp — minutes of timed and cardio work", () => {
     expect(workoutXp({ sets: 1, reps: 0, volume: 0, workSec: 1800 })).toBe(85);
     expect(workoutXp({ sets: 1, reps: 0, volume: 0, workSec: 59 })).toBe(55);
     expect(workoutXp({ sets: 10, reps: 0, volume: 0, workSec: 60 * 1000 })).toBe(600);
+  });
+});
+
+describe("stretching XP", () => {
+  it("stretch session: 15 + a point per full minute of holds, max 60", () => {
+    expect(stretchSessionXp(0)).toBe(15);
+    expect(stretchSessionXp(600)).toBe(25);
+    expect(stretchSessionXp(659)).toBe(25);
+    expect(stretchSessionXp(3600)).toBe(60);
+  });
+
+  it("stretching inside a strength workout adds a point per minute", () => {
+    const before = workoutXp({ sets: 4, reps: 40, volume: 2000 });
+    expect(workoutXp({ sets: 4, reps: 40, volume: 2000, stretchSec: 300 })).toBe(before + 5);
+    expect(workoutXp({ sets: 500, reps: 5000, volume: 1_000_000, stretchSec: 6000 })).toBe(600);
   });
 });

@@ -185,7 +185,7 @@ async function journalStats(client: Client, userId: string) {
            COALESCE(MAX(jsonb_array_length(meta->'records')) FILTER (WHERE reason = 'PERSONAL_RECORD'), 0)::int AS "maxPrs",
            (SELECT COUNT(*) FROM "StreakCoverWeek" c WHERE c."userId" = ${userId} AND c.reason = 'FREEZE')::int AS "freezeSaves"
     FROM "XpEvent"
-    WHERE "userId" = ${userId} AND reason IN ('PERSONAL_RECORD', 'WORKOUT_COMPLETED')
+    WHERE "userId" = ${userId} AND reason IN ('PERSONAL_RECORD', 'WORKOUT_COMPLETED', 'STRETCH_SESSION')
   `;
   return row;
 }

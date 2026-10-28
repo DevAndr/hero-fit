@@ -3,6 +3,7 @@ import type { ExerciseKindName } from "@/lib/workouts/kinds";
 import { WorkoutStatus, type MuscleGroup, type StretchZone } from "@/generated/prisma/enums";
 import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { isEnabled } from "@/lib/flags/server";
 import { stretchOnlyWhere } from "@/lib/templates/queries";
 
@@ -139,11 +140,11 @@ export async function getWorkoutSummary(userId: string, workoutId: string) {
       exercises: {
         orderBy: { order: "asc" },
         include: {
-          exercise: { select: { name: true, muscleGroups: true, kind: true } },
+          exercise: { select: { name: true, muscleGroups: true, kind: true, perSide: true } },
           sets: { orderBy: { order: "asc" } },
         },
       },
-      xpEvents: { where: { reason: "WORKOUT_COMPLETED" }, select: { meta: true }, take: 1 },
+      xpEvents: { where: { reason: { in: [...FINISH_REASONS] } }, select: { meta: true }, take: 1 },
       template: {
         select: {
           userId: true,

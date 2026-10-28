@@ -8,7 +8,7 @@ import { isFinishMeta } from "@/lib/recap/meta";
 import type { FinishGoals } from "@/lib/goals/rules";
 import type { FinishClubTask } from "@/lib/club/tasks-apply";
 
-/** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED). */
+/** Строка ленты из БД: завершённая тренировка + сводка завершения (meta события WORKOUT_COMPLETED / STRETCH_SESSION). */
 export type FeedRow = {
   id: string;
   userId: string;

@@ -279,7 +279,7 @@ async function feedPage(userId: string, ids: string[], cursor: string | null, li
            ) AS respects
     FROM "Workout" w
     JOIN "User" u ON u.id = w."userId"
-    LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'
+    LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION')
     WHERE w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND w."userId" = ANY(${ids})
       ${after ? Prisma.sql`AND (w."finishedAt", w.id) < (${after.at}, ${after.id})` : Prisma.empty}
     ORDER BY w."finishedAt" DESC, w.id DESC

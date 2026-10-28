@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
@@ -24,13 +25,13 @@ import { grantCoinsDetailed } from "@/lib/shop/coins-db";
 import { paidWorkoutsToday, toLines } from "@/lib/shop/earn";
 import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
-import { PR_XP, workoutXp } from "@/lib/progress/xp";
+import { PR_XP, stretchSessionXp, workoutXp } from "@/lib/progress/xp";
 import { workoutTotals } from "@/lib/workouts/schema";
-import { isDoneSet, type ExerciseKindName } from "@/lib/workouts/kinds";
+import { isDoneSet, isStretchOnly, type ExerciseKindName } from "@/lib/workouts/kinds";
 
 export type NewRecord = { exerciseId: string; exerciseName: string; type: RecordType; value: number; previous: number };
 
-/** То, что показывает сводка после тренировки (хранится в meta события WORKOUT_COMPLETED). */
+/** То, что показывает сводка после тренировки (meta события WORKOUT_COMPLETED, у сессии растяжки — STRETCH_SESSION). */
 export type FinishMeta = {
   xpBefore: number;
   levelBefore: number;
@@ -85,6 +86,10 @@ export type FinishMeta = {
   goals?: FinishGoals;
   /** Задания клуба: вклад этой тренировки и выполнение (нет — поля нет). */
   clubTasks?: FinishClubTask[];
+  /** Сессия растяжки (только растяжка): без серии, босса, рейда, клуба; streak-поля — как были до неё. */
+  stretchOnly?: true;
+  /** Секунды удержания растяжки (у односторонних — обе стороны); нет растяжки — поля нет. */
+  stretchSec?: number;
   /** Монеты этой тренировки: тренировка, рекорды, неделя серии, уровни, ачивки (нет — поля нет). */
   coins?: { total: number; items: CoinLine[] };
 };
@@ -105,7 +110,7 @@ export async function finishWorkout(
     const workout = await tx.workout.findFirst({
       where: { id: workoutId, userId },
       include: {
-        exercises: { include: { exercise: { select: { name: true, isBodyweight: true, kind: true } }, sets: true } },
+        exercises: { include: { exercise: { select: { name: true, isBodyweight: true, kind: true, perSide: true } }, sets: true } },
       },
     });
     if (!workout) return { ok: false, error: "Тренировка не найдена" };
@@ -114,7 +119,9 @@ export async function finishWorkout(
       return { ok: false, error: "Сначала начните тренировку" };
     }
 
-    const totals = workoutTotals(workout.exercises.map((we) => ({ kind: we.exercise.kind, sets: we.sets })));
+    const totals = workoutTotals(
+      workout.exercises.map((we) => ({ kind: we.exercise.kind, perSide: we.exercise.perSide, sets: we.sets })),
+    );
     if (totals.sets === 0) return { ok: false, error: "Отметьте хотя бы один выполненный подход" };
 
     // Цели — значения до тренировки (до захвата и рекордов): для строк прироста в сводке
@@ -142,6 +149,8 @@ export async function finishWorkout(
       },
     });
     await tx.workoutExercise.deleteMany({ where: { workoutId, sets: { none: {} } } });
+    // Сессия растяжки — по тому, что осталось в истории (силовые без отмеченных подходов только что удалены)
+    const stretchOnly = isStretchOnly(workout.exercises.map((we) => ({ kind: we.exercise.kind, sets: we.sets })));
 
     // Прогрессия: сравниваем выполненное с целью (невыполненные подходы уже удалены). Шаблон либо свой, либо тренера
     const progression = await applyProgression(tx, userId, workout);
@@ -181,21 +190,27 @@ export async function finishWorkout(
         lastStreakWeek: true,
         streakFreezes: true,
         freezeGrantedAt: true,
+        weekWorkouts: true,
         weekWorkoutsKey: true,
         timeZone: true,
       },
     });
-    const baseXp = workoutXp(totals);
+    const baseXp = stretchOnly ? stretchSessionXp(totals.stretchSec) : workoutXp(totals);
     const recordsXp = records.length * PR_XP;
     const xpAfter = user.xp + baseXp + recordsXp;
 
     // Недельный streak: тренировка уже COMPLETED (захват выше) — считаем неделю вместе с ней.
     const tz = safeTimeZone(user.timeZone);
     const week = weekKey(now, tz);
-    const weekCount = await countWeekWorkouts(tx, userId, week, tz);
-    const withFreeze = grantFreeze(user, now);
+    // Сессия растяжки в серию не идёт: серия, заморозки и счётчик недели — как были
+    const weekCount = stretchOnly
+      ? user.weekWorkoutsKey === week
+        ? user.weekWorkouts
+        : 0
+      : await countWeekWorkouts(tx, userId, week, tz);
+    const withFreeze = stretchOnly ? user : grantFreeze(user, now);
     const streak =
-      weekCount >= STREAK_WEEK_TARGET
+      !stretchOnly && weekCount >= STREAK_WEEK_TARGET
         ? applyWeekCredit(withFreeze, week)
         : { ...withFreeze, frozenWeeks: [], extended: false, reset: false };
     if (streak.frozenWeeks.length) {
@@ -205,7 +220,7 @@ export async function finishWorkout(
       });
     }
     // Тренировка задним числом (офлайн) не портит счётчик уже начавшейся следующей недели.
-    const weekCounter = !user.weekWorkoutsKey || week >= user.weekWorkoutsKey ? { weekWorkouts: weekCount, weekWorkoutsKey: week } : {};
+    const weekCounter = stretchOnly ? {} : !user.weekWorkoutsKey || week >= user.weekWorkoutsKey ? { weekWorkouts: weekCount, weekWorkoutsKey: week } : {};
 
     await tx.workout.update({
       where: { id: workoutId },
@@ -217,6 +232,7 @@ export async function finishWorkout(
         totalReps: totals.reps,
         totalVolume: totals.volume,
         xpEarned: baseXp + recordsXp,
+        stretchOnly,
       },
     });
 
@@ -255,56 +271,12 @@ export async function finishWorkout(
       }),
     );
 
-    // Босс недели этой тренировки (неделя — по её finishedAt): урон прошлых тренировок недели + этой
-    const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
-    const before = await weekDamage(tx, userId, week, tz, workoutId);
+    // Босс недели этой тренировки (неделя — по её finishedAt). Сессия растяжки босса, рейд и задания клуба не трогает
     const hit = workoutDamage(
       workout.exercises.flatMap((we) => we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s))),
       new Set(records.map((r) => r.exerciseId)).size,
     );
-    let defeated = false;
-    if (before.damage + hit.damage >= bossWeek.hp) {
-      // Условие по defeatedAt — повтор или параллельная тренировка не засчитают победу дважды
-      const { count } = await tx.bossWeek.updateMany({ where: { id: bossWeek.id, defeatedAt: null }, data: { defeatedAt: now } });
-      defeated = count === 1;
-    }
-    if (defeated) {
-      const prefs = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
-      await notify(
-        tx,
-        userId,
-        {
-          type: NotificationType.BOSS,
-          title: `⚔ Босс повержен: ${bossName(bossWeek.bossCode)}`,
-          // Сводка победной тренировки: сундук там есть и после смены недели (дашборд показывает уже нового босса)
-          body: `Сундук ждёт в сводке тренировки · +${rewardXp(bossWeek.hp)} XP`,
-          url: `/workouts/${workoutId}`,
-        },
-        { push: prefs.notifyAchievements },
-      );
-    }
-    let titles: string[] = [];
-    if (defeated) {
-      // Победы до этой: текущая неделя уже помечена — исключаем её
-      const wins = await tx.bossWeek.groupBy({
-        by: ["bossCode"],
-        where: { userId, defeatedAt: { not: null }, id: { not: bossWeek.id } },
-        _count: { _all: true },
-      });
-      const winsBefore = Object.fromEntries(wins.map((w) => [w.bossCode, w._count._all]));
-      titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as BossCode).map((t) => t.label);
-    }
-    const boss: FinishMeta["boss"] = {
-      week,
-      code: bossWeek.bossCode,
-      damage: hit.damage,
-      crits: hit.crits,
-      hpBefore: Math.max(0, bossWeek.hp - before.damage),
-      hpAfter: Math.max(0, bossWeek.hp - before.damage - hit.damage),
-      hp: bossWeek.hp,
-      defeated,
-      ...(titles.length ? { titles } : {}),
-    };
+    const boss = stretchOnly ? undefined : await applyBoss(tx, { userId, workoutId, week, tz, now, hit });
 
     // Золотой гоблин: 3 рабочих подхода за 10 минут с появления — пойман (условие по caughtAt — без повторов)
     let goblin: FinishMeta["goblin"];
@@ -320,10 +292,10 @@ export async function finishWorkout(
     }
 
     // Рейд гильдии — тем же уроном; окно рейда — по реальному времени (офлайн-финиш прошлой недели не бьёт)
-    const raid = await applyRaidHit(tx, { userId, workoutId, finishedAt: now, damage: hit.damage, crits: hit.crits, now: new Date() });
+    const raid = stretchOnly ? null : await applyRaidHit(tx, { userId, workoutId, finishedAt: now, damage: hit.damage, crits: hit.crits, now: new Date() });
 
     // Задания клуба — вклад этой тренировки (только выполненные рабочие подходы); новые сундуки учтёт evaluateAchievements ниже
-    const clubTasks = await applyClubTasks(tx, {
+    const clubTasks = stretchOnly ? null : await applyClubTasks(tx, {
       userId,
       workoutId,
       finishedAt: now,
@@ -340,7 +312,8 @@ export async function finishWorkout(
 
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
     // Своя тренировка не двигает лестницы тренера — их SQL в транзакции завершения не нужен
-    const unlocked = await evaluateAchievements(tx, userId, { coach: false });
+    // Сессия растяжки ачивки «N тренировок/подходов» не двигает — ачивки не проверяем (догонят при следующей проверке)
+    const unlocked = stretchOnly ? { achievements: [], xp: 0, coins: [] } : await evaluateAchievements(tx, userId, { coach: false });
 
     const coinItems = toLines([...coinGrants, ...unlocked.coins]);
     const coinTotal = coinItems.reduce((n, c) => n + c.amount, 0);
@@ -359,7 +332,9 @@ export async function finishWorkout(
       streakReset: streak.reset,
       usedFreezes: streak.frozenWeeks.length,
       weekCount,
-      boss,
+      ...(boss ? { boss } : {}),
+      ...(stretchOnly ? { stretchOnly: true as const } : {}),
+      ...(totals.stretchSec > 0 ? { stretchSec: totals.stretchSec } : {}),
       ...(goblin ? { goblin } : {}),
       ...(raid ? { raid } : {}),
       ...(goals ? { goals } : {}),
@@ -372,7 +347,7 @@ export async function finishWorkout(
     };
 
     await tx.xpEvent.create({
-      data: { userId, workoutId, amount: baseXp, reason: XpReason.WORKOUT_COMPLETED, meta },
+      data: { userId, workoutId, amount: baseXp, reason: stretchOnly ? XpReason.STRETCH_SESSION : XpReason.WORKOUT_COMPLETED, meta },
     });
     if (recordsXp > 0) {
       await tx.xpEvent.create({
@@ -383,4 +358,56 @@ export async function finishWorkout(
 
     return { ok: true };
   }, { timeout: 15_000 });
+}
+
+/** Урон боссу недели этой тренировкой: урон прошлых тренировок недели + этой; победа — уведомление и титулы. */
+async function applyBoss(
+  tx: Prisma.TransactionClient,
+  { userId, workoutId, week, tz, now, hit }: { userId: string; workoutId: string; week: string; tz: string; now: Date; hit: { damage: number; crits: number } },
+): Promise<FinishMeta["boss"]> {
+  const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
+  const before = await weekDamage(tx, userId, week, tz, workoutId);
+  let defeated = false;
+  if (before.damage + hit.damage >= bossWeek.hp) {
+    // Условие по defeatedAt — повтор или параллельная тренировка не засчитают победу дважды
+    const { count } = await tx.bossWeek.updateMany({ where: { id: bossWeek.id, defeatedAt: null }, data: { defeatedAt: now } });
+    defeated = count === 1;
+  }
+  if (defeated) {
+    const prefs = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
+    await notify(
+      tx,
+      userId,
+      {
+        type: NotificationType.BOSS,
+        title: `⚔ Босс повержен: ${bossName(bossWeek.bossCode)}`,
+        // Сводка победной тренировки: сундук там есть и после смены недели (дашборд показывает уже нового босса)
+        body: `Сундук ждёт в сводке тренировки · +${rewardXp(bossWeek.hp)} XP`,
+        url: `/workouts/${workoutId}`,
+      },
+      { push: prefs.notifyAchievements },
+    );
+  }
+  let titles: string[] = [];
+  if (defeated) {
+    // Победы до этой: текущая неделя уже помечена — исключаем её
+    const wins = await tx.bossWeek.groupBy({
+      by: ["bossCode"],
+      where: { userId, defeatedAt: { not: null }, id: { not: bossWeek.id } },
+      _count: { _all: true },
+    });
+    const winsBefore = Object.fromEntries(wins.map((w) => [w.bossCode, w._count._all]));
+    titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as BossCode).map((t) => t.label);
+  }
+  return {
+    week,
+    code: bossWeek.bossCode,
+    damage: hit.damage,
+    crits: hit.crits,
+    hpBefore: Math.max(0, bossWeek.hp - before.damage),
+    hpAfter: Math.max(0, bossWeek.hp - before.damage - hit.damage),
+    hp: bossWeek.hp,
+    defeated,
+    ...(titles.length ? { titles } : {}),
+  };
 }

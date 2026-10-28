@@ -164,7 +164,7 @@ export async function getClubFeed(clubId: string, viewerId: string, cursor: stri
       FROM "ClubMember" m
       JOIN "Workout" w ON w."userId" = m."userId"
       JOIN "User" u ON u.id = m."userId"
-      LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'
+      LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION')
       WHERE m."clubId" = ${clubId}
         AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND w."finishedAt" >= m."joinedAt"
         AND (u."shareActivity" OR u.id = ${viewerId})

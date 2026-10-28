@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { WorkoutStatus } from "@/generated/prisma/enums";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { programEndDay } from "@/lib/coach/program";
 import {
@@ -18,6 +18,7 @@ import { clientSignals } from "@/lib/coach/signals";
 import { getSignalInput } from "@/lib/coach/signals-queries";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { addWeeks, localMidnight } from "@/lib/progress/weekly-streak";
@@ -73,7 +74,7 @@ async function loadClientRecapInput(
 
   const ids = workouts.map((w) => w.id);
   const events = ids.length
-    ? await db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: XpReason.WORKOUT_COMPLETED }, select: { workoutId: true, meta: true } })
+    ? await db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: { in: [...FINISH_REASONS] } }, select: { workoutId: true, meta: true } })
     : [];
   // meta — в порядке тренировок недели
   const metaByWorkout = new Map(events.map((e) => [e.workoutId, e.meta]));

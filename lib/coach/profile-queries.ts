@@ -1,9 +1,10 @@
 import "server-only";
-import { WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { WorkoutStatus } from "@/generated/prisma/enums";
 import { getClientPlan } from "@/lib/coach/plan-queries";
 import { statsToCompute, type CoachStats } from "@/lib/coach/profile";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { nicknameKey } from "@/lib/social/league";
 
 const DAY = 86_400_000;
@@ -25,7 +26,7 @@ export async function getCoachPublicStats(coachId: string, now = new Date(), hid
     need.activity ? db.workout.count({ where: { userId: { in: ids }, status: WorkoutStatus.COMPLETED, finishedAt: { gte: since30 } } }) : 0,
     need.activity
       ? db.xpEvent.findMany({
-          where: { userId: { in: ids }, reason: XpReason.WORKOUT_COMPLETED, workout: { finishedAt: { gte: since30 } } },
+          where: { userId: { in: ids }, reason: { in: [...FINISH_REASONS] }, workout: { finishedAt: { gte: since30 } } },
           select: { meta: true },
         })
       : [],

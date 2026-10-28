@@ -87,3 +87,13 @@ describe("isTimedRecord", () => {
     expect(["ONE_RM", "MAX_WEIGHT", "MAX_REPS"].some((t) => isTimedRecord(t as RecordType))).toBe(false);
   });
 });
+
+describe("records of stretches", () => {
+  it("only the longest hold counts", () => {
+    const sets = [
+      { weight: 0, reps: 0, durationSec: 45, distanceM: 1200 },
+      { weight: 0, reps: 0, durationSec: 60, distanceM: null },
+    ];
+    expect(bestOfSets(sets, "STRETCH")).toEqual({ MAX_DURATION: 60 });
+  });
+});

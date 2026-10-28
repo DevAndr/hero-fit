@@ -2,9 +2,10 @@ import "server-only";
 import { weekDamage } from "@/lib/boss/queries";
 import { raidBossName } from "@/lib/raid/rules";
 import type { MuscleGroup } from "@/generated/prisma/enums";
-import { StreakCoverReason, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
+import { StreakCoverReason, WorkoutStatus } from "@/generated/prisma/enums";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
+import { FINISH_REASONS } from "@/lib/progress/xp";
 import { addWeeks, localMidnight, streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
@@ -137,7 +138,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
       where: { workoutExercise: { workoutId: { in: ids } }, isWarmup: false, completedAt: { not: null } },
       select: { weight: true, reps: true, workoutExercise: { select: { exercise: { select: { id: true, name: true, isBodyweight: true } } } } },
     }),
-    db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: XpReason.WORKOUT_COMPLETED }, select: { workoutId: true, meta: true } }),
+    db.xpEvent.findMany({ where: { workoutId: { in: ids }, reason: { in: [...FINISH_REASONS] } }, select: { workoutId: true, meta: true } }),
   ]);
   // meta — в порядке тренировок недели
   const metaByWorkout = new Map(events.map((e) => [e.workoutId, e.meta]));
