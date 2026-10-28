@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { Search, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useFlag } from "@/components/flags/flags-provider";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { isFavorite, useFavorites } from "@/components/exercises/favorites";
 import type { ExerciseItem } from "@/lib/exercises/queries";
@@ -21,8 +22,8 @@ export function MuscleRecoveryProvider({ recovery, children }: { recovery: Group
 
 /** Поиск по названию + фильтр по группе мышц — общий для диалога выбора и каталога на ПК. */
 /** initialGroup — фильтр группы при открытии (замена упражнения); reset() сбрасывает в «все». */
-/** Группа фильтра: группа мышц, «★ Избранное» или все (null). */
-export type FilterGroup = MuscleGroup | "FAVORITES" | null;
+/** Группа фильтра: группа мышц, «★ Избранное», «Растяжка» (флаг stretching) или все (null). */
+export type FilterGroup = MuscleGroup | "FAVORITES" | "STRETCH" | null;
 
 export function useExerciseFilter(exercises: ExerciseItem[], initialGroup: FilterGroup = null) {
   const [query, setQuery] = useState("");
@@ -34,7 +35,8 @@ export function useExerciseFilter(exercises: ExerciseItem[], initialGroup: Filte
     return exercises.filter(
       (e) =>
         (!q || e.name.toLowerCase().includes(q)) &&
-        (!group || (group === "FAVORITES" ? isFavorite(favorites, e) : e.muscleGroups.includes(group))),
+        (!group ||
+          (group === "FAVORITES" ? isFavorite(favorites, e) : group === "STRETCH" ? e.kind === "STRETCH" : e.muscleGroups.includes(group))),
     );
   }, [exercises, query, group, favorites]);
 
@@ -54,6 +56,7 @@ export function ExerciseFilterControls({
   className?: string;
 }) {
   const recovery = useContext(RecoveryContext);
+  const stretchOn = useFlag("stretching");
   return (
     <>
       <div className="relative">
@@ -101,6 +104,19 @@ export function ExerciseFilterControls({
             </button>
           );
         })}
+        {stretchOn ? (
+          <button
+            type="button"
+            onClick={() => filter.setGroup("STRETCH")}
+            aria-pressed={filter.group === "STRETCH"}
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm",
+              filter.group === "STRETCH" ? "border-primary bg-primary/15 text-primary" : "text-muted-foreground",
+            )}
+          >
+            Растяжка
+          </button>
+        ) : null}
       </div>
     </>
   );

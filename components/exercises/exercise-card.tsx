@@ -25,11 +25,11 @@ import { ExerciseFormDialog } from "@/components/exercises/exercise-form-dialog"
 import { FavoriteButton } from "@/components/exercises/favorites";
 import { deleteExerciseAction } from "@/lib/exercises/actions";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { areaLabels } from "@/lib/exercises/area";
 
 export function ExerciseCard({ exercise }: { exercise: ExerciseItem }) {
   const own = exercise.userId !== null;
-  const [primary, ...secondary] = exercise.muscleGroups;
+  const [primary, ...secondary] = areaLabels(exercise);
 
   return (
     <div className="flex items-start gap-3 rounded-xl border bg-card p-4">
@@ -39,10 +39,10 @@ export function ExerciseCard({ exercise }: { exercise: ExerciseItem }) {
           {own ? <Badge variant="outline" className="shrink-0 border-primary/40 text-primary">моё</Badge> : null}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {primary ? <Badge>{MUSCLE_GROUP_LABELS[primary]}</Badge> : null}
+          {primary ? <Badge>{primary}</Badge> : null}
           {secondary.map((g) => (
             <Badge key={g} variant="secondary">
-              {MUSCLE_GROUP_LABELS[g]}
+              {g}
             </Badge>
           ))}
         </div>
@@ -57,6 +57,7 @@ export function ExerciseCard({ exercise }: { exercise: ExerciseItem }) {
               свой вес
             </span>
           ) : null}
+          {exercise.perSide ? <span>каждая сторона</span> : null}
         </div>
         {exercise.description ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.description}</p>

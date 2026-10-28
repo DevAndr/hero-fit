@@ -15,7 +15,7 @@ import {
 import { FavoriteButton } from "@/components/exercises/favorites";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { areaLabels } from "@/lib/exercises/area";
 import { cn } from "@/lib/utils";
 
 export function ExercisePicker({
@@ -92,7 +92,7 @@ export function ExercisePicker({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{e.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {e.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")}
+                      {areaLabels(e).join(" · ")}
                     </span>
                   </span>
                   {alreadyAdded.has(e.id) ? (

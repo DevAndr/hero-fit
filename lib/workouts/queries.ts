@@ -3,6 +3,8 @@ import type { ExerciseKindName } from "@/lib/workouts/kinds";
 import { WorkoutStatus, type MuscleGroup } from "@/generated/prisma/enums";
 import { getAssignedTemplates } from "@/lib/coach/templates";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
+import { stretchOnlyWhere } from "@/lib/templates/queries";
 
 export const ACTIVE_STATUSES = [WorkoutStatus.PLANNED, WorkoutStatus.IN_PROGRESS];
 
@@ -100,9 +102,11 @@ export async function getLastPerformance(userId: string, exerciseIds: string[]):
 }
 
 export async function getStartOptions(userId: string) {
+  const stretching = await isEnabled("stretching", userId);
   const [templates, lastWorkout, coachTemplates] = await Promise.all([
     db.workoutTemplate.findMany({
-      where: { OR: [{ userId }, { userId: null }] },
+      // Готовые программы из одной растяжки — только при флаге stretching
+      where: { OR: [{ userId }, { userId: null, ...(stretching ? {} : { NOT: stretchOnlyWhere }) }] },
       orderBy: [{ userId: { sort: "desc", nulls: "last" } }, { program: "asc" }, { name: "asc" }],
       select: {
         id: true,

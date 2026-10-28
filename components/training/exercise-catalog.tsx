@@ -6,7 +6,7 @@ import { FavoriteButton, stop } from "@/components/exercises/favorites";
 import { Button } from "@/components/ui/button";
 import { ExerciseFilterControls, useExerciseFilter } from "@/components/training/exercise-filter";
 import type { ExerciseItem } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/muscle-groups";
+import { areaLabels } from "@/lib/exercises/area";
 import { cn } from "@/lib/utils";
 
 export const CATALOG_PREFIX = "catalog:";
@@ -75,7 +75,7 @@ function CatalogItem({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{exercise.name}</span>
         <span className="block truncate text-xs text-muted-foreground">
-          {exercise.muscleGroups.map((g) => MUSCLE_GROUP_LABELS[g]).join(" · ")}
+          {areaLabels(exercise).join(" · ")}
         </span>
         {added ? (
           <span className="flex items-center gap-1 text-xs text-primary">
