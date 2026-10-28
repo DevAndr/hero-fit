@@ -98,9 +98,8 @@ test("stretch course: export lists it, deletion removes it", async ({ page }) =>
   expect(data.stretchCourses[0]).not.toHaveProperty("id");
   expect(data.stretchCourses[0]).not.toHaveProperty("userId");
 
-  const del = await deleteAccount(page, PASSWORD);
+  await deleteAccount(page, PASSWORD);
   await expect(page).toHaveURL(/deleted=1/);
-  void del;
   expect(await userExists(me.login)).toBe(false);
   expect(await courseCount(me.login)).toBe(0);
 });
