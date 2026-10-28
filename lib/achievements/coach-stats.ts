@@ -19,12 +19,12 @@ export async function coachStats(client: Client, coachId: string, isCoach: boole
     done AS (
       SELECT w."userId", w."templateId"
       FROM "Workout" w JOIN win ON w."userId" = win."clientId" AND w."finishedAt" >= win.s AND w."finishedAt" < win.e
-      WHERE w.status = 'COMPLETED'
+      WHERE w.status = 'COMPLETED' AND NOT w."stretchOnly" -- сессия растяжки клиента — не тренировка
     ),
     xp AS (
       SELECT x.reason, x.meta
       FROM "XpEvent" x JOIN win ON x."userId" = win."clientId" AND x."createdAt" >= win.s AND x."createdAt" < win.e
-      WHERE x.reason IN ('PERSONAL_RECORD', 'WORKOUT_COMPLETED')
+      WHERE x.reason IN ('PERSONAL_RECORD', 'WORKOUT_COMPLETED', 'STRETCH_SESSION')
     )
     SELECT
       (SELECT COUNT(*) FROM (SELECT 1 FROM done GROUP BY "userId" HAVING COUNT(*) >= ${COACH_ACTIVE_CLIENT_WORKOUTS}) c)::int AS clients,
@@ -34,7 +34,7 @@ export async function coachStats(client: Client, coachId: string, isCoach: boole
         WHERE reason = 'PERSONAL_RECORD' AND jsonb_typeof(meta->'records') = 'array')::int AS prs,
       (SELECT COUNT(*) FROM xp,
           jsonb_array_elements(CASE WHEN jsonb_typeof(xp.meta->'progression') = 'array' THEN xp.meta->'progression' END) p
-        WHERE xp.reason = 'WORKOUT_COMPLETED' AND xp.meta->>'progressionSource' IS DISTINCT FROM 'own' AND p->>'kind' = 'up')::int AS progressions,
+        WHERE xp.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION') AND xp.meta->>'progressionSource' IS DISTINCT FROM 'own' AND p->>'kind' = 'up')::int AS progressions,
       (SELECT COUNT(*) FROM "Goal" g JOIN win ON g."userId" = win."clientId" AND g."achievedAt" >= win.s AND g."achievedAt" < win.e
         WHERE g.status = 'ACHIEVED')::int AS goals,
       EXISTS (SELECT 1 FROM "CoachProfile" WHERE "userId" = ${coachId} AND "publishedAt" IS NOT NULL) AS "pagePublished"

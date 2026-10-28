@@ -15,6 +15,8 @@ import { MIN_HP, SET_DAMAGE } from "../lib/boss/damage";
 import { clubKey } from "../lib/club/rules";
 import { slugify } from "../lib/club/public";
 import { seedDays } from "../lib/programs/builtin";
+import { STRETCH_PROGRAMS, STRETCH_SEED } from "../lib/stretching/seed-data";
+import type { StretchZone } from "../generated/prisma/enums";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -26,7 +28,10 @@ type SeedExercise = {
   restSec: number;
   bodyweight?: boolean;
   /** На время / кардио (флаг workout_formats); по умолчанию — силовое. */
-  kind?: "TIME" | "CARDIO";
+  kind?: "TIME" | "CARDIO" | "STRETCH";
+  /** Растяжка: зоны (первая — основная) и «каждая сторона». */
+  zones?: StretchZone[];
+  perSide?: boolean;
 };
 
 const EXERCISES: SeedExercise[] = [
@@ -112,6 +117,16 @@ const EXERCISES: SeedExercise[] = [
   { name: "Эллипс", muscleGroups: ["LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
   { name: "Гребной тренажёр", muscleGroups: ["BACK", "LEGS"], restSec: 120, bodyweight: true, kind: "CARDIO" },
   { name: "Скакалка", muscleGroups: ["CALVES"], restSec: 120, bodyweight: true, kind: "CARDIO" },
+  // Растяжка (флаг stretching): без групп мышц, подход — время удержания
+  ...STRETCH_SEED.map((e) => ({
+    name: e.name,
+    muscleGroups: [],
+    restSec: e.restSec,
+    bodyweight: true,
+    kind: "STRETCH" as const,
+    zones: e.zones,
+    perSide: e.perSide ?? false,
+  })),
 ];
 
 // Встроенные записи имеют userId = null; в Postgres NULL не участвует в unique,
@@ -125,6 +140,8 @@ async function seedExercises() {
       defaultRestSec: e.restSec,
       isBodyweight: e.bodyweight ?? false,
       kind: e.kind ?? ("REPS" as const),
+      stretchZones: e.zones ?? [],
+      perSide: e.perSide ?? false,
     };
     const existing = await db.exercise.findFirst({ where: { userId: null, name: e.name } });
     const exercise = existing
@@ -137,7 +154,9 @@ async function seedExercises() {
 }
 
 async function seedPrograms(exerciseIds: Map<string, string>) {
-  for (const t of seedDays()) {
+  // Растяжка: у шаблонов на время повторов нет — targetReps = 0
+  const days = [...seedDays(), ...STRETCH_PROGRAMS.map((p) => ({ ...p, exercises: p.exercises.map(([n, sets]) => [n, sets, 0] as [string, number, number]) }))];
+  for (const t of days) {
     const exercises = t.exercises.map(([name, sets, reps], order) => {
       const exerciseId = exerciseIds.get(name);
       if (!exerciseId) throw new Error(`Неизвестное упражнение в программе «${t.name}»: ${name}`);

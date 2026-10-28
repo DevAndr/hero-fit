@@ -23,6 +23,7 @@ const RECORDS: Record<ExerciseKindName, { type: RecordType; label: string; unit:
     { type: "MAX_REPS", label: "Макс. повторы", unit: "повт." },
   ],
   TIME: [{ type: "MAX_DURATION", label: "Дольше всего", unit: "" }],
+  STRETCH: [{ type: "MAX_DURATION", label: "Дольше всего", unit: "" }],
   CARDIO: [
     { type: "MAX_DISTANCE", label: "Дальше всего", unit: "" },
     { type: "MAX_DURATION", label: "Дольше всего", unit: "" },

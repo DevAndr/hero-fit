@@ -24,7 +24,7 @@ export async function damageByWeek(client: Client, userId: string, tz: string, f
       SELECT w.id,
              to_char(date_trunc('week', (w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS week
       FROM "Workout" w
-      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND NOT w."stretchOnly"
         AND w.id <> ${excludeWorkoutId ?? ""}
         AND (w."finishedAt" AT TIME ZONE 'UTC') >= (${fromWeek}::date)::timestamp AT TIME ZONE ${tz}
         AND (w."finishedAt" AT TIME ZONE 'UTC') < ((${toWeek}::date) + 7)::timestamp AT TIME ZONE ${tz}

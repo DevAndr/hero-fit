@@ -24,6 +24,8 @@ describe("parseExerciseForm", () => {
       name: "Жим гантелей",
       description: null,
       muscleGroups: ["CHEST", "TRICEPS"],
+      stretchZones: [],
+      perSide: false,
       isBodyweight: false,
       kind: "REPS",
       defaultRestSec: 90,
@@ -64,3 +66,32 @@ describe("exercise kind", () => {
     expect(parseExerciseForm(form([...valid, ["kind", "SWIM"]])).success).toBe(false);
   });
 });
+
+describe("parseExerciseForm — растяжка", () => {
+  const base: [string, string][] = [["name", "Бабочка"], ["description", ""], ["kind", "STRETCH"], ["defaultRestSec", "15"]];
+  it("принимает зоны и perSide, группы мышц пусты", () => {
+    const r = parseExerciseForm(form([...base, ["stretchZones", "HIPS"], ["stretchZones", "ADDUCTORS"], ["perSide", "on"]]));
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ kind: "STRETCH", stretchZones: ["HIPS", "ADDUCTORS"], perSide: true, muscleGroups: [] });
+  });
+  it("без зон — ошибка", () => {
+    const r = parseExerciseForm(form(base));
+    expect(r.success).toBe(false);
+    expect(r.errors?.stretchZones).toContain("Выбери хотя бы одну зону");
+  });
+  it("с группами мышц — ошибка", () => {
+    const r = parseExerciseForm(form([...base, ["stretchZones", "HIPS"], ["muscleGroups", "LEGS"]]));
+    expect(r.success).toBe(false);
+    expect(r.errors?.muscleGroups).toBeDefined();
+  });
+  it("у силового зоны недопустимы", () => {
+    const r = parseExerciseForm(form([...valid, ["stretchZones", "HIPS"]]));
+    expect(r.success).toBe(false);
+    expect(r.errors?.stretchZones).toBeDefined();
+  });
+  it("у силового perSide сбрасывается", () => {
+    const r = parseExerciseForm(form([...valid, ["perSide", "on"]]));
+    expect(r.data?.perSide).toBe(false);
+  });
+});
+

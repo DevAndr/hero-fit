@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowRight, BellRing, CalendarDays, Check, Crown, Gift, MessageCircleQuestion, Sparkles, Users } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Check, Crown, Gift, MessageCircleQuestion, Send, Smartphone, Sparkles, Users } from "lucide-react";
 import { Faq, faqFor } from "@/components/marketing/faq";
 import { Hero } from "@/components/marketing/v2/hero";
 import { How } from "@/components/marketing/v2/how";
@@ -28,6 +28,7 @@ import { catalogCount } from "@/lib/coach/catalog-queries";
 import { isEnabled } from "@/lib/flags/server";
 import { absoluteUrl, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import { telegramEnabled } from "@/lib/telegram/format";
+import { stretchOnlyWhere } from "@/lib/templates/queries";
 import { telegramAppUrl } from "@/lib/telegram/links";
 
 export const metadata: Metadata = {
@@ -66,9 +67,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const telegramUrl = telegramEnabled(env) ? telegramAppUrl(env.TELEGRAM_BOT_USERNAME) : null;
   // Клубы — только когда открыты всем (флаг `clubs` на 100 %): раздел, строка тарифа, вопросы FAQ.
   // Android-приложение — так же: флаг `native_app` для всех (иначе скачавший не сможет включить уведомления)
+  // Растяжка (флаг `stretching`) в счётчиках — только когда открыта всем
+  const stretching = isEnabled("stretching", null);
   const [exercises, programs, clubs, android, cities, authed, catalogCoaches] = await Promise.all([
-    db.exercise.count({ where: { userId: null } }),
-    db.workoutTemplate.count({ where: { userId: null } }),
+    stretching.then((on) => db.exercise.count({ where: { userId: null, ...(on ? {} : { kind: { not: "STRETCH" as const } }) } })),
+    stretching.then((on) => db.workoutTemplate.count({ where: { userId: null, ...(on ? {} : { NOT: stretchOnlyWhere }) } })),
     isEnabled("clubs", null),
     isEnabled("native_app", null),
     getPopularCities(6),
@@ -222,11 +225,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </Section>
 
       {/* Финальный призыв */}
-      <section className="mx-auto w-full max-w-6xl px-4 pb-28">
+      <section aria-labelledby="final-cta-title" className="mx-auto w-full max-w-6xl px-4 pb-28">
         <div className="relative overflow-hidden rounded-[2rem] border border-foreground/10 bg-card px-5 py-16 text-center sm:px-10 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_28%,transparent),transparent_60%),radial-gradient(circle_at_50%_120%,color-mix(in_oklch,var(--xp)_18%,transparent),transparent_55%)]" />
           <div className="relative space-y-6">
-            <h2 className="mx-auto max-w-2xl font-display text-3xl font-black tracking-tight text-balance sm:text-5xl">
+            <h2 id="final-cta-title" className="mx-auto max-w-2xl font-display text-3xl font-black tracking-tight text-balance sm:text-5xl">
               Первый уровень — <GradientText>уже после первой тренировки</GradientText>
             </h2>
             <p className="mx-auto max-w-xl text-muted-foreground">Регистрация за минуту. Без карты и без установки.</p>
@@ -238,6 +241,21 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <li className="flex items-center gap-1.5"><Users className="size-4 text-primary" aria-hidden /> Лига друзей</li>
               <li className="flex items-center gap-1.5"><BellRing className="size-4 text-primary" aria-hidden /> Push-уведомления</li>
             </ul>
+            {telegramUrl || android ? (
+              <p className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+                {telegramUrl ? (
+                  <a href={telegramUrl} className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
+                    <Send className="size-4" aria-hidden /> Открыть в Telegram
+                  </a>
+                ) : null}
+                {android ? (
+                  // Якорь к карточке Android: там же ссылка на APK и инструкция по уведомлениям
+                  <a href="#android" className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">
+                    <Smartphone className="size-4" aria-hidden /> Скачать APK для Android ↓
+                  </a>
+                ) : null}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

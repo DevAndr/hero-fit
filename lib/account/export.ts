@@ -34,6 +34,8 @@ export type ExportRaw = {
   templates: unknown[];
   plans: unknown[];
   goals: unknown[];
+  /** Замеры гибкости по целям-навыкам: навык (ключ или своё название), местный день, «см до цели». */
+  stretchMeasurements: { skill: string; date: string; cm: number }[];
   bodyWeight: unknown[];
   records: unknown[];
   achievements: unknown[];
@@ -110,6 +112,7 @@ export const EXPORT_SECTIONS = [
   "templates",
   "plans",
   "goals",
+  "stretchMeasurements",
   "bodyWeight",
   "records",
   "achievements",
@@ -207,6 +210,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     templates: raw.templates,
     plans: raw.plans,
     goals: raw.goals,
+    stretchMeasurements: raw.stretchMeasurements.map((m) => ({ skill: m.skill, date: m.date, cm: m.cm })),
     bodyWeight: raw.bodyWeight,
     records: raw.records,
     achievements: raw.achievements,

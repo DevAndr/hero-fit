@@ -48,6 +48,7 @@ const raw = (): ExportRaw => ({
   templates: [],
   plans: [],
   goals: [],
+  stretchMeasurements: [{ skill: "splits", date: "2026-10-20", cm: 12.5 }],
   bodyWeight: [],
   records: [],
   achievements: [],
@@ -134,6 +135,10 @@ describe("buildExport", () => {
     for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach", "u_client", "pa_secret", "cp_secret", "d_secret"]) {
       expect(text).not.toContain(bad);
     }
+  });
+  it("замеры растяжки: навык, дата, см", () => {
+    expect(EXPORT_SECTIONS).toContain("stretchMeasurements");
+    expect(out.stretchMeasurements).toEqual([{ skill: "splits", date: "2026-10-20", cm: 12.5 }]);
   });
   it("профиль — whitelist + telegramLinked", () => {
     expect(out.profile).toMatchObject({ login: "demo", nickname: "Demo_Hero", telegramLinked: true, notifications: { notifyRest: true, notifyGoal: false } });

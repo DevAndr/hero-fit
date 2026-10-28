@@ -46,7 +46,7 @@ export async function loadPartnerSnapshot(sessionId: string, viewerId: string, s
       FROM "WorkoutSet" s
       JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
       JOIN "Workout" w ON w.id = we."workoutId"
-      WHERE w."userId" = ${partnerId} AND w.status = 'COMPLETED' AND w.id <> ${workoutId}
+      WHERE w."userId" = ${partnerId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w.id <> ${workoutId}
         AND we."exerciseId" IN (${Prisma.join(ids)})
       GROUP BY we."exerciseId"`;
     for (const r of rows) bests.set(r.exerciseId, r.best);

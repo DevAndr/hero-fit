@@ -6,7 +6,7 @@ import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
 import { ACTIVE_STATUSES } from "@/lib/workouts/queries";
 
-/** По упражнению: завершённые тренировки с ним за 6 недель и дата последнего рекорда (любого типа). */
+/** По упражнению (кроме растяжки): завершённые тренировки с ним за 6 недель и дата последнего рекорда (любого типа). */
 export async function getStallRows(userId: string, now = new Date()) {
   const since = new Date(now.getTime() - 42 * 86_400_000);
   const rows = await db.$queryRaw<{ exerciseId: string; name: string; workouts6w: bigint; lastRecordAt: Date | null }[]>`
@@ -16,6 +16,7 @@ export async function getStallRows(userId: string, now = new Date()) {
     join "Workout" w on w.id = we."workoutId"
     join "Exercise" e on e.id = we."exerciseId"
     where w."userId" = ${userId} and w.status = ${WorkoutStatus.COMPLETED}::"WorkoutStatus" and w."finishedAt" >= ${since}
+      and e.kind <> 'STRETCH'
     group by we."exerciseId", e.name`;
   return rows.map((r) => ({
     exerciseId: r.exerciseId,

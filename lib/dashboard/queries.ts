@@ -18,7 +18,7 @@ async function dailyVolume(userId: string, timeZone: string, days: number): Prom
            SUM("totalVolume")::float8 AS volume,
            COUNT(*)::int AS workouts
     FROM "Workout"
-    WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "finishedAt" >= ${since}
+    WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly" AND "finishedAt" >= ${since}
     GROUP BY 1
   `;
   return lastDays(rows, dayKey(new Date(), timeZone), days);
@@ -26,7 +26,8 @@ async function dailyVolume(userId: string, timeZone: string, days: number): Prom
 
 export async function getDashboard(userId: string, timeZone: string) {
   const now = Date.now();
-  const completed = { userId, status: WorkoutStatus.COMPLETED };
+  // Сессии растяжки — не тренировки: ни в счётчиках, ни в «Последней тренировке»
+  const completed = { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false };
 
   const [volume, total, week, month, weekTime, lastWorkout, activeWorkout, stats, user] = await Promise.all([
     dailyVolume(userId, timeZone, 30),

@@ -7,7 +7,7 @@ import { clubPath } from "@/lib/club/public";
 import { CITY_SUGGESTIONS, CLUB_RATING_TOP, CLUB_SEARCH_LIMIT, clubKey, likePattern, similarClubs, type SimilarCandidate } from "@/lib/club/rules";
 import { decodeCursor, encodeCursor } from "@/lib/social/feed";
 import { normalizeFriendCode, rankLeague, type RankedMember } from "@/lib/social/league";
-import { FEED_PAGE, LEAGUE_REASONS, weekBounds } from "@/lib/social/queries";
+import { FEED_PAGE, LEAGUE_XP, weekBounds } from "@/lib/social/queries";
 import { cosmeticsLoader } from "@/lib/shop/cosmetics-loader";
 import { titleLabel } from "@/lib/titles/catalog";
 
@@ -124,12 +124,12 @@ export async function getClubRating(clubId: string, viewerId: string, timeZone: 
     SELECT u.id, COALESCE(u.nickname, '') AS nickname, u."titleCode", u."avatarCode", u."frameCode", u."nickColorCode", u.level,
            COALESCE((
              SELECT SUM(x.amount) FROM "XpEvent" x
-             WHERE x."userId" = u.id AND x.reason::text IN ${LEAGUE_REASONS}
+             WHERE x."userId" = u.id AND ${LEAGUE_XP}
                AND (x."createdAt" AT TIME ZONE 'UTC') >= b.start_at AND (x."createdAt" AT TIME ZONE 'UTC') < b.end_at
            ), 0)::int AS xp,
            (
              SELECT COUNT(*) FROM "Workout" w
-             WHERE w."userId" = u.id AND w.status = 'COMPLETED'
+             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
                AND (w."finishedAt" AT TIME ZONE 'UTC') >= b.start_at AND (w."finishedAt" AT TIME ZONE 'UTC') < b.end_at
            )::int AS workouts
     FROM "ClubMember" m JOIN "User" u ON u.id = m."userId", b
@@ -164,7 +164,7 @@ export async function getClubFeed(clubId: string, viewerId: string, cursor: stri
       FROM "ClubMember" m
       JOIN "Workout" w ON w."userId" = m."userId"
       JOIN "User" u ON u.id = m."userId"
-      LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason = 'WORKOUT_COMPLETED'
+      LEFT JOIN "XpEvent" x ON x."workoutId" = w.id AND x.reason IN ('WORKOUT_COMPLETED', 'STRETCH_SESSION')
       WHERE m."clubId" = ${clubId}
         AND w.status = 'COMPLETED' AND w."finishedAt" IS NOT NULL AND w."finishedAt" >= m."joinedAt"
         AND (u."shareActivity" OR u.id = ${viewerId})

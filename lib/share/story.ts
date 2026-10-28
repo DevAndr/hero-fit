@@ -4,6 +4,7 @@ import { bossName } from "@/lib/boss/bosses";
 import { plural } from "@/lib/format";
 import { levelProgress } from "@/lib/progress/level";
 import { formatRecord, isTimedRecord } from "@/lib/progress/records";
+import { stretchMinutes } from "@/lib/stats/stretch";
 import type { FinishMeta } from "@/lib/workouts/finish";
 
 export type StoryInput = {
@@ -33,8 +34,9 @@ export type StoryData = {
   boss: { code: string; name: string; damage: number; hpLeft: number; hp: number; defeated: boolean } | null;
   records: { exercise: string; value: string }[];
   moreRecords: number;
-  streak: number;
-  /** Тренировок за неделю; null — неизвестно (старая тренировка). */
+  /** Серия недель; null — сессия растяжки (серию не двигает, блока нет). */
+  streak: number | null;
+  /** Тренировок за неделю; null — неизвестно (старая тренировка) или сессия растяжки. */
   weekCount: number | null;
   stats: string[];
 };
@@ -82,6 +84,7 @@ function duration(sec: number) {
 
 export function storyData(input: StoryInput): StoryData {
   const { meta } = input;
+  const stretchOnly = meta?.stretchOnly === true;
   const xpGained = input.xpEarned + (meta?.achievementsXp ?? 0);
   const level = levelProgress(meta ? meta.xpBefore + xpGained : input.userXp);
   const records = recordRows(meta?.records ?? [], input.hideWeights);
@@ -107,11 +110,12 @@ export function storyData(input: StoryInput): StoryData {
       : null,
     records: records.slice(0, MAX_RECORDS),
     moreRecords: Math.max(0, records.length - MAX_RECORDS),
-    streak: meta?.streak ?? 0,
-    weekCount: meta?.weekCount ?? null,
+    streak: stretchOnly ? null : (meta?.streak ?? 0),
+    weekCount: stretchOnly ? null : (meta?.weekCount ?? null),
     stats: [
       duration(input.durationSec),
-      ...(input.hideWeights ? [] : [kg(Math.round(input.totalVolume))]),
+      // Сессия растяжки — без объёма «0 кг»: вместо него минуты удержания
+      ...(stretchOnly ? [`Растяжка: ${stretchMinutes(meta?.stretchSec ?? 0)} мин`] : input.hideWeights ? [] : [kg(Math.round(input.totalVolume))]),
       `${input.totalSets} ${plural(input.totalSets, "подход", "подхода", "подходов")}`,
     ],
   };

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { GoalStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { isEnabled } from "@/lib/flags/server";
 import { evaluateAchievements, evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
@@ -15,6 +16,7 @@ import { grantChestCoins } from "@/lib/shop/earn";
 import { COIN_RATES } from "@/lib/shop/coins";
 import { levelProgress } from "@/lib/progress/level";
 import { initialReminderAt } from "@/lib/goals/tick-rules";
+import { weeklyDeadline } from "@/lib/goals/stretch-weekly";
 
 type Result = { ok: true } | { ok: false; error: string; field?: string };
 
@@ -40,11 +42,26 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
     const issue = parsed.error.issues[0];
     return { ok: false, error: issue.message, field: String(issue.path[0] ?? "target") };
   }
-  const deadline = deadlineSchema(dayKey(new Date(), tz)).safeParse(parsed.data.deadline);
+  const now = new Date();
+  // Регулярность: срок — воскресенье последней недели (из числа недель), createdAt — тот же момент
+  const weekly = parsed.data.type === "STRETCH_WEEKLY";
+  const deadline = weekly
+    ? ({ success: true, data: weeklyDeadline(now, parsed.data.weeks!, tz) } as const)
+    : deadlineSchema(dayKey(now, tz)).safeParse(parsed.data.deadline);
   if (!deadline.success) return { ok: false, error: deadline.error.issues[0].message, field: "deadline" };
   const g = { ...parsed.data, deadline: deadline.data };
 
+  if ((weekly || g.type === "STRETCH_SKILL") && !(await isEnabled("stretching", user.id))) return { ok: false, error: "Цели растяжки недоступны" };
   let isBodyweight = false;
+  if (g.type === "STRETCH_HOLD") {
+    // Новые типы растяжки ставятся только при флаге; уже поставленные от него не зависят
+    if (!(await isEnabled("stretching", user.id))) return { ok: false, error: "Цели растяжки недоступны" };
+    const exercise = await db.exercise.findFirst({
+      where: { id: g.exerciseId, archivedAt: null, kind: "STRETCH", OR: [{ userId: null }, { userId: user.id }] },
+      select: { id: true },
+    });
+    if (!exercise) return { ok: false, error: "Упражнение не найдено", field: "exerciseId" };
+  }
   if (g.type === "STRENGTH") {
     const exercise = await db.exercise.findFirst({
       // Силовая цель — по весу и повторам: кардио и упражнения на время не подходят
@@ -65,21 +82,27 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
     }
     const current = await currentValueFor(tx, user.id, g, tz);
     if (current === null) return { ok: false, error: "Сначала запиши текущий вес", field: "currentWeight" };
-    const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true } });
+    const active = await tx.goal.findMany({ where: { userId: user.id, status: GoalStatus.ACTIVE }, select: { type: true, stretchSkill: true, skillTitle: true } });
     const refusal = canCreate(g, { active, current, isBodyweight, hasWeight: true });
     // Отказ — откатом: взвешивание из формы без цели не сохраняется
     if (refusal) throw new Refused({ ok: false, error: refusal, field: refusal === "Уже достигнуто" ? "target" : undefined });
-    const counter = g.type === "WORKOUTS" || g.type === "HOURS";
+    const skill = g.type === "STRETCH_SKILL";
+    const counter = g.type === "WORKOUTS" || g.type === "HOURS" || weekly;
     await tx.goal.create({
       data: {
         userId: user.id,
         type: g.type,
-        exerciseId: g.type === "STRENGTH" ? g.exerciseId : null,
+        exerciseId: g.type === "STRENGTH" || g.type === "STRETCH_HOLD" ? g.exerciseId : null,
         metric: g.type === "STRENGTH" ? g.metric : null,
         target: g.target,
-        startValue: counter ? 0 : current,
+        startValue: skill ? g.startCm! : counter ? 0 : current,
         deadline: g.deadline,
-        reminderAt: initialReminderAt(g.deadline, new Date(), tz),
+        stretchUnit: weekly ? g.stretchUnit : null,
+        // Навык: ключ из списка или своё название
+        stretchSkill: skill ? (g.stretchSkill ?? null) : null,
+        skillTitle: skill && !g.stretchSkill ? g.skillTitle : null,
+        createdAt: now,
+        reminderAt: initialReminderAt(g.deadline, now, tz),
       },
     });
     return { ok: true };
@@ -99,8 +122,10 @@ export async function updateGoalDeadlineAction(goalId: string, deadline: string 
   const parsed = deadlineSchema(dayKey(new Date(), user.timeZone)).safeParse(deadline);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message, field: "deadline" };
   // Срок уже вышел (идёт фора на офлайн-тренировки) — переносить поздно, иначе провал легко обойти
-  const goal = await db.goal.findFirst({ where: { id: goalId, userId: user.id, status: GoalStatus.ACTIVE }, select: { deadline: true } });
+  const goal = await db.goal.findFirst({ where: { id: goalId, userId: user.id, status: GoalStatus.ACTIVE }, select: { deadline: true, type: true } });
   if (!goal) return { ok: false, error: "Цель не найдена" };
+  // Срок регулярности задан числом недель — перенос сдвинул бы недели
+  if (goal.type === "STRETCH_WEEKLY") return { ok: false, error: "Срок этой цели не переносится" };
   if (!goalOpenAt(goal, new Date(), user.timeZone)) return { ok: false, error: "Срок уже вышел", field: "deadline" };
   // Новый срок — новое напоминание за 7 дней
   const { count } = await db.goal.updateMany({

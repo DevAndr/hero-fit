@@ -27,7 +27,7 @@ const mondayUsers = (now: Date) => Prisma.sql`
 const hasWorkouts = (fromWeeks: number, toWeeks: number) => Prisma.sql`
   EXISTS (
     SELECT 1 FROM "Workout" w
-    WHERE w."userId" = m.id AND w.status = 'COMPLETED'
+    WHERE w."userId" = m.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
       AND w."finishedAt" >= ((m.cur - make_interval(weeks => ${fromWeeks})) AT TIME ZONE m."timeZone") AT TIME ZONE 'UTC'
       AND w."finishedAt" < ((m.cur - make_interval(weeks => ${toWeeks})) AT TIME ZONE m."timeZone") AT TIME ZONE 'UTC'
   )

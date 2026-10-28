@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
 import { ownTargets } from "@/lib/templates/progression";
 
 const listSelect = {
@@ -14,11 +15,16 @@ const listSelect = {
   },
 };
 
+/** Шаблон, где все упражнения — растяжка (и она есть). */
+export const stretchOnlyWhere = { exercises: { some: {}, every: { exercise: { kind: "STRETCH" as const } } } };
+
 export async function listTemplates(userId: string) {
+  const stretching = await isEnabled("stretching", userId);
   const [mine, programs] = await Promise.all([
     db.workoutTemplate.findMany({ where: { userId }, orderBy: { updatedAt: "desc" }, select: listSelect }),
     db.workoutTemplate.findMany({
-      where: { userId: null },
+      // Программы из одной растяжки — только при флаге stretching
+      where: { userId: null, ...(stretching ? {} : { NOT: stretchOnlyWhere }) },
       orderBy: [{ program: "asc" }, { name: "asc" }],
       select: listSelect,
     }),

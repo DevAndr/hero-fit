@@ -83,3 +83,12 @@ describe("тексты прогноза", () => {
     expect(forecastShort({ kind: "late", date: "2026-12-01", need: 1, pace: 0.5, daysLeft: 20 }, TODAY)).toBe("не успеваешь к сроку");
   });
 });
+
+describe("навык (замеры вниз, цель 0 см)", () => {
+  it("прогноз по убыванию и текст без «роста»", () => {
+    const f = forecastGoal({ ...base, points: pts(12, 10, 8), current: 8, target: 0 });
+    expect(f).toEqual({ kind: "eta", date: "2026-11-09" });
+    expect(forecastGoal({ ...base, points: pts(8, 8, 9), current: 9, target: 0 })).toEqual({ kind: "stalled" });
+    expect(forecastText({ kind: "stalled" }, { unit: "см", bodyWeight: false, today: TODAY })).toBe("Замеры пока не приближаются к цели");
+  });
+});

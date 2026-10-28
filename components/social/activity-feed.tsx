@@ -168,7 +168,7 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
           {/* В компактной карточке (дашборд) ник и название — разными строками, иначе название обрезается */}
           <p className={cn(!compact && "truncate")}>
             <span className={cn("font-semibold", compact && "block truncate")}>{entry.me ? "Вы" : <PlayerName nickname={entry.nickname} color={entry.cosmetics?.nickColor} />}</span>
-            {compact ? null : <span className="text-muted-foreground"> · тренировка </span>}
+            {compact ? null : <span className="text-muted-foreground"> · {entry.stretchMin !== null ? "растяжка" : "тренировка"} </span>}
             {entry.me ? (
               <Link
                 href={`/workouts/${entry.id}`}
@@ -189,21 +189,29 @@ export function FeedCard({ entry, compact = false }: { entry: FeedEntry; compact
         </div>
       </header>
 
-      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
-        <span className="flex items-center gap-1.5">
+      {entry.stretchMin !== null ? (
+        // Сессия растяжки: только минуты удержания — без объёма и повторов
+        <p className="mt-3 flex items-center gap-1.5 text-sm tabular-nums">
           <Timer className="size-4 text-muted-foreground" aria-hidden />
-          {minutes(entry.durationSec)}
-        </span>
-        {entry.volume !== null ? (
-          <span className="flex items-center gap-1.5" data-testid="feed-volume">
-            <Weight className="size-4 text-muted-foreground" aria-hidden />
-            {formatTonnage(entry.volume)}
+          <span data-testid="feed-stretch">Растяжка · {entry.stretchMin} мин</span>
+        </p>
+      ) : (
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
+          <span className="flex items-center gap-1.5">
+            <Timer className="size-4 text-muted-foreground" aria-hidden />
+            {minutes(entry.durationSec)}
           </span>
-        ) : null}
-        <span className="text-muted-foreground">
-          {countsText(entry)}
-        </span>
-      </p>
+          {entry.volume !== null ? (
+            <span className="flex items-center gap-1.5" data-testid="feed-volume">
+              <Weight className="size-4 text-muted-foreground" aria-hidden />
+              {formatTonnage(entry.volume)}
+            </span>
+          ) : null}
+          <span className="text-muted-foreground">
+            {countsText(entry)}
+          </span>
+        </p>
+      )}
 
       {!compact && entry.exercises.length ? (
         <p className="mt-2 break-words text-sm text-muted-foreground" data-testid="feed-exercises">

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MuscleGroup } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
+import { isEnabled } from "@/lib/flags/server";
+import { STRETCH_ZONES, primaryZone, stretchZoneLabel } from "@/lib/stretching/zones";
 import { listExercises, type ExerciseItem } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS, MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { cn } from "@/lib/utils";
@@ -16,10 +18,11 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = { title: "Упражнения" };
 
 /** `favorites` — только избранные (★). */
-type PageGroup = MuscleGroup | "favorites";
+type PageGroup = MuscleGroup | "favorites" | "STRETCH";
 
-function parseGroup(value: string | string[] | undefined): PageGroup | undefined {
+function parseGroup(value: string | string[] | undefined, stretching: boolean): PageGroup | undefined {
   if (value === "favorites") return "favorites";
+  if (value === "STRETCH") return stretching ? "STRETCH" : undefined;
   return typeof value === "string" && (MUSCLE_GROUPS as string[]).includes(value) ? (value as MuscleGroup) : undefined;
 }
 
@@ -31,7 +34,17 @@ function filterHref(q: string, group?: PageGroup) {
   return query ? `/exercises?${query}` : "/exercises";
 }
 
-/** Без фильтра по группе — сначала «Избранное», затем секции по основной группе мышц в порядке справочника. */
+/** Растяжка — секции по основной зоне (порядок зон справочника); `prefix` отличает их от групп мышц («Грудь»). */
+function stretchSections(exercises: ExerciseItem[], prefix: string) {
+  const stretches = exercises.filter((e) => e.kind === "STRETCH");
+  return STRETCH_ZONES.map((zone) => ({
+    key: `stretch-${zone}`,
+    title: `${prefix}${stretchZoneLabel(zone)}`,
+    items: stretches.filter((e) => primaryZone(e.stretchZones) === zone),
+  })).filter((section) => section.items.length > 0);
+}
+
+/** Без фильтра по группе — сначала «Избранное», затем секции по основной группе мышц в порядке справочника, в конце — растяжка по зонам. */
 function groupByPrimary(exercises: ExerciseItem[]) {
   const favorites = exercises.filter((e) => e.favorite);
   return [
@@ -39,8 +52,9 @@ function groupByPrimary(exercises: ExerciseItem[]) {
     ...MUSCLE_GROUPS.map((group) => ({
       key: group,
       title: MUSCLE_GROUP_LABELS[group],
-      items: exercises.filter((e) => e.muscleGroups[0] === group),
+      items: exercises.filter((e) => e.kind !== "STRETCH" && e.muscleGroups[0] === group),
     })).filter((section) => section.items.length > 0),
+    ...stretchSections(exercises, "Растяжка · "),
   ];
 }
 
@@ -48,15 +62,19 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
   const user = await requireUser();
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
-  const group = parseGroup(params.group);
+  const stretching = await isEnabled("stretching", user.id);
+  const group = parseGroup(params.group, stretching);
 
   const all = await listExercises(user.id, { q: q || undefined, group: group === "favorites" ? undefined : group });
   const exercises = group === "favorites" ? all.filter((e) => e.favorite) : all;
   // Ключ провайдера ★ — фильтр: при смене чипа страница не размонтируется, а набор должен взяться из нового списка
   const favoritesKey = `${group ?? ""}|${q}`;
-  const sections = group
-    ? [{ key: group, title: group === "favorites" ? "Избранное" : MUSCLE_GROUP_LABELS[group], items: exercises }]
-    : groupByPrimary(exercises);
+  const sections =
+    group === "STRETCH"
+      ? stretchSections(exercises, "")
+      : group
+        ? [{ key: group, title: group === "favorites" ? "Избранное" : MUSCLE_GROUP_LABELS[group], items: exercises }]
+        : groupByPrimary(exercises);
 
   return (
     <>
@@ -84,7 +102,7 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
         </form>
 
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-          {[undefined, "favorites" as const, ...MUSCLE_GROUPS].map((g) => (
+          {[undefined, "favorites" as const, ...MUSCLE_GROUPS, ...(stretching ? (["STRETCH"] as const) : [])].map((g) => (
             <Link
               key={g ?? "all"}
               href={filterHref(q, g)}
@@ -101,6 +119,8 @@ export default async function ExercisesPage({ searchParams }: PageProps<"/exerci
                   <Star aria-hidden className="size-3.5" />
                   Избранное
                 </span>
+              ) : g === "STRETCH" ? (
+                "Растяжка"
               ) : g ? (
                 MUSCLE_GROUP_LABELS[g]
               ) : (

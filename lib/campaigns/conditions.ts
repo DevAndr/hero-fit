@@ -85,6 +85,7 @@ export async function campaignCandidates(
     inner = Prisma.sql`
       SELECT u.id AS "userId", to_char(${lastDay}, 'YYYY-MM-DD') AS episode FROM "User" u
       CROSS JOIN LATERAL (
+        -- Сессия растяжки — тоже активность: человек вернулся (stretchOnly не исключаем)
         SELECT max(w."finishedAt") AS f FROM "Workout" w WHERE w."userId" = u.id AND w.status = 'COMPLETED'
       ) lw
       WHERE ${Prisma.join(

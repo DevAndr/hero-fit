@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatRecord, isTimedRecord } from "@/lib/progress/records";
 import { Fragment, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, HeartPulse, Layers, Medal, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Dumbbell, Flame, HeartPulse, Layers, Medal, PersonStanding, Repeat, RotateCcw, Sparkles, Trophy, Weight } from "lucide-react";
 import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { PageHeader } from "@/components/app/app-shell";
 import { BossDamage } from "@/components/boss/boss-damage";
@@ -25,6 +25,7 @@ import { workoutTotals } from "@/lib/workouts/schema";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import type { getWorkoutSummary } from "@/lib/workouts/queries";
+import { stretchMinutes } from "@/lib/stats/stretch";
 import { cn } from "@/lib/utils";
 
 export type WorkoutSummary = NonNullable<Awaited<ReturnType<typeof getWorkoutSummary>>>;
@@ -46,9 +47,9 @@ const recordValue = (type: RecordType, v: number) => (type === "MAX_REPS" ? `${v
 const finishedLabel = (date: Date, timeZone: string) =>
   new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone }).format(date);
 
-function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
+function Stat({ icon: Icon, label, value, testId }: { icon: typeof Clock; label: string; value: string; testId?: string }) {
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4" data-testid={testId}>
       <Icon className="size-4 text-muted-foreground" />
       <p className="mt-2 text-2xl font-black tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -106,8 +107,10 @@ export function WorkoutSummaryView({
 }) {
   const meta = workout.xpEvents[0]?.meta as FinishMeta | undefined;
   const groupItems = workout.exercises.map((we) => ({ group: we.supersetGroup }));
-  // Кардио и упражнения на время: минуты и км (подходы — уже только выполненные)
-  const cardio = workoutTotals(workout.exercises.map((we) => ({ kind: we.exercise.kind, sets: we.sets })));
+  // Кардио и упражнения на время: минуты и км; растяжка — минуты удержания (подходы — уже только выполненные)
+  const cardio = workoutTotals(workout.exercises.map((we) => ({ kind: we.exercise.kind, perSide: we.exercise.perSide, sets: we.sets })));
+  // Сессия растяжки: без серии, объёма, повторов и босса
+  const stretchOnly = workout.stretchOnly;
   const labels = supersets ? groupLabels(groupItems) : [];
   const achievementsXp = meta?.achievementsXp ?? 0;
   const totalXp = workout.xpEarned + achievementsXp;
@@ -124,7 +127,7 @@ export function WorkoutSummaryView({
       {readOnly ? null : <OfflineCleanup workoutId={workout.id} />}
       <PageHeader title={title} description={workout.finishedAt ? finishedLabel(workout.finishedAt, timeZone) : undefined} actions={actions} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", !stretchOnly && "sm:grid-cols-2")}>
         <div className={cn("rounded-xl border p-4", leveledUp ? "border-xp/50 bg-xp/10" : "bg-card")}>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="size-4 text-xp" />
@@ -166,19 +169,21 @@ export function WorkoutSummaryView({
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card p-4">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Flame className="size-4 text-streak" />
-            Streak
-          </p>
-          <p className="mt-1 flex items-center gap-1.5 text-3xl font-black text-streak" data-testid="streak">
-            {streakNow}
-            <StreakFlame active={streakNow > 0} className="size-8" />
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {workoutStreakCaption(meta)}
-          </p>
-        </div>
+        {stretchOnly ? null : (
+          <div className="rounded-xl border bg-card p-4">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Flame className="size-4 text-streak" />
+              Streak
+            </p>
+            <p className="mt-1 flex items-center gap-1.5 text-3xl font-black text-streak" data-testid="streak">
+              {streakNow}
+              <StreakFlame active={streakNow > 0} className="size-8" />
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {workoutStreakCaption(meta)}
+            </p>
+          </div>
+        )}
       </div>
 
       {!readOnly && meta?.coins ? <CoinLines coins={meta.coins} /> : null}
@@ -235,12 +240,19 @@ export function WorkoutSummaryView({
       {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
       {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className={cn("mt-4 grid grid-cols-2 gap-3", stretchOnly ? "sm:grid-cols-3" : "sm:grid-cols-5")}>
         <Stat icon={Clock} label="Время" value={formatDuration(workout.durationSec ?? 0)} />
-        <Stat icon={Weight} label="Объём" value={`${Math.round(workout.totalVolume).toLocaleString("ru-RU")} кг`} />
-        <Stat icon={Layers} label="Подходы" value={String(workout.totalSets)} />
-        <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
+        {stretchOnly ? null : (
+          <>
+            <Stat icon={Weight} label="Объём" value={`${Math.round(workout.totalVolume).toLocaleString("ru-RU")} кг`} />
+            <Stat icon={Layers} label="Подходы" value={String(workout.totalSets)} />
+            <Stat icon={Repeat} label="Повторы" value={String(workout.totalReps)} />
+          </>
+        )}
         <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
+        {cardio.stretchSec > 0 ? (
+          <Stat icon={PersonStanding} label="Растяжка" value={`${stretchMinutes(cardio.stretchSec)} мин`} testId="summary-stretch" />
+        ) : null}
         {cardio.workSec > 0 ? (
           <Stat
             icon={HeartPulse}
@@ -283,7 +295,7 @@ export function WorkoutSummaryView({
                       className={cn("rounded-md px-2 py-0.5", s.isWarmup ? "bg-muted text-muted-foreground" : "bg-primary/10")}
                     >
                       {isTimed(we.exercise.kind)
-                    ? timedSetText(we.exercise.kind, s)
+                    ? timedSetText(we.exercise.kind, s, we.exercise.perSide)
                     : s.weight
                       ? `${s.weight} × ${s.reps}`
                       : `${s.reps} повт.`}
