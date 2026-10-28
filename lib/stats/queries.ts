@@ -1,12 +1,13 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { WorkoutStatus, type MuscleGroup, type RecordType } from "@/generated/prisma/enums";
+import { WorkoutStatus, type MuscleGroup, type RecordType, type StretchZone } from "@/generated/prisma/enums";
 import { dayKey } from "@/lib/daily-login";
 import { weekStart } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { progressionHint, type ProgressionHint } from "@/lib/progress/progression";
 import { bestOfSets, epley1RM, LOWER_IS_BETTER } from "@/lib/progress/records";
+import { topZones } from "@/lib/stats/stretch";
 import { REP_RANGES, type RepRangeRow } from "@/lib/stats/ranges";
 import {
   activityGrid,
@@ -38,7 +39,7 @@ async function totals(userId: string, timeZone: string) {
       SELECT id, "durationSec" AS d, "totalVolume" AS v,
              ("finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone} AS local
       FROM "Workout"
-      WHERE "userId" = ${userId} AND status = 'COMPLETED'
+      WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly"
     ), n AS (SELECT now() AT TIME ZONE ${timeZone} AS local_now)
     SELECT COUNT(*)::int AS total,
            COUNT(*) FILTER (WHERE w.local >= n.local_now - interval '7 days')::int AS week,
@@ -98,7 +99,7 @@ async function trainedExercises(userId: string) {
 
 async function history(userId: string) {
   return db.workout.findMany({
-    where: { userId, status: WorkoutStatus.COMPLETED },
+    where: { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false },
     orderBy: { finishedAt: "desc" },
     take: 20,
     select: {
@@ -291,12 +292,12 @@ async function rhythmRows(userId: string, timeZone: string) {
   return Promise.all([
     db.$queryRaw<{ dow: number; workouts: number }[]>`
       SELECT EXTRACT(ISODOW FROM ${local})::int AS dow, COUNT(*)::int AS workouts
-      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "startedAt" IS NOT NULL
+      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly" AND "startedAt" IS NOT NULL
       GROUP BY 1
     `,
     db.$queryRaw<{ hour: number; workouts: number }[]>`
       SELECT EXTRACT(HOUR FROM ${local})::int AS hour, COUNT(*)::int AS workouts
-      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND "startedAt" IS NOT NULL
+      FROM "Workout" WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly" AND "startedAt" IS NOT NULL
       GROUP BY 1
     `,
   ]);
@@ -370,4 +371,67 @@ export async function getCardioStats(userId: string): Promise<CardioStats> {
       AND e.kind IN ('TIME', 'CARDIO') AND s."completedAt" IS NOT NULL AND NOT s."isWarmup"
   `;
   return row;
+}
+
+export type StretchWindow = { minutes: number; sessions: number };
+export type StretchStats = {
+  week: StretchWindow;
+  days7: StretchWindow;
+  days30: StretchWindow;
+  topZones: { zone: StretchZone; minutes: number }[];
+  /** Растяжка в истории есть (даже если флаг выключен) — блок на /stats показываем. */
+  hasHistory: boolean;
+};
+
+/**
+ * Растяжка: сессия — тренировка с хотя бы одним выполненным подходом растяжки (и заминка в силовой),
+ * минуты — сумма удержаний (у упражнений «на каждую сторону» ×2). Неделя — с понедельника в поясе пользователя.
+ */
+export async function getStretchStats(userId: string, timeZone: string): Promise<StretchStats> {
+  const now = Date.now();
+  const since = new Date(now - 30 * DAY_MS);
+  const [rows, [{ has }]] = await Promise.all([
+    db.$queryRaw<{ workoutId: string; day: string; finishedAt: Date; zones: StretchZone[]; sec: number }[]>`
+      SELECT w.id AS "workoutId", w."finishedAt",
+             to_char((w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
+             e."stretchZones"::text[] AS zones,
+             (SUM(s."durationSec") * CASE WHEN e."perSide" THEN 2 ELSE 1 END)::int AS sec
+      FROM "WorkoutSet" s
+      JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+      JOIN "Exercise" e ON e.id = we."exerciseId"
+      JOIN "Workout" w ON w.id = we."workoutId"
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${since}
+        AND e.kind = 'STRETCH' AND s."completedAt" IS NOT NULL AND NOT s."isWarmup" AND s."durationSec" > 0
+      GROUP BY w.id, we.id, e.id
+    `,
+    db.$queryRaw<{ has: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM "WorkoutExercise" we
+        JOIN "Exercise" e ON e.id = we."exerciseId"
+        JOIN "Workout" w ON w.id = we."workoutId"
+        WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND e.kind = 'STRETCH'
+      ) AS has
+    `,
+  ]);
+
+  const monday = weekStart(dayKey(new Date(now), timeZone));
+  const week7 = new Date(now - 7 * DAY_MS);
+  const windows = { week: new Map<string, number>(), days7: new Map<string, number>(), days30: new Map<string, number>() };
+  const add = (m: Map<string, number>, id: string, sec: number) => m.set(id, (m.get(id) ?? 0) + sec);
+  for (const r of rows) {
+    add(windows.days30, r.workoutId, r.sec);
+    if (r.finishedAt >= week7) add(windows.days7, r.workoutId, r.sec);
+    if (r.day >= monday) add(windows.week, r.workoutId, r.sec);
+  }
+  const win = (m: Map<string, number>): StretchWindow => ({
+    minutes: Math.round([...m.values()].reduce((a, b) => a + b, 0) / 60),
+    sessions: m.size,
+  });
+  return {
+    week: win(windows.week),
+    days7: win(windows.days7),
+    days30: win(windows.days30),
+    topZones: topZones(rows.map((r) => ({ zones: r.zones, sec: r.sec }))).map((z) => ({ ...z, minutes: Math.round(z.minutes) })),
+    hasHistory: has,
+  };
 }
