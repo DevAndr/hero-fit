@@ -128,7 +128,9 @@ test("landing offers Hero Fit in Telegram", async ({ page }) => {
   for (const title of ["Вход без пароля", "Уведомления от бота", "Приглашение от тренера"]) await expect(tg.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.getByRole("region", { name: "Где тренироваться с Hero Fit" }).getByRole("link", { name: "Подробнее о Telegram" })).toHaveAttribute("href", "#telegram");
   const links = page.getByRole("link", { name: "Открыть в Telegram" });
-  await expect(links).toHaveCount(2);
+  // Герой, карточка платформ и финальный призыв
+  await expect(links).toHaveCount(3);
+  await expect(page.getByRole("region", { name: /Первый уровень/ }).getByRole("link", { name: "Открыть в Telegram" })).toBeVisible();
   for (const link of await links.all()) await expect(link).toHaveAttribute("href", "https://t.me/hero_fit_e2e_bot?startapp");
   await expect(page.getByText("Бесплатно · без рекламы · сайт и Telegram")).toBeVisible();
 });

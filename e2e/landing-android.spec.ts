@@ -15,6 +15,7 @@ test("without native_app for everyone the landing does not mention the Android a
   await expect(page.getByRole("heading", { name: "Приложение для Android" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Скачать APK" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Приложение для Android/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Скачать APK/ })).toHaveCount(0);
   // Платформ без Android две (сайт и Telegram) — сетка без пустой ячейки
   await expect(page.getByRole("region", { name: "Где тренироваться с Hero Fit" }).getByRole("listitem")).toHaveCount(2);
 });
@@ -54,6 +55,9 @@ test("native_app for everyone: Android section with the APK link, FAQ and the gu
   await page.locator("main section").first().getByRole("link", { name: /Приложение для Android/ }).click();
   await expect(page).toHaveURL(/#android$/);
   await expect(section).toBeInViewport();
+  // Финальный призыв тоже ведёт якорем к секции с APK
+  const finalApk = page.getByRole("region", { name: /Первый уровень/ }).getByRole("link", { name: "Скачать APK для Android ↓" });
+  await expect(finalApk).toHaveAttribute("href", "#android");
   await page.goto("/android");
   await expect(page.getByRole("link", { name: "Скачать APK" })).toHaveAttribute("href", "/download/hero-fit.apk");
 });
