@@ -4,6 +4,7 @@ import {
   COURSE_SKILLS,
   courseStartSchema,
   isCourseSkill,
+  courseAdvance,
   isMeasureSession,
   nextHoldSec,
   sessionPlan,
@@ -146,5 +147,32 @@ describe("courseStartSchema", () => {
     expect(courseStartSchema.safeParse({ ...ok, remindDays: [1, 1] }).success).toBe(false);
     expect(courseStartSchema.safeParse({ ...ok, cm: 200.5 }).success).toBe(false);
     expect(courseStartSchema.safeParse({ ...ok, cm: 12.3 }).success).toBe(false);
+  });
+});
+
+describe("courseAdvance", () => {
+  const now = new Date("2026-10-28T10:00:00Z");
+  const c = (status: string, nextSession: number) => ({ status, nextSession, finishedAt: null });
+  const w = (courseSessionNo: number | null, hasDoneSet = true) => ({ courseSessionNo, hasDoneSet });
+
+  it("двигает на следующее занятие", () => {
+    expect(courseAdvance(c("ACTIVE", 8), w(8), now)).toEqual({ nextSession: 9 });
+  });
+  it("старое или чужое занятие не двигает", () => {
+    expect(courseAdvance(c("ACTIVE", 8), w(7), now)).toBeNull();
+    expect(courseAdvance(c("ACTIVE", 8), w(null), now)).toBeNull();
+  });
+  it("без выполненных подходов не двигает", () => {
+    expect(courseAdvance(c("ACTIVE", 8), w(8, false), now)).toBeNull();
+  });
+  it("брошенный и завершённый курс не двигаются", () => {
+    expect(courseAdvance(c("ABANDONED", 8), w(8), now)).toBeNull();
+    expect(courseAdvance(c("COMPLETED", 31), w(31), now)).toBeNull();
+  });
+  it("30-е занятие ставит finishedAt", () => {
+    expect(courseAdvance(c("ACTIVE", 30), w(30), now)).toEqual({ nextSession: 31, finishedAt: now });
+  });
+  it("поддержка идёт без finishedAt", () => {
+    expect(courseAdvance(c("MAINTENANCE", 35), w(35), now)).toEqual({ nextSession: 36 });
   });
 });

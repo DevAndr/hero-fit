@@ -76,3 +76,18 @@ export function sessionTitle(n: number): string {
 export function nextHoldSec(skill: CourseSkill, n: number): number {
   return Math.max(...sessionPlan(skill, n).map((e) => e.holdSec));
 }
+
+/**
+ * Что делает завершённое занятие с курсом; null — курс не двигается.
+ * Условие `courseSessionNo === nextSession` делает повторное завершение и старую тренировку безопасными.
+ */
+export function courseAdvance(
+  course: { status: string; nextSession: number; finishedAt: Date | null },
+  workout: { courseSessionNo: number | null; hasDoneSet: boolean },
+  now: Date,
+): { nextSession: number; finishedAt?: Date } | null {
+  if (course.status !== "ACTIVE" && course.status !== "MAINTENANCE") return null;
+  if (!workout.hasDoneSet || workout.courseSessionNo !== course.nextSession) return null;
+  const next = { nextSession: course.nextSession + 1 };
+  return course.status === "ACTIVE" && course.nextSession === COURSE_SESSIONS ? { ...next, finishedAt: now } : next;
+}

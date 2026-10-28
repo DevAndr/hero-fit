@@ -26,6 +26,7 @@ import { paidWorkoutsToday, toLines } from "@/lib/shop/earn";
 import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, stretchSessionXp, workoutXp } from "@/lib/progress/xp";
+import { courseAdvance } from "@/lib/stretching/course";
 import { workoutTotals } from "@/lib/workouts/schema";
 import { isDoneSet, isStretchOnly, type ExerciseKindName } from "@/lib/workouts/kinds";
 
@@ -356,6 +357,15 @@ export async function finishWorkout(
       await tx.xpEvent.create({
         data: { userId, workoutId, amount: recordsXp, reason: XpReason.PERSONAL_RECORD, meta: { records } },
       });
+    }
+    // Курс растяжки: пройденное занятие двигает счётчик (updateMany по nextSession — защита от гонки)
+    if (workout.courseId) {
+      const course = await tx.stretchCourse.findUnique({ where: { id: workout.courseId } });
+      const hasDoneSet = workout.exercises.some((we) => we.sets.some((s) => isDoneSet(we.exercise.kind, s)));
+      const adv = course && courseAdvance(course, { courseSessionNo: workout.courseSessionNo, hasDoneSet }, now);
+      if (course && adv) {
+        await tx.stretchCourse.updateMany({ where: { id: course.id, nextSession: course.nextSession }, data: adv });
+      }
     }
     await notifyCoachOnFinish(tx, userId, workout);
 

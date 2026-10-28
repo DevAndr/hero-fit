@@ -240,6 +240,16 @@ export function WorkoutSummaryView({
       {meta?.clubTasks?.length ? <ClubTasksSummary tasks={meta.clubTasks} readOnly={readOnly} /> : null}
       {meta?.goals ? <GoalsReached goals={meta.goals} unopened={goalChests} readOnly={readOnly} /> : null}
 
+      {workout.course ? (
+        <p className="mt-4 rounded-xl border bg-card p-4 text-sm font-medium" data-testid="summary-course">
+          {workout.course.finished
+            ? "Курс пройден! Итог — на странице «Растяжка»"
+            : workout.course.maintenance
+              ? "Занятие поддержки пройдено"
+              : `Занятие ${workout.course.session} из ${workout.course.total} пройдено · следующее — этап ${workout.course.nextStage}, ${workout.course.nextHoldSec} с`}
+        </p>
+      ) : null}
+
       <div className={cn("mt-4 grid grid-cols-2 gap-3", stretchOnly ? "sm:grid-cols-3" : "sm:grid-cols-5")}>
         <Stat icon={Clock} label="Время" value={formatDuration(workout.durationSec ?? 0)} />
         {stretchOnly ? null : (
