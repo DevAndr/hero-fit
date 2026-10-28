@@ -156,6 +156,7 @@ const PROFILE_FIELDS = [
   "name",
   "nickname",
   "timeZone",
+  "gender",
   "createdAt",
   "privacyAcceptedAt",
   "signupLanding",
