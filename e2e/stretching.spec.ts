@@ -75,3 +75,57 @@ test("stretch session does not count toward the week, a lift with a cool-down do
     await other.close();
   }
 });
+
+test("without the flag there is no stretch menu, page or catalog entries", async ({ page }) => {
+  await registerUser(page, "Без_флага");
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: "Растяжка" })).toHaveCount(0);
+  const res = await page.goto("/stretching");
+  expect(res?.status()).toBe(404);
+  await page.goto("/exercises");
+  await expect(page.getByRole("heading", { name: "Складка стоя" })).toHaveCount(0);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  const desktop = (page.viewportSize()?.width ?? 0) >= 1024;
+  const scope = desktop
+    ? page.getByRole("complementary", { name: "Каталог упражнений" })
+    : (await page.getByRole("button", { name: "Добавить упражнение" }).click(), page.getByRole("dialog"));
+  await scope.getByLabel("Поиск упражнения").fill("Складка");
+  await expect(scope).not.toContainText("Складка стоя");
+});
+
+test("stretching page: start a program, hold, finish, week numbers", async ({ page }) => {
+  test.slow();
+  const u = await registerUser(page, "Растяжка_стр");
+  await addFlagUser("stretching", u.login);
+  await page.goto("/dashboard");
+  if ((page.viewportSize()?.width ?? 0) >= 1024) await page.getByRole("link", { name: "Растяжка" }).click();
+  else {
+    // На телефоне — в меню профиля
+    await page.getByRole("button", { name: "Меню профиля" }).click();
+    await page.getByRole("menuitem", { name: "Растяжка" }).click();
+  }
+  await expect(page).toHaveURL(/\/stretching$/);
+  await expect(page.getByTestId("stretch-week-sessions")).toHaveText("0");
+  await expect(page.getByRole("region", { name: "Цели по растяжке" })).toContainText("Поставить цель");
+  await expect(page.getByRole("region", { name: "Каталог растяжки" }).getByRole("heading", { name: "Складка стоя" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Начать растяжку" }).click();
+  await page.getByRole("button", { name: "Начать «Утренняя растяжка»" }).click();
+  await expect(page).toHaveURL(/\/training/);
+  const first = page.getByRole("region").filter({ has: page.getByLabel("Время, подход 1") }).first();
+  await first.getByLabel("Время, подход 1").fill("3");
+  await first.getByRole("button", { name: "Держать" }).first().click();
+  await expect(first.getByRole("button", { name: "Подход 1 выполнен" })).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
+  // Второй подход — вручную на минуту с лишним: 3 с отсчёта до целой минуты не дотягивают
+  await first.getByLabel("Время, подход 2").fill("1:30");
+  await first.getByRole("button", { name: "Подход 2 выполнен" }).click();
+  await finish(page);
+  await expect(page.getByRole("main").getByText("Растяжка", { exact: true }).first()).toBeVisible();
+  const xp = await page.getByText(/^\+\d+ XP$/).first().innerText();
+  expect(parseInt(xp.replace(/\D/g, ""), 10)).toBeLessThanOrEqual(60);
+
+  await page.goto("/stretching");
+  await expect(page.getByTestId("stretch-week-sessions")).toHaveText("1");
+  await expect(page.getByTestId("stretch-week-minutes")).not.toHaveText("0");
+});
