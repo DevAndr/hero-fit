@@ -693,7 +693,7 @@ export async function seedRaidHits(login: string, week: string, hp: number, defe
 export async function createGoal(
   login: string,
   g: {
-    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT";
+    type: "STRENGTH" | "WORKOUTS" | "STREAK" | "HOURS" | "BODY_WEIGHT" | "STRETCH_HOLD";
     target: number;
     startValue?: number;
     exerciseName?: string;
@@ -718,7 +718,7 @@ export async function createGoal(
     await db.query(
       `insert into "Goal" (id, "userId", type, "exerciseId", metric, target, "startValue", deadline, status, "createdAt", "achievedAt", "closedAt")
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved],
+      [id, uid, g.type, exerciseId, g.metric ?? (g.exerciseName && g.type === "STRENGTH" ? "MAX_WEIGHT" : null), g.target, g.startValue ?? 0, g.deadline ?? null, g.status ?? "ACTIVE", g.createdAt ?? new Date(), achieved],
     );
     return id;
   });

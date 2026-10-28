@@ -65,7 +65,7 @@ function dateText(date: string, today: string) {
 
 const signed = (n: number) => `${n < 0 ? "−" : "+"}${Math.abs(n).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}`;
 
-export function forecastText(f: Forecast, opts: { unit: "кг" | "повт."; bodyWeight: boolean; today: string }): string {
+export function forecastText(f: Forecast, opts: { unit: "кг" | "повт." | "с"; bodyWeight: boolean; today: string }): string {
   switch (f.kind) {
     case "onTrack":
       return `Успеваешь: ≈ ${dateText(f.date, opts.today)}`;

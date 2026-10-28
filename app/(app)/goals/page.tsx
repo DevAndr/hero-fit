@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { getGoalFormData, getGoalsPage } from "@/lib/goals/queries";
-import { GOALS_ACTIVE_MAX, isStrengthMetric, type GoalInput } from "@/lib/goals/rules";
+import { GOALS_ACTIVE_MAX, isInputGoalType, isStrengthMetric, isStretchGoal, type GoalInput } from "@/lib/goals/rules";
 
 export const metadata: Metadata = { title: "Цели" };
 
@@ -26,10 +26,10 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   ]);
   const activeCount = page.active.filter((g) => g.status === "ACTIVE").length;
   // «Поставить снова»: при 5 активных — не открываем (сохранить нельзя); упражнение в архиве — без него, выберешь заново
-  const againExercise = againGoal?.exerciseId && form.exercises.some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
+  const againExercise = againGoal?.exerciseId && [...form.exercises, ...form.stretchExercises].some((e) => e.id === againGoal.exerciseId) ? againGoal.exerciseId : undefined;
   const again: Partial<GoalInput> | null =
-    // типы растяжки goalSchema ещё не принимает (задачи 9–11)
-    againGoal && againGoal.type !== "STRETCH_WEEKLY" && againGoal.type !== "STRETCH_HOLD" && againGoal.type !== "STRETCH_SKILL" && activeCount < GOALS_ACTIVE_MAX
+    // типы, которых форма ещё не принимает (регулярность и навык — задачи 10–11), и растяжка без флага — без «Поставить снова»
+    againGoal && isInputGoalType(againGoal.type) && (form.stretch || !isStretchGoal(againGoal.type)) && activeCount < GOALS_ACTIVE_MAX
       ? { type: againGoal.type, target: againGoal.target, exerciseId: againExercise, metric: isStrengthMetric(againGoal.metric) ? againGoal.metric : undefined }
       : null;
   const weightGoal = page.active.find((g) => g.type === "BODY_WEIGHT" && g.status === "ACTIVE");

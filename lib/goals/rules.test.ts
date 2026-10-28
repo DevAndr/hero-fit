@@ -11,6 +11,7 @@ import {
   goalSchema,
   goalTitle,
   isAchieved,
+  isStretchGoal,
   paceStatus,
   suggestGoals,
 } from "@/lib/goals/rules";
@@ -188,4 +189,32 @@ test("goalSchema: ошибки текущего веса — по-русски",
 
 test("deadlineText: срок прошёл", () => {
   expect(deadlineText("2026-10-10", "2026-10-11")).toBe("до 10 октября · срок вышел");
+});
+
+describe("цель «Удержание»", () => {
+  const hold = { type: "STRETCH_HOLD", exerciseId: "e", target: 90, deadline: null } as const;
+
+  test("схема: упражнение и предел 10…600 с", () => {
+    const noEx = goalSchema.safeParse({ type: "STRETCH_HOLD", target: 90, deadline: null });
+    expect(noEx.success ? null : noEx.error.issues[0].message).toBe("Выбери упражнение");
+    const low = goalSchema.safeParse({ ...hold, target: 5 });
+    expect(low.success ? null : low.error.issues[0].message).toBe("От 10 до 600");
+    expect(goalSchema.safeParse({ ...hold, target: 601 }).success).toBe(false);
+    expect(goalSchema.safeParse({ ...hold, target: 10.5 }).success).toBe(false);
+    expect(goalSchema.safeParse(hold).success).toBe(true);
+  });
+  test("тексты", () => {
+    expect(goalTitle({ type: "STRETCH_HOLD", metric: null, target: 90, startValue: 0, exerciseName: "Складка стоя" })).toBe("Складка стоя — удержание 1:30");
+    expect(goalValueText({ type: "STRETCH_HOLD", metric: null }, 45, 90)).toBe("0:45 / 1:30");
+  });
+  test("достижение и «Уже достигнуто»", () => {
+    expect(isAchieved({ type: "STRETCH_HOLD", startValue: 20, target: 90 }, 90)).toBe(true);
+    expect(canCreate(hold, { active: [], current: 90, isBodyweight: false, hasWeight: true })).toBe("Уже достигнуто");
+    expect(canCreate(hold, { active: [], current: 30, isBodyweight: false, hasWeight: true })).toBeNull();
+  });
+  test("isStretchGoal", () => {
+    expect(isStretchGoal("STRETCH_HOLD")).toBe(true);
+    expect(isStretchGoal("STRETCH_WEEKLY")).toBe(true);
+    expect(isStretchGoal("STRENGTH")).toBe(false);
+  });
 });

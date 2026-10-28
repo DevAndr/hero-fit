@@ -5,6 +5,7 @@ import { z } from "zod";
 import { GoalStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
+import { isEnabled } from "@/lib/flags/server";
 import { evaluateAchievements, evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { queueGoal } from "@/lib/analytics/queue";
 import { dayKey } from "@/lib/daily-login";
@@ -45,6 +46,15 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
   const g = { ...parsed.data, deadline: deadline.data };
 
   let isBodyweight = false;
+  if (g.type === "STRETCH_HOLD") {
+    // Новые типы растяжки ставятся только при флаге; уже поставленные от него не зависят
+    if (!(await isEnabled("stretching", user.id))) return { ok: false, error: "Цели растяжки недоступны" };
+    const exercise = await db.exercise.findFirst({
+      where: { id: g.exerciseId, archivedAt: null, kind: "STRETCH", OR: [{ userId: null }, { userId: user.id }] },
+      select: { id: true },
+    });
+    if (!exercise) return { ok: false, error: "Упражнение не найдено", field: "exerciseId" };
+  }
   if (g.type === "STRENGTH") {
     const exercise = await db.exercise.findFirst({
       // Силовая цель — по весу и повторам: кардио и упражнения на время не подходят
@@ -74,7 +84,7 @@ export async function createGoalAction(input: GoalInput): Promise<Result> {
       data: {
         userId: user.id,
         type: g.type,
-        exerciseId: g.type === "STRENGTH" ? g.exerciseId : null,
+        exerciseId: g.type === "STRENGTH" || g.type === "STRETCH_HOLD" ? g.exerciseId : null,
         metric: g.type === "STRENGTH" ? g.metric : null,
         target: g.target,
         startValue: counter ? 0 : current,

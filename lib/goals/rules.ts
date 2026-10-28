@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { GoalStatus, GoalType, RecordType } from "@/generated/prisma/enums";
 import { addDays } from "@/lib/dates";
-import { plural } from "@/lib/format";
+import { formatClock, plural } from "@/lib/format";
 import { localMidnight } from "@/lib/progress/weekly-streak";
 
 /** Личные цели — чистые правила (спека docs/superpowers/specs/2026-10-11-goals-design.md). */
@@ -27,9 +27,22 @@ type Shape = { type: GoalType; startValue: number; target: number };
 
 const onStep = (step: number) => (v: number) => Math.abs(v / step - Math.round(v / step)) < 1e-9;
 
+/** Типы, которые принимает форма постановки (типы растяжки добавляются по мере задач 10–11). */
+const INPUT_TYPES = ["STRENGTH", "WORKOUTS", "STREAK", "HOURS", "BODY_WEIGHT", "STRETCH_HOLD"] as const;
+export const isInputGoalType = (t: GoalType): t is GoalInput["type"] => (INPUT_TYPES as readonly string[]).includes(t);
+
+/** Цели группы «Растяжка» (под флагом `stretching`). */
+export const isStretchGoal = (t: GoalType) => t === "STRETCH_WEEKLY" || t === "STRETCH_HOLD" || t === "STRETCH_SKILL";
+
+/** Рекорд, по которому считается цель: силовая — выбранная метрика, удержание — MAX_DURATION. */
+export function goalRecordType(g: { type: GoalType; metric: RecordType | null }): RecordType | null {
+  if (g.type === "STRETCH_HOLD") return "MAX_DURATION";
+  return g.type === "STRENGTH" ? g.metric : null;
+}
+
 export const goalSchema = z
   .object({
-    type: z.enum(["STRENGTH", "WORKOUTS", "STREAK", "HOURS", "BODY_WEIGHT"]),
+    type: z.enum(INPUT_TYPES),
     exerciseId: z.string().min(1).optional(),
     metric: z.enum(["ONE_RM", "MAX_WEIGHT", "MAX_REPS"]).optional(),
     target: z.number().finite(),
@@ -48,6 +61,10 @@ export const goalSchema = z
         if (!g.metric) bad("Выбери, что улучшаем", "metric");
         if (g.metric === "MAX_REPS") within(1, 500, 1);
         else within(1, 500, 0.5);
+        break;
+      case "STRETCH_HOLD":
+        if (!g.exerciseId) bad("Выбери упражнение", "exerciseId");
+        within(10, 600, 1);
         break;
       case "WORKOUTS":
         within(1, 1000, 1);
@@ -171,9 +188,10 @@ export function goalTitle(g: {
       return `${n} ${plural(n, "час", "часа", "часов")} в зале`;
     case "BODY_WEIGHT":
       return `Вес тела — ${fmt(n)} кг ${g.startValue > n ? "↓" : "↑"}`;
-    // Типы растяжки заполнят задачи 9–11
-    case "STRETCH_WEEKLY":
     case "STRETCH_HOLD":
+      return `${g.exerciseName ?? "Упражнение"} — удержание ${formatClock(n)}`;
+    // Типы растяжки заполнят задачи 10–11
+    case "STRETCH_WEEKLY":
     case "STRETCH_SKILL":
       return "";
   }
@@ -241,9 +259,10 @@ export function goalValueText(g: { type: GoalType; metric: RecordType | null }, 
       return `${c} / ${target} ч`;
     case "BODY_WEIGHT":
       return `${c} → ${fmt(target)} кг`;
-    // Типы растяжки заполнят задачи 9–11
-    case "STRETCH_WEEKLY":
     case "STRETCH_HOLD":
+      return `${formatClock(current)} / ${formatClock(target)}`;
+    // Типы растяжки заполнят задачи 10–11
+    case "STRETCH_WEEKLY":
     case "STRETCH_SKILL":
       return "";
   }

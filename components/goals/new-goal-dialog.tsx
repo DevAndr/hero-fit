@@ -3,14 +3,14 @@
 import { useMemo, useState, useTransition } from "react";
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
-import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, Plus, Scale, Sparkles } from "lucide-react";
+import { CalendarCheck, Clock, Dumbbell, Flame, Loader2, PersonStanding, Plus, Scale, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { DeadlinePicker } from "@/components/goals/deadline-picker";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { plural } from "@/lib/format";
+import { formatClock, plural } from "@/lib/format";
 import { createGoalAction } from "@/lib/goals/actions";
 import type { GoalFormData } from "@/lib/goals/queries";
 import { GOALS_ACTIVE_MAX, type GoalInput, type GoalSuggestion, type StrengthMetric } from "@/lib/goals/rules";
@@ -24,6 +24,9 @@ const TYPES: { type: GoalInput["type"]; label: string; icon: typeof Dumbbell; hi
   { type: "BODY_WEIGHT", label: "Вес тела", icon: Scale, hint: "Сбросить или набрать" },
 ];
 
+/** Группа «Растяжка» — только при флаге `stretching`. */
+const STRETCH_TYPES: typeof TYPES = [{ type: "STRETCH_HOLD", label: "Удержание", icon: PersonStanding, hint: "Сколько секунд держать позу" }];
+
 const METRICS: { metric: StrengthMetric; label: string }[] = [
   { metric: "MAX_WEIGHT", label: "Рабочий вес" },
   { metric: "ONE_RM", label: "1ПМ" },
@@ -32,6 +35,11 @@ const METRICS: { metric: StrengthMetric; label: string }[] = [
 
 const kg = (n: number) => `${String(Math.round(n * 10) / 10).replace(".", ",")} кг`;
 const num = (s: string) => Number(s.trim().replace(",", "."));
+/** Время удержания: «90» или «1:30» → секунды. */
+const seconds = (s: string) => {
+  const m = /^(\d+):([0-5]?\d)$/.exec(s.trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : num(s);
+};
 
 function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null) {
   switch (type) {
@@ -45,6 +53,8 @@ function targetLabel(type: GoalInput["type"], metric: StrengthMetric | null) {
       return "Цель, часов";
     case "BODY_WEIGHT":
       return "Цель, кг";
+    case "STRETCH_HOLD":
+      return "Цель, секунд (или м:сс)";
   }
 }
 
@@ -73,18 +83,22 @@ function FieldError({ id, text }: { id: string; text?: string }) {
 /**
  * Кнопка «Новая цель», подсказки для пустой страницы и диалог постановки (два шага: тип → параметры).
  * `again` — параметры проваленной цели («Поставить снова»): диалог открывается сразу.
+ * `initialGroup="stretch"` — кнопка «Поставить цель» сразу с типами растяжки (страница /stretching).
  */
 export function NewGoal({
   form,
   activeCount,
   suggestions,
   again,
+  initialGroup,
 }: {
   form: GoalFormData;
   activeCount: number;
   suggestions: GoalSuggestion[];
   again: Partial<GoalInput> | null;
+  initialGroup?: "stretch";
 }) {
+  const [group, setGroup] = useState<"main" | "stretch">(initialGroup ?? (again?.type === "STRETCH_HOLD" ? "stretch" : "main"));
   const [open, setOpen] = useState(again !== null);
   const [draft, setDraft] = useState<Draft>(again ? draftOf({ ...again, deadline: null }) : emptyDraft);
   const [query, setQuery] = useState("");
@@ -92,13 +106,14 @@ export function NewGoal({
   const [pending, startTransition] = useTransition();
   const full = activeCount >= GOALS_ACTIVE_MAX;
 
-  const exercise = form.exercises.find((e) => e.id === draft.exerciseId) ?? null;
+  const pool = draft.type === "STRETCH_HOLD" ? form.stretchExercises : form.exercises;
+  const exercise = pool.find((e) => e.id === draft.exerciseId) ?? null;
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q ? form.exercises.filter((e) => e.name.toLowerCase().includes(q)) : form.exercises;
+    const list = q ? pool.filter((e) => e.name.toLowerCase().includes(q)) : pool;
     const top = list.slice(0, 8);
     return exercise && !top.some((e) => e.id === exercise.id) ? [exercise, ...top.slice(0, 7)] : top;
-  }, [query, form.exercises, exercise]);
+  }, [query, pool, exercise]);
 
   const set = (patch: Partial<Draft>) => {
     setDraft((d) => ({ ...d, ...patch }));
@@ -107,7 +122,7 @@ export function NewGoal({
 
   const start = (d: Draft) => {
     setDraft(d);
-    setQuery(d.exerciseId ? (form.exercises.find((e) => e.id === d.exerciseId)?.name ?? "") : "");
+    setQuery(d.exerciseId ? ([...form.exercises, ...form.stretchExercises].find((e) => e.id === d.exerciseId)?.name ?? "") : "");
     setErrors({});
     setOpen(true);
   };
@@ -116,6 +131,8 @@ export function NewGoal({
     switch (draft.type) {
       case "STRENGTH":
         return exercise && draft.metric ? (exercise.records[draft.metric] ?? 0) : null;
+      case "STRETCH_HOLD":
+        return exercise ? (exercise.records.MAX_DURATION ?? 0) : null;
       case "STREAK":
         return form.streak;
       case "BODY_WEIGHT":
@@ -127,7 +144,9 @@ export function NewGoal({
   const currentText =
     current === null
       ? null
-      : draft.type === "STREAK"
+      : draft.type === "STRETCH_HOLD"
+        ? formatClock(current)
+        : draft.type === "STREAK"
         ? `${current} ${plural(current, "неделя", "недели", "недель")}`
         : draft.metric === "MAX_REPS" && draft.type === "STRENGTH"
           ? `${current} ${plural(current, "повтор", "повтора", "повторов")}`
@@ -145,8 +164,9 @@ export function NewGoal({
       if (!draft.type) return;
       const input: GoalInput = {
         type: draft.type,
-        target: num(draft.target),
+        target: draft.type === "STRETCH_HOLD" ? seconds(draft.target) : num(draft.target),
         deadline: draft.deadline,
+        ...(draft.type === "STRETCH_HOLD" ? { exerciseId: draft.exerciseId ?? undefined } : {}),
         ...(draft.type === "STRENGTH" ? { exerciseId: draft.exerciseId ?? undefined, metric: draft.metric ?? undefined } : {}),
         ...(draft.type === "BODY_WEIGHT" && form.weight === null ? { currentWeight: num(draft.currentWeight) } : {}),
       };
@@ -170,14 +190,15 @@ export function NewGoal({
       toast.success("Цель поставлена");
     });
 
-  const meta = TYPES.find((t) => t.type === draft.type);
+  const types = group === "stretch" ? STRETCH_TYPES : TYPES;
+  const meta = [...TYPES, ...STRETCH_TYPES].find((t) => t.type === draft.type);
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
         <Button size="lg" disabled={full} onClick={() => start(emptyDraft)}>
-          <Plus />
-          Новая цель
+          {initialGroup ? <Target /> : <Plus />}
+          {initialGroup ? "Поставить цель" : "Новая цель"}
         </Button>
         {full ? <span className="text-sm text-muted-foreground">Максимум {GOALS_ACTIVE_MAX} активных целей</span> : null}
       </div>
@@ -207,12 +228,17 @@ export function NewGoal({
 
           {!draft.type ? (
             <div className="grid grid-cols-2 gap-2">
-              {TYPES.map(({ type, label, icon: Icon }) => (
+              {types.map(({ type, label, icon: Icon }) => (
                 <Button key={type} type="button" variant="outline" className="h-16 flex-col gap-1" onClick={() => set({ type, metric: null, exerciseId: null, target: "" })}>
                   <Icon className="size-5 text-primary" />
                   {label}
                 </Button>
               ))}
+              {form.stretch && !initialGroup ? (
+                <Button type="button" variant="ghost" className="col-span-2" onClick={() => setGroup(group === "stretch" ? "main" : "stretch")}>
+                  {group === "stretch" ? "Другие цели" : "Растяжка"}
+                </Button>
+              ) : null}
             </div>
           ) : (
             <form
@@ -222,7 +248,7 @@ export function NewGoal({
                 submit();
               }}
             >
-              {draft.type === "STRENGTH" ? (
+              {draft.type === "STRENGTH" || draft.type === "STRETCH_HOLD" ? (
                 <>
                   <div className="space-y-1.5">
                     <Label htmlFor="goal-exercise-search">Поиск упражнения</Label>
@@ -233,8 +259,8 @@ export function NewGoal({
                       aria-describedby={errors.exerciseId ? "goal-exercise-error" : undefined}
                       value={draft.exerciseId ?? ""}
                       onValueChange={(v) => {
-                        const ex = form.exercises.find((e) => e.id === v);
-                        set({ exerciseId: v as string, metric: ex?.isBodyweight ? "MAX_REPS" : draft.metric, target: "" });
+                        const ex = pool.find((e) => e.id === v);
+                        set({ exerciseId: v as string, metric: draft.type === "STRENGTH" && ex?.isBodyweight ? "MAX_REPS" : draft.metric, target: "" });
                       }}
                       className="flex flex-col gap-1"
                     >
@@ -256,7 +282,7 @@ export function NewGoal({
                     </RadioGroup>
                     <FieldError id="goal-exercise-error" text={errors.exerciseId} />
                   </div>
-                  {exercise ? (
+                  {exercise && draft.type === "STRENGTH" ? (
                     <div className="space-y-1.5">
                       <p className="text-sm font-medium">Что улучшаем</p>
                       <RadioGroup
@@ -306,7 +332,7 @@ export function NewGoal({
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
                       id="goal-target"
-                      inputMode="decimal"
+                      inputMode={draft.type === "STRETCH_HOLD" ? "text" : "decimal"}
                       className="max-w-32"
                       value={draft.target}
                       aria-invalid={errors.target ? true : undefined}

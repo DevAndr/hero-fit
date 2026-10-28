@@ -2,12 +2,14 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { GoalStatus, WorkoutStatus } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
+import { isEnabled } from "@/lib/flags/server";
 import { getGoalForecasts, type GoalForecastView } from "@/lib/goals/forecast-queries";
 import { dayKey } from "@/lib/daily-login";
 import { streakStatus, streakValue } from "@/lib/progress/weekly-streak";
 import {
   deadlineEnd,
   goalProgress,
+  goalRecordType,
   goalTitle,
   isStrengthMetric,
   paceStatus,
@@ -51,10 +53,11 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
   const out = new Map<string, number>();
   if (goals.length === 0) return out;
 
-  const strength = goals.filter((g) => g.type === "STRENGTH" && g.exerciseId && g.metric);
+  // Рекордные цели: сила (метрика) и удержание растяжки (MAX_DURATION)
+  const strength = goals.filter((g) => g.exerciseId && goalRecordType(g));
   const records = strength.length
     ? await client.personalRecord.findMany({
-        where: { userId, OR: strength.map((g) => ({ exerciseId: g.exerciseId!, type: g.metric! })) },
+        where: { userId, OR: strength.map((g) => ({ exerciseId: g.exerciseId!, type: goalRecordType(g)! })) },
         select: { exerciseId: true, type: true, value: true },
       })
     : [];
@@ -65,7 +68,8 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
   for (const g of goals) {
     switch (g.type) {
       case "STRENGTH":
-        out.set(g.id, records.find((r) => r.exerciseId === g.exerciseId && r.type === g.metric)?.value ?? 0);
+      case "STRETCH_HOLD":
+        out.set(g.id, records.find((r) => r.exerciseId === g.exerciseId && r.type === goalRecordType(g))?.value ?? 0);
         break;
       case "STREAK":
         out.set(g.id, streak);
@@ -118,6 +122,13 @@ export async function currentValueFor(
     case "STRENGTH": {
       const pr = await client.personalRecord.findUnique({
         where: { userId_exerciseId_type: { userId, exerciseId: input.exerciseId!, type: input.metric! } },
+        select: { value: true },
+      });
+      return pr?.value ?? 0;
+    }
+    case "STRETCH_HOLD": {
+      const pr = await client.personalRecord.findUnique({
+        where: { userId_exerciseId_type: { userId, exerciseId: input.exerciseId!, type: "MAX_DURATION" } },
         select: { value: true },
       });
       return pr?.value ?? 0;
@@ -260,18 +271,34 @@ export async function getExerciseGoal(userId: string, exerciseId: string, tz: st
   return { metric: g.metric, target: g.target, forecast: view.forecast?.text ?? null };
 }
 
-export type GoalFormExercise = { id: string; name: string; isBodyweight: boolean; records: Partial<Record<"ONE_RM" | "MAX_WEIGHT" | "MAX_REPS", number>> };
-export type GoalFormData = { exercises: GoalFormExercise[]; streak: number; weight: number | null; today: string };
+export type GoalFormExercise = { id: string; name: string; isBodyweight: boolean; records: Partial<Record<"ONE_RM" | "MAX_WEIGHT" | "MAX_REPS" | "MAX_DURATION", number>> };
+export type GoalFormData = {
+  exercises: GoalFormExercise[];
+  /** Упражнения растяжки для цели «Удержание»; пусто и `stretch: false`, пока флаг `stretching` выключен. */
+  stretchExercises: GoalFormExercise[];
+  stretch: boolean;
+  streak: number;
+  weight: number | null;
+  today: string;
+};
 
 /** Диалог «Новая цель»: упражнения с текущими рекордами («сейчас: …»), серия, последний вес. */
 export async function getGoalFormData(userId: string, tz: string): Promise<GoalFormData> {
-  const [exercises, records, streak, weight] = await Promise.all([
+  const stretch = await isEnabled("stretching", userId);
+  const [exercises, stretchExercises, records, streak, weight] = await Promise.all([
     db.exercise.findMany({
       // Силовые цели — только упражнения с повторами
       where: { archivedAt: null, kind: "REPS", OR: [{ userId: null }, { userId }] },
       select: { id: true, name: true, isBodyweight: true },
       orderBy: { name: "asc" },
     }),
+    stretch
+      ? db.exercise.findMany({
+          where: { archivedAt: null, kind: "STRETCH", OR: [{ userId: null }, { userId }] },
+          select: { id: true, name: true, isBodyweight: true },
+          orderBy: { name: "asc" },
+        })
+      : [],
     db.personalRecord.findMany({ where: { userId }, select: { exerciseId: true, type: true, value: true } }),
     effectiveStreak(db, userId, tz),
     latestWeight(db, userId),
@@ -280,8 +307,20 @@ export async function getGoalFormData(userId: string, tz: string): Promise<GoalF
   for (const r of records) byExercise.set(r.exerciseId, { ...byExercise.get(r.exerciseId), [r.type]: r.value });
   return {
     exercises: exercises.map((e) => ({ ...e, records: byExercise.get(e.id) ?? {} })),
+    stretchExercises: stretchExercises.map((e) => ({ ...e, records: byExercise.get(e.id) ?? {} })),
+    stretch,
     streak,
     weight,
     today: dayKey(new Date(), tz),
   };
+}
+
+/** Активные цели растяжки (страница /stretching) — показываются независимо от флага постановки. */
+export async function getStretchGoals(userId: string, tz: string): Promise<GoalView[]> {
+  const goals = await db.goal.findMany({
+    where: { userId, status: GoalStatus.ACTIVE, type: { in: ["STRETCH_WEEKLY", "STRETCH_HOLD", "STRETCH_SKILL"] } },
+    select: goalSelect,
+    orderBy: { createdAt: "asc" },
+  });
+  return toViews(db, userId, goals, tz);
 }

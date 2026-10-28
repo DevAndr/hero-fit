@@ -30,7 +30,8 @@ export async function getGoalForecasts(
   const out = new Map<string, GoalForecastView>();
   const strength = goals.filter((g) => g.type === "STRENGTH" && g.exerciseId && g.metric);
   const weightGoals = goals.filter((g) => g.type === "BODY_WEIGHT");
-  if (!strength.length && !weightGoals.length) return out;
+  const holdGoals = goals.filter((g) => g.type === "STRETCH_HOLD" && g.exerciseId);
+  if (!strength.length && !weightGoals.length && !holdGoals.length) return out;
   if (!(await isEnabled("strength_analytics", userId))) return out; // флаг владельца целей
 
   const today = dayKey(now, tz);
@@ -52,6 +53,27 @@ export async function getGoalForecasts(
       });
     const f = forecastGoal({ points, current: g.current, target: g.target, deadline: g.deadline, today });
     if (f) out.set(g.id, { text: forecastText(f, { unit: g.metric === "MAX_REPS" ? "повт." : "кг", bodyWeight: false, today }), short: forecastShort(f, today) });
+  }
+  if (holdGoals.length) {
+    // Рекорд удержания по неделям — самый долгий подход растяжки
+    const ids = [...new Set(holdGoals.map((g) => g.exerciseId!))];
+    const bests = await client.$queryRaw<{ exerciseId: string; week: string; value: number }[]>`
+      SELECT we."exerciseId",
+             to_char(date_trunc('week', (w."finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS week,
+             MAX(s."durationSec")::int AS value
+      FROM "WorkoutSet" s
+      JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
+      JOIN "Workout" w ON w.id = we."workoutId"
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND w."finishedAt" >= ${localMidnight(firstWeek, tz)}
+        AND s."isWarmup" = false AND s."completedAt" IS NOT NULL AND s."durationSec" > 0
+        AND we."exerciseId" = ANY(${ids}::text[])
+      GROUP BY we."exerciseId", 2
+      ORDER BY 2`;
+    for (const g of holdGoals) {
+      const points = bests.filter((b) => b.exerciseId === g.exerciseId).map((b) => ({ week: b.week, value: b.value }));
+      const f = forecastGoal({ points, current: g.current, target: g.target, deadline: g.deadline, today });
+      if (f) out.set(g.id, { text: forecastText(f, { unit: "с", bodyWeight: false, today }), short: forecastShort(f, today) });
+    }
   }
   if (weightGoals.length) {
     // Последняя запись недели

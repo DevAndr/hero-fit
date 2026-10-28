@@ -129,3 +129,36 @@ test("stretching page: start a program, hold, finish, week numbers", async ({ pa
   await expect(page.getByTestId("stretch-week-sessions")).toHaveText("1");
   await expect(page.getByTestId("stretch-week-minutes")).not.toHaveText("0");
 });
+
+test("hold goal: set from /stretching, reached by a stretch session, refused without the flag", async ({ page }) => {
+  test.slow();
+  const u = await registerUser(page, "Цель_удержание");
+  // Без флага: страница недоступна, а цель не поставить и напрямую
+  await page.goto("/goals");
+  await page.getByRole("button", { name: "Новая цель" }).click();
+  await expect(page.getByRole("dialog", { name: "Новая цель" }).getByRole("button", { name: "Растяжка" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await addFlagUser("stretching", u.login);
+  await page.goto("/stretching");
+  await page.getByRole("button", { name: "Поставить цель" }).click();
+  const dialog = page.getByRole("dialog", { name: "Новая цель" });
+  await dialog.getByRole("button", { name: "Удержание" }).click();
+  await dialog.getByLabel("Поиск упражнения").fill("Складка стоя");
+  await dialog.getByRole("radio", { name: "Складка стоя" }).click();
+  await dialog.getByLabel(/^Цель, секунд/).fill("5");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("От 10 до 600");
+  await dialog.getByLabel(/^Цель, секунд/).fill("0:20");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  await expect(dialog).toBeHidden();
+  const title = "Складка стоя — удержание 0:20";
+  await expect(page.getByRole("region", { name: "Цели по растяжке" }).getByRole("article", { name: title })).toContainText("0:00 / 0:20");
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Складка стоя"]);
+  await holdDone(page, "Складка стоя", "25");
+  await finish(page);
+  await expect(page.getByRole("region", { name: "Цели", exact: true })).toContainText(`Цель достигнута: ${title}`);
+});
