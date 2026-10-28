@@ -23,6 +23,9 @@ export type ActiveWorkout = {
   /** Ключ вхождения календаря, из которого начата тренировка. */
   planKey: string | null;
   templateId: string | null;
+  /** Занятие курса «Сесть на шпагат» (номер — на момент создания). */
+  courseId?: string | null;
+  courseSessionNo?: number | null;
   /** Самочувствие из чек-ина помощника. */
   wellbeing?: "GREAT" | "OK" | "TIRED" | null;
   /** Золотой гоблин этой тренировки (показывается только при флаге golden_goblin). */
@@ -56,6 +59,8 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     id: workout.id,
     planKey: workout.planKey,
     templateId: workout.templateId,
+    courseId: workout.courseId,
+    courseSessionNo: workout.courseSessionNo,
     wellbeing: workout.wellbeing,
     goblin: workout.goblin ? { spawnedAt: workout.goblin.spawnedAt.toISOString() } : null,
     name: workout.name,

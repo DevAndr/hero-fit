@@ -21,6 +21,10 @@ import { isEnabled } from "@/lib/flags/server";
 import { openSessionOf, partnerName } from "@/lib/together/queries";
 import { inviteExpiresAt } from "@/lib/together/rules";
 import type { TogetherInitial } from "@/components/together/together-control";
+import type { CourseInfo } from "@/components/training/course-banner";
+import { isCourseSkill, isMeasureSession, stageOf, COURSE_SESSIONS } from "@/lib/stretching/course";
+import { courseAllowed } from "@/lib/stretching/course-access";
+import { STRETCH_SKILLS } from "@/lib/stretching/skills";
 
 export const metadata: Metadata = { title: "Тренировка" };
 
@@ -64,7 +68,7 @@ export default async function TrainingPage() {
   const ids = [...new Set([...exercises.map((e) => e.id), ...workout.exercises.map((e) => e.exercise.id)])];
   const { muscles, whoop: whoopOf } = recoveryAndWhoop();
   const occurrenceOf = workout.planKey ? getOccurrence(user.id, workout.planKey) : Promise.resolve(null);
-  const [last, allHints, occurrence, recovery, whoop, boss, targets, own] = await Promise.all([
+  const [last, allHints, occurrence, recovery, whoop, boss, targets, own, course] = await Promise.all([
     getLastPerformance(user.id, ids),
     getProgressionHints(user.id, ids),
     occurrenceOf,
@@ -78,6 +82,7 @@ export default async function TrainingPage() {
       : new Map<string, Target & { program?: string }>(),
     // Своя прогрессия по шаблону тренировки — вес растёт сам, подсказка «Пора увеличить вес» лишняя
     workout.templateId ? getOwnTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
+    courseInfo(user.id, workout.courseId ?? null, workout.courseSessionNo ?? null),
   ]);
   const hints = Object.fromEntries(Object.entries(allHints).filter(([exerciseId]) => !own.has(exerciseId)));
   const bodyweight = new Set(workout.exercises.filter((e) => e.exercise.isBodyweight).map((e) => e.exercise.id));
@@ -106,9 +111,28 @@ export default async function TrainingPage() {
         own={Object.fromEntries(own)}
         whoop={whoop}
         together={together}
+        course={course}
       />
     </MuscleRecoveryProvider>
   );
+}
+
+/** Строка курса и плашка замера; без флагов курса — обычная сессия растяжки. */
+async function courseInfo(userId: string, courseId: string | null, session: number | null): Promise<CourseInfo | null> {
+  if (!courseId || !session || !(await courseAllowed(userId))) return null;
+  const course = await db.stretchCourse.findFirst({
+    where: { id: courseId, userId, status: { in: ["ACTIVE", "MAINTENANCE"] } },
+    select: { skill: true, goal: { select: { id: true, status: true } } },
+  });
+  if (!course || !isCourseSkill(course.skill)) return null;
+  // Цель удалили или она уже закрыта — замерять некуда, курс идёт дальше
+  const goal = course.goal?.status === "ACTIVE" ? course.goal : null;
+  return {
+    session,
+    stage: stageOf(session),
+    maintenance: session > COURSE_SESSIONS,
+    measure: goal && isMeasureSession(session) ? { goalId: goal.id, measureLabel: STRETCH_SKILLS[course.skill].measure } : null,
+  };
 }
 
 /** Открытая совместная сессия — для полосы партнёра сразу после загрузки. */

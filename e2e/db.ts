@@ -857,6 +857,17 @@ export async function addFlagUser(key: string, login: string) {
   );
 }
 
+/** Курс «Сесть на шпагат»: следующее занятие идущего курса — n (подготовка финала, середины курса). */
+export async function setCourseSession(login: string, n: number) {
+  await withDb((db) =>
+    db.query(
+      `update "StretchCourse" set "nextSession" = $2
+       where "userId" = (select id from "User" where login = $1) and status in ('ACTIVE', 'MAINTENANCE')`,
+      [login, n],
+    ),
+  );
+}
+
 /** Алфавит кода друга (lib/social/league.ts). */
 const CLUB_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
