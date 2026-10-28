@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, visitDays, visitHours } from "./db";
+import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -67,6 +67,30 @@ test.describe("admin metrics page", () => {
     await expect(page).toHaveURL(/\/admin\?range=90$/);
     await expect(page.getByRole("link", { name: "90 дней" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByText(/за 90 дней$/).first()).toBeVisible();
+  });
+
+  test("workouts tile: in progress now and the ones not finished for more than 4 hours", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const player = await registerUser(await playerCtx.newPage());
+    await playerCtx.close();
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const tile = page.getByRole("region", { name: "Сводка" }).locator("div").filter({ has: page.getByText("Тренировок", { exact: true }) }).last();
+    const line = tile.getByText("Идут сейчас:").locator("..");
+    const counts = async () => {
+      await page.goto("/admin");
+      const text = await line.innerText();
+      const [active, stale = 0] = (text.match(/\d[\d\s]*/g) ?? []).map((n) => Number(n.replace(/\s/g, "")));
+      return { active, stale };
+    };
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего
+    const before = await counts();
+    await startWorkoutRow(player.login, new Date(Date.now() - 30 * 60 * 1000));
+    await startWorkoutRow(player.login, new Date(Date.now() - 26 * 3600 * 1000));
+    const after = await counts();
+    expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
+    expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
+    await expect(line).toContainText("не завершены дольше 4 ч");
   });
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
