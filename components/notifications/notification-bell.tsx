@@ -29,6 +29,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; color: string }> = {
   BOSS: { icon: Swords, color: "text-streak" },
   COACH: { icon: ClipboardList, color: "text-primary" },
   GOAL: { icon: Target, color: "text-xp" },
+  COURSE_REMINDER: { icon: Target, color: "text-xp" },
   RAID: { icon: Shield, color: "text-streak" },
   FEEDBACK: { icon: MessageSquare, color: "text-primary" },
   COMEBACK: { icon: Dumbbell, color: "text-primary" },

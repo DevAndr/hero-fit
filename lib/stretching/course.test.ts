@@ -1,0 +1,132 @@
+import { describe, expect, it } from "vitest";
+import { STRETCH_SEED } from "./seed-data";
+import {
+  COURSE_SKILLS,
+  isCourseSkill,
+  isMeasureSession,
+  nextHoldSec,
+  sessionPlan,
+  sessionTitle,
+  stageOf,
+} from "./course";
+
+const names = (skill: Parameters<typeof sessionPlan>[0], n: number) =>
+  sessionPlan(skill, n).map((e) => e.name);
+
+describe("stageOf", () => {
+  it.each([
+    [1, 1], [6, 1], [7, 2], [12, 2], [13, 3], [19, 4], [24, 4], [25, 5], [30, 5], [31, 5], [100, 5],
+  ])("занятие %i — этап %i", (n, stage) => {
+    expect(stageOf(n)).toBe(stage);
+  });
+});
+
+describe("isMeasureSession", () => {
+  it("замер на 1, 7, 13, 19, 25, 30", () => {
+    for (const n of [1, 7, 13, 19, 25, 30]) expect(isMeasureSession(n)).toBe(true);
+    for (const n of [2, 6, 31]) expect(isMeasureSession(n)).toBe(false);
+  });
+});
+
+describe("isCourseSkill", () => {
+  it("только три шпагата", () => {
+    expect(isCourseSkill("SPLIT_SIDE")).toBe(true);
+    expect(isCourseSkill("BRIDGE")).toBe(false);
+  });
+});
+
+describe("sessionPlan продольный", () => {
+  it("занятие 1", () => {
+    const plan = sessionPlan("SPLIT_LEFT", 1);
+    expect(plan).toHaveLength(5);
+    expect(plan.every((e) => e.sets === 2 && e.holdSec === 30)).toBe(true);
+    expect(plan.map((e) => e.name)).toEqual([
+      "Выпад на сгибатели бедра",
+      "Голубь",
+      "Растяжка задней поверхности бедра лёжа",
+      "Растяжка квадрицепса лёжа на боку",
+      "Складка сидя",
+    ]);
+  });
+
+  it("занятие 7 — ящерица и полушпагат, 45 с", () => {
+    const plan = sessionPlan("SPLIT_LEFT", 7);
+    expect(plan.map((e) => e.name)).toEqual(expect.arrayContaining(["Ящерица", "Полушпагат"]));
+    expect(plan.every((e) => e.holdSec === 45 && e.sets === 2)).toBe(true);
+  });
+
+  it("занятие 13 — 3 подхода, квадрицепс стоя", () => {
+    const plan = sessionPlan("SPLIT_LEFT", 13);
+    expect(plan.every((e) => e.sets === 3)).toBe(true);
+    expect(plan.map((e) => e.name)).toContain("Растяжка квадрицепса стоя");
+    expect(plan.map((e) => e.name)).not.toContain("Растяжка квадрицепса лёжа на боку");
+  });
+
+  it("шпагат с опорой: 60 с на 19, 90 с на 25", () => {
+    for (const skill of ["SPLIT_LEFT", "SPLIT_RIGHT"] as const) {
+      const p19 = sessionPlan(skill, 19).find((e) => e.name === "Продольный шпагат с опорой");
+      expect(p19?.holdSec).toBe(60);
+      const p25 = sessionPlan(skill, 25);
+      expect(p25.find((e) => e.name === "Продольный шпагат с опорой")?.holdSec).toBe(90);
+      expect(p25.filter((e) => e.name !== "Продольный шпагат с опорой").every((e) => e.holdSec === 60)).toBe(true);
+    }
+    const side = sessionPlan("SPLIT_SIDE", 19).find((e) => e.name === "Поперечный шпагат с опорой");
+    expect(side?.holdSec).toBe(60);
+    expect(sessionPlan("SPLIT_SIDE", 25).find((e) => e.name === "Поперечный шпагат с опорой")?.holdSec).toBe(90);
+  });
+
+  it("левая и правая ноги — один план", () => {
+    for (let n = 1; n <= 30; n++) {
+      expect(sessionPlan("SPLIT_LEFT", n)).toEqual(sessionPlan("SPLIT_RIGHT", n));
+    }
+  });
+});
+
+describe("sessionPlan поперечный", () => {
+  it("занятие 1", () => {
+    expect(names("SPLIT_SIDE", 1)).toEqual([
+      "Бабочка",
+      "Лягушка",
+      "Широкая складка сидя",
+      "Растяжка задней поверхности бедра лёжа",
+    ]);
+  });
+  it("занятие 7 — боковой выпад и ящерица", () => {
+    expect(names("SPLIT_SIDE", 7)).toEqual(
+      expect.arrayContaining(["Боковой выпад", "Ящерица"]),
+    );
+  });
+});
+
+describe("sessionPlan общее", () => {
+  it("поддержка = занятие 30", () => {
+    for (const skill of COURSE_SKILLS) {
+      expect(sessionPlan(skill, 31)).toEqual(sessionPlan(skill, 30));
+    }
+  });
+
+  it("все упражнения есть в STRETCH_SEED", () => {
+    const seed = new Set(STRETCH_SEED.map((e) => e.name));
+    for (const skill of COURSE_SKILLS) {
+      for (let n = 1; n <= 30; n++) {
+        for (const name of names(skill, n)) expect(seed.has(name)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("sessionTitle", () => {
+  it("название занятия и поддержки", () => {
+    expect(sessionTitle(8)).toBe("Шпагат · занятие 8");
+    expect(sessionTitle(31)).toBe("Шпагат · поддержка");
+  });
+});
+
+describe("nextHoldSec", () => {
+  it("максимальное удержание занятия", () => {
+    expect(nextHoldSec("SPLIT_LEFT", 1)).toBe(30);
+    expect(nextHoldSec("SPLIT_LEFT", 7)).toBe(45);
+    expect(nextHoldSec("SPLIT_SIDE", 19)).toBe(60);
+    expect(nextHoldSec("SPLIT_SIDE", 25)).toBe(90);
+  });
+});

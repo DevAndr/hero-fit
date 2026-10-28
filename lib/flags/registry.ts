@@ -48,6 +48,10 @@ export const FLAGS = {
     description: "Растяжка: вид упражнений, раздел /stretching, цели по растяжке",
     expires: "2027-06-30",
   },
+  stretch_course: {
+    description: "Курс «Сесть на шпагат»: карточка на /stretching, занятия, напоминания",
+    expires: "2027-06-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;
