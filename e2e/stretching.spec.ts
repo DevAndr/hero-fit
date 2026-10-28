@@ -97,6 +97,31 @@ test("weekly recap: stretch minutes line from sessions and cool-downs", async ({
   await expect(page.getByTestId("recap-stretch")).toHaveText("Растяжка: 2 мин");
 });
 
+test("own one-sided stretch: zone and «each side», a set × 2, summary minutes count both sides", async ({ page }) => {
+  const u = await registerUser(page, "Своя_растяжка");
+  await addFlagUser("stretching", u.login);
+  const name = `Голубь у стены ${u.login.slice(-6)}`;
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: "Новое упражнение" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Название").fill(name);
+  await dialog.getByRole("radio", { name: "Растяжка" }).click();
+  await dialog.getByRole("button", { name: "Тазобедренные", exact: true }).click();
+  await dialog.getByRole("checkbox", { name: "Одностороннее (каждая сторона)" }).check();
+  await dialog.getByRole("button", { name: "Добавить" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, [name]);
+  await expect(page.getByRole("region", { name })).toContainText("каждая сторона");
+  await holdDone(page, name, "1:30");
+  await finish(page);
+  // Подход — «1:30 × 2», минуты растяжки — обе стороны: 2 × 1:30 = 3 мин
+  await expect(page.getByRole("main").getByText("1:30 × 2", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("summary-stretch")).toContainText("3 мин");
+});
+
 test("without the flag there is no stretch menu, page or catalog entries", async ({ page }) => {
   await registerUser(page, "Без_флага");
   await page.goto("/dashboard");

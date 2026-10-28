@@ -47,9 +47,9 @@ const recordValue = (type: RecordType, v: number) => (type === "MAX_REPS" ? `${v
 const finishedLabel = (date: Date, timeZone: string) =>
   new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone }).format(date);
 
-function Stat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
+function Stat({ icon: Icon, label, value, testId }: { icon: typeof Clock; label: string; value: string; testId?: string }) {
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4" data-testid={testId}>
       <Icon className="size-4 text-muted-foreground" />
       <p className="mt-2 text-2xl font-black tabular-nums">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -251,7 +251,7 @@ export function WorkoutSummaryView({
         )}
         <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
         {cardio.stretchSec > 0 ? (
-          <Stat icon={PersonStanding} label="Растяжка" value={`${stretchMinutes(cardio.stretchSec)} мин`} />
+          <Stat icon={PersonStanding} label="Растяжка" value={`${stretchMinutes(cardio.stretchSec)} мин`} testId="summary-stretch" />
         ) : null}
         {cardio.workSec > 0 ? (
           <Stat
