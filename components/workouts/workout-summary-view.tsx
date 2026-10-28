@@ -25,6 +25,7 @@ import { workoutTotals } from "@/lib/workouts/schema";
 import { workoutStreakCaption } from "@/lib/progress/streak-copy";
 import type { FinishMeta } from "@/lib/workouts/finish";
 import type { getWorkoutSummary } from "@/lib/workouts/queries";
+import { stretchMinutes } from "@/lib/stats/stretch";
 import { cn } from "@/lib/utils";
 
 export type WorkoutSummary = NonNullable<Awaited<ReturnType<typeof getWorkoutSummary>>>;
@@ -250,7 +251,7 @@ export function WorkoutSummaryView({
         )}
         <Stat icon={Dumbbell} label="Упражнения" value={String(workout.exercises.length)} />
         {cardio.stretchSec > 0 ? (
-          <Stat icon={PersonStanding} label="Растяжка" value={`${Math.max(1, Math.round(cardio.stretchSec / 60))} мин`} />
+          <Stat icon={PersonStanding} label="Растяжка" value={`${stretchMinutes(cardio.stretchSec)} мин`} />
         ) : null}
         {cardio.workSec > 0 ? (
           <Stat

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { topZones } from "@/lib/stats/stretch";
+import { stretchMinutes, topZones } from "@/lib/stats/stretch";
 
 describe("topZones", () => {
   it("считает минуты по основной (первой) зоне, по убыванию", () => {
@@ -22,5 +22,17 @@ describe("topZones", () => {
 
   it("игнорирует строки без зон и без времени", () => {
     expect(topZones([{ zones: [], sec: 90 }, { zones: ["NECK"], sec: 0 }])).toEqual([]);
+  });
+});
+
+describe("stretchMinutes — минуты удержания вниз, как XP", () => {
+  it("округляет вниз", () => {
+    expect(stretchMinutes(89)).toBe(1);
+    expect(stretchMinutes(119)).toBe(1);
+    expect(stretchMinutes(120)).toBe(2);
+  });
+  it("меньше минуты — 0 (минимум не навязывается)", () => {
+    expect(stretchMinutes(59)).toBe(0);
+    expect(stretchMinutes(0)).toBe(0);
   });
 });

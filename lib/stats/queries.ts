@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 import { progressionHint, type ProgressionHint } from "@/lib/progress/progression";
 import { bestOfSets, epley1RM, LOWER_IS_BETTER } from "@/lib/progress/records";
-import { topZones } from "@/lib/stats/stretch";
+import { stretchMinutes, topZones } from "@/lib/stats/stretch";
 import { REP_RANGES, type RepRangeRow } from "@/lib/stats/ranges";
 import {
   activityGrid,
@@ -424,14 +424,14 @@ export async function getStretchStats(userId: string, timeZone: string): Promise
     if (r.day >= monday) add(windows.week, r.workoutId, r.sec);
   }
   const win = (m: Map<string, number>): StretchWindow => ({
-    minutes: Math.round([...m.values()].reduce((a, b) => a + b, 0) / 60),
+    minutes: stretchMinutes([...m.values()].reduce((a, b) => a + b, 0)),
     sessions: m.size,
   });
   return {
     week: win(windows.week),
     days7: win(windows.days7),
     days30: win(windows.days30),
-    topZones: topZones(rows.map((r) => ({ zones: r.zones, sec: r.sec }))).map((z) => ({ ...z, minutes: Math.round(z.minutes) })),
+    topZones: topZones(rows.map((r) => ({ zones: r.zones, sec: r.sec }))).map((z) => ({ ...z, minutes: Math.floor(z.minutes) })),
     hasHistory: has,
   };
 }
