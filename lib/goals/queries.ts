@@ -79,6 +79,7 @@ export async function getCurrentValues(client: Client, userId: string, goals: Go
           where: {
             userId,
             status: WorkoutStatus.COMPLETED,
+            stretchOnly: false, // сессии растяжки — не тренировки и не часы в зале
             finishedAt: { gte: g.createdAt, ...(g.deadline ? { lt: deadlineEnd(g.deadline, tz) } : {}) },
           },
           _count: { _all: true },

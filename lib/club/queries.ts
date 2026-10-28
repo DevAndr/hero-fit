@@ -129,7 +129,7 @@ export async function getClubRating(clubId: string, viewerId: string, timeZone: 
            ), 0)::int AS xp,
            (
              SELECT COUNT(*) FROM "Workout" w
-             WHERE w."userId" = u.id AND w.status = 'COMPLETED'
+             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
                AND (w."finishedAt" AT TIME ZONE 'UTC') >= b.start_at AND (w."finishedAt" AT TIME ZONE 'UTC') < b.end_at
            )::int AS workouts
     FROM "ClubMember" m JOIN "User" u ON u.id = m."userId", b

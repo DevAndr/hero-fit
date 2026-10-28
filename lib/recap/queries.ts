@@ -30,7 +30,7 @@ const bounds = (week: string, tz: string) => ({ start: localMidnight(week, tz), 
 
 async function weekWorkouts(userId: string, start: Date, end: Date) {
   return db.workout.findMany({
-    where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: start, lt: end } },
+    where: { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false, finishedAt: { gte: start, lt: end } },
     select: { id: true, durationSec: true, totalVolume: true, totalSets: true, finishedAt: true },
     orderBy: { finishedAt: "asc" },
   });
@@ -48,7 +48,7 @@ async function leagueMembers(userId: string, start: Date, end: Date): Promise<Re
            ), 0)::int AS xp,
            (
              SELECT COUNT(*) FROM "Workout" w
-             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
+             WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w."finishedAt" >= ${start} AND w."finishedAt" < ${end}
            )::int AS workouts
     FROM "User" u
     WHERE u.id = ANY(${[userId, ...friends]})
@@ -183,7 +183,7 @@ export async function loadRecapInput(userId: string, week: string, tz: string): 
 export async function createRecap(userId: string, week: string, tz: string): Promise<boolean> {
   // Дешёвая проверка до тяжёлого сбора (процентиль, лига, календарь): пустая неделя — итогов нет
   const { start, end } = bounds(week, tz);
-  const any = await db.workout.findFirst({ where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: start, lt: end } }, select: { id: true } });
+  const any = await db.workout.findFirst({ where: { userId, status: WorkoutStatus.COMPLETED, stretchOnly: false, finishedAt: { gte: start, lt: end } }, select: { id: true } });
   if (!any) return false;
   const data = buildRecap(await loadRecapInput(userId, week, tz));
   if (!data) return false;

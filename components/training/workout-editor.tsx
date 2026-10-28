@@ -459,7 +459,7 @@ function Editor({ workout, exercises, last, hints, coachTargets, plan, boss, tar
 
             <RecoveryLine view={whoop} onLighten={canLighten ? lighten : undefined} />
 
-            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={liveSets(state)} /> : null}
+            {goblinOn && goblin ? <GoblinBanner spawnedAt={goblin.spawnedAt} sets={liveSets({ ...state, exercises: state.exercises.filter((e) => e.exercise.kind !== "STRETCH") })} /> : null}
 
             <ExerciseDropList empty={state.exercises.length === 0}>
               {state.exercises.map((item, index) => {

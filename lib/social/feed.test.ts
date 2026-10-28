@@ -89,6 +89,15 @@ describe("toFeedEntry", () => {
     const e = toFeedEntry(row({ meta: null, exercises: null, durationSec: null }), "viewer");
     expect(e).toMatchObject({ respects: [], achievements: [], levelUp: null, streakMilestone: null, exercises: [], durationSec: 0 });
   });
+
+  it("stretch session: «Растяжка · N мин» by hold minutes (at least 1), no volume", () => {
+    const stretch = (stretchSec: number) =>
+      toFeedEntry(row({ totalVolume: 0, meta: { stretchOnly: true, stretchSec, levelBefore: 3, levelAfter: 3 } }), "viewer");
+    expect(stretch(750)).toMatchObject({ stretchMin: 12, volume: null });
+    expect(stretch(30).stretchMin).toBe(1);
+    // Силовая с заминкой — обычная карточка
+    expect(toFeedEntry(row({ meta: { stretchSec: 300 } }), "viewer")).toMatchObject({ stretchMin: null, volume: 6200 });
+  });
 });
 
 describe("streakMilestone", () => {

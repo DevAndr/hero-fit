@@ -38,8 +38,10 @@ async function exerciseStats(client: Client, userId: string): Promise<ExerciseSt
       FROM "WorkoutSet" s
       JOIN "WorkoutExercise" we ON we.id = s."workoutExerciseId"
       JOIN "Workout" w ON w.id = we."workoutId"
+      JOIN "Exercise" ex ON ex.id = we."exerciseId"
       WHERE w."userId" = ${userId}
         AND w.status = 'COMPLETED'
+        AND ex.kind <> 'STRETCH' -- удержания растяжки — не подходы для «Сет-героя»
         AND s."isWarmup" = false
         AND s."completedAt" IS NOT NULL
         AND (s.reps > 0 OR s."durationSec" > 0) -- подходы на время и кардио тоже в счёт («Сет-герой»)
@@ -110,7 +112,7 @@ async function workoutTotals(client: Client, userId: string, tz: string): Promis
              EXTRACT(HOUR FROM ("startedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}) AS hour,
              EXTRACT(EPOCH FROM "finishedAt" - LAG("finishedAt") OVER (ORDER BY "finishedAt")) / 86400 AS gap
       FROM "Workout"
-      WHERE "userId" = ${userId} AND status = 'COMPLETED'
+      WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly" -- сессия растяжки — не тренировка
     )
     SELECT COUNT(*)::int AS workouts,
            COALESCE(SUM("totalVolume"), 0)::float AS volume,
@@ -134,7 +136,7 @@ async function weekStats(client: Client, userId: string, tz: string) {
       WITH w AS (
         SELECT id, date_trunc('week', ("finishedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}) AS week
         FROM "Workout"
-        WHERE "userId" = ${userId} AND status = 'COMPLETED'
+        WHERE "userId" = ${userId} AND status = 'COMPLETED' AND NOT "stretchOnly"
       )
       SELECT to_char(w.week, 'YYYY-MM-DD') AS week,
              COUNT(DISTINCT w.id)::int AS workouts,
@@ -162,14 +164,14 @@ async function varietyStats(client: Client, userId: string) {
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
       JOIN "Exercise" e ON e.id = we."exerciseId"
-      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND cardinality(e."muscleGroups") > 0
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND cardinality(e."muscleGroups") > 0
       GROUP BY 1
     `,
     client.$queryRaw<{ n: number }[]>`
       SELECT COUNT(DISTINCT we."exerciseId")::int AS n
       FROM "Workout" w
       JOIN "WorkoutExercise" we ON we."workoutId" = w.id
-      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED'
+      WHERE w."userId" = ${userId} AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
     `,
   ]);
   return {

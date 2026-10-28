@@ -75,7 +75,7 @@ export async function getClubPublicStats(clubId: string, now = new Date()): Prom
       COUNT(w.id)::int AS month,
       COALESCE(SUM(w."durationSec"), 0)::int AS "monthSec"
     FROM "ClubMember" m
-    JOIN "Workout" w ON w."userId" = m."userId" AND w.status = 'COMPLETED'
+    JOIN "Workout" w ON w."userId" = m."userId" AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
       AND w."finishedAt" >= m."joinedAt" AND w."finishedAt" >= ${month}
     WHERE m."clubId" = ${clubId}
   `;
@@ -98,7 +98,7 @@ export async function getCityClubs(citySlug: string, now = new Date()): Promise<
   const counts = await db.$queryRaw<{ clubId: string; week: number }[]>`
     SELECT m."clubId", COUNT(w.id)::int AS week
     FROM "ClubMember" m
-    JOIN "Workout" w ON w."userId" = m."userId" AND w.status = 'COMPLETED'
+    JOIN "Workout" w ON w."userId" = m."userId" AND w.status = 'COMPLETED' AND NOT w."stretchOnly"
       AND w."finishedAt" >= m."joinedAt" AND w."finishedAt" >= ${since}
     WHERE m."clubId" = ANY(${clubs.map((c) => c.id)})
     GROUP BY m."clubId"

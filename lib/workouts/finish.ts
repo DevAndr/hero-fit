@@ -251,7 +251,8 @@ export async function finishWorkout(
     });
 
     // Монеты: строка пользователя заблокирована UPDATE выше — лимит «2 тренировки в день» не обойти гонкой двух финишей.
-    // День — местный день finishedAt (офлайн-финиш задним числом считается по своему дню).
+    // День — местный день finishedAt (офлайн-финиш задним числом считается по своему дню). Сессия растяжки монет за
+    // тренировку не даёт и лимит дня не тратит.
     const workingSets = workout.exercises.reduce((n, we) => n + we.sets.filter((s) => !s.isWarmup && isDoneSet(we.exercise.kind, s)).length, 0);
     const day = dayKey(now, tz);
     const levelBefore = levelProgress(user.xp).level;
@@ -262,6 +263,7 @@ export async function finishWorkout(
         workoutId,
         day,
         workingSets,
+        stretchOnly,
         paidToday: await paidWorkoutsToday(tx, userId, day),
         records,
         streakWeek: streak.extended ? week : null,
@@ -278,12 +280,13 @@ export async function finishWorkout(
     );
     const boss = stretchOnly ? undefined : await applyBoss(tx, { userId, workoutId, week, tz, now, hit });
 
-    // Золотой гоблин: 3 рабочих подхода за 10 минут с появления — пойман (условие по caughtAt — без повторов)
+    // Золотой гоблин: 3 рабочих подхода за 10 минут с появления — пойман (условие по caughtAt — без повторов).
+    // В сессии растяжки гоблина нет (удержания его не вызывают и не ловят)
     let goblin: FinishMeta["goblin"];
-    if (opts.goblin) {
+    if (opts.goblin && !stretchOnly) {
       const encounter = await tx.goblinEncounter.findUnique({ where: { workoutId }, select: { id: true, spawnedAt: true, caughtAt: true } });
       if (encounter) {
-        const { caught } = goblinProgress(encounter.spawnedAt, workout.exercises.flatMap((e) => e.sets), now);
+        const { caught } = goblinProgress(encounter.spawnedAt, workout.exercises.flatMap((e) => (e.exercise.kind === "STRETCH" ? [] : e.sets)), now);
         if (caught && !encounter.caughtAt) {
           await tx.goblinEncounter.updateMany({ where: { id: encounter.id, caughtAt: null }, data: { caughtAt: now } });
         }
@@ -312,8 +315,8 @@ export async function finishWorkout(
 
     // Ачивки считаются по уже обновлённым данным (новая тренировка, streak, босс) и сами начисляют свой XP.
     // Своя тренировка не двигает лестницы тренера — их SQL в транзакции завершения не нужен
-    // Сессия растяжки ачивки «N тренировок/подходов» не двигает — ачивки не проверяем (догонят при следующей проверке)
-    const unlocked = stretchOnly ? { achievements: [], xp: 0, coins: [] } : await evaluateAchievements(tx, userId, { coach: false });
+    // Сессия растяжки счётчики «N тренировок/подходов» не двигает (их SQL её не видит), а ачивки целей и рекордов — да
+    const unlocked = await evaluateAchievements(tx, userId, { coach: false });
 
     const coinItems = toLines([...coinGrants, ...unlocked.coins]);
     const coinTotal = coinItems.reduce((n, c) => n + c.amount, 0);
