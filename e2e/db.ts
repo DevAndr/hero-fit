@@ -2063,3 +2063,31 @@ export async function courseReminderPushes(login: string) {
     return Number(rows[0].n);
   });
 }
+
+/** Идущая тренировка с заданным стартом и последним сохранением (забытые тренировки); возвращает id. */
+export async function staleWorkoutRow(login: string, startedAt: Date, updatedAt: Date) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "createdAt", "updatedAt") values ($1, $2, 'Забытая', 'IN_PROGRESS', $3, $3, $4)`,
+      [id, await userId(db, login), startedAt, updatedAt],
+    );
+    return id;
+  });
+}
+
+export async function workoutStatus(id: string) {
+  return withDb(async (db) => (await db.query<{ status: string }>(`select status from "Workout" where id = $1`, [id])).rows[0]?.status);
+}
+
+/** Уведомления WORKOUT пользователя: заголовок, текст и ушли ли в очередь push. */
+export async function workoutNotifications(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string; pushed: boolean }>(
+      `select n.title, n.body, exists (select 1 from "ScheduledPush" p where p."userId" = n."userId" and p.type = 'WORKOUT' and p.title = n.title) as pushed
+       from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 and n.type = 'WORKOUT' order by n."createdAt"`,
+      [login],
+    );
+    return rows;
+  });
+}

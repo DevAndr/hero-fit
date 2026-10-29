@@ -112,6 +112,7 @@ enum NotificationType {
   COURSE_REMINDER // напоминание о занятии курса «Сесть на шпагат»
   FEEDBACK // обратная связь: обращение сделано или отклонено
   COMEBACK // рассылки «вернись»
+  WORKOUT // забытая тренировка: «не завершена», отменена через сутки
 }
 
 /// Совместная тренировка (lib/together): приглашение 15 минут, сессия — до 4 часов после принятия
@@ -557,6 +558,8 @@ model Workout {
   stretchOnly        Boolean       @default(false)
   /// когда тренеру ушло уведомление об оценке (одно на тренировку)
   feedbackNotifiedAt DateTime?
+  /// когда напомнили «тренировка не завершена» (lib/workouts/stale.ts, одно на тренировку)
+  staleRemindedAt    DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -581,6 +584,7 @@ model Workout {
 
   @@index([userId, status])
   @@index([userId, finishedAt])
+  @@index([status, startedAt]) // тик забытых тренировок
 }
 
 model WorkoutExercise {

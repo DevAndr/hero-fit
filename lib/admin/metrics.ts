@@ -1,6 +1,7 @@
 /** Метрики админки: чистые преобразования рядов и когорт (даты — строки YYYY-MM-DD, арифметика в UTC). */
 
 import { addDays } from "@/lib/dates";
+import { STALE_REMIND_HOURS } from "@/lib/workouts/stale";
 
 export type DayPoint = { day: string; value: number };
 export type HourPoint = { hour: number; value: number };
@@ -16,7 +17,7 @@ export type CohortRow = {
 const COHORT_WEEKS = 7;
 
 /** Тренировка «идёт сейчас», если запущена не раньше стольких часов назад; старше — забытая (не завершили). */
-export const ACTIVE_WORKOUT_HOURS = 4;
+export const ACTIVE_WORKOUT_HOURS = STALE_REMIND_HOURS;
 
 export function parseRange(raw: string | string[] | undefined): 30 | 90 {
   return raw === "90" ? 90 : 30;
