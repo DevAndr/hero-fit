@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Bell, CalendarDays, ClipboardList, Dumbbell, Flame, Info, Shield, Swords, Target, Timer, Trophy, Users, type LucideIcon, MessageSquare, StretchHorizontal } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, ClipboardList, Dumbbell, Flame, Hourglass, Info, Shield, Swords, Target, Timer, Trophy, Users, type LucideIcon, MessageSquare, StretchHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; color: string }> = {
   RAID: { icon: Shield, color: "text-streak" },
   FEEDBACK: { icon: MessageSquare, color: "text-primary" },
   COMEBACK: { icon: Dumbbell, color: "text-primary" },
+  WORKOUT: { icon: Hourglass, color: "text-muted-foreground" },
 };
 
 const relative = new Intl.RelativeTimeFormat("ru-RU", { numeric: "auto" });

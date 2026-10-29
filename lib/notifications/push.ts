@@ -34,6 +34,7 @@ const TAGS: Record<NotificationType, string> = {
   COURSE_REMINDER: "hero-fit-course",
   FEEDBACK: "hero-fit-feedback",
   COMEBACK: "hero-fit-comeback",
+  WORKOUT: "hero-fit-workout",
 };
 
 /** Шлёт push на все устройства пользователя; подписки, которых больше нет (404/410), удаляет. */
