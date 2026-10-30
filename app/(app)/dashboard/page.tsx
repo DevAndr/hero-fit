@@ -52,6 +52,8 @@ import { restoreOffer, streakStatus, streakValue, STREAK_WEEK_TARGET, type Resto
 import { cn } from "@/lib/utils";
 import { isEnabled } from "@/lib/flags/server";
 import { DashboardInvite } from "@/components/together/dashboard-invite";
+import { SiteLoginHintCard } from "@/components/telegram/site-login-hint-card";
+import { showSiteLoginHint } from "@/lib/telegram/site-login-hint-queries";
 import { pendingInviteFor } from "@/lib/together/queries";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
@@ -343,7 +345,7 @@ export default async function DashboardPage() {
     </section>
   );
 
-  const v3data = await getDashboardV3({ id: user.id, timeZone: userTz }, now);
+  const [v3data, siteLoginHint] = await Promise.all([getDashboardV3({ id: user.id, timeZone: userTz }, now), showSiteLoginHint(user.id, now)]);
   return (
     <>
       {programs ? <OnboardingTour programs={programs} /> : null}
@@ -352,6 +354,7 @@ export default async function DashboardPage() {
         hero={<WeekHero {...heroProps} strip={v3data.strip} />}
         today={
           <>
+            {siteLoginHint ? <SiteLoginHintCard /> : null}
             {togetherInvite ? <DashboardInvite invite={togetherInvite} /> : null}
             {todayPlan}
             {coachBlock}

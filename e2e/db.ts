@@ -2091,3 +2091,8 @@ export async function workoutNotifications(login: string) {
     return rows;
   });
 }
+
+/** Дата регистрации пользователя (подсказки «через N дней»). */
+export async function setCreatedAt(login: string, createdAt: Date) {
+  await withDb((db) => db.query(`update "User" set "createdAt" = $2 where login = $1`, [login, createdAt]));
+}

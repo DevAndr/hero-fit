@@ -11,7 +11,7 @@ import { setSiteLoginAction, type FormState } from "@/lib/auth/actions";
 export function SiteLoginForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(setSiteLoginAction, {});
   return (
-    <section aria-label="Вход на сайте" className="space-y-3 rounded-xl border bg-card p-4">
+    <section id="site-login" aria-label="Вход на сайте" className="space-y-3 rounded-xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-bold">
         <KeyRound className="size-4 text-primary" />
         Вход на сайте
