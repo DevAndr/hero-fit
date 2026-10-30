@@ -20,6 +20,7 @@ import { processGoals } from "@/lib/goals/tick";
 import { processCourseReminders } from "@/lib/stretching/course-tick";
 import { processCampaigns } from "@/lib/campaigns/tick";
 import { processStaleWorkouts } from "@/lib/workouts/stale-tick";
+import { processSiteLoginHints } from "@/lib/telegram/site-login-hint-queries";
 
 type Client = Prisma.TransactionClient;
 
@@ -221,7 +222,7 @@ export async function processPlanReminders(now = new Date()) {
 let lastErrorsPrune = 0;
 
 /** Шаги тика, которые e2e может запустить по одному (`?only=`): тик с тестовыми часами в будущем иначе прогоняет все шаги по всей тестовой базе и задевает соседние тесты. */
-export const TICK_STEPS = ["reminders", "recaps", "signals", "coachRecaps", "programs", "raids", "goals", "course", "campaigns", "stale"] as const;
+export const TICK_STEPS = ["reminders", "recaps", "signals", "coachRecaps", "programs", "raids", "goals", "course", "campaigns", "stale", "siteLogin"] as const;
 export type TickStep = (typeof TICK_STEPS)[number];
 
 /**
@@ -302,6 +303,12 @@ export async function runNotificationTick(now?: Date, only?: TickStep) {
     if (stale) pushes += await processDuePushes();
   } catch (e) {
     console.error("[stale] шаг забытых тренировок упал", e);
+  }
+  if (step("siteLogin")) try {
+    // Аккаунты из Mini App без пароля: одна запись в ленте «Задайте пароль для входа на сайте»
+    reminders += await processSiteLoginHints(at);
+  } catch (e) {
+    console.error("[site-login] шаг подсказки пароля упал", e);
   }
   if (!only) try {
     // Журнал ошибок: раз в сутки — чистка старше 30 дней

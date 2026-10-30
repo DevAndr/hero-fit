@@ -245,6 +245,9 @@ model User {
   telegramId         BigInt?   @unique
   telegramUsername   String?
   telegramLinkedAt   DateTime?
+  /// подсказка «Задайте пароль для входа на сайте» (lib/telegram/site-login-hint.ts): запись в ленте ушла / карточку скрыли
+  siteLoginHintAt       DateTime?
+  siteLoginHintHiddenAt DateTime?
   notifyTelegram     Boolean   @default(true)
   /// за сколько минут до плана напоминать: 15 | 30 | 60 | 120
   planReminderMin    Int       @default(60)
