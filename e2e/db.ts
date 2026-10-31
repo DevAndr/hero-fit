@@ -2098,14 +2098,37 @@ export async function setCreatedAt(login: string, createdAt: Date) {
 }
 
 /** Анкета питания напрямую (рост, год рождения, активность, цель). */
-export async function setNutritionProfile(login: string, p: { heightCm: number; birthYear: number; activityLevel: string; nutritionGoal: string }) {
+export async function setNutritionProfile(login: string, p: { heightCm: number; birthYear: number; activityLevel: string; nutritionGoal: string; gender?: "MALE" | "FEMALE" }) {
   await withDb((db) =>
-    db.query(`update "User" set "heightCm" = $2, "birthYear" = $3, "activityLevel" = $4::"ActivityLevel", "nutritionGoal" = $5::"NutritionGoal" where login = $1`, [
-      login,
-      p.heightCm,
-      p.birthYear,
-      p.activityLevel,
-      p.nutritionGoal,
+    db.query(
+      `update "User" set "heightCm" = $2, "birthYear" = $3, "activityLevel" = $4::"ActivityLevel", "nutritionGoal" = $5::"NutritionGoal", gender = coalesce($6::"Gender", gender) where login = $1`,
+      [login, p.heightCm, p.birthYear, p.activityLevel, p.nutritionGoal, p.gender ?? null],
+    ),
+  );
+}
+
+/** Запись дневника питания напрямую; createdAt — для порядка и «Недавних». */
+export async function addFoodEntry(login: string, e: { date: string; meal: string; name: string; kcal: number; protein?: number; createdAt?: Date }) {
+  await withDb(async (db) =>
+    db.query(`insert into "FoodEntry" (id, "userId", date, meal, name, kcal, protein, "createdAt") values ($1, $2, $3, $4::"Meal", $5, $6, $7, $8)`, [
+      randomUUID(),
+      await userId(db, login),
+      e.date,
+      e.meal,
+      e.name,
+      e.kcal,
+      e.protein ?? null,
+      e.createdAt ?? new Date(),
     ]),
   );
+}
+
+export async function foodEntries(login: string, date: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; meal: string; kcal: number }>(
+      `select name, meal::text, kcal from "FoodEntry" where "userId" = (select id from "User" where login = $1) and date = $2 order by "createdAt"`,
+      [login, date],
+    );
+    return rows;
+  });
 }

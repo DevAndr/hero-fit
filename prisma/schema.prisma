@@ -31,6 +31,14 @@ enum NutritionGoal {
   GAIN
 }
 
+/// Приём пищи в дневнике питания
+enum Meal {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
 enum MuscleGroup {
   CHEST // Грудь
   LEGS // Ноги
@@ -351,6 +359,7 @@ model User {
   stretchMeasurements        StretchMeasurement[]
   campaignSends              CampaignSend[]
   bodyWeights                BodyWeightEntry[]
+  foodEntries                FoodEntry[]
   errorEvents                ErrorEvent[]
   goblinEncounters           GoblinEncounter[]
   /// последнее появление Золотого гоблина — пауза 14 дней (не сбрасывается отменой тренировки)
@@ -1379,6 +1388,24 @@ model BodyWeightEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+/// Запись дневника питания (спека 2026-10-31-nutrition-diary): ккал вручную, Б/Ж/У — по желанию
+model FoodEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String // местная дата "YYYY-MM-DD"
+  meal      Meal
+  name      String // 1…80
+  kcal      Int // 0…5000
+  protein   Float? // г, 0…500
+  fat       Float?
+  carbs     Float?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }
 
 /// День посещения кабинета (местный день пользователя) — метрики админки (lib/admin/metrics-queries.ts).
