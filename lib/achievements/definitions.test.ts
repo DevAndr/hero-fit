@@ -459,7 +459,7 @@ describe("nextGoals — hidden categories", () => {
 describe("nutrition achievements", () => {
   const codes = (stats: AchievementStats) => earnedAchievements(stats).filter((a) => a.category === "NUTRITION");
   it("diary streak and days in norm, small XP", () => {
-    const got = codes({ ...EMPTY_STATS, nutrition: { enabled: true, longestDiaryStreak: 7, normDays: 7 } });
+    const got = codes({ ...EMPTY_STATS, nutrition: { enabled: true, longestDiaryStreak: 7, currentDiaryStreak: 7, normDays: 7 } });
     expect(got.map((a) => [a.code, a.xpReward])).toEqual([
       ["diary:3", 15],
       ["diary:7", 30],
@@ -467,10 +467,14 @@ describe("nutrition achievements", () => {
     ]);
   });
   it("nothing without the nutrition flag", () => {
-    expect(codes({ ...EMPTY_STATS, nutrition: { enabled: false, longestDiaryStreak: 30, normDays: 30 } })).toEqual([]);
+    expect(codes({ ...EMPTY_STATS, nutrition: { enabled: false, longestDiaryStreak: 30, currentDiaryStreak: 30, normDays: 30 } })).toEqual([]);
+  });
+  it("the streak goal follows the current streak, not the best one", () => {
+    const goals = nextGoals({ ...EMPTY_STATS, nutrition: { enabled: true, longestDiaryStreak: 2, currentDiaryStreak: 0, normDays: 0 } });
+    expect(goals.find((g) => g.code === "diary:3")).toMatchObject({ current: 0, target: 3 });
   });
   it("not shown as goals without the flag", () => {
-    const goals = nextGoals({ ...EMPTY_STATS, nutrition: { enabled: false, longestDiaryStreak: 2, normDays: 2 } });
+    const goals = nextGoals({ ...EMPTY_STATS, nutrition: { enabled: false, longestDiaryStreak: 2, currentDiaryStreak: 2, normDays: 2 } });
     expect(goals.some((g) => g.category === "NUTRITION")).toBe(false);
   });
 });

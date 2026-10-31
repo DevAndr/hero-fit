@@ -105,7 +105,7 @@ export type AchievementStats = {
   /** Тренерские счётчики из истории (lib/achievements/coach-stats.ts). */
   coach: CoachAchievementStats;
   /** Дневник питания (флаг nutrition): лучшая серия зачётных дней и дни в норме (lib/nutrition/streak.ts). */
-  nutrition: { enabled: boolean; longestDiaryStreak: number; normDays: number };
+  nutrition: { enabled: boolean; longestDiaryStreak: number; currentDiaryStreak: number; normDays: number };
 };
 
 /** Счётчики тренера по окнам связи CoachLink (lib/achievements/coach-stats.ts). */
@@ -212,7 +212,7 @@ export const EMPTY_STATS: AchievementStats = {
   goalsAchieved: 0,
   coachMode: false,
   coach: EMPTY_COACH_STATS,
-  nutrition: { enabled: false, longestDiaryStreak: 0, normDays: 0 },
+  nutrition: { enabled: false, longestDiaryStreak: 0, currentDiaryStreak: 0, normDays: 0 },
 };
 
 export const WORKOUT_STEP = 5;
@@ -995,7 +995,9 @@ function nutritionLadders(s: AchievementStats): Ladder[] {
   return [
     {
       fixed: [3, 7, 30],
+      // Получение — по лучшей серии, цель — по текущей (как у недельного streak): заброшенная серия не висит «2/3»
       value: on ? s.nutrition.longestDiaryStreak : 0,
+      goalValue: on ? s.nutrition.currentDiaryStreak : 0,
       goal: on,
       def: (n) =>
         def(n, { code: `diary:${n}`, category: "NUTRITION", title: DIARY_TITLES[n], description: `${n} ${plural(n, "день", "дня", "дней")} подряд с дневником питания`, xpReward: DIARY_XP[n] }),
