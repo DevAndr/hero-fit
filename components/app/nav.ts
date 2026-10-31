@@ -1,4 +1,4 @@
-import { Building2, Store, UserSearch, CalendarDays, CalendarRange, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, LibraryBig, ListChecks, Shield, StretchHorizontal, Swords, Target, Trophy, Users } from "lucide-react";
+import { Apple, Building2, Store, UserSearch, CalendarDays, CalendarRange, ChartColumn, ClipboardCheck, ClipboardList, Dumbbell, LayoutDashboard, LibraryBig, ListChecks, Shield, StretchHorizontal, Swords, Target, Trophy, Users } from "lucide-react";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Кабинет", icon: LayoutDashboard, mobile: true },
@@ -34,4 +34,7 @@ export const TRAINERS_NAV_ITEM = { href: "/trainers", label: "Найти тре�
 export const PROGRAMS_NAV_ITEM = { href: "/programs", label: "Каталог программ", icon: LibraryBig, mobile: false } as const;
 
 /** Растяжка (флаг `stretching`): в боковом меню после «Упражнений», на телефоне — в меню профиля. */
+/** Питание (флаг `nutrition`): в боковом меню после «Целей», на телефоне — в меню профиля. */
+export const NUTRITION_NAV_ITEM = { href: "/nutrition", label: "Питание", icon: Apple, mobile: false } as const;
+
 export const STRETCH_NAV_ITEM = { href: "/stretching", label: "Растяжка", icon: StretchHorizontal, mobile: false } as const;

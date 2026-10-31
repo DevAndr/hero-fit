@@ -10,6 +10,8 @@ import { RecordCardDialog } from "@/components/workouts/record-card-dialog";
 import { ShareStoryButton } from "@/components/workouts/share-story-button";
 import { UpdateTemplateButton } from "@/components/workouts/update-template-button";
 import { WhoopCard } from "@/components/workouts/whoop-card";
+import { BurnTile } from "@/components/nutrition/burn-tile";
+import { getWorkoutBurn } from "@/lib/nutrition/queries";
 import { WorkoutFeedback } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
@@ -53,6 +55,8 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   // Пульс и strain из WHOOP — только владельцу (страница и так только его), при флаге и подключении
   const whoopCard = (await whoopAvailable(user.id)) ? await getWhoopCard(user.id, workout) : null;
   const together = (await isEnabled("together", user.id)) ? await getTogetherSummary(user.id, workout.id) : null;
+  // Оценка расхода (флаг nutrition) — только без WHOOP-карточки: у неё свои ккал
+  const burn = !whoopCard && (await isEnabled("nutrition", user.id)) ? await getWorkoutBurn(user.id, workout.id, safeTimeZone(user.timeZone)) : null;
   // Карточки рекордов — по тумблеру в /settings; сами всплывают только у только что завершённой тренировки
   const { shareRecordCards } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { shareRecordCards: true } });
   const recordExercises = shareRecordCards && meta?.records.length ? bestRecordPerExercise(meta.records, false).map((r) => r.exerciseName) : [];
@@ -71,10 +75,11 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       goalChests={goalChests}
       exerciseHref={(exerciseId) => `/stats/exercises/${exerciseId}`}
       wearable={
-        whoopCard || together ? (
+        whoopCard || together || burn ? (
           <div className="space-y-4">
             {together ? <TogetherSummaryBlock summary={together} /> : null}
             {whoopCard ? <WhoopCard workoutId={workout.id} initial={whoopCard} /> : null}
+            {burn ? <BurnTile kcal={burn.kcal} /> : null}
           </div>
         ) : null
       }

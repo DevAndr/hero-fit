@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { CLUB_NAV_ITEM, COACH_CALENDAR_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, PROGRAMS_NAV_ITEM, SHOP_NAV_ITEM, STRETCH_NAV_ITEM, TRAINERS_NAV_ITEM } from "@/components/app/nav";
+import { CLUB_NAV_ITEM, COACH_CALENDAR_NAV_ITEM, COACH_NAV_ITEM, NAV_ITEMS, NUTRITION_NAV_ITEM, PROGRAMS_NAV_ITEM, SHOP_NAV_ITEM, STRETCH_NAV_ITEM, TRAINERS_NAV_ITEM } from "@/components/app/nav";
 import { useFlag } from "@/components/flags/flags-provider";
 
 function useIsActive() {
@@ -17,6 +17,7 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
   const stretching = useFlag("stretching");
+  const nutrition = useFlag("nutrition");
   const trainers = !isCoach;
   type Item =
     | (typeof NAV_ITEMS)[number]
@@ -25,11 +26,13 @@ export function SidebarNav({ isCoach }: { isCoach: boolean }) {
     | typeof COACH_CALENDAR_NAV_ITEM
     | typeof SHOP_NAV_ITEM
     | typeof STRETCH_NAV_ITEM
+    | typeof NUTRITION_NAV_ITEM
     | typeof PROGRAMS_NAV_ITEM
     | typeof TRAINERS_NAV_ITEM;
   const base: Item[] = NAV_ITEMS.flatMap((item): Item[] => {
     if (item.href === "/exercises" && stretching) return [item, STRETCH_NAV_ITEM];
     if (item.href === "/templates" && catalog) return [item, PROGRAMS_NAV_ITEM];
+    if (item.href === "/goals" && nutrition) return [item, NUTRITION_NAV_ITEM];
     if (item.href === "/achievements" && shop) return [item, SHOP_NAV_ITEM];
     if (item.href === "/guild" && clubs) return [item, CLUB_NAV_ITEM];
     if (item.href === "/friends" && trainers) return [item, TRAINERS_NAV_ITEM];
