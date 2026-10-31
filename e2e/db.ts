@@ -2063,3 +2063,72 @@ export async function courseReminderPushes(login: string) {
     return Number(rows[0].n);
   });
 }
+
+/** Идущая тренировка с заданным стартом и последним сохранением (забытые тренировки); возвращает id. */
+export async function staleWorkoutRow(login: string, startedAt: Date, updatedAt: Date) {
+  return withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(
+      `insert into "Workout" (id, "userId", name, status, "startedAt", "createdAt", "updatedAt") values ($1, $2, 'Забытая', 'IN_PROGRESS', $3, $3, $4)`,
+      [id, await userId(db, login), startedAt, updatedAt],
+    );
+    return id;
+  });
+}
+
+export async function workoutStatus(id: string) {
+  return withDb(async (db) => (await db.query<{ status: string }>(`select status from "Workout" where id = $1`, [id])).rows[0]?.status);
+}
+
+/** Уведомления WORKOUT пользователя: заголовок, текст и ушли ли в очередь push. */
+export async function workoutNotifications(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string; pushed: boolean }>(
+      `select n.title, n.body, exists (select 1 from "ScheduledPush" p where p."userId" = n."userId" and p.type = 'WORKOUT' and p.title = n.title) as pushed
+       from "Notification" n join "User" u on u.id = n."userId" where u.login = $1 and n.type = 'WORKOUT' order by n."createdAt"`,
+      [login],
+    );
+    return rows;
+  });
+}
+
+/** Дата регистрации пользователя (подсказки «через N дней»). */
+export async function setCreatedAt(login: string, createdAt: Date) {
+  await withDb((db) => db.query(`update "User" set "createdAt" = $2 where login = $1`, [login, createdAt]));
+}
+
+/** Анкета питания напрямую (рост, год рождения, активность, цель). */
+export async function setNutritionProfile(login: string, p: { heightCm: number; birthYear: number; activityLevel: string; nutritionGoal: string; gender?: "MALE" | "FEMALE" }) {
+  await withDb((db) =>
+    db.query(
+      `update "User" set "heightCm" = $2, "birthYear" = $3, "activityLevel" = $4::"ActivityLevel", "nutritionGoal" = $5::"NutritionGoal", gender = coalesce($6::"Gender", gender) where login = $1`,
+      [login, p.heightCm, p.birthYear, p.activityLevel, p.nutritionGoal, p.gender ?? null],
+    ),
+  );
+}
+
+/** Запись дневника питания напрямую; createdAt — для порядка и «Недавних». */
+export async function addFoodEntry(login: string, e: { date: string; meal: string; name: string; kcal: number; protein?: number; createdAt?: Date }) {
+  await withDb(async (db) =>
+    db.query(`insert into "FoodEntry" (id, "userId", date, meal, name, kcal, protein, "createdAt") values ($1, $2, $3, $4::"Meal", $5, $6, $7, $8)`, [
+      randomUUID(),
+      await userId(db, login),
+      e.date,
+      e.meal,
+      e.name,
+      e.kcal,
+      e.protein ?? null,
+      e.createdAt ?? new Date(),
+    ]),
+  );
+}
+
+export async function foodEntries(login: string, date: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ name: string; meal: string; kcal: number }>(
+      `select name, meal::text, kcal from "FoodEntry" where "userId" = (select id from "User" where login = $1) and date = $2 order by "createdAt"`,
+      [login, date],
+    );
+    return rows;
+  });
+}

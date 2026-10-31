@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Building2, CalendarRange, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, StretchHorizontal, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
+import { Activity, Apple, Building2, CalendarRange, LibraryBig, ChartColumn, ClipboardCheck, ListChecks, LogOut, Settings, Shield, Swords, Sparkles, Store, StretchHorizontal, Target, ToggleRight, UserSearch, Users, Bug, Megaphone, Mail, MessageSquare, Inbox } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -57,6 +57,7 @@ export function UserMenu({
   const shop = useFlag("shop");
   const catalog = useFlag("program_catalog");
   const stretching = useFlag("stretching");
+  const nutrition = useFlag("nutrition");
   const trainers = !isCoach;
   const campaigns = useFlag("campaigns");
   // Переход из меню — клиентская навигация: layout с точкой не перерисуется, гасим локально
@@ -190,6 +191,13 @@ export function UserMenu({
           <DropdownMenuItem className="lg:hidden" render={<Link href="/stretching" />}>
             <StretchHorizontal />
             Растяжка
+          </DropdownMenuItem>
+        ) : null}
+        {nutrition ? (
+          // На телефоне питания нет в нижней панели; на ПК оно в боковом меню
+          <DropdownMenuItem className="lg:hidden" render={<Link href="/nutrition" />}>
+            <Apple />
+            Питание
           </DropdownMenuItem>
         ) : null}
         {catalog ? (

@@ -39,6 +39,7 @@ export type ExportRaw = {
   /** Курс «Сесть на шпагат»: на входе с id/userId/goalId/remindedDay — в выгрузку идут без них. */
   stretchCourses: ({ skill: string; status: string; remindDays: number[]; nextSession: number; startedAt: Date; finishedAt: Dated } & Record<string, unknown>)[];
   bodyWeight: unknown[];
+  food: unknown[];
   records: unknown[];
   achievements: unknown[];
   xpHistory: unknown[];
@@ -117,6 +118,7 @@ export const EXPORT_SECTIONS = [
   "stretchMeasurements",
   "stretchCourses",
   "bodyWeight",
+  "food",
   "records",
   "achievements",
   "xpHistory",
@@ -160,6 +162,10 @@ const PROFILE_FIELDS = [
   "nickname",
   "timeZone",
   "gender",
+  "heightCm",
+  "birthYear",
+  "activityLevel",
+  "nutritionGoal",
   "createdAt",
   "privacyAcceptedAt",
   "signupLanding",
@@ -217,6 +223,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     stretchMeasurements: raw.stretchMeasurements.map((m) => ({ skill: m.skill, date: m.date, cm: m.cm })),
     stretchCourses: raw.stretchCourses.map((c) => ({ skill: c.skill, status: c.status, remindDays: c.remindDays, nextSession: c.nextSession, startedAt: c.startedAt, finishedAt: c.finishedAt })),
     bodyWeight: raw.bodyWeight,
+    food: raw.food,
     records: raw.records,
     achievements: raw.achievements,
     xpHistory: raw.xpHistory,
