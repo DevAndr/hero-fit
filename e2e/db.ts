@@ -2096,3 +2096,16 @@ export async function workoutNotifications(login: string) {
 export async function setCreatedAt(login: string, createdAt: Date) {
   await withDb((db) => db.query(`update "User" set "createdAt" = $2 where login = $1`, [login, createdAt]));
 }
+
+/** Анкета питания напрямую (рост, год рождения, активность, цель). */
+export async function setNutritionProfile(login: string, p: { heightCm: number; birthYear: number; activityLevel: string; nutritionGoal: string }) {
+  await withDb((db) =>
+    db.query(`update "User" set "heightCm" = $2, "birthYear" = $3, "activityLevel" = $4::"ActivityLevel", "nutritionGoal" = $5::"NutritionGoal" where login = $1`, [
+      login,
+      p.heightCm,
+      p.birthYear,
+      p.activityLevel,
+      p.nutritionGoal,
+    ]),
+  );
+}

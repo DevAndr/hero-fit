@@ -52,6 +52,10 @@ export const FLAGS = {
     description: "Курс «Сесть на шпагат»: карточка на /stretching, занятия, напоминания",
     expires: "2027-06-30",
   },
+  nutrition: {
+    description: "Питание: норма калорий и БЖУ, расход на тренировках",
+    expires: "2027-06-30",
+  },
   stale_workouts: {
     description: "Забытые тренировки: push через 4 ч, отмена через сутки",
     expires: "2027-06-30",

@@ -18,6 +18,10 @@ const raw = (): ExportRaw => ({
     shareActivity: true,
     shareRecordCards: true,
     gender: "FEMALE",
+    heightCm: 170,
+    birthYear: 1995,
+    activityLevel: "MODERATE",
+    nutritionGoal: "LOSE",
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",
@@ -155,6 +159,9 @@ describe("buildExport", () => {
   });
   it("профиль содержит настройку карточек рекордов", () => {
     expect(out.profile).toMatchObject({ shareRecordCards: true, gender: "FEMALE" });
+  });
+  it("профиль содержит анкету питания", () => {
+    expect(out.profile).toMatchObject({ heightCm: 170, birthYear: 1995, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });
