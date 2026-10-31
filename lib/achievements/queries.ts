@@ -16,7 +16,8 @@ export async function getUnseenAchievements(userId: string) {
 
 /** Категории целей за выключенными флагами: «Выносливость» — без workout_formats (полученные ачивки видны всегда). */
 export async function hiddenGoalCategories(userId: string): Promise<{ hide: ReadonlySet<AchievementCategory> }> {
-  return { hide: new Set<AchievementCategory>((await isEnabled("workout_formats", userId)) ? [] : ["ENDURANCE"]) };
+  const [formats, nutrition] = await Promise.all([isEnabled("workout_formats", userId), isEnabled("nutrition", userId)]);
+  return { hide: new Set<AchievementCategory>([...(formats ? [] : (["ENDURANCE"] as const)), ...(nutrition ? [] : (["NUTRITION"] as const))]) };
 }
 
 export async function getAchievementsOverview(userId: string) {

@@ -15,7 +15,12 @@ import {
   type LeaguePlace,
   type LiftKey,
 } from "@/lib/achievements/definitions";
-import { safeTimeZone } from "@/lib/daily-login";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { isEnabled } from "@/lib/flags/server";
+import { diaryStreak, normDays } from "@/lib/nutrition/streak";
+import { diaryDays } from "@/lib/nutrition/streak-queries";
+import { dailyNorm } from "@/lib/nutrition/norm";
+import { weightOn } from "@/lib/nutrition/burn";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
@@ -286,6 +291,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
       coachStats(client, userId, isCoach && opts.coach !== false),
       enduranceStats(client, userId),
     ]);
+  const nutrition = await nutritionStats(client, userId, tz);
   return {
     ...rest,
     weekWorkouts: weekWorkoutsKey === weekKey(new Date(), tz) ? weekWorkouts : 0,
@@ -301,6 +307,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
     togetherBonuses,
     coach,
     coachMode: isCoach,
+    nutrition,
     workouts: totals.workouts,
     exercises,
     achievements,
@@ -323,6 +330,22 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
     ...weeks,
     ...variety,
   };
+}
+
+/** Дневник питания — только при флаге nutrition: без него запросов нет, ачивки не выдаются. Норма — текущая (истории нет). */
+async function nutritionStats(client: Client, userId: string, tz: string): Promise<AchievementStats["nutrition"]> {
+  if (!(await isEnabled("nutrition", userId))) return { enabled: false, longestDiaryStreak: 0, normDays: 0 };
+  const today = dayKey(new Date(), tz);
+  const [days, user, weights] = await Promise.all([
+    diaryDays(client, userId, today),
+    client.user.findUniqueOrThrow({ where: { id: userId }, select: { gender: true, birthYear: true, heightCm: true, activityLevel: true, nutritionGoal: true } }),
+    client.bodyWeightEntry.findMany({ where: { userId }, select: { date: true, weight: true } }),
+  ]);
+  const norm = dailyNorm(
+    { gender: user.gender, birthYear: user.birthYear, heightCm: user.heightCm, weightKg: weightOn(weights, today), activity: user.activityLevel, goal: user.nutritionGoal },
+    Number(today.slice(0, 4)),
+  );
+  return { enabled: true, longestDiaryStreak: diaryStreak(days, today).longest, normDays: normDays(days, norm?.kcal ?? null) };
 }
 
 /** Сколько раз подряд перепроверять: выданные ачивки двигают уровень и «Коллекционера». */

@@ -119,6 +119,7 @@ enum AchievementCategory {
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
   ENDURANCE // кардио и упражнения на время
   SOCIAL // социальное: респекты за рекорды
+  NUTRITION // дневник питания: серия дней, дни в норме (lib/nutrition/streak.ts)
 }
 
 enum NotificationType {
