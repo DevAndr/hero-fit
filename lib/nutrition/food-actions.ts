@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { isEnabled } from "@/lib/flags/server";
 import { MEALS, parseDiaryDate } from "@/lib/nutrition/diary";
 import { foodEntrySchema, type FoodEntryInput } from "@/lib/nutrition/food-schema";
@@ -31,7 +32,11 @@ function parseForm(formData: FormData) {
   return parsed.success ? { data: parsed.data } : { state: { errors: z.flattenError(parsed.error).fieldErrors, values } satisfies FoodFormState };
 }
 
-const done = (): FoodFormState => {
+/** Ачивки питания (серия, дни в норме) — после изменения дневника; сбой оценки не ломает запись. */
+const evaluate = (userId: string) => evaluateAchievementsNow(userId).catch((e) => console.error("[nutrition] achievements", e));
+
+const done = async (userId: string): Promise<FoodFormState> => {
+  await evaluate(userId);
   revalidatePath("/nutrition");
   return { ok: true };
 };
@@ -42,7 +47,7 @@ export async function addFoodEntryAction(date: string, _prev: FoodFormState, for
   const form = parseForm(formData);
   if (!form.data) return form.state;
   await db.foodEntry.create({ data: { userId: user.id, date: parseDiaryDate(date, user.today), ...form.data } });
-  return done();
+  return done(user.id);
 }
 
 export async function updateFoodEntryAction(id: string, _prev: FoodFormState, formData: FormData): Promise<FoodFormState> {
@@ -52,7 +57,7 @@ export async function updateFoodEntryAction(id: string, _prev: FoodFormState, fo
   if (!form.data) return form.state;
   const { count } = await db.foodEntry.updateMany({ where: { id, userId: user.id }, data: form.data });
   if (count === 0) return { errors: { name: ["Запись не найдена — обновите страницу"] } };
-  return done();
+  return done(user.id);
 }
 
 /** Удаление; возвращает удалённое — для «Отменить» в уведомлении (restoreFoodEntryAction). */
@@ -81,6 +86,7 @@ export async function restoreFoodEntryAction(entry: DeletedFood) {
       createdAt: Number.isNaN(createdAt.getTime()) || createdAt.getTime() > Date.now() ? new Date() : createdAt,
     },
   });
+  await evaluate(user.id);
   revalidatePath("/nutrition");
 }
 
@@ -90,6 +96,7 @@ export async function copyFoodEntryToTodayAction(id: string) {
   if (typeof id !== "string") return;
   const entry = await db.foodEntry.findFirst({ where: { id, userId: user.id }, select: { meal: true, name: true, kcal: true, protein: true, fat: true, carbs: true } });
   if (entry) await db.foodEntry.create({ data: { userId: user.id, date: user.today, ...entry } });
+  await evaluate(user.id);
   revalidatePath("/nutrition");
 }
 
@@ -110,5 +117,6 @@ export async function repeatYesterdayMealAction(date: string, meal: Meal) {
     const base = Date.now();
     await tx.foodEntry.createMany({ data: source.map((e, i) => ({ userId: user.id, date: day, meal, ...e, createdAt: new Date(base + i) })) });
   });
+  await evaluate(user.id);
   revalidatePath("/nutrition");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { logBodyWeightAction } from "@/lib/goals/actions";
@@ -33,6 +34,8 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
     const logged = await logBodyWeightAction(weight);
     if (!logged.ok) return { errors: { weight: [logged.error] }, values };
   }
+  // Норма меняет «дни в норме» — ачивки питания пересчитываются; сбой оценки не ломает сохранение
+  await evaluateAchievementsNow(user.id).catch((e) => console.error("[nutrition] achievements", e));
   revalidatePath("/nutrition");
   return { ok: true };
 }

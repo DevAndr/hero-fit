@@ -16,6 +16,7 @@ import {
   type LiftKey,
 } from "@/lib/achievements/definitions";
 import { safeTimeZone } from "@/lib/daily-login";
+import { nutritionStats } from "@/lib/nutrition/achievement-stats";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notifications/service";
 import { levelProgress } from "@/lib/progress/level";
@@ -286,6 +287,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
       coachStats(client, userId, isCoach && opts.coach !== false),
       enduranceStats(client, userId),
     ]);
+  const nutrition = await nutritionStats(client, userId, tz);
   return {
     ...rest,
     weekWorkouts: weekWorkoutsKey === weekKey(new Date(), tz) ? weekWorkouts : 0,
@@ -301,6 +303,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
     togetherBonuses,
     coach,
     coachMode: isCoach,
+    nutrition,
     workouts: totals.workouts,
     exercises,
     achievements,
