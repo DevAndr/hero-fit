@@ -15,6 +15,22 @@ enum Gender {
   FEMALE
 }
 
+/// Уровень активности для нормы калорий (lib/nutrition/norm.ts: коэффициенты 1,2…1,9)
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  HIGH
+  VERY_HIGH
+}
+
+/// Цель питания: −15 % / норма / +10 %
+enum NutritionGoal {
+  LOSE
+  MAINTAIN
+  GAIN
+}
+
 enum MuscleGroup {
   CHEST // Грудь
   LEGS // Ноги
@@ -174,6 +190,11 @@ model User {
   bodyWeight        Float? // кг; для ачивок «1RM к весу тела»
   /// пол из настроек, видит только сам пользователь; null — не указан
   gender            Gender?
+  /// анкета питания (спека 2026-10-31-nutrition-norm), всё по желанию: рост, только год рождения, активность, цель
+  heightCm          Int?
+  birthYear         Int?
+  activityLevel     ActivityLevel?
+  nutritionGoal     NutritionGoal?
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
