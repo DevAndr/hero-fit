@@ -33,6 +33,7 @@ export function MealBlock({
   isToday,
   canRepeat,
   recents,
+  macros,
 }: {
   meal: Meal;
   entries: FoodEntryRow[];
@@ -41,6 +42,8 @@ export function MealBlock({
   isToday: boolean;
   canRepeat: boolean;
   recents: RecentFood[];
+  /** продвинутый ввод: строка Б/Ж/У у записей и поля в диалоге */
+  macros: boolean;
 }) {
   const [dialog, setDialog] = useState<{ entry?: FoodEntryRow } | null>(null);
   const [pending, start] = useTransition();
@@ -59,7 +62,7 @@ export function MealBlock({
             <li key={e.id} className="flex items-center gap-2 py-2">
               <div className="min-w-0 flex-1">
                 <p className="truncate">{e.name}</p>
-                {macrosLine(e) ? <p className="text-xs text-muted-foreground">{macrosLine(e)}</p> : null}
+                {macros && macrosLine(e) ? <p className="text-xs text-muted-foreground">{macrosLine(e)}</p> : null}
               </div>
               <span className="shrink-0 font-semibold tabular-nums">{n(e.kcal)} ккал</span>
               <DropdownMenu>
@@ -103,7 +106,7 @@ export function MealBlock({
         ) : null}
       </div>
       {dialog ? (
-        <FoodEntryDialog open onOpenChange={(o) => !o && setDialog(null)} date={date} meal={meal} entry={dialog.entry} recents={recents} />
+        <FoodEntryDialog open onOpenChange={(o) => !o && setDialog(null)} date={date} meal={meal} entry={dialog.entry} recents={recents} macros={macros} />
       ) : null}
     </section>
   );

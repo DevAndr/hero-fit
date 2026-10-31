@@ -203,6 +203,8 @@ model User {
   birthYear         Int?
   activityLevel     ActivityLevel?
   nutritionGoal     NutritionGoal?
+  /// продвинутый ввод питания: Б/Ж/У в дневнике и норме; по умолчанию — только ккал
+  nutritionMacros   Boolean        @default(false)
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё

@@ -42,6 +42,7 @@ import {
   seedTogether,
   setNutritionProfile,
   addFoodEntry,
+  setNutritionMacros,
 } from "./db";
 import { createGuild, guildName, inviteUrl, nickOf, player } from "./guild-helpers";
 import { PASSWORD, quickWorkout, registerUser } from "./helpers";
@@ -52,10 +53,11 @@ import { mockTelegram } from "./telegram-webapp";
 test("export: nutrition profile is in the JSON", async ({ page }) => {
   const me = await registerUser(page);
   await setNutritionProfile(me.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
+  await setNutritionMacros(me.login, true);
   await page.goto("/settings");
   const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
   const data = JSON.parse(await readFile((await json.path())!, "utf8"));
-  expect(data.profile).toMatchObject({ heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
+  expect(data.profile).toMatchObject({ heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "LOSE", nutritionMacros: true });
 });
 
 test("export: food diary is in the JSON", async ({ page }) => {

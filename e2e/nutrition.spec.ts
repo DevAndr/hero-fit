@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, latestWorkout, logWeight, seedWorkouts } from "./db";
+import { addFlagUser, latestWorkout, logWeight, seedWorkouts, setNutritionMacros } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ } from "./tz";
 
@@ -35,7 +35,8 @@ test("without the flag /nutrition is 404 and there is no menu item", async ({ pa
 });
 
 test("empty state → profile → norm and macros", async ({ page }) => {
-  await nutritionUser(page);
+  const me = await nutritionUser(page);
+  await setNutritionMacros(me.login, true);
   await page.goto("/nutrition");
   const card = page.getByRole("region", { name: "Норма на день" });
   await expect(card).toContainText("Посчитаем вашу норму калорий");

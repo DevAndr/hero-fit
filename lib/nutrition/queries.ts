@@ -20,6 +20,8 @@ export type NutritionView = {
     goal: NutritionGoal | null;
   };
   norm: Norm | null;
+  /** продвинутый ввод: Б/Ж/У в дневнике и норме */
+  macros: boolean;
   hasWeight: boolean;
   burn: {
     totalKcal: number;
@@ -54,7 +56,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
   const today = dayKey(now, tz);
   const from = addDays(today, -(DAYS - 1));
   const [user, log, workouts, whoop] = await Promise.all([
-    db.user.findUniqueOrThrow({ where: { id: userId }, select: { gender: true, birthYear: true, heightCm: true, activityLevel: true, nutritionGoal: true } }),
+    db.user.findUniqueOrThrow({ where: { id: userId }, select: { gender: true, birthYear: true, heightCm: true, activityLevel: true, nutritionGoal: true, nutritionMacros: true } }),
     weightLog(userId),
     db.workout.findMany({
       where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: localMidnight(from, tz), lt: localMidnight(addDays(today, 1), tz) } },
@@ -87,6 +89,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
   return {
     profile,
     norm: dailyNorm(profile, Number(today.slice(0, 4))),
+    macros: user.nutritionMacros,
     hasWeight: weightKg !== null,
     burn: { totalKcal: list.reduce((s, w) => s + w.kcal, 0), days, workouts: list },
   };

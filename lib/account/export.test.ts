@@ -22,6 +22,7 @@ const raw = (): ExportRaw => ({
     birthYear: 1995,
     activityLevel: "MODERATE",
     nutritionGoal: "LOSE",
+    nutritionMacros: true,
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",
@@ -165,7 +166,7 @@ describe("buildExport", () => {
     expect(out.food).toEqual([expect.objectContaining({ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300 })]);
   });
   it("профиль содержит анкету питания", () => {
-    expect(out.profile).toMatchObject({ heightCm: 170, birthYear: 1995, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
+    expect(out.profile).toMatchObject({ heightCm: 170, birthYear: 1995, activityLevel: "MODERATE", nutritionGoal: "LOSE", nutritionMacros: true });
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });
