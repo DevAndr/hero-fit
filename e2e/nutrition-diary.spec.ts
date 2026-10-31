@@ -9,6 +9,7 @@ const localDay = (daysAgo: number) =>
 async function diaryUser(page: Page, withNorm = false) {
   const me = await registerUser(page);
   await addFlagUser("nutrition", me.login);
+  await setNutritionMacros(me.login, false);
   if (withNorm) {
     // Мужчина 1996 г. р., 180 см, 80 кг, средняя активность → 2 760 ккал
     await setNutritionProfile(me.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "MAINTAIN", gender: "MALE" });
@@ -162,4 +163,34 @@ test("editing in simple mode keeps the macros already entered", async ({ page })
   await expect(lunch.getByRole("listitem")).toContainText("220 ккал");
   await page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" }).click();
   await expect(lunch.getByRole("listitem")).toContainText("Б 30");
+});
+
+test("first visit asks for the input mode; advanced shows macros and is not asked again", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("nutrition", me.login);
+  await page.goto("/nutrition");
+  const dialog = page.getByRole("dialog", { name: "Как будете вести дневник?" });
+  await expect(dialog).toContainText("Поменять можно в любой момент");
+  await dialog.getByRole("button", { name: /Продвинутый/ }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).toBeChecked();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Итог дня" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Как будете вести дневник?" })).toHaveCount(0);
+});
+
+test("closing the mode dialog keeps simple input and does not ask again", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("nutrition", me.login);
+  await page.goto("/nutrition");
+  const dialog = page.getByRole("dialog", { name: "Как будете вести дневник?" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).not.toBeChecked();
+  await expect.poll(async () => {
+    await page.reload();
+    await expect(page.getByRole("region", { name: "Итог дня" })).toBeVisible();
+    return page.getByRole("dialog", { name: "Как будете вести дневник?" }).count();
+  }).toBe(0);
 });

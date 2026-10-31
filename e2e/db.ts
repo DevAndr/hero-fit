@@ -2133,7 +2133,7 @@ export async function foodEntries(login: string, date: string) {
   });
 }
 
-/** Продвинутый ввод питания (Б/Ж/У) — User.nutritionMacros. */
+/** Режим ввода питания выбран (диалог первого захода не показывается); on — продвинутый (Б/Ж/У). */
 export async function setNutritionMacros(login: string, on: boolean) {
-  await withDb((db) => db.query(`update "User" set "nutritionMacros" = $2 where login = $1`, [login, on]));
+  await withDb((db) => db.query(`update "User" set "nutritionMacros" = $2, "nutritionModeChosenAt" = now() where login = $1`, [login, on]));
 }
