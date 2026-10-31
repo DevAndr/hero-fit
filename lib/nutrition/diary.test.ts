@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balance, dayTotals, defaultMeal, parseDiaryDate } from "./diary";
+import { balance, dayTotals, defaultMeal, parseDiaryDate, ringArcs } from "./diary";
 
 describe("defaultMeal", () => {
   it("by local hour: breakfast before 11, lunch before 16, dinner before 21, then snack", () => {
@@ -38,5 +38,18 @@ describe("parseDiaryDate", () => {
   });
   it("older than a year → the year boundary", () => {
     expect(parseDiaryDate("2025-01-01", today)).toBe("2025-10-31");
+  });
+});
+
+describe("ringArcs", () => {
+  it("main arc is the eaten share of the norm, over arc is the excess, both capped at a full circle", () => {
+    expect(ringArcs(0, 2000)).toEqual({ main: 0, over: 0 });
+    expect(ringArcs(500, 2000)).toEqual({ main: 0.25, over: 0 });
+    expect(ringArcs(2000, 2000)).toEqual({ main: 1, over: 0 });
+    expect(ringArcs(2200, 2000)).toEqual({ main: 1, over: 0.1 });
+    expect(ringArcs(5000, 2000)).toEqual({ main: 1, over: 1 });
+  });
+  it("no norm → empty ring", () => {
+    expect(ringArcs(500, 0)).toEqual({ main: 0, over: 0 });
   });
 });
