@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { EllipsisVertical, Plus, Repeat } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FoodEntryDialog } from "@/components/nutrition/food-entry-dialog";
@@ -42,6 +44,7 @@ export function MealBlock({
 }) {
   const [dialog, setDialog] = useState<{ entry?: FoodEntryRow } | null>(null);
   const [pending, start] = useTransition();
+  const router = useRouter();
   const label = MEAL_LABELS[meal];
 
   return (
@@ -65,7 +68,19 @@ export function MealBlock({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => setDialog({ entry: e })}>Изменить</DropdownMenuItem>
-                  {isToday ? null : <DropdownMenuItem onClick={() => start(() => copyFoodEntryToTodayAction(e.id))}>Добавить сегодня</DropdownMenuItem>}
+                  {isToday ? null : (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        start(async () => {
+                          await copyFoodEntryToTodayAction(e.id);
+                          // Копия ушла в другой день — без подтверждения не видно, что сработало
+                          toast.success("Добавлено в сегодня", { action: { label: "Открыть", onClick: () => router.push("/nutrition") } });
+                        })
+                      }
+                    >
+                      Добавить сегодня
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem variant="destructive" onClick={() => start(() => deleteFoodEntryAction(e.id))}>
                     Удалить
                   </DropdownMenuItem>

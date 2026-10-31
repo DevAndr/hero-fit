@@ -90,6 +90,8 @@ test("add to today from yesterday", async ({ page }) => {
   await expect(page.getByRole("navigation", { name: "День дневника" })).toContainText("Вчера");
   await meal(page, "Ужин").getByRole("button", { name: "Действия: Рыба" }).click();
   await page.getByRole("menuitem", { name: "Добавить сегодня" }).click();
+  // Копия ушла в другой день — без подтверждения не видно, что сработало
+  await expect(page.getByText("Добавлено в сегодня")).toBeVisible();
   await expect.poll(() => foodEntries(me.login, localDay(0))).toEqual([{ name: "Рыба", meal: "DINNER", kcal: 280 }]);
   expect(await foodEntries(me.login, localDay(1))).toHaveLength(1);
 });
