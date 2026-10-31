@@ -112,7 +112,7 @@ test("next day is disabled on today; a future date opens today", async ({ page }
   await page.goto("/nutrition?date=2999-01-01");
   const nav = page.getByRole("navigation", { name: "День дневника" });
   await expect(nav.getByRole("heading")).toHaveText("Сегодня");
-  await expect(nav.getByLabel("Следующий день")).toHaveAttribute("aria-disabled", "true");
+  await expect(nav.getByRole("button", { name: "Следующий день" })).toBeDisabled();
   await nav.getByRole("link", { name: "Предыдущий день" }).click();
   await expect(nav.getByRole("heading")).toHaveText("Вчера");
 });
@@ -195,4 +195,24 @@ test("closing the mode dialog keeps simple input and does not ask again", async 
     await expect(page.getByRole("region", { name: "Итог дня" })).toBeVisible();
     return page.getByRole("dialog", { name: "Как будете вести дневник?" }).count();
   }).toBe(0);
+});
+
+test("deleted entry can be restored from the toast", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await addEntry(page, "Ужин", { name: "Салат", kcal: "150" });
+  const dinner = meal(page, "Ужин");
+  await dinner.getByRole("button", { name: "Действия: Салат" }).click();
+  await page.getByRole("menuitem", { name: "Удалить" }).click();
+  await expect(dinner.getByRole("listitem")).toHaveCount(0);
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect(dinner.getByRole("listitem")).toContainText("Салат");
+  await expect(dinner.getByRole("listitem")).toContainText("150 ккал");
+});
+
+test("kcal typed with a thousands space is accepted", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await addEntry(page, "Обед", { name: "Бизнес-ланч", kcal: "1 500" });
+  await expect(meal(page, "Обед").getByRole("listitem")).toContainText("1 500 ккал");
 });

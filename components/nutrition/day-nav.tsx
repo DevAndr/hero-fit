@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { addDays } from "@/lib/dates";
 import { MAX_DIARY_DAYS } from "@/lib/nutrition/diary";
-import { cn } from "@/lib/utils";
 
 const dayTitle = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 
@@ -13,7 +12,7 @@ export function DayNav({ date, today }: { date: string; today: string }) {
   const prev = date > addDays(today, -MAX_DIARY_DAYS) ? addDays(date, -1) : null;
   const next = date < today ? addDays(date, 1) : null;
   const href = (d: string) => (d === today ? "/nutrition" : `/nutrition?date=${d}`);
-  const arrow = cn(buttonVariants({ variant: "ghost", size: "icon" }));
+  const arrow = buttonVariants({ variant: "ghost", size: "icon" });
   return (
     <nav aria-label="День дневника" className="flex items-center justify-between gap-3 rounded-xl border bg-card p-2">
       {prev ? (
@@ -21,9 +20,9 @@ export function DayNav({ date, today }: { date: string; today: string }) {
           <ChevronLeft />
         </Link>
       ) : (
-        <span aria-label="Предыдущий день" aria-disabled="true" role="link" className={cn(arrow, "opacity-40")}>
+        <Button variant="ghost" size="icon" aria-label="Предыдущий день" disabled>
           <ChevronLeft />
-        </span>
+        </Button>
       )}
       <h2 className="font-bold">{title}</h2>
       {next ? (
@@ -31,9 +30,9 @@ export function DayNav({ date, today }: { date: string; today: string }) {
           <ChevronRight />
         </Link>
       ) : (
-        <span aria-label="Следующий день" aria-disabled="true" role="link" className={cn(arrow, "opacity-40")}>
+        <Button variant="ghost" size="icon" aria-label="Следующий день" disabled>
           <ChevronRight />
-        </span>
+        </Button>
       )}
     </nav>
   );

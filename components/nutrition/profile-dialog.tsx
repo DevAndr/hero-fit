@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,17 +33,13 @@ function Errors({ list }: { list?: string[] }) {
   return list?.length ? <p className="text-sm text-destructive">{list[0]}</p> : null;
 }
 
-/** Анкета нормы: пол, год рождения, рост, вес (в журнал за сегодня), активность, цель; «Очистить данные питания». */
-export function NutritionProfileDialog({ profile, label, variant = "default" }: { profile: NutritionView["profile"]; label: string; variant?: "default" | "outline" }) {
-  const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+/** Форма анкеты — внутри DialogContent: закрыли диалог — форма размонтирована, ошибки и введённое не переживают открытие. */
+function ProfileForm({ profile, filled, onSaved, onClear }: { profile: NutritionView["profile"]; filled: boolean; onSaved: () => void; onClear: () => void }) {
   const [state, action, saving] = useActionState<NutritionFormState, FormData>(async (prev, formData) => {
     const result = await saveNutritionProfileAction(prev, formData);
-    if (result.ok) setOpen(false);
+    if (result.ok) onSaved();
     return result;
   }, {});
-  const [clearing, startClear] = useTransition();
-  const filled = profile.birthYear !== null || profile.heightCm !== null || profile.activity !== null || profile.goal !== null;
 
   const field = (name: "birthYear" | "heightCm" | "weight", text: string, value: number | null, mode: "numeric" | "decimal") => (
     <div className="space-y-1.5">
@@ -51,6 +48,75 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
       <Errors list={state.errors?.[name]} />
     </div>
   );
+
+  return (
+    <form action={action} className="space-y-4">
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Пол</p>
+        <RadioGroup name="gender" aria-label="Пол" defaultValue={state.values?.gender ?? profile.gender ?? undefined} className="grid-cols-2">
+          {GENDERS.map(([value, text]) => (
+            <label key={value} className={option}>
+              <RadioGroupItem value={value} aria-label={text} />
+              {text}
+            </label>
+          ))}
+        </RadioGroup>
+        <Errors list={state.errors?.gender} />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {field("birthYear", "Год рождения", profile.birthYear, "numeric")}
+        {field("heightCm", "Рост, см", profile.heightCm, "numeric")}
+        {field("weight", "Вес, кг", profile.weightKg, "decimal")}
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Активность</p>
+        <RadioGroup name="activity" aria-label="Активность" defaultValue={state.values?.activity ?? profile.activity ?? undefined} className="grid-cols-1">
+          {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((a) => (
+            <label key={a} className={option}>
+              <RadioGroupItem value={a} aria-label={ACTIVITY_LABELS[a].label} />
+              <span>
+                {ACTIVITY_LABELS[a].label} <span className="text-muted-foreground">— {ACTIVITY_LABELS[a].hint}</span>
+              </span>
+            </label>
+          ))}
+        </RadioGroup>
+        <Errors list={state.errors?.activity} />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Цель</p>
+        <RadioGroup name="goal" aria-label="Цель" defaultValue={state.values?.goal ?? profile.goal ?? undefined} className="grid-cols-3">
+          {(Object.keys(GOAL_LABELS) as NutritionGoal[]).map((g) => (
+            <label key={g} className={option}>
+              <RadioGroupItem value={g} aria-label={GOAL_LABELS[g]} />
+              {GOAL_LABELS[g]}
+            </label>
+          ))}
+        </RadioGroup>
+        <Errors list={state.errors?.goal} />
+      </div>
+      <DialogFooter className="gap-2 sm:justify-between">
+        {filled ? (
+          <Button type="button" variant="ghost" onClick={onClear}>
+            Очистить данные питания
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Button type="submit" disabled={saving}>
+          {saving ? <Loader2 className="animate-spin" /> : null}
+          Сохранить
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/** Анкета нормы: пол, год рождения, рост, вес (в журнал за сегодня, если изменился), активность, цель; «Очистить данные питания». */
+export function NutritionProfileDialog({ profile, label, variant = "default" }: { profile: NutritionView["profile"]; label: string; variant?: "default" | "outline" }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [clearing, startClear] = useTransition();
+  const filled = profile.birthYear !== null || profile.heightCm !== null || profile.activity !== null || profile.goal !== null;
 
   return (
     <>
@@ -63,64 +129,7 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
             <DialogTitle>Данные для нормы</DialogTitle>
             <DialogDescription>Видите только вы. Вес попадёт в журнал взвешиваний за сегодня.</DialogDescription>
           </DialogHeader>
-          <form action={action} className="space-y-4">
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">Пол</p>
-              <RadioGroup name="gender" aria-label="Пол" defaultValue={state.values?.gender ?? profile.gender ?? undefined} className="grid-cols-2">
-                {GENDERS.map(([value, text]) => (
-                  <label key={value} className={option}>
-                    <RadioGroupItem value={value} aria-label={text} />
-                    {text}
-                  </label>
-                ))}
-              </RadioGroup>
-              <Errors list={state.errors?.gender} />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {field("birthYear", "Год рождения", profile.birthYear, "numeric")}
-              {field("heightCm", "Рост, см", profile.heightCm, "numeric")}
-              {field("weight", "Вес, кг", profile.weightKg, "decimal")}
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">Активность</p>
-              <RadioGroup name="activity" aria-label="Активность" defaultValue={state.values?.activity ?? profile.activity ?? undefined} className="grid-cols-1">
-                {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((a) => (
-                  <label key={a} className={option}>
-                    <RadioGroupItem value={a} aria-label={ACTIVITY_LABELS[a].label} />
-                    <span>
-                      {ACTIVITY_LABELS[a].label} <span className="text-muted-foreground">— {ACTIVITY_LABELS[a].hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </RadioGroup>
-              <Errors list={state.errors?.activity} />
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">Цель</p>
-              <RadioGroup name="goal" aria-label="Цель" defaultValue={state.values?.goal ?? profile.goal ?? undefined} className="grid-cols-3">
-                {(Object.keys(GOAL_LABELS) as NutritionGoal[]).map((g) => (
-                  <label key={g} className={option}>
-                    <RadioGroupItem value={g} aria-label={GOAL_LABELS[g]} />
-                    {GOAL_LABELS[g]}
-                  </label>
-                ))}
-              </RadioGroup>
-              <Errors list={state.errors?.goal} />
-            </div>
-            <DialogFooter className="gap-2 sm:justify-between">
-              {filled ? (
-                <Button type="button" variant="ghost" onClick={() => setConfirm(true)}>
-                  Очистить данные питания
-                </Button>
-              ) : (
-                <span />
-              )}
-              <Button type="submit" disabled={saving}>
-                {saving ? <Loader2 className="animate-spin" /> : null}
-                Сохранить
-              </Button>
-            </DialogFooter>
-          </form>
+          <ProfileForm profile={profile} filled={filled} onSaved={() => setOpen(false)} onClear={() => setConfirm(true)} />
         </DialogContent>
       </Dialog>
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
@@ -136,9 +145,13 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
               disabled={clearing}
               onClick={() =>
                 startClear(async () => {
-                  await clearNutritionProfileAction();
-                  setConfirm(false);
-                  setOpen(false);
+                  try {
+                    await clearNutritionProfileAction();
+                    setConfirm(false);
+                    setOpen(false);
+                  } catch {
+                    toast.error("Не удалось очистить — проверьте связь");
+                  }
                 })
               }
             >

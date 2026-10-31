@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const toNumber = (v: unknown) => (typeof v === "string" ? (v.trim() === "" ? undefined : Number(v.replace(",", "."))) : v);
+/** Пробелы (разделитель тысяч «1 500») убираются, запятая — десятичный разделитель. */
+const toNumber = (v: unknown) => (typeof v === "string" ? (v.trim() === "" ? undefined : Number(v.replace(/\s/g, "").replace(",", "."))) : v);
 
 const grams = (label: string) =>
   z.preprocess(

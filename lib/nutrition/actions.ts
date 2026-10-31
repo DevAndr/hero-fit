@@ -18,7 +18,7 @@ async function nutritionUser() {
   return user;
 }
 
-/** Анкета нормы: поля User и пол; вес — обычным взвешиванием за сегодня (журнал, цель по весу, ачивки). */
+/** Анкета нормы: поля User и пол; вес — обычным взвешиванием за сегодня (журнал, цель по весу, ачивки), только если изменился. */
 export async function saveNutritionProfileAction(_prev: NutritionFormState, formData: FormData): Promise<NutritionFormState> {
   const user = await nutritionUser();
   const raw = Object.fromEntries(formData);
@@ -27,8 +27,12 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values };
   const { gender, birthYear, heightCm, weight, activity, goal } = parsed.data;
   await db.user.update({ where: { id: user.id }, data: { gender, birthYear, heightCm, activityLevel: activity, nutritionGoal: goal } });
-  const logged = await logBodyWeightAction(weight);
-  if (!logged.ok) return { errors: { weight: [logged.error] }, values };
+  // В форме — последний вес; не изменили его — не пишем «взвешивание» сегодняшним числом
+  const last = await db.bodyWeightEntry.findFirst({ where: { userId: user.id }, orderBy: { date: "desc" }, select: { weight: true } });
+  if (last?.weight !== weight) {
+    const logged = await logBodyWeightAction(weight);
+    if (!logged.ok) return { errors: { weight: [logged.error] }, values };
+  }
   revalidatePath("/nutrition");
   return { ok: true };
 }

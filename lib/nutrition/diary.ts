@@ -6,14 +6,6 @@ export type Meal = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
 export const MEALS: Meal[] = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
 export const MEAL_LABELS: Record<Meal, string> = { BREAKFAST: "Завтрак", LUNCH: "Обед", DINNER: "Ужин", SNACK: "Перекус" };
 
-/** Приём по местному часу — для общей кнопки «Добавить». */
-export function defaultMeal(hour: number): Meal {
-  if (hour < 11) return "BREAKFAST";
-  if (hour < 16) return "LUNCH";
-  if (hour < 21) return "DINNER";
-  return "SNACK";
-}
-
 export type Macros = { kcal: number; protein: number; fat: number; carbs: number };
 type EntryMacros = { meal: Meal; kcal: number; protein: number | null; fat: number | null; carbs: number | null };
 

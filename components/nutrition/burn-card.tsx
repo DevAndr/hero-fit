@@ -32,10 +32,10 @@ export function BurnCard({ view, timeZone }: { view: NutritionView; timeZone: st
           </div>
         ))}
       </div>
-      {!hasWeight ? (
-        <p className="text-sm text-muted-foreground">Укажите вес в анкете — без него расход не посчитать.</p>
-      ) : burn.workouts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">За неделю тренировок не было.</p>
+      {/* Без веса MET не посчитать, но ккал из WHOOP есть — подсказка над списком, а не вместо него */}
+      {hasWeight ? null : <p className="text-sm text-muted-foreground">Укажите вес в анкете — без него расход не посчитать.</p>}
+      {burn.workouts.length === 0 ? (
+        hasWeight ? <p className="text-sm text-muted-foreground">За неделю тренировок не было.</p> : null
       ) : (
         <ul className="divide-y text-sm">
           {burn.workouts.map((w) => (
