@@ -71,11 +71,11 @@ export function FoodEntryDialog({
           </div>
         ) : null}
         <form ref={formRef} action={action} className="space-y-4">
-          <RadioGroup name="meal" aria-label="Приём пищи" defaultValue={state.values?.meal ?? entry?.meal ?? meal} className="grid-cols-2 sm:grid-cols-4">
+          <RadioGroup name="meal" aria-label="Приём пищи" defaultValue={state.values?.meal ?? entry?.meal ?? meal} className="grid-cols-2">
             {MEALS.map((m) => (
               <label
                 key={m}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm transition-colors hover:bg-muted has-data-checked:border-primary has-data-checked:bg-primary/10"
+                className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm whitespace-nowrap transition-colors hover:bg-muted has-data-checked:border-primary has-data-checked:bg-primary/10"
               >
                 <RadioGroupItem value={m} aria-label={MEAL_LABELS[m]} />
                 {MEAL_LABELS[m]}
