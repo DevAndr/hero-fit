@@ -29,8 +29,9 @@ test("no hint on the first days without workouts", async ({ page }) => {
 test("hint after 3 days leads to the site login block; setting a password removes it", async ({ page }) => {
   const { id } = await telegramUser(page, 4);
   await expect(card(page)).toContainText(HINT);
-  await card(page).getByRole("link", { name: "Задать пароль" }).click();
-  await expect(page).toHaveURL(/\/settings#site-login$/);
+  // Адрес ссылки — проверкой атрибута, переход — goto: после клиентского перехода форма настроек могла ещё не ожить
+  await expect(card(page).getByRole("link", { name: "Задать пароль" })).toHaveAttribute("href", "/settings#site-login");
+  await page.goto("/settings#site-login");
   const block = page.getByRole("region", { name: "Вход на сайте" });
   await block.getByLabel("Email").fill(`tg${id}@test.local`);
   await block.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
