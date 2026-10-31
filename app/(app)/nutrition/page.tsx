@@ -28,7 +28,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
     <div className="space-y-4">
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
       <DayNav date={date} today={today} />
-      <DaySummary total={totals.total} norm={view.norm} profile={view.profile} />
+      <DaySummary total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {MEALS.map((meal) => (
           <MealBlock
@@ -40,6 +40,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
             isToday={date === today}
             canRepeat={day.yesterdayMeals.includes(meal)}
             recents={recents}
+            macros={view.macros}
           />
         ))}
       </div>

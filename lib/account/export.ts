@@ -166,6 +166,7 @@ const PROFILE_FIELDS = [
   "birthYear",
   "activityLevel",
   "nutritionGoal",
+  "nutritionMacros",
   "createdAt",
   "privacyAcceptedAt",
   "signupLanding",

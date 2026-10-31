@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, addFoodEntry, foodEntries, logWeight, setNutritionProfile } from "./db";
+import { addFlagUser, addFoodEntry, foodEntries, logWeight, setNutritionMacros, setNutritionProfile } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ } from "./tz";
 
@@ -30,7 +30,8 @@ async function addEntry(page: Page, mealName: string, food: { name: string; kcal
 }
 
 test("add breakfast → meal total and day total; with a profile shows what is left", async ({ page }) => {
-  await diaryUser(page, true);
+  const me = await diaryUser(page, true);
+  await setNutritionMacros(me.login, true);
   await page.goto("/nutrition");
   await addEntry(page, "Завтрак", { name: "Овсянка", kcal: "300", protein: "10" });
   const breakfast = meal(page, "Завтрак");
@@ -120,4 +121,45 @@ test("over the norm shows +N", async ({ page }) => {
   await page.goto("/nutrition");
   await addEntry(page, "Ужин", { name: "Пицца", kcal: "3000" });
   await expect(page.getByRole("region", { name: "Итог дня" })).toContainText("+240 сверх нормы");
+});
+
+test("simple input by default: only name and kcal, no macros in the day total", async ({ page }) => {
+  await diaryUser(page, true);
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  await expect(summary.getByRole("switch", { name: "Белки, жиры, углеводы" })).not.toBeChecked();
+  await expect(summary.getByText("Белки", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Норма на день" }).getByText("Белки", { exact: true })).toHaveCount(0);
+  await meal(page, "Завтрак").getByRole("button", { name: "Добавить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Добавить: Завтрак" });
+  await expect(dialog.getByLabel("Ккал")).toBeVisible();
+  await expect(dialog.getByLabel("Белки, г")).toHaveCount(0);
+});
+
+test("the macros switch shows the fields and is remembered", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  const toggle = page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" });
+  await toggle.click();
+  await expect(toggle).toBeChecked();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).toBeChecked();
+  await meal(page, "Обед").getByRole("button", { name: "Добавить" }).click();
+  await expect(page.getByRole("dialog", { name: "Добавить: Обед" }).getByLabel("Белки, г")).toBeVisible();
+});
+
+test("editing in simple mode keeps the macros already entered", async ({ page }) => {
+  const me = await diaryUser(page);
+  await addFoodEntry(me.login, { date: localDay(0), meal: "LUNCH", name: "Курица", kcal: 200, protein: 30 });
+  await page.goto("/nutrition");
+  const lunch = meal(page, "Обед");
+  await expect(lunch.getByRole("listitem")).not.toContainText("Б 30");
+  await lunch.getByRole("button", { name: "Действия: Курица" }).click();
+  await page.getByRole("menuitem", { name: "Изменить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Изменить запись" });
+  await dialog.getByLabel("Ккал").fill("220");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(lunch.getByRole("listitem")).toContainText("220 ккал");
+  await page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" }).click();
+  await expect(lunch.getByRole("listitem")).toContainText("Б 30");
 });

@@ -33,6 +33,13 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
   return { ok: true };
 }
 
+/** Переключатель «Белки, жиры, углеводы»: продвинутый ввод (Б/Ж/У) или только ккал. */
+export async function setNutritionMacrosAction(on: boolean) {
+  const user = await nutritionUser();
+  await db.user.update({ where: { id: user.id }, data: { nutritionMacros: on === true } });
+  revalidatePath("/nutrition");
+}
+
 /** «Очистить данные питания»: пол и вес остаются — они общие с настройками и целями. */
 export async function clearNutritionProfileAction() {
   const user = await nutritionUser();

@@ -37,14 +37,16 @@ export function NormCard({ view }: { view: NutritionView }) {
         </div>
         <NutritionProfileDialog profile={profile} label="Изменить данные" variant="outline" />
       </div>
-      <dl className="grid grid-cols-3 gap-3">
-        {macros.map(([label, grams]) => (
-          <div key={label} className="rounded-lg bg-muted/50 p-3">
-            <dt className="text-xs text-muted-foreground">{label}</dt>
-            <dd className="text-lg font-bold tabular-nums">{grams} г</dd>
-          </div>
-        ))}
-      </dl>
+      {view.macros ? (
+        <dl className="grid grid-cols-3 gap-3">
+          {macros.map(([label, grams]) => (
+            <div key={label} className="rounded-lg bg-muted/50 p-3">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="text-lg font-bold tabular-nums">{grams} г</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       <p className="text-xs text-muted-foreground">
         Основной обмен {n(norm.bmr)} × {n(norm.factor)} ({ACTIVITY_LABELS[profile.activity].label.toLowerCase()} активность){goal}
       </p>

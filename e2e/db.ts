@@ -2132,3 +2132,8 @@ export async function foodEntries(login: string, date: string) {
     return rows;
   });
 }
+
+/** Продвинутый ввод питания (Б/Ж/У) — User.nutritionMacros. */
+export async function setNutritionMacros(login: string, on: boolean) {
+  await withDb((db) => db.query(`update "User" set "nutritionMacros" = $2 where login = $1`, [login, on]));
+}
