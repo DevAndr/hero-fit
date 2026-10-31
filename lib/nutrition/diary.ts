@@ -44,6 +44,12 @@ export function balance(eaten: number, norm: number): { left: number } | { over:
   return eaten <= norm ? { left: norm - eaten } : { over: eaten - norm };
 }
 
+/** Кольцо калорий: main — доля съеденного от нормы (до полного круга), over — превышение (второй круг, тоже до полного). */
+export function ringArcs(eaten: number, norm: number): { main: number; over: number } {
+  if (norm <= 0) return { main: 0, over: 0 };
+  return { main: Math.min(1, eaten / norm), over: Math.min(1, Math.max(0, eaten - norm) / norm) };
+}
+
 export const MAX_DIARY_DAYS = 365;
 
 /** День из `?date=`: мусор и будущее → сегодня, старше года → граница года. */

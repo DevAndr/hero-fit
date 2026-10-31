@@ -40,7 +40,7 @@ test("add breakfast → meal total and day total; with a profile shows what is l
   await expect(breakfast.getByRole("listitem")).toContainText("Б 10");
   const summary = page.getByRole("region", { name: "Итог дня" });
   await expect(summary.getByTestId("day-kcal")).toHaveText("300 / 2 760 ккал");
-  await expect(summary).toContainText("Осталось 2 460");
+  await expect(summary.getByRole("img", { name: "Съедено 300 из 2 760 ккал, осталось 2 460" })).toBeVisible();
 });
 
 test("edit and delete an entry", async ({ page }) => {
@@ -121,7 +121,9 @@ test("over the norm shows +N", async ({ page }) => {
   await diaryUser(page, true);
   await page.goto("/nutrition");
   await addEntry(page, "Ужин", { name: "Пицца", kcal: "3000" });
-  await expect(page.getByRole("region", { name: "Итог дня" })).toContainText("+240 сверх нормы");
+  const ring = page.getByRole("region", { name: "Итог дня" }).getByRole("img", { name: "Съедено 3 000 из 2 760 ккал, 240 сверх нормы" });
+  await expect(ring).toContainText("+240");
+  await expect(ring).toContainText("сверх нормы");
 });
 
 test("simple input by default: only name and kcal, no macros in the day total", async ({ page }) => {
