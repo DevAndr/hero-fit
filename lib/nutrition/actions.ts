@@ -33,10 +33,13 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
   return { ok: true };
 }
 
-/** Переключатель «Белки, жиры, углеводы»: продвинутый ввод (Б/Ж/У) или только ккал. */
+/**
+ * Режим ввода: продвинутый (Б/Ж/У) или только ккал — переключатель «Белки, жиры, углеводы» и диалог первого захода
+ * (закрыли без выбора — упрощённый). Ставит отметку выбора: диалог больше не показывается.
+ */
 export async function setNutritionMacrosAction(on: boolean) {
   const user = await nutritionUser();
-  await db.user.update({ where: { id: user.id }, data: { nutritionMacros: on === true } });
+  await db.user.update({ where: { id: user.id }, data: { nutritionMacros: on === true, nutritionModeChosenAt: new Date() } });
   revalidatePath("/nutrition");
 }
 

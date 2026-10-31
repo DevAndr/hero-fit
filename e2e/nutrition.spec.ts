@@ -9,6 +9,7 @@ const localDay = (daysAgo: number) =>
 async function nutritionUser(page: Page) {
   const me = await registerUser(page);
   await addFlagUser("nutrition", me.login);
+  await setNutritionMacros(me.login, false);
   return me;
 }
 

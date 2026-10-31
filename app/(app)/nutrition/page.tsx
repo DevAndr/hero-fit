@@ -5,6 +5,7 @@ import { BurnCard } from "@/components/nutrition/burn-card";
 import { DayNav } from "@/components/nutrition/day-nav";
 import { DaySummary } from "@/components/nutrition/day-summary";
 import { MealBlock } from "@/components/nutrition/meal-block";
+import { NutritionModeDialog } from "@/components/nutrition/mode-dialog";
 import { NormCard } from "@/components/nutrition/norm-card";
 import { requireUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
@@ -27,6 +28,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
   return (
     <div className="space-y-4">
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
+      {view.modeChosen ? null : <NutritionModeDialog />}
       <DayNav date={date} today={today} />
       <DaySummary total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
