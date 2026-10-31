@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { weightOn, workoutKcal } from "./burn";
+import { MAX_BURN_HOURS, weightOn, whoopKcalOf, workoutKcal } from "./burn";
 
 describe("workoutKcal", () => {
   it("MET × weight × hours, rounded to 5", () => {
@@ -19,6 +19,21 @@ describe("workoutKcal", () => {
     expect(workoutKcal({ kinds: ["REPS"], durationSec: 3600, weightKg: null, whoopKcal: null })).toBeNull();
     expect(workoutKcal({ kinds: ["REPS"], durationSec: null, weightKg: 80, whoopKcal: null })).toBeNull();
     expect(workoutKcal({ kinds: ["REPS"], durationSec: 0, weightKg: 80, whoopKcal: null })).toBeNull();
+  });
+});
+
+describe("forgotten workouts", () => {
+  it("duration is capped at 3 hours: a workout closed 12 hours later is not 4800 kcal", () => {
+    expect(MAX_BURN_HOURS).toBe(3);
+    expect(workoutKcal({ kinds: ["REPS"], durationSec: 12 * 3600, weightKg: 80, whoopKcal: null })).toEqual({ kcal: 1200, source: "met" });
+  });
+});
+
+describe("whoopKcalOf", () => {
+  it("only a WHOOP card with data gives kcal; waiting, none, pending and reauth fall back to MET", () => {
+    expect(whoopKcalOf({ kind: "data", summary: { kcal: 300 } })).toBe(300);
+    for (const kind of ["waiting", "none", "pending", "reauth"] as const) expect(whoopKcalOf({ kind })).toBeNull();
+    expect(whoopKcalOf(null)).toBeNull();
   });
 });
 

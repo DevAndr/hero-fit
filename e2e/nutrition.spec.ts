@@ -54,6 +54,10 @@ test("saving without gender shows a field error and keeps the dialog open", asyn
   const dialog = await fillProfile(page, "Заполнить", { gender: false });
   await expect(dialog.getByText("Укажите пол")).toBeVisible();
   await expect(dialog).toBeVisible();
+  // Введённое не пропадает после ошибки
+  await expect(dialog.getByLabel("Год рождения")).toHaveValue("1996");
+  await expect(dialog.getByLabel("Рост, см")).toHaveValue("180");
+  await expect(dialog.getByLabel("Вес, кг")).toHaveValue("80");
 });
 
 test("burn: a seeded workout with body weight shows ≈ kcal on /nutrition and in the summary", async ({ page }) => {

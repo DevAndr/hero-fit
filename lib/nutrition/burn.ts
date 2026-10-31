@@ -4,6 +4,9 @@ export type SetKind = "REPS" | "TIME" | "CARDIO" | "STRETCH";
 
 export const MET: Record<SetKind, number> = { REPS: 5, TIME: 4, CARDIO: 7, STRETCH: 2.5 };
 
+/** Длительность в оценке не больше 3 ч: забытая и закрытая к вечеру тренировка не даёт тысячи ккал. */
+export const MAX_BURN_HOURS = 3;
+
 export type Burn = { kcal: number; source: "met" | "whoop" };
 
 /** kinds — по элементу на выполненный рабочий подход (разминка и неотмеченные не входят). */
@@ -11,7 +14,13 @@ export function workoutKcal(i: { kinds: SetKind[]; durationSec: number | null; w
   if (i.whoopKcal !== null) return { kcal: i.whoopKcal, source: "whoop" };
   if (!i.kinds.length || !i.weightKg || !i.durationSec) return null;
   const met = i.kinds.reduce((sum, k) => sum + MET[k], 0) / i.kinds.length;
-  return { kcal: Math.round((met * i.weightKg * (i.durationSec / 3600)) / 5) * 5, source: "met" };
+  const hours = Math.min(i.durationSec / 3600, MAX_BURN_HOURS);
+  return { kcal: Math.round((met * i.weightKg * hours) / 5) * 5, source: "met" };
+}
+
+/** Ккал из карточки WHOOP — только при данных; «ждём», «нет совпадения», переподключение → оценка по MET. */
+export function whoopKcalOf(card: { kind: string; summary?: { kcal: number | null } } | null): number | null {
+  return card?.kind === "data" ? (card.summary?.kcal ?? null) : null;
 }
 
 /** Вес на местную дату: последняя запись не позже неё, иначе самая ранняя (взвесился позже первой тренировки). */

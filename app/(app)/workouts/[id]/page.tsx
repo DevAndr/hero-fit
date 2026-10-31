@@ -12,6 +12,7 @@ import { UpdateTemplateButton } from "@/components/workouts/update-template-butt
 import { WhoopCard } from "@/components/workouts/whoop-card";
 import { BurnTile } from "@/components/nutrition/burn-tile";
 import { getWorkoutBurn } from "@/lib/nutrition/queries";
+import { whoopKcalOf } from "@/lib/nutrition/burn";
 import { WorkoutFeedback } from "@/components/workouts/workout-feedback";
 import { WorkoutSummaryView } from "@/components/workouts/workout-summary-view";
 import { requireUser } from "@/lib/auth/dal";
@@ -55,8 +56,8 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   // Пульс и strain из WHOOP — только владельцу (страница и так только его), при флаге и подключении
   const whoopCard = (await whoopAvailable(user.id)) ? await getWhoopCard(user.id, workout) : null;
   const together = (await isEnabled("together", user.id)) ? await getTogetherSummary(user.id, workout.id) : null;
-  // Оценка расхода (флаг nutrition) — только без WHOOP-карточки: у неё свои ккал
-  const burn = !whoopCard && (await isEnabled("nutrition", user.id)) ? await getWorkoutBurn(user.id, workout.id, safeTimeZone(user.timeZone)) : null;
+  // Оценка расхода (флаг nutrition) — когда у WHOOP нет ккал по этой тренировке (нет карточки, ждём, нет совпадения)
+  const burn = whoopKcalOf(whoopCard) === null && (await isEnabled("nutrition", user.id)) ? await getWorkoutBurn(user.id, workout.id, safeTimeZone(user.timeZone)) : null;
   // Карточки рекордов — по тумблеру в /settings; сами всплывают только у только что завершённой тренировки
   const { shareRecordCards } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { shareRecordCards: true } });
   const recordExercises = shareRecordCards && meta?.records.length ? bestRecordPerExercise(meta.records, false).map((r) => r.exerciseName) : [];

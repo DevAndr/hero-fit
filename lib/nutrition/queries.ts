@@ -5,7 +5,7 @@ import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { localMidnight } from "@/lib/progress/weekly-streak";
 import { getWhoopCard, whoopAvailable } from "@/lib/whoop/queries";
-import { weightOn, workoutKcal, type SetKind } from "@/lib/nutrition/burn";
+import { weightOn, whoopKcalOf, workoutKcal, type SetKind } from "@/lib/nutrition/burn";
 import { dailyNorm, type ActivityLevel, type Norm, type NutritionGoal } from "@/lib/nutrition/norm";
 
 const DAYS = 7;
@@ -76,7 +76,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
       kinds: kindsOf(w),
       durationSec: w.durationSec,
       weightKg: weightOn(log, date),
-      whoopKcal: card?.kind === "data" ? card.summary.kcal : null,
+      whoopKcal: whoopKcalOf(card),
     });
     if (!burn) continue;
     list.push({ id: w.id, name: w.name, finishedAt: w.finishedAt, ...burn });
@@ -92,7 +92,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
   };
 }
 
-/** Плитка в сводке тренировки — только MET: при WHOOP-карточке плитка не показывается. */
+/** Плитка в сводке тренировки — только MET: при WHOOP-карточке с данными плитка не показывается. */
 export async function getWorkoutBurn(userId: string, workoutId: string, tz: string): Promise<{ kcal: number; source: "met" } | null> {
   const [w, log] = await Promise.all([
     db.workout.findFirst({ where: { id: workoutId, userId, status: WorkoutStatus.COMPLETED }, select: workoutSelect }),

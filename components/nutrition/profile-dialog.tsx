@@ -47,7 +47,7 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
   const field = (name: "birthYear" | "heightCm" | "weight", text: string, value: number | null, mode: "numeric" | "decimal") => (
     <div className="space-y-1.5">
       <Label htmlFor={`nutrition-${name}`}>{text}</Label>
-      <Input id={`nutrition-${name}`} name={name} inputMode={mode} defaultValue={value ?? ""} className="max-w-32" {...selectOnFocus} />
+      <Input id={`nutrition-${name}`} name={name} inputMode={mode} defaultValue={state.values?.[name] ?? value ?? ""} className="max-w-32" {...selectOnFocus} />
       <Errors list={state.errors?.[name]} />
     </div>
   );
@@ -66,7 +66,7 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
           <form action={action} className="space-y-4">
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Пол</p>
-              <RadioGroup name="gender" aria-label="Пол" defaultValue={profile.gender ?? undefined} className="grid-cols-2">
+              <RadioGroup name="gender" aria-label="Пол" defaultValue={state.values?.gender ?? profile.gender ?? undefined} className="grid-cols-2">
                 {GENDERS.map(([value, text]) => (
                   <label key={value} className={option}>
                     <RadioGroupItem value={value} aria-label={text} />
@@ -83,7 +83,7 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Активность</p>
-              <RadioGroup name="activity" aria-label="Активность" defaultValue={profile.activity ?? undefined} className="grid-cols-1">
+              <RadioGroup name="activity" aria-label="Активность" defaultValue={state.values?.activity ?? profile.activity ?? undefined} className="grid-cols-1">
                 {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((a) => (
                   <label key={a} className={option}>
                     <RadioGroupItem value={a} aria-label={ACTIVITY_LABELS[a].label} />
@@ -97,7 +97,7 @@ export function NutritionProfileDialog({ profile, label, variant = "default" }: 
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Цель</p>
-              <RadioGroup name="goal" aria-label="Цель" defaultValue={profile.goal ?? undefined} className="grid-cols-3">
+              <RadioGroup name="goal" aria-label="Цель" defaultValue={state.values?.goal ?? profile.goal ?? undefined} className="grid-cols-3">
                 {(Object.keys(GOAL_LABELS) as NutritionGoal[]).map((g) => (
                   <label key={g} className={option}>
                     <RadioGroupItem value={g} aria-label={GOAL_LABELS[g]} />
