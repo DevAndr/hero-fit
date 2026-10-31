@@ -58,6 +58,7 @@ const raw = (): ExportRaw => ({
     { id: "sc_secret", userId: "u_secret", goalId: "g_secret", skill: "SPLIT_SIDE", status: "ACTIVE", remindDays: [0, 2], nextSession: 3, startedAt: new Date("2026-10-20T10:00:00Z"), finishedAt: null, remindedDay: "2026-10-21" },
   ],
   bodyWeight: [],
+  food: [{ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300, protein: 10, fat: null, carbs: 50, createdAt: new Date("2026-10-30T06:00:00Z") }],
   records: [],
   achievements: [],
   xpHistory: [],
@@ -159,6 +160,9 @@ describe("buildExport", () => {
   });
   it("профиль содержит настройку карточек рекордов", () => {
     expect(out.profile).toMatchObject({ shareRecordCards: true, gender: "FEMALE" });
+  });
+  it("дневник питания — отдельный раздел", () => {
+    expect(out.food).toEqual([expect.objectContaining({ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300 })]);
   });
   it("профиль содержит анкету питания", () => {
     expect(out.profile).toMatchObject({ heightCm: 170, birthYear: 1995, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
