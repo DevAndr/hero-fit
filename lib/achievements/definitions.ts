@@ -104,6 +104,8 @@ export type AchievementStats = {
   coachMode: boolean;
   /** Тренерские счётчики из истории (lib/achievements/coach-stats.ts). */
   coach: CoachAchievementStats;
+  /** Дневник питания (флаг nutrition): лучшая серия зачётных дней и дни в норме (lib/nutrition/streak.ts). */
+  nutrition: { enabled: boolean; longestDiaryStreak: number; currentDiaryStreak: number; normDays: number };
 };
 
 /** Счётчики тренера по окнам связи CoachLink (lib/achievements/coach-stats.ts). */
@@ -210,6 +212,7 @@ export const EMPTY_STATS: AchievementStats = {
   goalsAchieved: 0,
   coachMode: false,
   coach: EMPTY_COACH_STATS,
+  nutrition: { enabled: false, longestDiaryStreak: 0, currentDiaryStreak: 0, normDays: 0 },
 };
 
 export const WORKOUT_STEP = 5;
@@ -910,6 +913,7 @@ function ladders(s: AchievementStats): Ladder[] {
 
     // Тренер: без режима тренера — ни выдачи, ни целей
     ...coachLadders(s),
+    ...nutritionLadders(s),
   ];
 }
 
@@ -978,6 +982,34 @@ function coachLadders(s: AchievementStats): Ladder[] {
     def: (n) => def(n, { code: `coachpage:${n}`, category: "COACH", title: "На виду", description: "Опубликовать страницу тренера", xpReward: coachXp(0) }),
   });
   return ladders;
+}
+
+const DIARY_TITLES: Record<number, string> = { 3: "Записал — значит, съел", 7: "Неделя на учёте", 30: "Месяц без пропусков" };
+const DIARY_XP: Record<number, number> = { 3: 15, 7: 30, 30: 75 };
+const NORM_TITLES: Record<number, string> = { 7: "В цель", 30: "Снайпер калорий" };
+const NORM_XP: Record<number, number> = { 7: 20, 30: 50 };
+
+/** Питание — только при флаге nutrition (как тренерские при coachMode): иначе ни выдачи, ни целей. */
+function nutritionLadders(s: AchievementStats): Ladder[] {
+  const on = s.nutrition.enabled;
+  return [
+    {
+      fixed: [3, 7, 30],
+      // Получение — по лучшей серии, цель — по текущей (как у недельного streak): заброшенная серия не висит «2/3»
+      value: on ? s.nutrition.longestDiaryStreak : 0,
+      goalValue: on ? s.nutrition.currentDiaryStreak : 0,
+      goal: on,
+      def: (n) =>
+        def(n, { code: `diary:${n}`, category: "NUTRITION", title: DIARY_TITLES[n], description: `${n} ${plural(n, "день", "дня", "дней")} подряд с дневником питания`, xpReward: DIARY_XP[n] }),
+    },
+    {
+      fixed: [7, 30],
+      value: on ? s.nutrition.normDays : 0,
+      goal: on,
+      def: (n) =>
+        def(n, { code: `normdays:${n}`, category: "NUTRITION", title: NORM_TITLES[n], description: `${n} ${plural(n, "день", "дня", "дней")} в норме калорий (±10 %)`, xpReward: NORM_XP[n] }),
+    },
+  ];
 }
 
 export function earnedAchievements(stats: AchievementStats): AchievementDef[] {

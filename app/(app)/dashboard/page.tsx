@@ -54,6 +54,8 @@ import { isEnabled } from "@/lib/flags/server";
 import { DashboardInvite } from "@/components/together/dashboard-invite";
 import { SiteLoginHintCard } from "@/components/telegram/site-login-hint-card";
 import { showSiteLoginHint } from "@/lib/telegram/site-login-hint-queries";
+import { NutritionTodayCard } from "@/components/nutrition/nutrition-today-card";
+import { getNutritionToday } from "@/lib/nutrition/today-queries";
 import { pendingInviteFor } from "@/lib/together/queries";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
@@ -345,7 +347,12 @@ export default async function DashboardPage() {
     </section>
   );
 
-  const [v3data, siteLoginHint] = await Promise.all([getDashboardV3({ id: user.id, timeZone: userTz }, now), showSiteLoginHint(user.id, now)]);
+  const [v3data, siteLoginHint, nutrition] = await Promise.all([
+    getDashboardV3({ id: user.id, timeZone: userTz }, now),
+    showSiteLoginHint(user.id, now),
+    // Питание сегодня — только при флаге; без него запросов к дневнику нет
+    isEnabled("nutrition", user.id).then((on) => (on ? getNutritionToday(user.id, userTz, now) : null)),
+  ]);
   return (
     <>
       {programs ? <OnboardingTour programs={programs} /> : null}
@@ -358,6 +365,7 @@ export default async function DashboardPage() {
             {togetherInvite ? <DashboardInvite invite={togetherInvite} /> : null}
             {todayPlan}
             {coachBlock}
+            {nutrition ? <NutritionTodayCard data={nutrition} /> : null}
             {recapBlock}
             {whoopBlock}
           </>

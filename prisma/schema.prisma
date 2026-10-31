@@ -119,6 +119,7 @@ enum AchievementCategory {
   COACH // ачивки тренера (lib/achievements/coach-stats.ts)
   ENDURANCE // кардио и упражнения на время
   SOCIAL // социальное: респекты за рекорды
+  NUTRITION // дневник питания: серия дней, дни в норме (lib/nutrition/streak.ts)
 }
 
 enum NotificationType {
@@ -203,6 +204,10 @@ model User {
   birthYear         Int?
   activityLevel     ActivityLevel?
   nutritionGoal     NutritionGoal?
+  /// продвинутый ввод питания: Б/Ж/У в дневнике и норме; по умолчанию — только ккал
+  nutritionMacros   Boolean        @default(false)
+  /// когда выбран режим ввода (диалог первого захода на /nutrition или переключатель); null — ещё не спрашивали
+  nutritionModeChosenAt DateTime?
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё

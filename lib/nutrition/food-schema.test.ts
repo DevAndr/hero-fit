@@ -12,6 +12,10 @@ describe("foodEntrySchema", () => {
     expect(foodEntrySchema.parse(form)).toEqual({ meal: "LUNCH", name: "Гречка", kcal: 350, protein: 12.5, fat: null, carbs: 60 });
   });
 
+  it("a thousands space is fine: «1 500»", () => {
+    expect(foodEntrySchema.parse({ ...form, kcal: "1 500" }).kcal).toBe(1500);
+  });
+
   it("name 1…80", () => {
     expect(errors({ name: "   " })).toEqual(["name"]);
     expect(errors({ name: "x".repeat(81) })).toEqual(["name"]);

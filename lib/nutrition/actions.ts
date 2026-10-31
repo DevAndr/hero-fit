@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/dal";
+import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { logBodyWeightAction } from "@/lib/goals/actions";
@@ -18,7 +19,7 @@ async function nutritionUser() {
   return user;
 }
 
-/** Анкета нормы: поля User и пол; вес — обычным взвешиванием за сегодня (журнал, цель по весу, ачивки). */
+/** Анкета нормы: поля User и пол; вес — обычным взвешиванием за сегодня (журнал, цель по весу, ачивки), только если изменился. */
 export async function saveNutritionProfileAction(_prev: NutritionFormState, formData: FormData): Promise<NutritionFormState> {
   const user = await nutritionUser();
   const raw = Object.fromEntries(formData);
@@ -27,10 +28,26 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values };
   const { gender, birthYear, heightCm, weight, activity, goal } = parsed.data;
   await db.user.update({ where: { id: user.id }, data: { gender, birthYear, heightCm, activityLevel: activity, nutritionGoal: goal } });
-  const logged = await logBodyWeightAction(weight);
-  if (!logged.ok) return { errors: { weight: [logged.error] }, values };
+  // В форме — последний вес; не изменили его — не пишем «взвешивание» сегодняшним числом
+  const last = await db.bodyWeightEntry.findFirst({ where: { userId: user.id }, orderBy: { date: "desc" }, select: { weight: true } });
+  if (last?.weight !== weight) {
+    const logged = await logBodyWeightAction(weight);
+    if (!logged.ok) return { errors: { weight: [logged.error] }, values };
+  }
+  // Норма меняет «дни в норме» — ачивки питания пересчитываются; сбой оценки не ломает сохранение
+  await evaluateAchievementsNow(user.id).catch((e) => console.error("[nutrition] achievements", e));
   revalidatePath("/nutrition");
   return { ok: true };
+}
+
+/**
+ * Режим ввода: продвинутый (Б/Ж/У) или только ккал — переключатель «Белки, жиры, углеводы» и диалог первого захода
+ * (закрыли без выбора — упрощённый). Ставит отметку выбора: диалог больше не показывается.
+ */
+export async function setNutritionMacrosAction(on: boolean) {
+  const user = await nutritionUser();
+  await db.user.update({ where: { id: user.id }, data: { nutritionMacros: on === true, nutritionModeChosenAt: new Date() } });
+  revalidatePath("/nutrition");
 }
 
 /** «Очистить данные питания»: пол и вес остаются — они общие с настройками и целями. */

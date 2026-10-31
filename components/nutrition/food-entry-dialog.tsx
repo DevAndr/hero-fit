@@ -31,6 +31,7 @@ export function FoodEntryDialog({
   meal,
   entry,
   recents,
+  macros,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,6 +39,8 @@ export function FoodEntryDialog({
   meal: Meal;
   entry?: FoodEntryRow;
   recents: RecentFood[];
+  /** без продвинутого ввода Б/Ж/У уходят скрытыми полями — правка ккал их не стирает */
+  macros: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState<FoodFormState, FormData>(async (prev, formData) => {
@@ -68,11 +71,11 @@ export function FoodEntryDialog({
           </div>
         ) : null}
         <form ref={formRef} action={action} className="space-y-4">
-          <RadioGroup name="meal" aria-label="Приём пищи" defaultValue={state.values?.meal ?? entry?.meal ?? meal} className="grid-cols-2 sm:grid-cols-4">
+          <RadioGroup name="meal" aria-label="Приём пищи" defaultValue={state.values?.meal ?? entry?.meal ?? meal} className="grid-cols-2">
             {MEALS.map((m) => (
               <label
                 key={m}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm transition-colors hover:bg-muted has-data-checked:border-primary has-data-checked:bg-primary/10"
+                className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm whitespace-nowrap transition-colors hover:bg-muted has-data-checked:border-primary has-data-checked:bg-primary/10"
               >
                 <RadioGroupItem value={m} aria-label={MEAL_LABELS[m]} />
                 {MEAL_LABELS[m]}
@@ -80,7 +83,7 @@ export function FoodEntryDialog({
             ))}
           </RadioGroup>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {FIELDS.map(({ name, label, mode }) => (
+            {FIELDS.filter((f) => macros || f.name === "name" || f.name === "kcal").map(({ name, label, mode }) => (
               <div key={name} className={name === "name" ? "col-span-2 space-y-1.5 sm:col-span-4" : "space-y-1.5"}>
                 <Label htmlFor={`food-${name}`}>{label}</Label>
                 <Input
@@ -95,6 +98,9 @@ export function FoodEntryDialog({
               </div>
             ))}
           </div>
+          {macros
+            ? null
+            : (["protein", "fat", "carbs"] as const).map((name) => <input key={name} type="hidden" name={name} defaultValue={state.values?.[name] ?? shown(entry?.[name])} />)}
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               {pending ? <Loader2 className="animate-spin" /> : null}

@@ -6,14 +6,6 @@ export type Meal = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
 export const MEALS: Meal[] = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
 export const MEAL_LABELS: Record<Meal, string> = { BREAKFAST: "Завтрак", LUNCH: "Обед", DINNER: "Ужин", SNACK: "Перекус" };
 
-/** Приём по местному часу — для общей кнопки «Добавить». */
-export function defaultMeal(hour: number): Meal {
-  if (hour < 11) return "BREAKFAST";
-  if (hour < 16) return "LUNCH";
-  if (hour < 21) return "DINNER";
-  return "SNACK";
-}
-
 export type Macros = { kcal: number; protein: number; fat: number; carbs: number };
 type EntryMacros = { meal: Meal; kcal: number; protein: number | null; fat: number | null; carbs: number | null };
 
@@ -42,6 +34,12 @@ export function dayTotals(entries: EntryMacros[]): { total: Macros; byMeal: Reco
 
 export function balance(eaten: number, norm: number): { left: number } | { over: number } {
   return eaten <= norm ? { left: norm - eaten } : { over: eaten - norm };
+}
+
+/** Кольцо калорий: main — доля съеденного от нормы (до полного круга), over — превышение (второй круг, тоже до полного). */
+export function ringArcs(eaten: number, norm: number): { main: number; over: number } {
+  if (norm <= 0) return { main: 0, over: 0 };
+  return { main: Math.min(1, eaten / norm), over: Math.min(1, Math.max(0, eaten - norm) / norm) };
 }
 
 export const MAX_DIARY_DAYS = 365;
