@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balance, dayTotals, defaultMeal, parseDiaryDate, ringArcs } from "./diary";
-
-describe("defaultMeal", () => {
-  it("by local hour: breakfast before 11, lunch before 16, dinner before 21, then snack", () => {
-    expect([3, 10, 11, 15, 16, 20, 21, 23].map(defaultMeal)).toEqual(["BREAKFAST", "BREAKFAST", "LUNCH", "LUNCH", "DINNER", "DINNER", "SNACK", "SNACK"]);
-  });
-});
+import { balance, dayTotals, parseDiaryDate, ringArcs } from "./diary";
 
 describe("dayTotals", () => {
   it("sums by meal and day; missing macros count as 0, grams to 0.1", () => {

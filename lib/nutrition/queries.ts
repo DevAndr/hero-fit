@@ -72,10 +72,12 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
   const profile = { gender: user.gender, birthYear: user.birthYear, heightCm: user.heightCm, weightKg, activity: user.activityLevel, goal: user.nutritionGoal };
   const days = Array.from({ length: DAYS }, (_, i) => ({ date: addDays(from, i), kcal: 0 }));
   const list: NutritionView["burn"]["workouts"] = [];
-  for (const w of workouts) {
+  // Карточки WHOOP — параллельно: последовательно это до 2 запросов на каждую тренировку недели
+  const cards = whoop ? await Promise.all(workouts.map((w) => getWhoopCard(userId, w))) : [];
+  for (const [i, w] of workouts.entries()) {
     if (!w.finishedAt) continue;
     const date = dayKey(w.finishedAt, tz);
-    const card = whoop ? await getWhoopCard(userId, w) : null;
+    const card = cards[i] ?? null;
     const burn = workoutKcal({
       kinds: kindsOf(w),
       durationSec: w.durationSec,

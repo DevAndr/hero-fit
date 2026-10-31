@@ -2137,3 +2137,25 @@ export async function foodEntries(login: string, date: string) {
 export async function setNutritionMacros(login: string, on: boolean) {
   await withDb((db) => db.query(`update "User" set "nutritionMacros" = $2, "nutritionModeChosenAt" = now() where login = $1`, [login, on]));
 }
+
+/** Активность WHOOP с оценкой (для сводки и расхода): start…end, кДж. */
+export async function insertWhoopWorkout(login: string, start: Date, end: Date, kilojoule: number) {
+  await withDb(async (db) =>
+    db.query(
+      `insert into "WhoopWorkout" (id, "userId", start, "end", "sportName", "scoreState", strain, "avgHr", "maxHr", kilojoule, "zonesMs", "updatedAt")
+       values ($1, $2, $3, $4, 'weightlifting', 'SCORED', 10, 130, 160, $5, '{0,0,0,0,0,0}', now())`,
+      [randomUUID(), await userId(db, login), start, end, kilojoule],
+    ),
+  );
+}
+
+/** Записи журнала веса пользователя (дата, вес). */
+export async function weightEntries(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ date: string; weight: number }>(
+      `select date, weight from "BodyWeightEntry" where "userId" = (select id from "User" where login = $1) order by date`,
+      [login],
+    );
+    return rows;
+  });
+}
