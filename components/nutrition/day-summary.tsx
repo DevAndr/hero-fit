@@ -1,5 +1,6 @@
 import { CalorieRing } from "@/components/nutrition/calorie-ring";
 import { MacrosSwitch } from "@/components/nutrition/macros-switch";
+import { DiaryStreakLine } from "@/components/nutrition/nutrition-today-card";
 import { NutritionProfileDialog } from "@/components/nutrition/profile-dialog";
 import type { Macros } from "@/lib/nutrition/diary";
 import type { Norm } from "@/lib/nutrition/norm";
@@ -21,7 +22,20 @@ function Bar({ value, max }: { value: number; max: number }) {
 }
 
 /** Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы. */
-export function DaySummary({ total, norm, profile, macros: showMacros }: { total: Macros; norm: Norm | null; profile: NutritionView["profile"]; macros: boolean }) {
+export function DaySummary({
+  total,
+  norm,
+  profile,
+  macros: showMacros,
+  streak,
+}: {
+  total: Macros;
+  norm: Norm | null;
+  profile: NutritionView["profile"];
+  macros: boolean;
+  /** текущая серия дневника — строка «Серия дневника: N дней» */
+  streak: number;
+}) {
   const macros = [
     ["Белки", total.protein, norm?.protein],
     ["Жиры", total.fat, norm?.fat],
@@ -56,7 +70,10 @@ export function DaySummary({ total, norm, profile, macros: showMacros }: { total
               ))}
             </dl>
           ) : null}
-          <MacrosSwitch on={showMacros} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <MacrosSwitch on={showMacros} />
+            <DiaryStreakLine days={streak} />
+          </div>
         </div>
       </div>
     </section>
