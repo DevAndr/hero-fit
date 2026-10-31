@@ -40,12 +40,22 @@ import {
   withDb,
   latestWorkout,
   seedTogether,
+  setNutritionProfile,
 } from "./db";
 import { createGuild, guildName, inviteUrl, nickOf, player } from "./guild-helpers";
 import { PASSWORD, quickWorkout, registerUser } from "./helpers";
 import { mockTelegram } from "./telegram-webapp";
 
 // Мои данные: выгрузка и удаление аккаунта (спека 2026-10-13-account-data-design); игроков несколько — --workers=8
+
+test("export: nutrition profile is in the JSON", async ({ page }) => {
+  const me = await registerUser(page);
+  await setNutritionProfile(me.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
+  await page.goto("/settings");
+  const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const data = JSON.parse(await readFile((await json.path())!, "utf8"));
+  expect(data.profile).toMatchObject({ heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "LOSE" });
+});
 
 test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({ page }) => {
   const me = await registerUser(page);
