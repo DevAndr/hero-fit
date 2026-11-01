@@ -56,8 +56,26 @@ export const axisX = (range: number) => ({
   tickFormatter: (day: string) => dayMonth.format(toDate(day)),
 });
 
-/** unit — после итога («ккал»); extra — дополнительная строка итога через «·». */
-function BarCard({ title, label, points, range, unit, extra }: { title: string; label: string; points: { day: string; value: number }[]; range: number; unit?: string; extra?: string }) {
+const compact = new Intl.NumberFormat("ru-RU", { notation: "compact" });
+
+/** unit — после итога («ккал»); extra — дополнительная строка итога через «·»; compactAxis — подписи оси «50 тыс.» для больших чисел. */
+function BarCard({
+  title,
+  label,
+  points,
+  range,
+  unit,
+  extra,
+  compactAxis,
+}: {
+  title: string;
+  label: string;
+  points: { day: string; value: number }[];
+  range: number;
+  unit?: string;
+  extra?: string;
+  compactAxis?: boolean;
+}) {
   const total = points.reduce((s, p) => s + p.value, 0);
   const config = { value: { label, color: "var(--chart-1)" } } satisfies ChartConfig;
   return (
@@ -90,7 +108,14 @@ function BarCard({ title, label, points, range, unit, extra }: { title: string; 
         <BarChart data={points} margin={{ top: 4, right: 0, left: 0, bottom: 0 }} barCategoryGap={2}>
           <CartesianGrid vertical={false} strokeWidth={1} />
           <XAxis {...axisX(range)} />
-          <YAxis width={40} tickLine={false} axisLine={false} tickCount={4} allowDecimals={false} />
+          <YAxis
+            width={compactAxis ? 56 : 40}
+            tickLine={false}
+            axisLine={false}
+            tickCount={4}
+            allowDecimals={false}
+            tickFormatter={compactAxis ? (v: number) => compact.format(v) : undefined}
+          />
           <ChartTooltip cursor={{ fillOpacity: 0.5 }} content={<Tooltip rows={[{ key: "value", label, color: "var(--chart-1)" }]} />} />
           <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} maxBarSize={24} />
         </BarChart>
@@ -263,7 +288,7 @@ export function MetricsCharts({ series, hourly, range, keep = "" }: { series: Da
           <BarCard title="Тренировки" label="Завершено" points={series.workouts} range={range} />
         </div>
         <div className="lg:col-span-2">
-          <BarCard title="Калории в дневниках" label="Ккал" unit="ккал" points={series.kcal} range={range} extra={`вели дневник: ${series.foodUsers} чел.`} />
+          <BarCard title="Калории в дневниках" label="Ккал" unit="ккал" points={series.kcal} range={range} extra={`вели дневник: ${series.foodUsers} чел.`} compactAxis />
         </div>
         <div className="lg:col-span-2">
           <HourlyCard hourly={hourly} range={range} />
