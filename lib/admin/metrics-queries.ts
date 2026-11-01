@@ -113,7 +113,8 @@ export async function getOverview(tz: string): Promise<Overview> {
   };
 }
 
-export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[]; visitors: DayPoint[] };
+/** kcal — калории всех записей дневника питания по дням; foodUsers — разные пользователи с записями за период. */
+export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[]; visitors: DayPoint[]; kcal: DayPoint[]; foodUsers: number };
 
 /** Ряды по дням за range дней, включая сегодня. */
 export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailySeries> {
@@ -122,7 +123,8 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const visitHour = visitDay(tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
-  const rows = await db.$queryRaw<{ series: keyof DailySeries; day: string; value: number }[]>`
+  type Series = Exclude<keyof DailySeries, "foodUsers">;
+  const rows = await db.$queryRaw<{ series: Series; day: string; value: number }[]>`
     SELECT 'signups' AS series, to_char(${signup}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS value
     FROM "User" WHERE "createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date GROUP BY 2
     UNION ALL
@@ -138,14 +140,21 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
     UNION ALL
     SELECT 'visitors', to_char(${visitHour}, 'YYYY-MM-DD'), SUM(count)::int
     FROM "LandingVisit" WHERE hour >= ${utcFloor(from)} AND ${visitHour} >= ${from}::date GROUP BY 2
+    UNION ALL
+    SELECT 'kcal', date, SUM(kcal)::int
+    FROM "FoodEntry" WHERE date >= ${from} AND date <= ${today} GROUP BY 2
   `;
-  const pick = (s: keyof DailySeries) =>
+  // FoodEntry.date — уже местная дата пользователя (строка), как и в дневнике
+  const [{ foodUsers }] = await db.$queryRaw<{ foodUsers: number }[]>`
+    SELECT COUNT(DISTINCT "userId")::int AS "foodUsers" FROM "FoodEntry" WHERE date >= ${from} AND date <= ${today}
+  `;
+  const pick = (s: Series) =>
     fillDays(
       rows.filter((r) => r.series === s).map(({ day, value }) => ({ day, value })),
       from,
       today,
     );
-  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts"), visitors: pick("visitors") };
+  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts"), visitors: pick("visitors"), kcal: pick("kcal"), foodUsers };
 }
 
 export type HourlyActivity = { visits: HourPoint[]; workouts: HourPoint[] };
