@@ -83,13 +83,16 @@ test.describe("admin metrics page", () => {
       const [active, stale = 0] = (text.match(/\d[\d\s]*/g) ?? []).map((n) => Number(n.replace(/\s/g, "")));
       return { active, stale };
     };
-    // База общая для параллельных тестов — сравниваем прирост не меньше своего
-    const before = await counts();
-    await startWorkoutRow(player.login, new Date(Date.now() - 30 * 60 * 1000));
-    await startWorkoutRow(player.login, new Date(Date.now() - 26 * 3600 * 1000));
-    const after = await counts();
-    expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
-    expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего; соседи в это время завершают свои
+    // тренировки и счётчик может просесть — тогда повтор (каждый добавляет ещё пару, это не мешает)
+    await expect(async () => {
+      const before = await counts();
+      await startWorkoutRow(player.login, new Date(Date.now() - 30 * 60 * 1000));
+      await startWorkoutRow(player.login, new Date(Date.now() - 26 * 3600 * 1000));
+      const after = await counts();
+      expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
+      expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
+    }).toPass({ timeout: 30_000 });
     await expect(line).toContainText("не завершены дольше 4 ч");
   });
 
