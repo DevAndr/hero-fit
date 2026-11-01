@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
+import { addFoodEntry, addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -91,6 +91,26 @@ test.describe("admin metrics page", () => {
     expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
     expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
     await expect(line).toContainText("не завершены дольше 4 ч");
+  });
+
+  test("food diary calories chart: total for the period grows with a player's entries", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const player = await registerUser(await playerCtx.newPage());
+    await playerCtx.close();
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const card = page.getByRole("region", { name: "Калории в дневниках" });
+    const total = async () => {
+      await page.goto("/admin");
+      const text = await card.getByText(/ккал за 30 дней/).innerText();
+      return Number(text.split("ккал")[0].replace(/\D/g, ""));
+    };
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего
+    const before = await total();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    await addFoodEntry(player.login, { date: today, meal: "LUNCH", name: "Суп", kcal: 1234 });
+    expect(await total()).toBeGreaterThanOrEqual(before + 1234);
+    await expect(card).toContainText(/вели дневник: \d+ чел\./);
   });
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {

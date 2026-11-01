@@ -56,13 +56,14 @@ export const axisX = (range: number) => ({
   tickFormatter: (day: string) => dayMonth.format(toDate(day)),
 });
 
-function BarCard({ title, label, points, range }: { title: string; label: string; points: { day: string; value: number }[]; range: number }) {
+/** unit — после итога («ккал»); extra — дополнительная строка итога через «·». */
+function BarCard({ title, label, points, range, unit, extra }: { title: string; label: string; points: { day: string; value: number }[]; range: number; unit?: string; extra?: string }) {
   const total = points.reduce((s, p) => s + p.value, 0);
   const config = { value: { label, color: "var(--chart-1)" } } satisfies ChartConfig;
   return (
     <Card
       title={title}
-      summary={`${total.toLocaleString("ru-RU")} за ${range} дней`}
+      summary={`${total.toLocaleString("ru-RU")}${unit ? ` ${unit}` : ""} за ${range} дней${extra ? ` · ${extra}` : ""}`}
       table={
         <table>
           <caption>
@@ -260,6 +261,9 @@ export function MetricsCharts({ series, hourly, range, keep = "" }: { series: Da
         <BarCard title="Регистрации" label="Новых" points={series.signups} range={range} />
         <div className="lg:col-span-2">
           <BarCard title="Тренировки" label="Завершено" points={series.workouts} range={range} />
+        </div>
+        <div className="lg:col-span-2">
+          <BarCard title="Калории в дневниках" label="Ккал" unit="ккал" points={series.kcal} range={range} extra={`вели дневник: ${series.foodUsers} чел.`} />
         </div>
         <div className="lg:col-span-2">
           <HourlyCard hourly={hourly} range={range} />
