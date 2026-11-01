@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { dayKey } from "@/lib/daily-login";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
+import { DIARY_DAY_MIN_KCAL, DIARY_DAY_MIN_MEALS, diaryStreak } from "@/lib/nutrition/streak";
 import { catalogCount } from "@/lib/coach/catalog-queries";
 import { db } from "@/lib/db";
 import { ACTIVE_WORKOUT_HOURS, cohortGrid, fillDays, fillHours, OTHER_KEY, sourceRows, stackSeries, type Breakdown, type KeyDayRow, type Stacked, type CohortRow, type DayPoint, type HourPoint, type SourceGroup, type SourceRow, type VisitRow } from "@/lib/admin/metrics";
@@ -113,7 +114,8 @@ export async function getOverview(tz: string): Promise<Overview> {
   };
 }
 
-export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[]; visitors: DayPoint[] };
+/** kcal — калории всех записей дневника питания по дням; foodUsers — разные пользователи с записями за период. */
+export type DailySeries = { signups: DayPoint[]; visited: DayPoint[]; trained: DayPoint[]; workouts: DayPoint[]; visitors: DayPoint[]; kcal: DayPoint[]; foodUsers: number };
 
 /** Ряды по дням за range дней, включая сегодня. */
 export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailySeries> {
@@ -122,7 +124,8 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
   const signup = localDay(Prisma.sql`"createdAt"`, tz);
   const visitHour = visitDay(tz);
   const finished = localDay(Prisma.sql`"finishedAt"`, tz);
-  const rows = await db.$queryRaw<{ series: keyof DailySeries; day: string; value: number }[]>`
+  type Series = Exclude<keyof DailySeries, "foodUsers">;
+  const rows = await db.$queryRaw<{ series: Series; day: string; value: number }[]>`
     SELECT 'signups' AS series, to_char(${signup}, 'YYYY-MM-DD') AS day, COUNT(*)::int AS value
     FROM "User" WHERE "createdAt" >= ${utcFloor(from)} AND ${signup} >= ${from}::date GROUP BY 2
     UNION ALL
@@ -138,14 +141,21 @@ export async function getDailySeries(tz: string, range: 30 | 90): Promise<DailyS
     UNION ALL
     SELECT 'visitors', to_char(${visitHour}, 'YYYY-MM-DD'), SUM(count)::int
     FROM "LandingVisit" WHERE hour >= ${utcFloor(from)} AND ${visitHour} >= ${from}::date GROUP BY 2
+    UNION ALL
+    SELECT 'kcal', date, SUM(kcal)::int
+    FROM "FoodEntry" WHERE date >= ${from} AND date <= ${today} GROUP BY 2
   `;
-  const pick = (s: keyof DailySeries) =>
+  // FoodEntry.date — уже местная дата пользователя (строка), как и в дневнике
+  const [{ foodUsers }] = await db.$queryRaw<{ foodUsers: number }[]>`
+    SELECT COUNT(DISTINCT "userId")::int AS "foodUsers" FROM "FoodEntry" WHERE date >= ${from} AND date <= ${today}
+  `;
+  const pick = (s: Series) =>
     fillDays(
       rows.filter((r) => r.series === s).map(({ day, value }) => ({ day, value })),
       from,
       today,
     );
-  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts"), visitors: pick("visitors") };
+  return { signups: pick("signups"), visited: pick("visited"), trained: pick("trained"), workouts: pick("workouts"), visitors: pick("visitors"), kcal: pick("kcal"), foodUsers };
 }
 
 export type HourlyActivity = { visits: HourPoint[]; workouts: HourPoint[] };
@@ -343,7 +353,38 @@ export type FeatureUsage = {
   togetherSessions30: number;
   togetherInvites30: number;
   togetherBonus30: number;
+  /** Питание: заполненная анкета нормы, выбран режим ввода и из них с БЖУ; текущие серии дневника (≥1 и ≥3 дней) и средняя. */
+  nutritionProfiles: number;
+  nutritionModeChosen: number;
+  nutritionMacros: number;
+  diaryStreaks: number;
+  diaryStreaks3: number;
+  avgDiaryStreak: number;
 };
+
+/**
+ * Текущие серии дневника у всех, кто вёл его за последние 60 дней: зачётные дни (как в lib/nutrition/streak-queries.ts)
+ * одним запросом, серия — `diaryStreak` по «сегодня» в поясе каждого пользователя.
+ */
+async function diaryStreakUsage(): Promise<Pick<FeatureUsage, "diaryStreaks" | "diaryStreaks3" | "avgDiaryStreak">> {
+  const rows = await db.$queryRaw<{ userId: string; timeZone: string; date: string; kcal: number }[]>`
+    SELECT f."userId", u."timeZone", f.date, SUM(f.kcal)::int AS kcal
+    FROM "FoodEntry" f JOIN "User" u ON u.id = f."userId"
+    WHERE f.date >= to_char(CURRENT_DATE - 60, 'YYYY-MM-DD')
+    GROUP BY f."userId", u."timeZone", f.date
+    HAVING COUNT(DISTINCT f.meal) >= ${DIARY_DAY_MIN_MEALS} AND SUM(f.kcal) >= ${DIARY_DAY_MIN_KCAL}
+  `;
+  const byUser = new Map<string, { tz: string; days: { date: string; kcal: number }[] }>();
+  for (const r of rows) {
+    const u = byUser.get(r.userId) ?? { tz: r.timeZone, days: [] };
+    u.days.push({ date: r.date, kcal: r.kcal });
+    byUser.set(r.userId, u);
+  }
+  const now = new Date();
+  const current = [...byUser.values()].map((u) => diaryStreak(u.days, dayKey(now, safeTimeZone(u.tz))).current).filter((n) => n > 0);
+  const avg = current.length ? current.reduce((s, n) => s + n, 0) / current.length : 0;
+  return { diaryStreaks: current.length, diaryStreaks3: current.filter((n) => n >= 3).length, avgDiaryStreak: Math.round(avg * 10) / 10 };
+}
 
 /** Срез использования фич на сейчас. */
 export async function getFeatureUsage(): Promise<FeatureUsage> {
@@ -378,7 +419,11 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(*) FROM "TrainingSession" WHERE "acceptedAt" > now() - interval '7 days')::int AS "togetherSessions7",
       (SELECT COUNT(*) FROM "TrainingSession" WHERE "acceptedAt" > now() - interval '30 days')::int AS "togetherSessions30",
       (SELECT COUNT(*) FROM "TrainingSession" WHERE "createdAt" > now() - interval '30 days')::int AS "togetherInvites30",
-      (SELECT COUNT(DISTINCT meta->>'sessionId') FROM "XpEvent" WHERE reason = 'TOGETHER_BONUS' AND "createdAt" > now() - interval '30 days')::int AS "togetherBonus30"
+      (SELECT COUNT(DISTINCT meta->>'sessionId') FROM "XpEvent" WHERE reason = 'TOGETHER_BONUS' AND "createdAt" > now() - interval '30 days')::int AS "togetherBonus30",
+      (SELECT COUNT(*) FROM "User" WHERE "heightCm" IS NOT NULL AND "birthYear" IS NOT NULL AND "activityLevel" IS NOT NULL AND "nutritionGoal" IS NOT NULL)::int AS "nutritionProfiles",
+      (SELECT COUNT(*) FROM "User" WHERE "nutritionModeChosenAt" IS NOT NULL)::int AS "nutritionModeChosen",
+      (SELECT COUNT(*) FROM "User" WHERE "nutritionModeChosenAt" IS NOT NULL AND "nutritionMacros")::int AS "nutritionMacros"
   `;
-  return { ...row, catalogCoaches: await catalogCount() };
+  const [catalogCoaches, streaks] = await Promise.all([catalogCount(), diaryStreakUsage()]);
+  return { ...row, catalogCoaches, ...streaks };
 }

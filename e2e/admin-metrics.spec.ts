@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
+import { addFoodEntry, addLandingVisit, setNutritionMacros, setNutritionProfile, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -83,14 +83,65 @@ test.describe("admin metrics page", () => {
       const [active, stale = 0] = (text.match(/\d[\d\s]*/g) ?? []).map((n) => Number(n.replace(/\s/g, "")));
       return { active, stale };
     };
-    // База общая для параллельных тестов — сравниваем прирост не меньше своего
-    const before = await counts();
-    await startWorkoutRow(player.login, new Date(Date.now() - 30 * 60 * 1000));
-    await startWorkoutRow(player.login, new Date(Date.now() - 26 * 3600 * 1000));
-    const after = await counts();
-    expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
-    expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего; соседи в это время завершают свои
+    // тренировки и счётчик может просесть — тогда повтор (каждый добавляет ещё пару, это не мешает)
+    await expect(async () => {
+      const before = await counts();
+      await startWorkoutRow(player.login, new Date(Date.now() - 30 * 60 * 1000));
+      await startWorkoutRow(player.login, new Date(Date.now() - 26 * 3600 * 1000));
+      const after = await counts();
+      expect(after.active).toBeGreaterThanOrEqual(before.active + 1);
+      expect(after.stale).toBeGreaterThanOrEqual(before.stale + 1);
+    }).toPass({ timeout: 30_000 });
     await expect(line).toContainText("не завершены дольше 4 ч");
+  });
+
+  test("food diary calories chart: total for the period grows with a player's entries", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const player = await registerUser(await playerCtx.newPage());
+    await playerCtx.close();
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const card = page.getByRole("region", { name: "Калории в дневниках" });
+    const total = async () => {
+      await page.goto("/admin");
+      const text = await card.getByText(/ккал за 30 дней/).innerText();
+      return Number(text.split("ккал")[0].replace(/\D/g, ""));
+    };
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего
+    const before = await total();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    await addFoodEntry(player.login, { date: today, meal: "LUNCH", name: "Суп", kcal: 1234 });
+    expect(await total()).toBeGreaterThanOrEqual(before + 1234);
+    await expect(card).toContainText(/вели дневник: \d+ чел\./);
+  });
+
+  test("features: nutrition row — profiles, input mode and diary streaks", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const player = await registerUser(await playerCtx.newPage());
+    await playerCtx.close();
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const row = page.getByRole("region", { name: "Фичи" }).locator("div").filter({ has: page.getByText("Питание", { exact: true }) });
+    const numbers = async () => {
+      await page.goto("/admin");
+      const text = await row.locator("dd").innerText();
+      const m = text.match(/анкета (\d+), режим выбран (\d+), с БЖУ (\d+), серия сейчас (\d+), из них 3\+ дн\. (\d+)/);
+      expect(m, text).not.toBeNull();
+      return m!.slice(1).map(Number);
+    };
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего
+    const before = await numbers();
+    await setNutritionProfile(player.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "MAINTAIN" });
+    await setNutritionMacros(player.login, true);
+    const day = (n: number) => new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - n * 86_400_000));
+    for (let i = 0; i < 3; i++) {
+      await addFoodEntry(player.login, { date: day(i), meal: "BREAKFAST", name: "Каша", kcal: 500 });
+      await addFoodEntry(player.login, { date: day(i), meal: "LUNCH", name: "Суп", kcal: 500 });
+    }
+    const after = await numbers();
+    for (const i of [0, 1, 2, 3, 4]) expect(after[i]).toBeGreaterThanOrEqual(before[i] + 1);
+    await expect(row.locator("dd")).toContainText(/средняя серия \d+(,\d)? дн\./);
   });
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
