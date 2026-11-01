@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addFoodEntry, addLandingVisit, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
+import { addFoodEntry, addLandingVisit, setNutritionMacros, setNutritionProfile, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -111,6 +111,34 @@ test.describe("admin metrics page", () => {
     await addFoodEntry(player.login, { date: today, meal: "LUNCH", name: "Суп", kcal: 1234 });
     expect(await total()).toBeGreaterThanOrEqual(before + 1234);
     await expect(card).toContainText(/вели дневник: \d+ чел\./);
+  });
+
+  test("features: nutrition row — profiles, input mode and diary streaks", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const player = await registerUser(await playerCtx.newPage());
+    await playerCtx.close();
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const row = page.getByRole("region", { name: "Фичи" }).locator("div").filter({ has: page.getByText("Питание", { exact: true }) });
+    const numbers = async () => {
+      await page.goto("/admin");
+      const text = await row.locator("dd").innerText();
+      const m = text.match(/анкета (\d+), режим выбран (\d+), с БЖУ (\d+), серия сейчас (\d+), из них 3\+ дн\. (\d+)/);
+      expect(m, text).not.toBeNull();
+      return m!.slice(1).map(Number);
+    };
+    // База общая для параллельных тестов — сравниваем прирост не меньше своего
+    const before = await numbers();
+    await setNutritionProfile(player.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "MAINTAIN" });
+    await setNutritionMacros(player.login, true);
+    const day = (n: number) => new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - n * 86_400_000));
+    for (let i = 0; i < 3; i++) {
+      await addFoodEntry(player.login, { date: day(i), meal: "BREAKFAST", name: "Каша", kcal: 500 });
+      await addFoodEntry(player.login, { date: day(i), meal: "LUNCH", name: "Суп", kcal: 500 });
+    }
+    const after = await numbers();
+    for (const i of [0, 1, 2, 3, 4]) expect(after[i]).toBeGreaterThanOrEqual(before[i] + 1);
+    await expect(row.locator("dd")).toContainText(/средняя серия \d+(,\d)? дн\./);
   });
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {
