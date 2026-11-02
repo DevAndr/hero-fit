@@ -6,6 +6,22 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2028-03-hotfix-hold-side",
+    version: "0.35.1",
+    date: "2026-11-02",
+    title: "Сигнал таймера удержания",
+    summary: "Таймер удержания теперь подаёт сигнал, когда пора сменить сторону.",
+    new: [],
+    improved: [],
+    fixed: [
+      {
+        text: "В односторонней растяжке на смене стороны теперь звучит сигнал и вибрирует телефон, как в конце отсчёта, — не нужно смотреть на экран",
+        href: "/stretching",
+        flag: "stretching",
+      },
+    ],
+  },
+  {
     id: "2028-03-metrics",
     version: "0.35.0",
     date: "2026-11-01",
