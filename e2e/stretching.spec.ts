@@ -126,6 +126,31 @@ test("own one-sided stretch: zone and «each side», a set × 2, summary minutes
   await expect(page.getByTestId("summary-stretch")).toContainText("3 мин");
 });
 
+test("one-sided hold: the side switch signals (vibration) like the end, then both sides make the set", async ({ page }) => {
+  test.slow();
+  // Вибрацию считаем подменой navigator.vibrate (звук и уведомление — в том же signalTimerEnd)
+  await page.addInitScript(() => {
+    const calls: unknown[] = [];
+    Object.defineProperty(window, "__vibrations", { value: calls });
+    Object.defineProperty(Navigator.prototype, "vibrate", { configurable: true, value: (p: unknown) => (calls.push(p), true) });
+  });
+  const vibrations = () => page.evaluate(() => (window as unknown as { __vibrations: unknown[] }).__vibrations.length);
+  const u = await registerUser(page, "Две_стороны");
+  await addFlagUser("stretching", u.login);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Голубь"]);
+  const block = page.getByRole("region", { name: "Голубь" });
+  await block.getByLabel("Время, подход 1").fill("3");
+  await block.getByRole("button", { name: "Держать" }).first().click();
+  // Пауза 5 с между сторонами: сигнал уже был, подход ещё не отмечен
+  await expect(page.getByTestId("hold-timer")).toContainText("дальше другая сторона", { timeout: 10_000 });
+  await expect(page.locator("[data-sonner-toast]").getByText("Другая сторона", { exact: true })).toBeVisible();
+  expect(await vibrations()).toBe(1);
+  await expect(block.getByRole("button", { name: "Подход 1 выполнен" })).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
+  expect(await vibrations()).toBe(2);
+});
+
 test("without the flag there is no stretch menu, page or catalog entries", async ({ page }) => {
   await registerUser(page, "Без_флага");
   await page.goto("/dashboard");

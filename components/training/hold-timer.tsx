@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { createTicker, signalTimerEnd } from "@/components/training/rest-timer";
 import { holdState, type HoldRun } from "@/lib/stretching/hold";
 import { formatClock } from "@/lib/workouts/kinds";
-import { haptic } from "@/lib/telegram/webapp";
 
 const SIDE_LABELS = { first: "Первая сторона", second: "Вторая сторона" } as const;
 
 /**
  * Плашка отсчёта «Держать» под подходом растяжки. Отсчёт — только текст (без анимаций),
- * экранному диктору — раз в 5 с и на смене стороны. Конец — сигнал таймера отдыха и `onDone`.
+ * экранному диктору — раз в 5 с и на смене стороны. Смена стороны и конец — сигнал таймера отдыха, в конце ещё `onDone`.
  */
 export function HoldTimer({
   run,
@@ -37,11 +36,12 @@ export function HoldTimer({
 
   useEffect(() => createTicker(() => setNow(Date.now())), []);
 
+  // Первая сторона кончилась — тот же сигнал, что и в конце (звук + вибрация, в фоне — уведомление)
   useEffect(() => {
     if (!state.pausing) return;
-    haptic("light");
+    signalTimerEnd("Растяжка: другая сторона ↔", title, "hero-fit-hold");
     toast("Другая сторона", { id: "hold-side" });
-  }, [state.pausing]);
+  }, [state.pausing, title]);
 
   useEffect(() => {
     if (!state.done) return;
