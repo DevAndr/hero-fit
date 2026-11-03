@@ -126,9 +126,11 @@ test.describe("admin metrics page", () => {
     const numbers = async () => {
       await page.goto("/admin");
       const text = await row.locator("dd").innerText();
-      const m = text.match(/анкета (\d+), режим выбран (\d+), с БЖУ (\d+), серия сейчас (\d+), из них 3\+ дн\. (\d+)/);
+      // Числа с разделителем тысяч («1 000») — общая база растёт от прогона к прогону
+      const num = String.raw`(\d[\d\s]*)`;
+      const m = text.match(new RegExp(String.raw`анкета ${num}, режим выбран ${num}, с БЖУ ${num}, серия сейчас ${num}, из них 3\+ дн\. ${num}`));
       expect(m, text).not.toBeNull();
-      return m!.slice(1).map(Number);
+      return m!.slice(1).map((v) => Number(v.replace(/\s/g, "")));
     };
     // База общая для параллельных тестов — сравниваем прирост не меньше своего
     const before = await numbers();
