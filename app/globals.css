@@ -401,6 +401,33 @@
 @media (prefers-reduced-motion: reduce) {
   .ring-halo { animation: none; }
 }
+/* «+N ккал» над числом кольца — всплывает и тает, как урон в играх; один раз на запись */
+.ring-gain {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  translate: -50% 0;
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  text-shadow: 0 1px 6px color-mix(in oklch, var(--background) 80%, transparent);
+  animation: ring-gain 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes ring-gain {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  15% { opacity: 1; transform: translateY(0) scale(1.2); }
+  30% { transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-34px); }
+}
+/* Без движения — только появляется и гаснет на месте */
+@keyframes ring-gain-fade {
+  0%, 100% { opacity: 0; }
+  15%, 60% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-gain { animation-name: ring-gain-fade; }
+}
 
 /* Кольцо восстановления WHOOP: заполнение один раз при показе */
 @keyframes ring-fill {

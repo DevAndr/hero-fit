@@ -23,12 +23,15 @@ function Bar({ value, max }: { value: number; max: number }) {
 
 /** Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы. */
 export function DaySummary({
+  date,
   total,
   norm,
   profile,
   macros: showMacros,
   streak,
 }: {
+  /** день дневника — у кольца «+N» и отсчёт только в пределах дня */
+  date: string;
   total: Macros;
   norm: Norm | null;
   profile: NutritionView["profile"];
@@ -44,7 +47,7 @@ export function DaySummary({
   return (
     <section aria-label="Итог дня" className="rounded-xl border bg-card p-4">
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {norm ? <CalorieRing eaten={total.kcal} norm={norm.kcal} halo /> : null}
+        {norm ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
         <div className="w-full min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>

@@ -85,6 +85,28 @@ test("a meal block «Add» opens step 2 right away; a validation error keeps the
   await expect(meal(page, "Обед").getByRole("listitem")).toContainText("Суп");
 });
 
+test("ring «+N»: a new entry pops the added kcal once; deleting and changing the day do not", async ({ page }) => {
+  const me = await diaryUser(page, true);
+  await addFoodEntry(me.login, { date: localDay(1), meal: "LUNCH", name: "Плов", kcal: 700 });
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  const gain = summary.getByTestId("ring-gain");
+  await expect(gain).toHaveCount(0);
+  await addEntry(page, "Обед", { name: "Гречка", kcal: "350" });
+  await expect(gain).toHaveText("+350");
+  // Цифра гаснет и убирается, число «осталось» — уже новое
+  await expect(gain).toHaveCount(0, { timeout: 5000 });
+  await expect(summary.getByRole("img")).toContainText("2 410");
+  await meal(page, "Обед").getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Удалить" }).click();
+  await expect(summary.getByRole("img")).toContainText("2 760");
+  await expect(gain).toHaveCount(0);
+  // Вчера съедено больше — но это другой день, не «+700»
+  await page.getByRole("link", { name: "Предыдущий день" }).click();
+  await expect(summary.getByRole("img")).toContainText("2 060");
+  await expect(gain).toHaveCount(0);
+});
+
 test("edit and delete an entry", async ({ page }) => {
   await diaryUser(page);
   await page.goto("/nutrition");
