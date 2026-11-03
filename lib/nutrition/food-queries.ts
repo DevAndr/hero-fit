@@ -2,6 +2,7 @@ import "server-only";
 import type { Meal } from "@/generated/prisma/enums";
 import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { WEEK_DAYS, type WeekDay } from "@/lib/nutrition/diary";
 
 export type FoodEntryRow = { id: string; meal: Meal; name: string; kcal: number; protein: number | null; fat: number | null; carbs: number | null };
 export type RecentFood = { name: string; kcal: number; protein: number | null; fat: number | null; carbs: number | null };
@@ -32,5 +33,14 @@ export async function getRecentFoods(userId: string, today: string): Promise<Rec
     ) latest
     ORDER BY uses DESC, last_at DESC
     LIMIT ${RECENT_LIMIT}
+  `;
+}
+
+/** Съедено по дням за неделю по `today` (только дни с записями — пропуски заполняет `weekSeries`). */
+export async function getDiaryWeek(userId: string, today: string): Promise<WeekDay[]> {
+  return db.$queryRaw<WeekDay[]>`
+    SELECT date, sum(kcal)::int AS kcal FROM "FoodEntry"
+    WHERE "userId" = ${userId} AND date > ${addDays(today, -WEEK_DAYS)} AND date <= ${today}
+    GROUP BY date
   `;
 }

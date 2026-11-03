@@ -6,13 +6,14 @@ import { AddFoodButton } from "@/components/nutrition/add-food-button";
 import { DayNav } from "@/components/nutrition/day-nav";
 import { DaySummary } from "@/components/nutrition/day-summary";
 import { MealBlock } from "@/components/nutrition/meal-block";
+import { WeekChart } from "@/components/nutrition/week-chart";
 import { NutritionModeDialog } from "@/components/nutrition/mode-dialog";
 import { NormCard } from "@/components/nutrition/norm-card";
 import { requireUser } from "@/lib/auth/dal";
 import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { isEnabled } from "@/lib/flags/server";
-import { dayTotals, MEALS, parseDiaryDate } from "@/lib/nutrition/diary";
-import { getDiaryDay, getRecentFoods } from "@/lib/nutrition/food-queries";
+import { dayTotals, MEALS, parseDiaryDate, weekSeries } from "@/lib/nutrition/diary";
+import { getDiaryDay, getDiaryWeek, getRecentFoods } from "@/lib/nutrition/food-queries";
 import { getNutritionView } from "@/lib/nutrition/queries";
 import { getDiaryStreak } from "@/lib/nutrition/streak-queries";
 
@@ -25,13 +26,15 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
   const now = new Date();
   const today = dayKey(now, tz);
   const date = parseDiaryDate((await searchParams).date, today);
-  const [view, day, recents, streak] = await Promise.all([
+  const [view, day, recents, streak, weekRows] = await Promise.all([
     getNutritionView(user.id, tz, now),
     getDiaryDay(user.id, date),
     getRecentFoods(user.id, today),
     getDiaryStreak(user.id, tz, now),
+    getDiaryWeek(user.id, today),
   ]);
   const totals = dayTotals(day.entries);
+  const week = weekSeries(weekRows, today, view.norm?.kcal ?? null);
   return (
     <div className="space-y-4">
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
@@ -54,6 +57,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
           />
         ))}
       </div>
+      <WeekChart {...week} norm={view.norm?.kcal ?? null} today={today} date={date} />
       <NormCard view={view} />
       <BurnCard view={view} timeZone={tz} />
     </div>
