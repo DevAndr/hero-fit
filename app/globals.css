@@ -383,6 +383,25 @@
 }
 
 
+/* Свечение кольца калорий (components/nutrition/calorie-ring.tsx): цвет — --halo, пик — на линии кольца.
+   Несколько вдохов (opacity + transform — без перерисовки) и стоп; размытие статично */
+.ring-halo {
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(closest-side, transparent 64%, color-mix(in oklch, var(--halo) 50%, transparent) 84%, transparent 100%);
+  filter: blur(5px);
+  opacity: 0.55;
+  animation: ring-halo 2.5s ease-in-out 4;
+}
+@keyframes ring-halo {
+  50% { opacity: 1; transform: scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-halo { animation: none; }
+}
+
 /* Кольцо восстановления WHOOP: заполнение один раз при показе */
 @keyframes ring-fill {
   from {

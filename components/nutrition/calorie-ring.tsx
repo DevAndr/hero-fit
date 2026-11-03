@@ -4,8 +4,11 @@ const SIZES = { md: { size: 140, stroke: 12, number: "text-2xl" }, sm: { size: 8
 
 const n = (v: number) => v.toLocaleString("ru-RU");
 
-/** Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось». */
-export function CalorieRing({ eaten, norm, size = "md" }: { eaten: number; norm: number; size?: keyof typeof SIZES }) {
+/**
+ * Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось».
+ * `halo` — свечение за кольцом (только «Итог дня» на /nutrition): несколько вдохов при показе и после новой записи, затем статично.
+ */
+export function CalorieRing({ eaten, norm, size = "md", halo = false }: { eaten: number; norm: number; size?: keyof typeof SIZES; halo?: boolean }) {
   const { size: SIZE, stroke: STROKE, number } = SIZES[size];
   const R = (SIZE - STROKE) / 2;
   const C = 2 * Math.PI * R;
@@ -15,7 +18,11 @@ export function CalorieRing({ eaten, norm, size = "md" }: { eaten: number; norm:
   const arc = (share: number) => ({ strokeDasharray: C, strokeDashoffset: C * (1 - share) });
   return (
     <div role="img" aria-label={label} className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="size-full -rotate-90" aria-hidden>
+      {/* key — съеденное: новая запись перезапускает пульс */}
+      {halo ? (
+        <div key={eaten} aria-hidden data-testid="ring-halo" className={overBy > 0 ? "ring-halo [--halo:var(--destructive)]" : "ring-halo [--halo:var(--primary)]"} />
+      ) : null}
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="relative size-full -rotate-90" aria-hidden>
         <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" strokeWidth={STROKE} className="stroke-muted" />
         {main > 0 ? (
           <circle

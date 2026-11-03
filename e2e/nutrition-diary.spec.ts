@@ -41,6 +41,8 @@ test("add breakfast → meal total and day total; with a profile shows what is l
   const summary = page.getByRole("region", { name: "Итог дня" });
   await expect(summary.getByTestId("day-kcal")).toHaveText("300 / 2 760 ккал");
   await expect(summary.getByRole("img", { name: "Съедено 300 из 2 760 ккал, осталось 2 460" })).toBeVisible();
+  // Свечение кольца есть, с «уменьшить движение» — без пульса
+  await expect(summary.getByTestId("ring-halo")).toHaveCSS("animation-name", "none");
 });
 
 test("the common «Add» button: step 1 picks the meal, «Back» returns to it, step 2 saves into that meal", async ({ page }) => {
