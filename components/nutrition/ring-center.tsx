@@ -1,48 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useKcalGain } from "@/components/nutrition/use-kcal-gain";
 
 const n = (v: number) => v.toLocaleString("ru-RU");
-const COUNT_MS = 600;
 
-type Gain = { id: string; amount: number; over: boolean };
-
-/**
- * Середина кольца на /nutrition: «осталось» сбегает к новому значению, а добавленные ккал всплывают «+N», как урон в играх.
- * Только рост «съедено» в пределах дня `day`: удаление, правка вниз и смена дня — сразу и без цифры.
- */
+/** Середина кольца на /nutrition: «осталось» сбегает к новому значению, а добавленные ккал всплывают «+N», как урон в играх. */
 export function RingCenter({ eaten, norm, day, numberClass }: { eaten: number; norm: number; day: string; numberClass: string }) {
-  const [prev, setPrev] = useState({ day, eaten });
-  const [gains, setGains] = useState<Gain[]>([]);
-  // Новое «съедено» с сервера — цифра считается прямо в рендере (без лишнего прохода эффекта)
-  if (prev.day !== day || prev.eaten !== eaten) {
-    setPrev({ day, eaten });
-    if (prev.day === day && eaten > prev.eaten) {
-      setGains((g) => [...g, { id: `${day}:${prev.eaten}:${eaten}`, amount: eaten - prev.eaten, over: eaten > norm }]);
-    }
-  }
-
-  const [shown, setShown] = useState(eaten);
-  const shownRef = useRef(eaten);
-  const dayRef = useRef(day);
-  useEffect(() => {
-    const from = shownRef.current;
-    const instant = dayRef.current !== day || eaten < from || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    dayRef.current = day;
-    if (from === eaten) return;
-    const start = performance.now();
-    let raf = 0;
-    const step = (t: number) => {
-      const k = instant ? 1 : Math.min(1, (t - start) / COUNT_MS);
-      const v = Math.round(from + (eaten - from) * (1 - (1 - k) ** 3));
-      shownRef.current = v;
-      setShown(v);
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [eaten, day]);
-
+  const { shown, gains, drop } = useKcalGain(eaten, day);
   const overBy = shown - norm;
   return (
     <>
@@ -55,8 +19,9 @@ export function RingCenter({ eaten, norm, day, numberClass }: { eaten: number; n
           key={g.id}
           aria-hidden
           data-testid="ring-gain"
-          className={g.over ? "ring-gain text-destructive" : "ring-gain text-primary"}
-          onAnimationEnd={() => setGains((all) => all.filter((x) => x.id !== g.id))}
+          // Запись вывела за норму — красным
+          className={`kcal-gain top-[14%] left-1/2 -translate-x-1/2 text-lg ${g.to > norm ? "text-destructive" : "text-primary"}`}
+          onAnimationEnd={() => drop(g.id)}
         >
           +{n(g.amount)}
         </span>
