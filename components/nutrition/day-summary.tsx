@@ -44,7 +44,7 @@ export function DaySummary({
   return (
     <section aria-label="Итог дня" className="rounded-xl border bg-card p-4">
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {norm ? <CalorieRing eaten={total.kcal} norm={norm.kcal} /> : null}
+        {norm ? <CalorieRing eaten={total.kcal} norm={norm.kcal} halo /> : null}
         <div className="w-full min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
