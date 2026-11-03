@@ -113,6 +113,34 @@ test("ring and meal «+N»: a new entry pops the added kcal once; deleting and c
   await expect(page.getByTestId("meal-gain")).toHaveCount(0);
 });
 
+test("adding vibrates once (dialog, undo of a delete); editing and deleting do not", async ({ page }) => {
+  // Считаем вызовы navigator.vibrate (в Telegram — ещё haptic, вне его — ничего)
+  await page.addInitScript(() => {
+    const calls: unknown[] = [];
+    Object.defineProperty(window, "__vibrations", { value: calls });
+    Object.defineProperty(Navigator.prototype, "vibrate", { configurable: true, value: (p: unknown) => (calls.push(p), true) });
+  });
+  const vibrations = () => page.evaluate(() => (window as unknown as { __vibrations: unknown[] }).__vibrations.length);
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await addEntry(page, "Обед", { name: "Гречка", kcal: "350" });
+  expect(await vibrations()).toBe(1);
+  const lunch = meal(page, "Обед");
+  await lunch.getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Изменить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Изменить запись" });
+  await dialog.getByLabel("Ккал").fill("400");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+  await lunch.getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Удалить" }).click();
+  await expect(lunch.getByRole("listitem")).toHaveCount(0);
+  expect(await vibrations()).toBe(1);
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect(lunch.getByRole("listitem")).toContainText("Гречка");
+  await expect.poll(vibrations).toBe(2);
+});
+
 test("edit and delete an entry", async ({ page }) => {
   await diaryUser(page);
   await page.goto("/nutrition");
