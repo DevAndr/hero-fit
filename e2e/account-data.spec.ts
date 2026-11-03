@@ -263,7 +263,8 @@ test("friend's weekly recap shows «Удалённый игрок» instead of t
     },
   };
   await withDb((db) =>
-    db.query(`insert into "WeeklyRecap" (id, "userId", week, data, "createdAt") select $1, id, '2026-09-07', $2::jsonb, now() from "User" where login = $3`, [
+    // Сразу «отправлено и просмотрено»: неполный снимок (без totals) тики итогов не должны брать в рассылку
+    db.query(`insert into "WeeklyRecap" (id, "userId", week, data, "createdAt", "pushedAt", "seenAt") select $1, id, '2026-09-07', $2::jsonb, now(), now(), now() from "User" where login = $3`, [
       randomUUID(),
       JSON.stringify(data),
       friend.login,
