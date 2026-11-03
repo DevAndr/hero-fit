@@ -43,6 +43,46 @@ test("add breakfast → meal total and day total; with a profile shows what is l
   await expect(summary.getByRole("img", { name: "Съедено 300 из 2 760 ккал, осталось 2 460" })).toBeVisible();
 });
 
+test("the common «Add» button: step 1 picks the meal, «Back» returns to it, step 2 saves into that meal", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await page.getByRole("button", { name: "Добавить приём пищи" }).click();
+  const step1 = page.getByRole("dialog", { name: "Какой приём пищи?" });
+  await expect(step1).toContainText("Шаг 1 из 2");
+  // Порядок плиток — по ходу дня
+  await expect(step1.getByRole("button")).toContainText(["Завтрак", "Перекус", "Обед", "Ужин"]);
+  await step1.getByRole("button", { name: "Перекус" }).click();
+  const step2 = page.getByRole("dialog", { name: "Добавить: Перекус" });
+  await expect(step2).toContainText("Шаг 2 из 2");
+  await step2.getByRole("button", { name: "Назад" }).click();
+  await page.getByRole("dialog", { name: "Какой приём пищи?" }).getByRole("button", { name: "Ужин" }).click();
+  const dinner = page.getByRole("dialog", { name: "Добавить: Ужин" });
+  await expect(dinner.getByRole("radiogroup")).toHaveCount(0);
+  await dinner.getByLabel("Название").fill("Творог");
+  await dinner.getByLabel("Ккал").fill("180");
+  await dinner.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dinner).toBeHidden();
+  await expect(meal(page, "Ужин").getByRole("listitem")).toContainText("Творог");
+  await expect(meal(page, "Перекус").getByRole("listitem")).toHaveCount(0);
+});
+
+test("a meal block «Add» opens step 2 right away; a validation error keeps the step and the input", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await meal(page, "Обед").getByRole("button", { name: "Добавить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Добавить: Обед" });
+  await expect(dialog).toContainText("Шаг 2 из 2");
+  await dialog.getByLabel("Название").fill("Суп");
+  await dialog.getByLabel("Ккал").fill("99999");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog.getByText("Калории — от 0 до 5000")).toBeVisible();
+  await expect(dialog.getByLabel("Название")).toHaveValue("Суп");
+  await dialog.getByLabel("Ккал").fill("250");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(meal(page, "Обед").getByRole("listitem")).toContainText("Суп");
+});
+
 test("edit and delete an entry", async ({ page }) => {
   await diaryUser(page);
   await page.goto("/nutrition");

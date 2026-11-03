@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/app-shell";
 import { BurnCard } from "@/components/nutrition/burn-card";
+import { AddFoodButton } from "@/components/nutrition/add-food-button";
 import { DayNav } from "@/components/nutrition/day-nav";
 import { DaySummary } from "@/components/nutrition/day-summary";
 import { MealBlock } from "@/components/nutrition/meal-block";
@@ -37,6 +38,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
       {view.modeChosen ? null : <NutritionModeDialog />}
       <DayNav date={date} today={today} />
       <DaySummary total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} streak={streak.current} />
+      <AddFoodButton date={date} recents={recents} macros={view.macros} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {MEALS.map((meal) => (
           <MealBlock
