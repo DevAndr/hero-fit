@@ -1,3 +1,4 @@
+import { RingCenter } from "@/components/nutrition/ring-center";
 import { ringArcs } from "@/lib/nutrition/diary";
 
 const SIZES = { md: { size: 140, stroke: 12, number: "text-2xl" }, sm: { size: 88, stroke: 9, number: "text-lg" } } as const;
@@ -6,9 +7,10 @@ const n = (v: number) => v.toLocaleString("ru-RU");
 
 /**
  * Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось».
- * `halo` — свечение за кольцом (только «Итог дня» на /nutrition): несколько вдохов при показе и после новой записи, затем статично.
+ * `day` — кольцо «Итога дня» на /nutrition (на дашборде — статичное): свечение за кольцом (несколько вдохов при показе
+ * и после новой записи, затем статично), всплывающие «+N» и отсчёт «осталось» — `RingCenter`.
  */
-export function CalorieRing({ eaten, norm, size = "md", halo = false }: { eaten: number; norm: number; size?: keyof typeof SIZES; halo?: boolean }) {
+export function CalorieRing({ eaten, norm, size = "md", day }: { eaten: number; norm: number; size?: keyof typeof SIZES; day?: string }) {
   const { size: SIZE, stroke: STROKE, number } = SIZES[size];
   const R = (SIZE - STROKE) / 2;
   const C = 2 * Math.PI * R;
@@ -19,7 +21,7 @@ export function CalorieRing({ eaten, norm, size = "md", halo = false }: { eaten:
   return (
     <div role="img" aria-label={label} className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
       {/* key — съеденное: новая запись перезапускает пульс */}
-      {halo ? (
+      {day ? (
         <div key={eaten} aria-hidden data-testid="ring-halo" className={overBy > 0 ? "ring-halo [--halo:var(--destructive)]" : "ring-halo [--halo:var(--primary)]"} />
       ) : null}
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="relative size-full -rotate-90" aria-hidden>
@@ -50,10 +52,16 @@ export function CalorieRing({ eaten, norm, size = "md", halo = false }: { eaten:
         ) : null}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className={overBy > 0 ? `${number} font-extrabold tabular-nums text-destructive` : `${number} font-extrabold tabular-nums`}>
-          {overBy > 0 ? `+${n(overBy)}` : n(-overBy)}
-        </span>
-        <span className="text-xs text-muted-foreground">{overBy > 0 ? "сверх нормы" : "осталось"}</span>
+        {day ? (
+          <RingCenter eaten={eaten} norm={norm} day={day} numberClass={number} />
+        ) : (
+          <>
+            <span className={overBy > 0 ? `${number} font-extrabold tabular-nums text-destructive` : `${number} font-extrabold tabular-nums`}>
+              {overBy > 0 ? `+${n(overBy)}` : n(-overBy)}
+            </span>
+            <span className="text-xs text-muted-foreground">{overBy > 0 ? "сверх нормы" : "осталось"}</span>
+          </>
+        )}
       </div>
     </div>
   );

@@ -33,7 +33,7 @@ test("set confirm plays success, first level-up fires the celebration", async ({
   await expect(page.getByTestId("level-up-celebration")).toHaveCount(0, { timeout: 8000 });
 });
 
-test("calorie ring halo pulses a few times on /nutrition and restarts after a new entry", async ({ page }) => {
+test("calorie ring on /nutrition: halo pulses a few times and restarts after a new entry, «+N» pops up", async ({ page }) => {
   const me = await registerUser(page);
   await addFlagUser("nutrition", me.login);
   await setNutritionMacros(me.login, false);
@@ -54,4 +54,10 @@ test("calorie ring halo pulses a few times on /nutrition and restarts after a ne
   // Новая запись — новый элемент свечения, пульс с начала
   expect(await before!.evaluate((el) => el.isConnected)).toBe(false);
   expect((await anim()).name).toBe("ring-halo");
+  // «+300» всплывает (с подъёмом), «осталось» досчитывает до нового значения
+  const gain = page.getByRole("region", { name: "Итог дня" }).getByTestId("ring-gain");
+  await expect(gain).toHaveText("+300");
+  await expect(gain).toHaveCSS("animation-name", "ring-gain");
+  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("img")).toContainText("2 460");
+  await expect(gain).toHaveCount(0, { timeout: 5000 });
 });
