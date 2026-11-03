@@ -42,8 +42,8 @@ test("calorie ring on /nutrition: halo pulses a few times and restarts after a n
   await page.goto("/nutrition");
   const halo = page.getByRole("region", { name: "Итог дня" }).getByTestId("ring-halo");
   const anim = () => halo.evaluate((el) => ({ name: getComputedStyle(el).animationName, count: getComputedStyle(el).animationIterationCount }));
-  // Не бесконечно: несколько вдохов, потом статичное свечение
-  expect(await anim()).toEqual({ name: "ring-halo", count: "4" });
+  // Не бесконечно: два вдоха, потом статичное свечение
+  expect(await anim()).toEqual({ name: "ring-halo", count: "2" });
   const before = await halo.elementHandle();
   await page.getByRole("region", { name: "Обед", exact: true }).getByRole("button", { name: "Добавить" }).click();
   const dialog = page.getByRole("dialog", { name: "Добавить: Обед" });
