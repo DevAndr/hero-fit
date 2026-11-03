@@ -41,6 +41,121 @@ test("add breakfast → meal total and day total; with a profile shows what is l
   const summary = page.getByRole("region", { name: "Итог дня" });
   await expect(summary.getByTestId("day-kcal")).toHaveText("300 / 2 760 ккал");
   await expect(summary.getByRole("img", { name: "Съедено 300 из 2 760 ккал, осталось 2 460" })).toBeVisible();
+  // Свечение кольца есть, с «уменьшить движение» — без пульса
+  await expect(summary.getByTestId("ring-halo")).toHaveCSS("animation-name", "none");
+});
+
+test("the common «Add» button: step 1 picks the meal, «Back» returns to it, step 2 saves into that meal", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await page.getByRole("button", { name: "Добавить приём пищи" }).click();
+  const step1 = page.getByRole("dialog", { name: "Какой приём пищи?" });
+  await expect(step1).toContainText("Шаг 1 из 2");
+  // Порядок плиток — по ходу дня
+  await expect(step1.getByRole("button")).toContainText(["Завтрак", "Перекус", "Обед", "Ужин"]);
+  await step1.getByRole("button", { name: "Перекус" }).click();
+  const step2 = page.getByRole("dialog", { name: "Добавить: Перекус" });
+  await expect(step2).toContainText("Шаг 2 из 2");
+  await step2.getByRole("button", { name: "Назад" }).click();
+  await page.getByRole("dialog", { name: "Какой приём пищи?" }).getByRole("button", { name: "Ужин" }).click();
+  const dinner = page.getByRole("dialog", { name: "Добавить: Ужин" });
+  await expect(dinner.getByRole("radiogroup")).toHaveCount(0);
+  await dinner.getByLabel("Название").fill("Творог");
+  await dinner.getByLabel("Ккал").fill("180");
+  await dinner.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dinner).toBeHidden();
+  await expect(meal(page, "Ужин").getByRole("listitem")).toContainText("Творог");
+  await expect(meal(page, "Перекус").getByRole("listitem")).toHaveCount(0);
+});
+
+test("a meal block «Add» opens step 2 right away; a validation error keeps the step and the input", async ({ page }) => {
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await meal(page, "Обед").getByRole("button", { name: "Добавить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Добавить: Обед" });
+  await expect(dialog).toContainText("Шаг 2 из 2");
+  await dialog.getByLabel("Название").fill("Суп");
+  await dialog.getByLabel("Ккал").fill("99999");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog.getByText("Калории — от 0 до 5000")).toBeVisible();
+  await expect(dialog.getByLabel("Название")).toHaveValue("Суп");
+  await dialog.getByLabel("Ккал").fill("250");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(meal(page, "Обед").getByRole("listitem")).toContainText("Суп");
+});
+
+test("ring and meal «+N»: a new entry pops the added kcal once; deleting and changing the day do not", async ({ page }) => {
+  const me = await diaryUser(page, true);
+  await addFoodEntry(me.login, { date: localDay(1), meal: "LUNCH", name: "Плов", kcal: 700 });
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  const gain = summary.getByTestId("ring-gain");
+  await expect(gain).toHaveCount(0);
+  await addEntry(page, "Обед", { name: "Гречка", kcal: "350" });
+  await expect(gain).toHaveText("+350");
+  // У суммы приёма — тоже, только в том приёме, куда добавили
+  await expect(meal(page, "Обед").getByTestId("meal-gain")).toHaveText("+350 ккал");
+  await expect(page.getByTestId("meal-gain")).toHaveCount(1);
+  await expect(meal(page, "Обед").getByTestId("meal-kcal")).toHaveText(/^350 ккал/);
+  // Цифра гаснет и убирается, число «осталось» — уже новое
+  await expect(gain).toHaveCount(0, { timeout: 5000 });
+  await expect(summary.getByRole("img")).toContainText("2 410");
+  await meal(page, "Обед").getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Удалить" }).click();
+  await expect(summary.getByRole("img")).toContainText("2 760");
+  await expect(gain).toHaveCount(0);
+  await expect(page.getByTestId("meal-gain")).toHaveCount(0);
+  // Вчера съедено больше — но это другой день, не «+700»
+  await page.getByRole("link", { name: "Предыдущий день" }).click();
+  await expect(summary.getByRole("img")).toContainText("2 060");
+  await expect(gain).toHaveCount(0);
+  await expect(page.getByTestId("meal-gain")).toHaveCount(0);
+});
+
+test("adding vibrates once (dialog, undo of a delete); editing and deleting do not", async ({ page }) => {
+  // Считаем вызовы navigator.vibrate (в Telegram — ещё haptic, вне его — ничего)
+  await page.addInitScript(() => {
+    const calls: unknown[] = [];
+    Object.defineProperty(window, "__vibrations", { value: calls });
+    Object.defineProperty(Navigator.prototype, "vibrate", { configurable: true, value: (p: unknown) => (calls.push(p), true) });
+  });
+  const vibrations = () => page.evaluate(() => (window as unknown as { __vibrations: unknown[] }).__vibrations.length);
+  await diaryUser(page);
+  await page.goto("/nutrition");
+  await addEntry(page, "Обед", { name: "Гречка", kcal: "350" });
+  expect(await vibrations()).toBe(1);
+  const lunch = meal(page, "Обед");
+  await lunch.getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Изменить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Изменить запись" });
+  await dialog.getByLabel("Ккал").fill("400");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(dialog).toBeHidden();
+  await lunch.getByRole("button", { name: "Действия: Гречка" }).click();
+  await page.getByRole("menuitem", { name: "Удалить" }).click();
+  await expect(lunch.getByRole("listitem")).toHaveCount(0);
+  expect(await vibrations()).toBe(1);
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect(lunch.getByRole("listitem")).toContainText("Гречка");
+  await expect.poll(vibrations).toBe(2);
+});
+
+test("week chart: average over days with entries, days in norm, a bar opens that day", async ({ page }) => {
+  const me = await diaryUser(page, true);
+  await page.goto("/nutrition");
+  const week = page.getByRole("region", { name: "Неделя" });
+  await expect(week.getByTestId("week-summary")).toHaveText("За 7 дней записей нет");
+  // Норма 2 760: 3 000 и 2 700 — в пределах ±10 %, 1 000 — нет; среднее — (3 000 + 2 700 + 1 000) / 3
+  await addFoodEntry(me.login, { date: localDay(1), meal: "LUNCH", name: "Плов", kcal: 3000 });
+  await addFoodEntry(me.login, { date: localDay(2), meal: "LUNCH", name: "Суп", kcal: 2700 });
+  await addFoodEntry(me.login, { date: localDay(3), meal: "LUNCH", name: "Салат", kcal: 1000 });
+  await page.reload();
+  await expect(week.getByTestId("week-summary")).toHaveText("В среднем 2 233 ккал · в норме 2 из 7 дней");
+  await expect(week.getByRole("table")).toContainText("нет записей");
+  await week.getByTestId(`week-bar-${localDay(3)}`).click();
+  await expect(page).toHaveURL(`/nutrition?date=${localDay(3)}`);
+  await expect(meal(page, "Обед").getByRole("listitem")).toContainText("Салат");
 });
 
 test("edit and delete an entry", async ({ page }) => {

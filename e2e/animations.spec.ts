@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { addFlagUser, logWeight, setNutritionMacros, setNutritionProfile } from "./db";
 import { addToWorkout, registerUser } from "./helpers";
+import { E2E_TZ } from "./tz";
+
+const todayLocal = () => new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 // Остальные e2e идут с «уменьшить движение» (playwright.config.ts) — здесь анимации включены.
 test.use({ contextOptions: { reducedMotion: "no-preference" } });
@@ -27,4 +31,36 @@ test("set confirm plays success, first level-up fires the celebration", async ({
   await expect(page.getByText("Новый уровень 2!")).toBeVisible();
   await expect(page.getByTestId("level-up-celebration").locator("svg").first()).toBeVisible();
   await expect(page.getByTestId("level-up-celebration")).toHaveCount(0, { timeout: 8000 });
+});
+
+test("calorie ring on /nutrition: halo pulses a few times and restarts after a new entry, «+N» pops up", async ({ page }) => {
+  const me = await registerUser(page);
+  await addFlagUser("nutrition", me.login);
+  await setNutritionMacros(me.login, false);
+  await setNutritionProfile(me.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "MAINTAIN", gender: "MALE" });
+  await logWeight(me.login, todayLocal(), 80);
+  await page.goto("/nutrition");
+  const halo = page.getByRole("region", { name: "Итог дня" }).getByTestId("ring-halo");
+  const anim = () => halo.evaluate((el) => ({ name: getComputedStyle(el).animationName, count: getComputedStyle(el).animationIterationCount }));
+  // Не бесконечно: два вдоха, потом статичное свечение
+  expect(await anim()).toEqual({ name: "ring-halo", count: "2" });
+  const before = await halo.elementHandle();
+  await page.getByRole("region", { name: "Обед", exact: true }).getByRole("button", { name: "Добавить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Добавить: Обед" });
+  await dialog.getByLabel("Название").fill("Суп");
+  await dialog.getByLabel("Ккал").fill("300");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByTestId("day-kcal")).toContainText("300 /");
+  // Новая запись — новый элемент свечения, пульс с начала
+  expect(await before!.evaluate((el) => el.isConnected)).toBe(false);
+  expect((await anim()).name).toBe("ring-halo");
+  // «+300» всплывает (с подъёмом), «осталось» досчитывает до нового значения
+  const gain = page.getByRole("region", { name: "Итог дня" }).getByTestId("ring-gain");
+  await expect(gain).toHaveText("+300");
+  await expect(gain).toHaveCSS("animation-name", "kcal-gain");
+  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("img")).toContainText("2 460");
+  await expect(gain).toHaveCount(0, { timeout: 5000 });
+  // У суммы приёма — «+300 ккал» и досчёт до 300
+  const lunch = page.getByRole("region", { name: "Обед", exact: true });
+  await expect(lunch.getByTestId("meal-kcal")).toHaveText("300 ккал", { timeout: 5000 });
 });

@@ -61,22 +61,32 @@ async function pushRecaps(now: Date) {
   let sent = 0;
   for (const recap of due) {
     if (!shouldPushRecap({ week: recap.week, pushedAt: null, seenAt: null }, now, safeTimeZone(recap.timeZone))) continue;
-    // Флаг strength_analytics выключен после сборки снимка — push без «Ты стал сильнее»
-    const data = (await isEnabled("strength_analytics", recap.userId)) ? recap.data : { ...recap.data, strength: undefined };
-    await db.$transaction(async (tx) => {
-      // Условие по pushedAt — параллельный тик не отправит второй раз; просмотренные до отправки — без push.
-      const { count } = await tx.weeklyRecap.updateMany({ where: { id: recap.id, pushedAt: null, seenAt: null }, data: { pushedAt: now } });
-      if (count === 0) return;
-      await notify(
-        tx,
-        recap.userId,
-        { type: NotificationType.RECAP, title: "Итоги недели 📊", body: recapPushBody(data), url: `/recap/${recap.week}` },
-        { push: true },
-      );
-      sent++;
-    });
+    // Сбой одного снимка не останавливает рассылку остальным и «новый старт» (шаг тика целиком)
+    try {
+      if (await pushRecap(recap, now)) sent++;
+    } catch (e) {
+      console.error("[recap] не удалось отправить итоги", recap.id, e);
+    }
   }
   return sent;
+}
+
+/** Push одного снимка; false — уже отправлен или просмотрен (параллельный тик). */
+async function pushRecap(recap: { id: string; userId: string; week: string; data: RecapData }, now: Date): Promise<boolean> {
+  // Флаг strength_analytics выключен после сборки снимка — push без «Ты стал сильнее»
+  const data = (await isEnabled("strength_analytics", recap.userId)) ? recap.data : { ...recap.data, strength: undefined };
+  return db.$transaction(async (tx) => {
+    // Условие по pushedAt — параллельный тик не отправит второй раз; просмотренные до отправки — без push.
+    const { count } = await tx.weeklyRecap.updateMany({ where: { id: recap.id, pushedAt: null, seenAt: null }, data: { pushedAt: now } });
+    if (count === 0) return false;
+    await notify(
+      tx,
+      recap.userId,
+      { type: NotificationType.RECAP, title: "Итоги недели 📊", body: recapPushBody(data), url: `/recap/${recap.week}` },
+      { push: true },
+    );
+    return true;
+  });
 }
 
 /** «Новый старт»: прошлая неделя пустая после активной — один раз (recapNudgeWeek). */

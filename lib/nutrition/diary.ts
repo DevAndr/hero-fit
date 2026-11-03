@@ -1,5 +1,6 @@
 /** Дневник питания (спека 2026-10-31-nutrition-diary): приёмы пищи, итоги дня, разбор даты из адреса. */
 import { addDays } from "@/lib/dates";
+import { normDays } from "@/lib/nutrition/streak";
 
 export type Meal = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
 
@@ -51,4 +52,19 @@ export function parseDiaryDate(raw: string | string[] | undefined, today: string
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw || raw > today) return today;
   const oldest = addDays(today, -MAX_DIARY_DAYS);
   return raw < oldest ? oldest : raw;
+}
+
+export const WEEK_DAYS = 7;
+export type WeekDay = { date: string; kcal: number };
+
+/** Неделя для графика: 7 дней по `today` (пустые — 0), среднее по дням с записями и дни «в норме» (±10 %, как у ачивки). */
+export function weekSeries(rows: WeekDay[], today: string, normKcal: number | null): { days: WeekDay[]; avg: number | null; inNorm: number } {
+  const byDate = new Map(rows.map((r) => [r.date, r.kcal]));
+  const days = Array.from({ length: WEEK_DAYS }, (_, i) => {
+    const date = addDays(today, i - WEEK_DAYS + 1);
+    return { date, kcal: byDate.get(date) ?? 0 };
+  });
+  const filled = days.filter((d) => d.kcal > 0);
+  const avg = filled.length ? Math.round(filled.reduce((s, d) => s + d.kcal, 0) / filled.length) : null;
+  return { days, avg, inNorm: normDays(filled, normKcal) };
 }

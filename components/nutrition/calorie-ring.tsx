@@ -1,11 +1,16 @@
+import { RingCenter } from "@/components/nutrition/ring-center";
 import { ringArcs } from "@/lib/nutrition/diary";
 
 const SIZES = { md: { size: 140, stroke: 12, number: "text-2xl" }, sm: { size: 88, stroke: 9, number: "text-lg" } } as const;
 
 const n = (v: number) => v.toLocaleString("ru-RU");
 
-/** Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось». */
-export function CalorieRing({ eaten, norm, size = "md" }: { eaten: number; norm: number; size?: keyof typeof SIZES }) {
+/**
+ * Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось».
+ * `day` — кольцо «Итога дня» на /nutrition (на дашборде — статичное): свечение за кольцом (два вдоха при показе
+ * и после новой записи, затем статично), всплывающие «+N» и отсчёт «осталось» — `RingCenter`.
+ */
+export function CalorieRing({ eaten, norm, size = "md", day }: { eaten: number; norm: number; size?: keyof typeof SIZES; day?: string }) {
   const { size: SIZE, stroke: STROKE, number } = SIZES[size];
   const R = (SIZE - STROKE) / 2;
   const C = 2 * Math.PI * R;
@@ -15,7 +20,11 @@ export function CalorieRing({ eaten, norm, size = "md" }: { eaten: number; norm:
   const arc = (share: number) => ({ strokeDasharray: C, strokeDashoffset: C * (1 - share) });
   return (
     <div role="img" aria-label={label} className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="size-full -rotate-90" aria-hidden>
+      {/* key — съеденное: новая запись перезапускает пульс */}
+      {day ? (
+        <div key={eaten} aria-hidden data-testid="ring-halo" className={overBy > 0 ? "ring-halo [--halo:var(--destructive)]" : "ring-halo [--halo:var(--primary)]"} />
+      ) : null}
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="relative size-full -rotate-90" aria-hidden>
         <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" strokeWidth={STROKE} className="stroke-muted" />
         {main > 0 ? (
           <circle
@@ -43,10 +52,16 @@ export function CalorieRing({ eaten, norm, size = "md" }: { eaten: number; norm:
         ) : null}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className={overBy > 0 ? `${number} font-extrabold tabular-nums text-destructive` : `${number} font-extrabold tabular-nums`}>
-          {overBy > 0 ? `+${n(overBy)}` : n(-overBy)}
-        </span>
-        <span className="text-xs text-muted-foreground">{overBy > 0 ? "сверх нормы" : "осталось"}</span>
+        {day ? (
+          <RingCenter eaten={eaten} norm={norm} day={day} numberClass={number} />
+        ) : (
+          <>
+            <span className={overBy > 0 ? `${number} font-extrabold tabular-nums text-destructive` : `${number} font-extrabold tabular-nums`}>
+              {overBy > 0 ? `+${n(overBy)}` : n(-overBy)}
+            </span>
+            <span className="text-xs text-muted-foreground">{overBy > 0 ? "сверх нормы" : "осталось"}</span>
+          </>
+        )}
       </div>
     </div>
   );
