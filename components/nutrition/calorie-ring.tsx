@@ -7,7 +7,7 @@ const n = (v: number) => v.toLocaleString("ru-RU");
 
 /**
  * Кольцо калорий: заполнение — съеденное от нормы; сверх нормы — второй круг цветом destructive. Внутри — «осталось».
- * `day` — кольцо «Итога дня» на /nutrition (на дашборде — статичное): свечение за кольцом (несколько вдохов при показе
+ * `day` — кольцо «Итога дня» на /nutrition (на дашборде — статичное): свечение за кольцом (два вдоха при показе
  * и после новой записи, затем статично), всплывающие «+N» и отсчёт «осталось» — `RingCenter`.
  */
 export function CalorieRing({ eaten, norm, size = "md", day }: { eaten: number; norm: number; size?: keyof typeof SIZES; day?: string }) {
