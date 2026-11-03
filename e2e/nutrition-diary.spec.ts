@@ -141,6 +141,23 @@ test("adding vibrates once (dialog, undo of a delete); editing and deleting do n
   await expect.poll(vibrations).toBe(2);
 });
 
+test("week chart: average over days with entries, days in norm, a bar opens that day", async ({ page }) => {
+  const me = await diaryUser(page, true);
+  await page.goto("/nutrition");
+  const week = page.getByRole("region", { name: "Неделя" });
+  await expect(week.getByTestId("week-summary")).toHaveText("За 7 дней записей нет");
+  // Норма 2 760: 3 000 и 2 700 — в пределах ±10 %, 1 000 — нет; среднее — (3 000 + 2 700 + 1 000) / 3
+  await addFoodEntry(me.login, { date: localDay(1), meal: "LUNCH", name: "Плов", kcal: 3000 });
+  await addFoodEntry(me.login, { date: localDay(2), meal: "LUNCH", name: "Суп", kcal: 2700 });
+  await addFoodEntry(me.login, { date: localDay(3), meal: "LUNCH", name: "Салат", kcal: 1000 });
+  await page.reload();
+  await expect(week.getByTestId("week-summary")).toHaveText("В среднем 2 233 ккал · в норме 2 из 7 дней");
+  await expect(week.getByRole("table")).toContainText("нет записей");
+  await week.getByTestId(`week-bar-${localDay(3)}`).click();
+  await expect(page).toHaveURL(`/nutrition?date=${localDay(3)}`);
+  await expect(meal(page, "Обед").getByRole("listitem")).toContainText("Салат");
+});
+
 test("edit and delete an entry", async ({ page }) => {
   await diaryUser(page);
   await page.goto("/nutrition");
