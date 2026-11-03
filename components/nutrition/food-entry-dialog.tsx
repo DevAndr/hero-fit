@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { selectOnFocus } from "@/components/ui/select-on-focus";
+import { addedFeedback } from "@/components/nutrition/added-feedback";
 import { MEAL_LABELS, MEALS, type Meal } from "@/lib/nutrition/diary";
 import { addFoodEntryAction, updateFoodEntryAction, type FoodFormState } from "@/lib/nutrition/food-actions";
 import type { FoodEntryRow, RecentFood } from "@/lib/nutrition/food-queries";
@@ -57,7 +58,10 @@ export function FoodEntryDialog({
   const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState<FoodFormState, FormData>(async (prev, formData) => {
     const result = entry ? await updateFoodEntryAction(entry.id, prev, formData) : await addFoodEntryAction(date, prev, formData);
-    if (result.ok) onOpenChange(false);
+    if (result.ok) {
+      if (!entry) addedFeedback();
+      onOpenChange(false);
+    }
     return result;
   }, {});
   const [chosen, setChosen] = useState<Meal | null>(meal ?? null);

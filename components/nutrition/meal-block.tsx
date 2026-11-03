@@ -6,6 +6,7 @@ import { EllipsisVertical, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { addedFeedback } from "@/components/nutrition/added-feedback";
 import { FoodEntryDialog } from "@/components/nutrition/food-entry-dialog";
 import { useKcalGain } from "@/components/nutrition/use-kcal-gain";
 import { MEAL_LABELS, type Macros, type Meal } from "@/lib/nutrition/diary";
@@ -63,7 +64,14 @@ export function MealBlock({
   const remove = (e: FoodEntryRow) =>
     run(async () => {
       const deleted = await deleteFoodEntryAction(e.id);
-      if (deleted) toast(`Удалено: ${deleted.name}`, { action: { label: "Отменить", onClick: () => run(() => restoreFoodEntryAction(deleted)) } });
+      if (deleted) {
+        const restore = () =>
+          run(async () => {
+            await restoreFoodEntryAction(deleted);
+            addedFeedback();
+          });
+        toast(`Удалено: ${deleted.name}`, { action: { label: "Отменить", onClick: restore } });
+      }
     });
 
   return (
@@ -122,7 +130,17 @@ export function MealBlock({
           Добавить
         </Button>
         {!entries.length && canRepeat ? (
-          <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => repeatYesterdayMealAction(date, meal))}>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                await repeatYesterdayMealAction(date, meal);
+                addedFeedback();
+              })
+            }
+          >
             <Repeat />
             Повторить вчерашний
           </Button>
