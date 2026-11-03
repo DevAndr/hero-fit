@@ -393,7 +393,7 @@
   background: radial-gradient(closest-side, transparent 72%, color-mix(in oklch, var(--halo) 50%, transparent) 90%, transparent 100%);
   filter: blur(2.5px);
   opacity: 0.55;
-  animation: ring-halo 2.5s ease-in-out 4;
+  animation: ring-halo 1.25s ease-in-out 4;
 }
 @keyframes ring-halo {
   50% { opacity: 1; transform: scale(1.025); }
