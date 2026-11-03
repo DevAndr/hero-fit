@@ -57,7 +57,10 @@ test("calorie ring on /nutrition: halo pulses a few times and restarts after a n
   // «+300» всплывает (с подъёмом), «осталось» досчитывает до нового значения
   const gain = page.getByRole("region", { name: "Итог дня" }).getByTestId("ring-gain");
   await expect(gain).toHaveText("+300");
-  await expect(gain).toHaveCSS("animation-name", "ring-gain");
+  await expect(gain).toHaveCSS("animation-name", "kcal-gain");
   await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("img")).toContainText("2 460");
   await expect(gain).toHaveCount(0, { timeout: 5000 });
+  // У суммы приёма — «+300 ккал» и досчёт до 300
+  const lunch = page.getByRole("region", { name: "Обед", exact: true });
+  await expect(lunch.getByTestId("meal-kcal")).toHaveText("300 ккал", { timeout: 5000 });
 });

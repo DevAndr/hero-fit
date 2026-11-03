@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { FoodEntryDialog } from "@/components/nutrition/food-entry-dialog";
+import { useKcalGain } from "@/components/nutrition/use-kcal-gain";
 import { MEAL_LABELS, type Macros, type Meal } from "@/lib/nutrition/diary";
 import { copyFoodEntryToTodayAction, deleteFoodEntryAction, repeatYesterdayMealAction, restoreFoodEntryAction } from "@/lib/nutrition/food-actions";
 import type { FoodEntryRow, RecentFood } from "@/lib/nutrition/food-queries";
@@ -24,7 +25,7 @@ function macrosLine(e: FoodEntryRow) {
     .join(" · ");
 }
 
-/** Блок приёма пищи: сумма, записи с меню, «Добавить» (окно сразу на шаге 2), у пустого — «Повторить вчерашний». */
+/** Блок приёма пищи: сумма (новая запись — «+N ккал» и досчёт), записи с меню, «Добавить» (окно сразу на шаге 2), у пустого — «Повторить вчерашний». */
 export function MealBlock({
   meal,
   entries,
@@ -49,6 +50,7 @@ export function MealBlock({
   const [pending, start] = useTransition();
   const router = useRouter();
   const label = MEAL_LABELS[meal];
+  const kcal = useKcalGain(totals.kcal, date);
   // Ошибка сети или снятый флаг — уведомлением, а не страницей ошибки
   const run = (fn: () => Promise<void>) =>
     start(async () => {
@@ -68,7 +70,14 @@ export function MealBlock({
     <section aria-label={label} className="space-y-2 rounded-xl border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-bold">{label}</h2>
-        <span className="text-sm font-semibold tabular-nums text-muted-foreground">{n(totals.kcal)} ккал</span>
+        <span className="relative text-sm font-semibold tabular-nums text-muted-foreground" data-testid="meal-kcal">
+          {n(kcal.shown)} ккал
+          {kcal.gains.map((g) => (
+            <span key={g.id} aria-hidden data-testid="meal-gain" className="kcal-gain top-0 right-full mr-2 text-sm text-primary" onAnimationEnd={() => kcal.drop(g.id)}>
+              +{n(g.amount)} ккал
+            </span>
+          ))}
+        </span>
       </div>
       {entries.length ? (
         <ul className="divide-y text-sm">
