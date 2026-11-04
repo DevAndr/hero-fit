@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { CalorieBar } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { evaluateAchievementsNow } from "@/lib/achievements/engine";
 import { db } from "@/lib/db";
@@ -41,12 +42,20 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
 }
 
 /**
- * Режим ввода: продвинутый (Б/Ж/У) или только ккал — переключатель «Белки, жиры, углеводы» и диалог первого захода
+ * Режим ввода: продвинутый (Б/Ж/У) или только ккал — пункт «Белки, жиры, углеводы» в меню «Итога дня» и диалог первого захода
  * (закрыли без выбора — упрощённый). Ставит отметку выбора: диалог больше не показывается.
  */
 export async function setNutritionMacrosAction(on: boolean) {
   const user = await nutritionUser();
   await db.user.update({ where: { id: user.id }, data: { nutritionMacros: on === true, nutritionModeChosenAt: new Date() } });
+  revalidatePath("/nutrition");
+}
+
+/** Вид шкалы калорий в «Итоге дня» (флаг nutrition_bar_styles): кольцо, котёл или пончик — диалог «Вид шкалы калорий» из меню. */
+export async function setNutritionBarAction(bar: CalorieBar) {
+  const user = await nutritionUser();
+  if (!(Object.values(CalorieBar) as string[]).includes(bar)) throw new Error("Неизвестный вид шкалы");
+  await db.user.update({ where: { id: user.id }, data: { nutritionBar: bar } });
   revalidatePath("/nutrition");
 }
 
