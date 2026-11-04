@@ -3,7 +3,7 @@ import { addFlagUser, logWeight, setNutritionMacros, setNutritionProfile } from 
 import { registerUser } from "./helpers";
 import { E2E_TZ } from "./tz";
 
-// Котёл калорий (флаг nutrition_cauldron, у пользователя — не глобальный): зелье — доля нормы, сверх нормы — перелив.
+// Вид шкалы калорий (флаг nutrition_bar_styles, у пользователя — не глобальный): котёл (по умолчанию), кольцо, пончик.
 // С движением — чтобы проверить всплывающее «+N» над котлом.
 test.use({ contextOptions: { reducedMotion: "no-preference" } });
 
@@ -12,7 +12,7 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: E2E_TZ, year: "
 async function cauldronUser(page: Page, flag = true) {
   const me = await registerUser(page);
   await addFlagUser("nutrition", me.login);
-  if (flag) await addFlagUser("nutrition_cauldron", me.login);
+  if (flag) await addFlagUser("nutrition_bar_styles", me.login);
   await setNutritionMacros(me.login, false);
   // Мужчина 1996 г. р., 180 см, 80 кг, средняя активность → 2 760 ккал
   await setNutritionProfile(me.login, { heightCm: 180, birthYear: 1996, activityLevel: "MODERATE", nutritionGoal: "MAINTAIN", gender: "MALE" });
@@ -57,7 +57,7 @@ async function openBarDialog(page: Page) {
   return page.getByRole("dialog", { name: "Вид шкалы калорий" });
 }
 
-test("«⋮» → «Change the kcal bar»: dialog with previews of both, the choice is saved", async ({ page }) => {
+test("«⋮» → «Change the kcal bar»: dialog with previews of every style, the choice is saved", async ({ page }) => {
   await cauldronUser(page);
   await page.goto("/nutrition");
   const summary = page.getByRole("region", { name: "Итог дня" });
@@ -68,6 +68,7 @@ test("«⋮» → «Change the kcal bar»: dialog with previews of both, the cho
   const ring = dialog.getByRole("button", { name: /Кольцо/ });
   await expect(cauldron).toHaveAttribute("aria-pressed", "true");
   await expect(ring).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.getByRole("button", { name: /Пончик/ })).toHaveAttribute("aria-pressed", "false");
   // Превью — на сегодняшних цифрах
   await expect(cauldron.getByTestId("cauldron-bar")).toContainText("2 760осталось");
   await expect(ring).toContainText("2 760");
@@ -85,6 +86,33 @@ test("«⋮» → «Change the kcal bar»: dialog with previews of both, the cho
   await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
   await page.reload();
   await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
+});
+
+test("donut: glaze opens by the share of the norm, over the norm — full glaze and a red halo", async ({ page }) => {
+  await cauldronUser(page);
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  const dialog = await openBarDialog(page);
+  await expect(dialog.getByRole("button", { name: /Пончик/ }).getByTestId("donut-ring")).toContainText("2 760");
+  await dialog.getByRole("button", { name: /Пончик/ }).click();
+  const donut = summary.getByTestId("donut-ring");
+  await expect(donut).toHaveAccessibleName("Съедено 0 из 2 760 ккал, осталось 2 760");
+  await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
+
+  await addEntry(page, "Завтрак", "690");
+  await expect(donut).toHaveAccessibleName("Съедено 690 из 2 760 ккал, осталось 2 070");
+  await expect(summary.getByTestId("donut-gain")).toHaveText("+690");
+  // Глазурь — четверть круга
+  await expect(summary.getByTestId("donut-glaze")).toHaveCSS("--donut-share", "25%");
+  await expect(summary.getByTestId("donut-halo")).toHaveCount(0);
+
+  await addEntry(page, "Обед", "2310");
+  await expect(donut).toHaveAccessibleName("Съедено 3 000 из 2 760 ккал, 240 сверх нормы");
+  await expect(donut).toHaveAttribute("data-over", "true");
+  await expect(donut).toContainText("+240сверх нормы");
+  await expect(summary.getByTestId("donut-halo")).toBeVisible();
+  await page.reload();
+  await expect(summary.getByTestId("donut-ring")).toBeVisible();
 });
 
 test("without the flag — the usual ring and no bar item in the menu", async ({ page }) => {

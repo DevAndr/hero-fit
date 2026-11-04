@@ -60,8 +60,8 @@ export const FLAGS = {
     description: "Забытые тренировки: push через 4 ч, отмена через сутки",
     expires: "2027-06-30",
   },
-  nutrition_cauldron: {
-    description: "Котёл калорий: прогресс-бар зельем вместо кольца в «Итоге дня» (эксперимент)",
+  nutrition_bar_styles: {
+    description: "Вид шкалы калорий в «Итоге дня»: кольцо, котёл с зельем или пончик (эксперимент)",
     expires: "2027-06-30",
   },
 } as const satisfies Record<string, { description: string; expires: string }>;

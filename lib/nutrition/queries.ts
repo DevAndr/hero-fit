@@ -1,5 +1,5 @@
 import "server-only";
-import { WorkoutStatus } from "@/generated/prisma/enums";
+import { WorkoutStatus, type CalorieBar } from "@/generated/prisma/enums";
 import { dayKey } from "@/lib/daily-login";
 import { addDays } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -22,8 +22,8 @@ export type NutritionView = {
   norm: Norm | null;
   /** продвинутый ввод: Б/Ж/У в дневнике и норме */
   macros: boolean;
-  /** шкала калорий — котёл (при флаге nutrition_cauldron), иначе кольцо */
-  cauldron: boolean;
+  /** вид шкалы калорий (действует при флаге nutrition_bar_styles, иначе кольцо) */
+  bar: CalorieBar;
   /** режим ввода уже выбран — иначе на /nutrition открывается диалог выбора */
   modeChosen: boolean;
   hasWeight: boolean;
@@ -60,7 +60,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
   const today = dayKey(now, tz);
   const from = addDays(today, -(DAYS - 1));
   const [user, log, workouts, whoop] = await Promise.all([
-    db.user.findUniqueOrThrow({ where: { id: userId }, select: { gender: true, birthYear: true, heightCm: true, activityLevel: true, nutritionGoal: true, nutritionMacros: true, nutritionModeChosenAt: true, nutritionCauldron: true } }),
+    db.user.findUniqueOrThrow({ where: { id: userId }, select: { gender: true, birthYear: true, heightCm: true, activityLevel: true, nutritionGoal: true, nutritionMacros: true, nutritionModeChosenAt: true, nutritionBar: true } }),
     weightLog(userId),
     db.workout.findMany({
       where: { userId, status: WorkoutStatus.COMPLETED, finishedAt: { gte: localMidnight(from, tz), lt: localMidnight(addDays(today, 1), tz) } },
@@ -96,7 +96,7 @@ export async function getNutritionView(userId: string, tz: string, now: Date): P
     profile,
     norm: dailyNorm(profile, Number(today.slice(0, 4))),
     macros: user.nutritionMacros,
-    cauldron: user.nutritionCauldron,
+    bar: user.nutritionBar,
     modeChosen: user.nutritionModeChosenAt !== null,
     hasWeight: weightKg !== null,
     burn: { totalKcal: list.reduce((s, w) => s + w.kcal, 0), days, workouts: list },

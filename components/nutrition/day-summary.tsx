@@ -1,11 +1,13 @@
 import { CalorieRing } from "@/components/nutrition/calorie-ring";
 import { CauldronBar } from "@/components/nutrition/cauldron-bar";
+import { DonutRing } from "@/components/nutrition/donut-ring";
 import { DiaryStreakLine } from "@/components/nutrition/nutrition-today-card";
 import { NutritionProfileDialog } from "@/components/nutrition/profile-dialog";
 import { SummaryMenu } from "@/components/nutrition/summary-menu";
 import type { Macros } from "@/lib/nutrition/diary";
 import type { Norm } from "@/lib/nutrition/norm";
 import type { NutritionView } from "@/lib/nutrition/queries";
+import type { CalorieBar } from "@/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 
 const n = (v: number) => v.toLocaleString("ru-RU");
@@ -24,8 +26,8 @@ function Bar({ value, max }: { value: number; max: number }) {
 
 /**
  * Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы.
- * Настройки — в меню «⋮» в углу (`SummaryMenu`): «Белки, жиры, углеводы» и с флагом `nutrition_cauldron` — «Сменить вид
- * шкалы ккал…» (`CalorieBarDialog`): котёл с зельем во всю ширину (`CauldronBar`, по умолчанию) или кольцо.
+ * Настройки — в меню «⋮» в углу (`SummaryMenu`): «Белки, жиры, углеводы» и с флагом `nutrition_bar_styles` — «Сменить вид
+ * шкалы ккал…» (`CalorieBarDialog`): котёл с зельем во всю ширину (`CauldronBar`, по умолчанию), кольцо или пончик (`DonutRing`).
  */
 export function DaySummary({
   date,
@@ -34,7 +36,7 @@ export function DaySummary({
   profile,
   macros: showMacros,
   streak,
-  cauldron = null,
+  bar = null,
 }: {
   /** день дневника — у кольца «+N» и отсчёт только в пределах дня */
   date: string;
@@ -44,8 +46,8 @@ export function DaySummary({
   macros: boolean;
   /** текущая серия дневника — строка «Серия дневника: N дней» */
   streak: number;
-  /** выбранная шкала: котёл (true) или кольцо; null — флага nutrition_cauldron нет: кольцо и без пункта в меню */
-  cauldron?: boolean | null;
+  /** вид шкалы; null — флага nutrition_bar_styles нет: кольцо и без пункта в меню */
+  bar?: CalorieBar | null;
 }) {
   const macros = [
     ["Белки", total.protein, norm?.protein],
@@ -55,15 +57,16 @@ export function DaySummary({
   return (
     <section aria-label="Итог дня" className="relative rounded-xl border bg-card p-4">
       <div className="absolute top-2 right-2 z-10">
-        <SummaryMenu macros={showMacros} cauldron={norm ? cauldron : null} eaten={total.kcal} norm={norm?.kcal ?? null} />
+        <SummaryMenu macros={showMacros} bar={norm ? bar : null} eaten={total.kcal} norm={norm?.kcal ?? null} />
       </div>
-      {norm && cauldron === true ? (
+      {norm && bar === "CAULDRON" ? (
         <div className="mx-auto mb-2 max-w-xl">
           <CauldronBar eaten={total.kcal} norm={norm.kcal} day={date} />
         </div>
       ) : null}
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {norm && cauldron !== true ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
+        {norm && bar === "DONUT" ? <DonutRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
+        {norm && (bar === null || bar === "RING") ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
         <div className="w-full min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2 pr-8">
             <div>

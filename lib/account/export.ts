@@ -168,7 +168,7 @@ const PROFILE_FIELDS = [
   "nutritionGoal",
   "nutritionMacros",
   "nutritionModeChosenAt",
-  "nutritionCauldron",
+  "nutritionBar",
   "createdAt",
   "privacyAcceptedAt",
   "signupLanding",
