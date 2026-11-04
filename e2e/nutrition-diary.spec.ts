@@ -20,6 +20,23 @@ async function diaryUser(page: Page, withNorm = false) {
 
 const meal = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 
+/** «Белки, жиры, углеводы» — пункт с галочкой в меню «⋮» «Итога дня»: открыть меню и вернуть пункт. */
+async function macrosItem(page: Page) {
+  await page.getByRole("region", { name: "Итог дня" }).getByRole("button", { name: "Настройки итога дня" }).click();
+  return page.getByRole("menuitemcheckbox", { name: "Белки, жиры, углеводы" });
+}
+
+async function expectMacros(page: Page, on: boolean) {
+  const item = await macrosItem(page);
+  await (on ? expect(item).toBeChecked() : expect(item).not.toBeChecked());
+  await page.keyboard.press("Escape");
+}
+
+async function toggleMacros(page: Page) {
+  await (await macrosItem(page)).click();
+  await page.keyboard.press("Escape");
+}
+
 async function addEntry(page: Page, mealName: string, food: { name: string; kcal: string; protein?: string }) {
   await meal(page, mealName).getByRole("button", { name: "Добавить" }).click();
   const dialog = page.getByRole("dialog", { name: `Добавить: ${mealName}` });
@@ -245,7 +262,7 @@ test("simple input by default: only name and kcal, no macros in the day total", 
   await diaryUser(page, true);
   await page.goto("/nutrition");
   const summary = page.getByRole("region", { name: "Итог дня" });
-  await expect(summary.getByRole("switch", { name: "Белки, жиры, углеводы" })).not.toBeChecked();
+  await expectMacros(page, false);
   await expect(summary.getByText("Белки", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Норма на день" }).getByText("Белки", { exact: true })).toHaveCount(0);
   await meal(page, "Завтрак").getByRole("button", { name: "Добавить" }).click();
@@ -254,14 +271,13 @@ test("simple input by default: only name and kcal, no macros in the day total", 
   await expect(dialog.getByLabel("Белки, г")).toHaveCount(0);
 });
 
-test("the macros switch shows the fields and is remembered", async ({ page }) => {
+test("the macros menu item shows the fields and is remembered", async ({ page }) => {
   await diaryUser(page);
   await page.goto("/nutrition");
-  const toggle = page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" });
-  await toggle.click();
-  await expect(toggle).toBeChecked();
+  await toggleMacros(page);
+  await expectMacros(page, true);
   await page.reload();
-  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).toBeChecked();
+  await expectMacros(page, true);
   await meal(page, "Обед").getByRole("button", { name: "Добавить" }).click();
   await expect(page.getByRole("dialog", { name: "Добавить: Обед" }).getByLabel("Белки, г")).toBeVisible();
 });
@@ -278,7 +294,7 @@ test("editing in simple mode keeps the macros already entered", async ({ page })
   await dialog.getByLabel("Ккал").fill("220");
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(lunch.getByRole("listitem")).toContainText("220 ккал");
-  await page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" }).click();
+  await toggleMacros(page);
   await expect(lunch.getByRole("listitem")).toContainText("Б 30");
 });
 
@@ -290,7 +306,7 @@ test("first visit asks for the input mode; advanced shows macros and is not aske
   await expect(dialog).toContainText("Поменять можно в любой момент");
   await dialog.getByRole("button", { name: /Продвинутый/ }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).toBeChecked();
+  await expectMacros(page, true);
   await page.reload();
   await expect(page.getByRole("region", { name: "Итог дня" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Как будете вести дневник?" })).toHaveCount(0);
@@ -304,7 +320,7 @@ test("closing the mode dialog keeps simple input and does not ask again", async 
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("region", { name: "Итог дня" }).getByRole("switch", { name: "Белки, жиры, углеводы" })).not.toBeChecked();
+  await expectMacros(page, false);
   await expect.poll(async () => {
     await page.reload();
     await expect(page.getByRole("region", { name: "Итог дня" })).toBeVisible();

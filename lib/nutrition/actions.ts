@@ -41,7 +41,7 @@ export async function saveNutritionProfileAction(_prev: NutritionFormState, form
 }
 
 /**
- * Режим ввода: продвинутый (Б/Ж/У) или только ккал — переключатель «Белки, жиры, углеводы» и диалог первого захода
+ * Режим ввода: продвинутый (Б/Ж/У) или только ккал — пункт «Белки, жиры, углеводы» в меню «Итога дня» и диалог первого захода
  * (закрыли без выбора — упрощённый). Ставит отметку выбора: диалог больше не показывается.
  */
 export async function setNutritionMacrosAction(on: boolean) {
@@ -50,7 +50,7 @@ export async function setNutritionMacrosAction(on: boolean) {
   revalidatePath("/nutrition");
 }
 
-/** Шкала калорий в «Итоге дня» (флаг nutrition_cauldron): котёл с зельем или кольцо — переключатель «Котёл вместо кольца». */
+/** Шкала калорий в «Итоге дня» (флаг nutrition_cauldron): котёл с зельем или кольцо — диалог «Вид шкалы калорий» из меню «Итога дня». */
 export async function setNutritionCauldronAction(on: boolean) {
   const user = await nutritionUser();
   await db.user.update({ where: { id: user.id }, data: { nutritionCauldron: on === true } });

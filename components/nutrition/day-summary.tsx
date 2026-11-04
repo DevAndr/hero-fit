@@ -1,9 +1,8 @@
 import { CalorieRing } from "@/components/nutrition/calorie-ring";
 import { CauldronBar } from "@/components/nutrition/cauldron-bar";
-import { CauldronSwitch } from "@/components/nutrition/cauldron-switch";
-import { MacrosSwitch } from "@/components/nutrition/macros-switch";
 import { DiaryStreakLine } from "@/components/nutrition/nutrition-today-card";
 import { NutritionProfileDialog } from "@/components/nutrition/profile-dialog";
+import { SummaryMenu } from "@/components/nutrition/summary-menu";
 import type { Macros } from "@/lib/nutrition/diary";
 import type { Norm } from "@/lib/nutrition/norm";
 import type { NutritionView } from "@/lib/nutrition/queries";
@@ -25,8 +24,8 @@ function Bar({ value, max }: { value: number; max: number }) {
 
 /**
  * Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы.
- * С флагом `nutrition_cauldron` — переключатель «Котёл вместо кольца» (`CauldronSwitch`, по умолчанию включён): котёл с
- * зельем во всю ширину (`CauldronBar`) или кольцо.
+ * Настройки — в меню «⋮» в углу (`SummaryMenu`): «Белки, жиры, углеводы» и с флагом `nutrition_cauldron` — «Сменить вид
+ * шкалы ккал…» (`CalorieBarDialog`): котёл с зельем во всю ширину (`CauldronBar`, по умолчанию) или кольцо.
  */
 export function DaySummary({
   date,
@@ -45,7 +44,7 @@ export function DaySummary({
   macros: boolean;
   /** текущая серия дневника — строка «Серия дневника: N дней» */
   streak: number;
-  /** настройка «Котёл вместо кольца»; null — флага nutrition_cauldron нет: кольцо и без переключателя */
+  /** выбранная шкала: котёл (true) или кольцо; null — флага nutrition_cauldron нет: кольцо и без пункта в меню */
   cauldron?: boolean | null;
 }) {
   const macros = [
@@ -54,7 +53,10 @@ export function DaySummary({
     ["Углеводы", total.carbs, norm?.carbs],
   ] as const;
   return (
-    <section aria-label="Итог дня" className="rounded-xl border bg-card p-4">
+    <section aria-label="Итог дня" className="relative rounded-xl border bg-card p-4">
+      <div className="absolute top-2 right-2 z-10">
+        <SummaryMenu macros={showMacros} cauldron={norm ? cauldron : null} eaten={total.kcal} norm={norm?.kcal ?? null} />
+      </div>
       {norm && cauldron === true ? (
         <div className="mx-auto mb-2 max-w-xl">
           <CauldronBar eaten={total.kcal} norm={norm.kcal} day={date} />
@@ -63,7 +65,7 @@ export function DaySummary({
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
         {norm && cauldron !== true ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
         <div className="w-full min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 pr-8">
             <div>
               <p className="text-xs text-muted-foreground">{norm ? "Съедено / норма" : "Съедено"}</p>
               <p className="text-xl font-extrabold tabular-nums" data-testid="day-kcal">
@@ -87,13 +89,7 @@ export function DaySummary({
               ))}
             </dl>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <MacrosSwitch on={showMacros} />
-              {norm && cauldron !== null ? <CauldronSwitch on={cauldron} /> : null}
-            </div>
-            <DiaryStreakLine days={streak} />
-          </div>
+          <DiaryStreakLine days={streak} />
         </div>
       </div>
     </section>

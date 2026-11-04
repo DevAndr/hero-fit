@@ -51,32 +51,49 @@ test("with the flag the day summary shows the cauldron: potion share, «+N» fro
   await expect(bar).toContainText("+240сверх нормы");
 });
 
-test("«Cauldron instead of ring» switches back to the ring and is remembered", async ({ page }) => {
+async function openBarDialog(page: Page) {
+  await page.getByRole("region", { name: "Итог дня" }).getByRole("button", { name: "Настройки итога дня" }).click();
+  await page.getByRole("menuitem", { name: "Сменить вид шкалы ккал…" }).click();
+  return page.getByRole("dialog", { name: "Вид шкалы калорий" });
+}
+
+test("«⋮» → «Change the kcal bar»: dialog with previews of both, the choice is saved", async ({ page }) => {
   await cauldronUser(page);
   await page.goto("/nutrition");
   const summary = page.getByRole("region", { name: "Итог дня" });
-  const toggle = summary.getByRole("switch", { name: "Котёл вместо кольца" });
-  await expect(toggle).toBeChecked();
   await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
 
-  await toggle.click();
+  let dialog = await openBarDialog(page);
+  const cauldron = dialog.getByRole("button", { name: /Котёл с зельем/ });
+  const ring = dialog.getByRole("button", { name: /Кольцо/ });
+  await expect(cauldron).toHaveAttribute("aria-pressed", "true");
+  await expect(ring).toHaveAttribute("aria-pressed", "false");
+  // Превью — на сегодняшних цифрах
+  await expect(cauldron.getByTestId("cauldron-bar")).toContainText("2 760осталось");
+  await expect(ring).toContainText("2 760");
+
+  await ring.click();
+  await expect(dialog).toBeHidden();
   await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
   await expect(summary.getByTestId("ring-halo")).toBeVisible();
   await page.reload();
-  await expect(toggle).not.toBeChecked();
   await expect(summary.getByTestId("ring-halo")).toBeVisible();
 
-  await toggle.click();
+  dialog = await openBarDialog(page);
+  await expect(dialog.getByRole("button", { name: /Кольцо/ })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: /Котёл с зельем/ }).click();
   await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
   await page.reload();
-  await expect(toggle).toBeChecked();
+  await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
 });
 
-test("without the flag — the usual ring and no switch", async ({ page }) => {
+test("without the flag — the usual ring and no bar item in the menu", async ({ page }) => {
   await cauldronUser(page, false);
   await page.goto("/nutrition");
   const summary = page.getByRole("region", { name: "Итог дня" });
   await expect(summary.getByRole("img", { name: "Съедено 0 из 2 760 ккал, осталось 2 760" })).toBeVisible();
   await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
-  await expect(summary.getByRole("switch", { name: "Котёл вместо кольца" })).toHaveCount(0);
+  await summary.getByRole("button", { name: "Настройки итога дня" }).click();
+  await expect(page.getByRole("menuitemcheckbox", { name: "Белки, жиры, углеводы" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Сменить вид шкалы ккал…" })).toHaveCount(0);
 });
