@@ -1,4 +1,5 @@
 import { CalorieRing } from "@/components/nutrition/calorie-ring";
+import { CauldronBar } from "@/components/nutrition/cauldron-bar";
 import { MacrosSwitch } from "@/components/nutrition/macros-switch";
 import { DiaryStreakLine } from "@/components/nutrition/nutrition-today-card";
 import { NutritionProfileDialog } from "@/components/nutrition/profile-dialog";
@@ -21,7 +22,10 @@ function Bar({ value, max }: { value: number; max: number }) {
   );
 }
 
-/** Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы. */
+/**
+ * Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы.
+ * С флагом `nutrition_cauldron` вместо кольца — котёл с зельем во всю ширину (`CauldronBar`).
+ */
 export function DaySummary({
   date,
   total,
@@ -29,6 +33,7 @@ export function DaySummary({
   profile,
   macros: showMacros,
   streak,
+  cauldron = false,
 }: {
   /** день дневника — у кольца «+N» и отсчёт только в пределах дня */
   date: string;
@@ -38,6 +43,8 @@ export function DaySummary({
   macros: boolean;
   /** текущая серия дневника — строка «Серия дневника: N дней» */
   streak: number;
+  /** флаг nutrition_cauldron: котёл вместо кольца */
+  cauldron?: boolean;
 }) {
   const macros = [
     ["Белки", total.protein, norm?.protein],
@@ -46,8 +53,13 @@ export function DaySummary({
   ] as const;
   return (
     <section aria-label="Итог дня" className="rounded-xl border bg-card p-4">
+      {norm && cauldron ? (
+        <div className="mx-auto mb-2 max-w-xl">
+          <CauldronBar eaten={total.kcal} norm={norm.kcal} day={date} />
+        </div>
+      ) : null}
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {norm ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
+        {norm && !cauldron ? <CalorieRing eaten={total.kcal} norm={norm.kcal} day={date} /> : null}
         <div className="w-full min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
