@@ -31,15 +31,7 @@ const SPILL = {
  * нормы, сверх нормы — зелье переливается через край (`over_fill_progress_bar.png`). Внутри — «осталось N» / «+N сверх
  * нормы» с досчётом, добавленные ккал всплывают «+N» над котлом (`useKcalGain`, как у кольца).
  */
-export function CauldronBar({
-  eaten,
-  norm,
-  day,
-}: {
-  eaten: number;
-  norm: number;
-  day: string;
-}) {
+export function CauldronBar({ eaten, norm, day }: { eaten: number; norm: number; day: string }) {
   const { shown, gains, drop } = useKcalGain(eaten, day);
   const overBy = eaten - norm;
   const over = overBy > 0;
@@ -49,32 +41,11 @@ export function CauldronBar({
   return (
     // Перелив выходит за рамку снизу — запас под лужу
     <div className={cn("w-full", over && "pb-[6%]")}>
-      <div
-        role="img"
-        aria-label={label}
-        data-testid="cauldron-bar"
-        data-over={over || undefined}
-        className="relative aspect-1331/354 w-full"
-      >
+      <div role="img" aria-label={label} data-testid="cauldron-bar" data-over={over || undefined} className="relative aspect-1331/354 w-full">
         {/* Пустой котёл с зельем; при переливе уступает место картинке перелива (иначе из-под неё виден обод) */}
-        <div
-          className={cn(
-            "absolute inset-0 transition-opacity duration-500 motion-reduce:transition-none",
-            over && "opacity-0",
-          )}
-        >
-          <Image
-            src={frame}
-            alt=""
-            fill
-            sizes="(min-width: 640px) 560px, 100vw"
-            className="pointer-events-none select-none"
-            priority
-          />
-          <div
-            className="absolute overflow-hidden rounded-full"
-            style={CHANNEL}
-          >
+        <div className={cn("absolute inset-0 transition-opacity duration-500 motion-reduce:transition-none", over && "opacity-0")}>
+          <Image src={frame} alt="" fill sizes="(min-width: 640px) 560px, 100vw" className="pointer-events-none select-none" priority />
+          <div className="absolute overflow-hidden rounded-full" style={CHANNEL}>
             <Image
               src={potion}
               alt=""
@@ -98,25 +69,13 @@ export function CauldronBar({
           style={SPILL}
         >
           {/* eager — перелив после записи показывается сразу, без догрузки */}
-          <Image
-            src={spill}
-            alt=""
-            fill
-            sizes="(min-width: 640px) 580px, 100vw"
-            loading="eager"
-            className="select-none"
-          />
+          <Image src={spill} alt="" fill sizes="(min-width: 640px) 580px, 100vw" loading="eager" className="select-none" />
         </div>
-        <div
-          className="absolute flex items-center justify-center gap-1.5 text-white"
-          style={CHANNEL}
-        >
+        <div className="absolute flex items-center justify-center gap-1.5 text-white" style={CHANNEL}>
           <span className="text-lg font-extrabold tabular-nums [text-shadow:0_1px_3px_rgb(0_0_0/0.9)] sm:text-2xl">
             {shownOver > 0 ? `+${n(shownOver)}` : n(-shownOver)}
           </span>
-          <span className="text-xs font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.9)] sm:text-sm">
-            {shownOver > 0 ? "сверх нормы" : "осталось"}
-          </span>
+          <span className="text-xs font-semibold [text-shadow:0_1px_3px_rgb(0_0_0/0.9)] sm:text-sm">{shownOver > 0 ? "сверх нормы" : "осталось"}</span>
         </div>
         {/* «+N» поднимается из горловины котла */}
         {gains.map((g) => (

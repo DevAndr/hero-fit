@@ -41,7 +41,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
       {view.modeChosen ? null : <NutritionModeDialog />}
       <DayNav date={date} today={today} />
-      <DaySummary date={date} total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} streak={streak.current} cauldron={cauldron} />
+      <DaySummary date={date} total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} streak={streak.current} cauldron={cauldron ? view.cauldron : null} />
       <AddFoodButton date={date} recents={recents} macros={view.macros} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {MEALS.map((meal) => (

@@ -51,10 +51,32 @@ test("with the flag the day summary shows the cauldron: potion share, «+N» fro
   await expect(bar).toContainText("+240сверх нормы");
 });
 
-test("without the flag — the usual ring", async ({ page }) => {
+test("«Cauldron instead of ring» switches back to the ring and is remembered", async ({ page }) => {
+  await cauldronUser(page);
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  const toggle = summary.getByRole("switch", { name: "Котёл вместо кольца" });
+  await expect(toggle).toBeChecked();
+  await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
+
+  await toggle.click();
+  await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
+  await expect(summary.getByTestId("ring-halo")).toBeVisible();
+  await page.reload();
+  await expect(toggle).not.toBeChecked();
+  await expect(summary.getByTestId("ring-halo")).toBeVisible();
+
+  await toggle.click();
+  await expect(summary.getByTestId("cauldron-bar")).toBeVisible();
+  await page.reload();
+  await expect(toggle).toBeChecked();
+});
+
+test("without the flag — the usual ring and no switch", async ({ page }) => {
   await cauldronUser(page, false);
   await page.goto("/nutrition");
   const summary = page.getByRole("region", { name: "Итог дня" });
   await expect(summary.getByRole("img", { name: "Съедено 0 из 2 760 ккал, осталось 2 760" })).toBeVisible();
   await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
+  await expect(summary.getByRole("switch", { name: "Котёл вместо кольца" })).toHaveCount(0);
 });

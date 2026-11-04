@@ -50,6 +50,13 @@ export async function setNutritionMacrosAction(on: boolean) {
   revalidatePath("/nutrition");
 }
 
+/** Шкала калорий в «Итоге дня» (флаг nutrition_cauldron): котёл с зельем или кольцо — переключатель «Котёл вместо кольца». */
+export async function setNutritionCauldronAction(on: boolean) {
+  const user = await nutritionUser();
+  await db.user.update({ where: { id: user.id }, data: { nutritionCauldron: on === true } });
+  revalidatePath("/nutrition");
+}
+
 /** «Очистить данные питания»: пол и вес остаются — они общие с настройками и целями. */
 export async function clearNutritionProfileAction() {
   const user = await nutritionUser();

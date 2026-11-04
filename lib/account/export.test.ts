@@ -24,6 +24,7 @@ const raw = (): ExportRaw => ({
     nutritionGoal: "LOSE",
     nutritionMacros: true,
     nutritionModeChosenAt: new Date("2026-10-31T10:00:00Z"),
+    nutritionCauldron: true,
     signupLanding: "program",
     signupReferrer: "search",
     signupUtmSource: "blogger",

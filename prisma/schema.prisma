@@ -208,6 +208,8 @@ model User {
   nutritionMacros   Boolean        @default(false)
   /// когда выбран режим ввода (диалог первого захода на /nutrition или переключатель); null — ещё не спрашивали
   nutritionModeChosenAt DateTime?
+  /// вид шкалы калорий в «Итоге дня» при флаге nutrition_cauldron: котёл с зельем (по умолчанию) или кольцо
+  nutritionCauldron Boolean        @default(true)
   /// IANA-пояс из cookie hf_tz (обновляется при входе): время суток и недели в ачивках
   timeZone          String           @default("UTC")
   /// Согласие на обработку персональных данных (галочка при регистрации); null — зарегистрирован до неё
