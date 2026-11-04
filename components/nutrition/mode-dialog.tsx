@@ -30,7 +30,7 @@ export function NutritionModeDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Как будете вести дневник?</DialogTitle>
-          <DialogDescription>Поменять можно в любой момент — переключателем в «Итоге дня».</DialogDescription>
+          <DialogDescription>Поменять можно в любой момент — в меню «⋮» в «Итоге дня».</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           {MODES.map(({ macros, icon: Icon, title, hint }) => (
