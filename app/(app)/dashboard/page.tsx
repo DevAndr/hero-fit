@@ -239,13 +239,14 @@ export default async function DashboardPage() {
 
   // Герой: полоса недели и чипы
   const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
-  const draft = !data.activeWorkout && (await isEnabled("first_workout_reminder", user.id)) ? await getDraftHero(user.id) : null;
+  const draft = data.activeWorkout?.status === "PLANNED" && (await isEnabled("first_workout_reminder", user.id)) ? await getDraftHero(user.id) : null;
   const draftCopy = draft ? draftHeroCopy(draft, dayKey(now, userTz)) : null;
-  const headline = data.activeWorkout
-    ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-    : draftCopy
-      ? draftCopy.headline
-      : isStreakUrgent(status)
+  const headline =
+    data.activeWorkout && (data.activeWorkout.status === "IN_PROGRESS" || !draftCopy)
+      ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
+      : draftCopy
+        ? draftCopy.headline
+        : isStreakUrgent(status)
       ? "Тренировка сегодня спасёт серию недели"
       : weekHeadline(weekCount, streakValue(status));
   const last = data.lastWorkout?.finishedAt && now.getTime() - data.lastWorkout.finishedAt.getTime() <= 14 * 24 * 60 * 60 * 1000 ? data.lastWorkout : null;
