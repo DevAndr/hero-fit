@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import {
   addFlagUser,
   addSubscription,
@@ -462,7 +462,24 @@ test.describe("admin pages", () => {
     await expect(r).toContainText("Вернулись 1 · 100 %");
   });
 
-  test("trained: a workout within 72 h of a send marks it, a visit alone does not; list shows the count", async ({ page }) => {
+  /** Зарегистрированный игрок в своём контексте с отправкой кампании 2 часа назад (returnedAt и trainedAt пусты). */
+  async function campaignVisitor(browser: Browser) {
+    const ctx = await browser.newContext();
+    const vPage = await ctx.newPage();
+    const { login } = await registerUser(vPage);
+    await setUserTimeZone(login, E2E_TZ);
+    await addFlagUser("campaigns", login);
+    const id = await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name: `Заход ${tag()}`, status: "ARCHIVED" });
+    await withDb((db) =>
+      db.query(
+        `insert into "CampaignSend" (id, "campaignId", "userId", episode, "sentAt") select gen_random_uuid()::text, $2, id, 'visit', now() - interval '2 hours' from "User" where login = $1`,
+        [login, id],
+      ),
+    );
+    return { login, page: vPage, close: () => ctx.close() };
+  }
+
+  test("trained: a workout within 72 h of a send marks it, a visit alone does not; list shows the count", async ({ page, browser }) => {
     const name = `Потренировались ${tag()}`;
     const fresh = await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name, status: "ACTIVE" });
     const old = await createCampaign({ condition: "INACTIVE", days: 5, hour: 20, name: `Старая ${tag()}`, status: "ACTIVE" });
@@ -477,20 +494,15 @@ test.describe("admin pages", () => {
         [login, fresh, old],
       ),
     );
-    // Только заход внутри окна (тренировку не завершал) — returnedAt есть, trainedAt нет
-    const visitor = uniqueLogin();
-    await createUserRow(visitor);
-    await withDb((db) =>
-      db.query(
-        `insert into "CampaignSend" (id, "campaignId", "userId", episode, "sentAt", "returnedAt")
-         select gen_random_uuid()::text, $2, id, 'visit', now() - interval '2 hours', now() - interval '1 hour' from "User" where login = $1`,
-        [visitor, old],
-      ),
-    );
-    const [visit] = await campaignSends(visitor);
-    expect(visit.returnedAt).not.toBeNull();
-    expect(visit.trainedAt).toBeNull();
-    // Заходы без тренировки не ставят trainedAt
+    // Заход через приложение: отправка внутри окна без returnedAt, тренировок нет — заход ставит returnedAt, но не trainedAt
+    const visits = await campaignVisitor(browser);
+    expect((await campaignSends(visits.login)).map((s) => [s.returnedAt, s.trainedAt])).toEqual([[null, null]]);
+    await setLastLoginDay(visits.login, shift(TODAY, -1));
+    await visits.page.goto("/dashboard");
+    await expect.poll(async () => (await campaignSends(visits.login))[0].returnedAt).not.toBeNull();
+    expect((await campaignSends(visits.login))[0].trainedAt).toBeNull();
+    await visits.close();
+    // Тренировка вне окна (отправка 100 ч назад) trainedAt не ставит
     expect((await campaignSends(login)).map((s) => s.trainedAt)).toEqual([null, null]);
 
     await quickWorkout(page, "Жим штанги лёжа", [{ weight: "40", reps: "10" }]);
