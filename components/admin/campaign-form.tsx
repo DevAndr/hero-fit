@@ -13,7 +13,7 @@ import { BODY_MAX, NAME_MAX, TITLE_MAX } from "@/lib/campaigns/schema";
 export type CampaignDraft = {
   id: string | null;
   name: string;
-  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST";
+  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST" | "DRAFT_WAITING";
   days: number | null;
   title: string;
   body: string;

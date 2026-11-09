@@ -64,6 +64,10 @@ export const FLAGS = {
     description: "Вид шкалы калорий в «Итоге дня»: кольцо, котёл с зельем или пончик (эксперимент)",
     expires: "2027-06-30",
   },
+  first_workout_reminder: {
+    description: "Первая тренировка: диалог «Когда тренировка?», герой черновика",
+    expires: "2027-06-30",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;
