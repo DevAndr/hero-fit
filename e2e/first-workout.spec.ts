@@ -191,3 +191,32 @@ test("reminder with a draft: one PLAN notification to /training an hour before t
     await push.close();
   }
 });
+
+test("a workout finished before its slot day closes the slot: no PLAN reminder on that day", async ({ page, request }) => {
+  const me = await newbie(page);
+  await createDraft(page);
+  await askDialog(page).getByRole("button", { name: "Завтра" }).click();
+  await dialog(page).getByRole("button", { name: "Готово" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect.poll(() => planRows(me.login)).toHaveLength(1);
+
+  // Потренировался сегодня, хотя выбрал завтра
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const block = page.getByRole("region", { name: "Жим штанги лёжа" });
+  await block.getByLabel("Вес, подход 1").fill("40");
+  await block.getByLabel("Повторы, подход 1").fill("10");
+  await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await page.getByRole("button", { name: "Завершить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+  await expect(page).toHaveURL(/\/workouts\//);
+
+  await runTick(request, localAt(TOMORROW, "18:05"), "reminders");
+  const [plan, reminders] = await withDb(async (db) => {
+    const uid = await userId(db, me.login);
+    return [
+      (await db.query(`select count(*)::int n from "Notification" where "userId" = $1 and type = 'PLAN'`, [uid])).rows[0].n,
+      (await db.query(`select count(*)::int n from "PlanReminder" where "userId" = $1`, [uid])).rows[0].n,
+    ];
+  });
+  expect({ plan, reminders }).toEqual({ plan: 0, reminders: 0 });
+});
