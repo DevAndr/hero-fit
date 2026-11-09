@@ -23,7 +23,13 @@ export const campaignSchema = z
       .min(1, "Введите название")
       .max(NAME_MAX, `Название — до ${NAME_MAX} символов`),
     condition: z.enum(
-      ["INACTIVE", "NO_WORKOUT", "NEVER_TRAINED", "STREAK_LOST"],
+      [
+        "INACTIVE",
+        "NO_WORKOUT",
+        "NEVER_TRAINED",
+        "STREAK_LOST",
+        "DRAFT_WAITING",
+      ],
       "Выберите условие",
     ),
     days: z.preprocess(

@@ -18,7 +18,7 @@ export type CampaignLite = {
   createdAt: Date;
 };
 
-/** Одна кампания на игрока: STREAK_LOST выше всех, затем больший days, при равенстве — более ранняя. */
+/** Одна кампания на игрока: STREAK_LOST выше всех, затем больший days, при равенстве — DRAFT_WAITING, затем более ранняя. */
 function better(a: CampaignLite, b: CampaignLite): boolean {
   const sa = a.condition === "STREAK_LOST";
   const sb = b.condition === "STREAK_LOST";
@@ -26,6 +26,10 @@ function better(a: CampaignLite, b: CampaignLite): boolean {
   const da = a.days ?? 0;
   const db = b.days ?? 0;
   if (da !== db) return da > db;
+  // При равном days черновик (человек уже собрал тренировку) важнее «не тренировался»
+  const ra = a.condition === "DRAFT_WAITING";
+  const rb = b.condition === "DRAFT_WAITING";
+  if (ra !== rb) return ra;
   return a.createdAt.getTime() < b.createdAt.getTime();
 }
 
@@ -58,6 +62,7 @@ export function conditionLabel(
   const d = `${n} ${plural(n, "день", "дня", "дней")}`;
   if (condition === "INACTIVE") return `Не заходил ${d}`;
   if (condition === "NO_WORKOUT") return `Не тренировался ${d}`;
+  if (condition === "DRAFT_WAITING") return `Черновик ждёт ${d}`;
   return `Зарегистрировался и не тренировался ${d}`;
 }
 

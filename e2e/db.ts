@@ -1818,7 +1818,7 @@ export async function signupUtmOf(login: string): Promise<{ source: string | nul
 }
 
 export type CampaignSeed = {
-  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST";
+  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST" | "DRAFT_WAITING";
   days?: number | null;
   name?: string;
   title?: string;

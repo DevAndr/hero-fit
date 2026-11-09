@@ -46,6 +46,26 @@ describe("pickCampaigns", () => {
     );
     expect(r.get("u")?.id).toBe("n");
   });
+  it("при равном days черновик важнее «не тренировался»", () => {
+    const r = pickCampaigns(
+      new Map([
+        [
+          "u",
+          [
+            c("a", "NEVER_TRAINED", 1, new Date("2026-01-01")),
+            c("b", "DRAFT_WAITING", 1, new Date("2026-02-01")),
+          ],
+        ],
+      ]),
+    );
+    expect(r.get("u")?.id).toBe("b");
+  });
+  it("больший days всё равно важнее", () => {
+    const r = pickCampaigns(
+      new Map([["u", [c("a", "NEVER_TRAINED", 7), c("b", "DRAFT_WAITING", 1)]]]),
+    );
+    expect(r.get("u")?.id).toBe("a");
+  });
 });
 
 describe("withinCap", () => {
@@ -71,6 +91,7 @@ describe("conditionLabel", () => {
       "Зарегистрировался и не тренировался 2 дня",
     );
     expect(conditionLabel("STREAK_LOST", null)).toBe("Серия сгорела");
+    expect(conditionLabel("DRAFT_WAITING", 2)).toBe("Черновик ждёт 2 дня");
   });
 });
 

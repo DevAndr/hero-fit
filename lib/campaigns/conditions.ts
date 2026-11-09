@@ -38,7 +38,7 @@ type StreakRow = {
 /**
  * Кандидаты кампании — один SQL. Все дни — местные по User.timeZone; столбцы timestamp хранят UTC.
  * Фильтры отправки (спека, «Отправка», шаг 3) — в том же WHERE: notifyComeback, местный час, регистрация ≥ 24 ч назад
- * (кроме NEVER_TRAINED), канал кампании (только настроенный на сервере — server), нет отправки с тем же эпизодом.
+ * (кроме NEVER_TRAINED и DRAFT_WAITING), канал кампании (только настроенный на сервере — server), нет отправки с тем же эпизодом.
  * Эскалация: эпизод закрыт и отправкой кампании с тем же условием и days ≥ N — после «14 дней» не уйдёт «3 дня».
  * ignoreHour/ignoreSent — для «Кто попадёт сейчас». Флаг campaigns здесь не проверяется (это делают processCampaigns
  * и campaignAudience).
@@ -67,7 +67,7 @@ export async function campaignCandidates(
     ...(opts.ignoreHour
       ? []
       : [Prisma.sql`extract(hour FROM ${local}) >= ${c.hour}`, Prisma.sql`extract(hour FROM ${local}) < ${CAMPAIGN_LAST_HOUR}`]),
-    ...(c.condition === "NEVER_TRAINED" ? [] : [Prisma.sql`u."createdAt" <= ${new Date(now.getTime() - DAY_MS)}`]),
+    ...(c.condition === "NEVER_TRAINED" || c.condition === "DRAFT_WAITING" ? [] : [Prisma.sql`u."createdAt" <= ${new Date(now.getTime() - DAY_MS)}`]),
   ];
 
   if (c.condition === "STREAK_LOST") return streakLostCandidates(c, now, base, opts.ignoreSent ?? false);
@@ -94,6 +94,23 @@ export async function campaignCandidates(
           Prisma.sql`u."lastLoginDay" > ${today} - ${n}::int`,
           Prisma.sql`lw.f IS NOT NULL`,
           Prisma.sql`${lastDay} <= ${today} - ${n}::int`,
+        ],
+        " AND ",
+      )}`;
+  } else if (c.condition === "DRAFT_WAITING") {
+    // Самый свежий PLANNED с упражнениями у того, кто ещё ни разу не завершил тренировку; эпизод — id черновика
+    inner = Prisma.sql`
+      SELECT u.id AS "userId", d.id AS episode FROM "User" u
+      CROSS JOIN LATERAL (
+        SELECT w.id, w."createdAt" FROM "Workout" w
+        WHERE w."userId" = u.id AND w.status = 'PLANNED' ORDER BY w."createdAt" DESC LIMIT 1
+      ) d
+      WHERE ${Prisma.join(
+        [
+          ...base,
+          Prisma.sql`((d."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE u."timeZone")::date <= ${today} - ${n}::int`,
+          Prisma.sql`EXISTS (SELECT 1 FROM "WorkoutExercise" we WHERE we."workoutId" = d.id)`,
+          Prisma.sql`NOT EXISTS (SELECT 1 FROM "Workout" w WHERE w."userId" = u.id AND w.status = 'COMPLETED')`,
         ],
         " AND ",
       )}`;

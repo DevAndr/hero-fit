@@ -41,6 +41,7 @@ const CONDITIONS: { value: CampaignDraft["condition"]; label: string; daysLabel:
   { value: "NO_WORKOUT", label: "Не тренировался", daysLabel: "Дней без тренировки" },
   { value: "NEVER_TRAINED", label: "Зарегистрировался и не тренировался", daysLabel: "Дней с регистрации" },
   { value: "STREAK_LOST", label: "Серия сгорела", daysLabel: null },
+  { value: "DRAFT_WAITING", label: "Собрал тренировку и не начал", daysLabel: "Дней с создания черновика" },
 ];
 
 function Err({ text }: { text?: string }) {
