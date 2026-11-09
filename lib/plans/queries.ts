@@ -56,6 +56,8 @@ export type CalendarData = {
   /** Активная тренировка, запущенная из плана: у её вхождения — «Продолжить». */
   activePlanKey: string | null;
   hasActiveWorkout: boolean;
+  /** Тренировка запущена (не черновик): только она глушит напоминания по плану. */
+  hasRunningWorkout: boolean;
   templates: Record<string, { name: string; exercises: number }>;
 };
 
@@ -71,7 +73,7 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
       },
       select: { id: true, name: true, planKey: true, startedAt: true, finishedAt: true },
     }),
-    db.workout.findFirst({ where: { userId, status: { in: ACTIVE_STATUSES } }, select: { planKey: true } }),
+    db.workout.findFirst({ where: { userId, status: { in: ACTIVE_STATUSES } }, select: { planKey: true, status: true } }),
   ]);
   const done = workouts
     .filter((w) => w.startedAt && w.finishedAt)
@@ -92,6 +94,7 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
     extra: matched.extra.map((w) => ({ id: w.id, name: names.get(w.id) ?? "Тренировка", startedAt: w.startedAt, finishedAt: w.finishedAt })),
     activePlanKey: active?.planKey ?? null,
     hasActiveWorkout: active !== null,
+    hasRunningWorkout: active?.status === WorkoutStatus.IN_PROGRESS,
     templates: Object.fromEntries(templates.map((t) => [t.id, { name: t.name, exercises: t._count.exercises }])),
   };
 }
