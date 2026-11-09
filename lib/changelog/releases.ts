@@ -6,6 +6,19 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2028-06-first-workout",
+    version: "0.38.0",
+    date: "2026-11-09",
+    title: "Напомним о первой тренировке",
+    summary: "Выберите, когда пойдёте в зал, а мы напомним в удобный момент",
+    new: [
+      {
+        text: "Собрали тренировку, но ещё не в зале? Выберите, когда пойдёте, и мы напомним — в push, Telegram или на почту",
+        flag: "first_workout_reminder",
+      },
+    ],
+  },
+  {
     id: "2028-05-calorie-bars",
     version: "0.37.0",
     date: "2026-11-04",
