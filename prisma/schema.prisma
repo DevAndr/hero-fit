@@ -595,6 +595,8 @@ model Workout {
   totalSets          Int           @default(0)
   totalReps          Int           @default(0)
   xpEarned           Int           @default(0)
+  /// когда игрок ответил на вопрос «Когда тренировка?» (черновик первой тренировки)
+  scheduleAskedAt    DateTime?
   /// тяжесть тренировки 1–10 (оценка в сводке, lib/workouts/feedback.ts)
   rpe                Int?
   /// заметка к оценке тренировки
@@ -989,6 +991,8 @@ model PlanEntry {
   time         String
   durationMin  Int      @default(60)
   cancelled    Boolean  @default(false)
+  /// напоминание на почту (первая тренировка)
+  emailReminder Boolean  @default(false)
   /// назначил тренер (у разовой); у исключения серии не читается — принадлежность по серии
   coachId      String?
   createdAt    DateTime @default(now())
@@ -1973,6 +1977,7 @@ enum CampaignCondition {
   NO_WORKOUT // заходит, но не тренировался N дней
   NEVER_TRAINED // N дней с регистрации, завершённых тренировок нет
   STREAK_LOST // серия сгорела, выкуп ещё доступен
+  DRAFT_WAITING // черновик первой тренировки ждёт запуска
 }
 
 enum CampaignStatus {
@@ -2006,6 +2011,7 @@ model CampaignSend {
   episode    String // ключ серии
   sentAt     DateTime  @default(now())
   returnedAt DateTime? // первый заход в течение 48 ч после sentAt
+  trainedAt  DateTime? // первая завершённая тренировка в течение 72 ч после sentAt
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)

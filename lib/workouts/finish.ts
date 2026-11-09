@@ -26,6 +26,7 @@ import { paidWorkoutsToday, toLines } from "@/lib/shop/earn";
 import { countWeekWorkouts } from "@/lib/progress/streak-db";
 import { applyWeekCredit, grantFreeze, STREAK_WEEK_TARGET, weekKey } from "@/lib/progress/weekly-streak";
 import { PR_XP, stretchSessionXp, workoutXp } from "@/lib/progress/xp";
+import { markCampaignsTrained } from "@/lib/campaigns/trained";
 import { courseAdvance } from "@/lib/stretching/course";
 import { workoutTotals } from "@/lib/workouts/schema";
 import { isDoneSet, isStretchOnly, type ExerciseKindName } from "@/lib/workouts/kinds";
@@ -135,6 +136,7 @@ export async function finishWorkout(
       data: { status: WorkoutStatus.COMPLETED, finishedAt: now },
     });
     if (claimed.count === 0) return { ok: true };
+    await markCampaignsTrained(tx, userId, now);
 
     // В истории остаются только выполненные подходы и упражнения, где они есть.
     await tx.workoutSet.deleteMany({
