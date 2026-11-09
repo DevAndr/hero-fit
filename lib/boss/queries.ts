@@ -62,12 +62,9 @@ export async function getOrCreateBossWeek(client: Client, userId: string, week: 
   if (existing) return existing;
   const byWeek = await damageByWeek(client, userId, tz, addWeeks(week, -HP_HISTORY_WEEKS), addWeeks(week, -1));
   const history = Array.from({ length: HP_HISTORY_WEEKS }, (_, i) => byWeek.get(addWeeks(week, -(i + 1))) ?? { damage: 0, workouts: 0 });
-  // upsert — два параллельных запроса не создадут двух боссов
-  return client.bossWeek.upsert({
-    where: { userId_week: { userId, week } },
-    create: { userId, week, bossCode: bossForWeek(week), hp: bossHp(history) },
-    update: {},
-  });
+  // ON CONFLICT DO NOTHING: upsert с пустым update падает на параллельном запросе (P2002) и обрывает транзакцию завершения
+  await client.bossWeek.createMany({ data: [{ userId, week, bossCode: bossForWeek(week), hp: bossHp(history) }], skipDuplicates: true });
+  return client.bossWeek.findUniqueOrThrow({ where: { userId_week: { userId, week } } });
 }
 
 export type BossView = {
