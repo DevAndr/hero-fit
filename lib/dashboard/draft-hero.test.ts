@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { draftHeroCopy } from "./draft-hero";
+import { draftHeroCopy, upcomingSlot } from "./draft-hero";
 
 const today = "2026-11-09";
+
+describe("upcomingSlot", () => {
+  const slot = { date: today, time: "19:00" };
+  // В Москве (UTC+3) слот 19:00 — это 16:00 UTC
+  it("ещё впереди", () => expect(upcomingSlot(slot, "Europe/Moscow", new Date("2026-11-09T15:59:00Z"))).toEqual(slot));
+  it("уже наступил", () => expect(upcomingSlot(slot, "Europe/Moscow", new Date("2026-11-09T16:00:00Z"))).toBeNull());
+  it("считается в поясе игрока", () => expect(upcomingSlot(slot, "UTC", new Date("2026-11-09T16:00:00Z"))).toEqual(slot));
+  it("вхождения нет", () => expect(upcomingSlot(null, "UTC", new Date("2026-11-09T16:00:00Z"))).toBeNull());
+});
 
 describe("draftHeroCopy", () => {
   it("с упражнениями и временем", () =>

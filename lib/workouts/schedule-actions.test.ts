@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const m = vi.hoisted(() => ({
   user: { id: "u1", email: "a@b.ru" as string | null, timeZone: "UTC" },
+  cookie: undefined as string | undefined,
+  userUpdate: vi.fn(),
   planCreate: vi.fn(),
   updateMany: vi.fn(),
   findFirst: vi.fn(),
@@ -10,7 +12,7 @@ const m = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
 }));
 vi.mock("@/lib/db", () => {
-  const tx = { planEntry: { create: m.planCreate }, workout: { updateMany: m.updateMany } };
+  const tx = { planEntry: { create: m.planCreate }, workout: { updateMany: m.updateMany }, user: { update: m.userUpdate } };
   return {
     db: {
       $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
@@ -21,6 +23,8 @@ vi.mock("@/lib/db", () => {
 vi.mock("@/lib/auth/dal", () => ({ requireUser: async () => m.user }));
 vi.mock("@/lib/flags/server", () => ({ isEnabled: m.isEnabled }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => (m.cookie ? { value: m.cookie } : undefined) }) }));
+vi.mock("@/lib/achievements/daily-visit", () => ({ TIMEZONE_COOKIE: "hf_tz" }));
 
 import { dismissScheduleAction, scheduleDraftAction } from "./schedule-actions";
 
@@ -30,6 +34,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-09T09:00:00Z"));
   m.user.email = "a@b.ru";
+  m.cookie = undefined;
   m.isEnabled.mockResolvedValue(true);
   m.findFirst.mockResolvedValue({ id: "w1", name: "Первая", templateId: "t1" });
   m.planCreate.mockResolvedValue({ id: "pe1" });
@@ -92,6 +97,36 @@ describe("scheduleDraftAction", () => {
     m.findFirst.mockResolvedValue(null);
     await expect(scheduleDraftAction(input)).resolves.toEqual({ ok: false, error: "Тренировка не найдена" });
     expect(m.planCreate).not.toHaveBeenCalled();
+  });
+
+  describe("пояс первой сессии", () => {
+    it("cookie отличается от User.timeZone — пишем её в той же транзакции", async () => {
+      m.cookie = "Europe/Moscow";
+      await expect(scheduleDraftAction(input)).resolves.toEqual({ ok: true });
+      expect(m.userUpdate).toHaveBeenCalledWith({ where: { id: "u1" }, data: { timeZone: "Europe/Moscow" } });
+    });
+
+    it("cookie совпадает с User.timeZone — не пишем", async () => {
+      m.cookie = "UTC";
+      await scheduleDraftAction(input);
+      expect(m.userUpdate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["нет cookie", undefined],
+      ["некорректная cookie", "Mars/Base"],
+    ])("%s — пояс не меняем", async (_n, cookie) => {
+      m.cookie = cookie;
+      await expect(scheduleDraftAction(input)).resolves.toEqual({ ok: true });
+      expect(m.userUpdate).not.toHaveBeenCalled();
+    });
+
+    it("время проверяется по поясу из cookie: 08:00 уже прошло в UTC, но впереди в Гонолулу", async () => {
+      const early = { ...input, date: "2026-11-09", time: "08:00" };
+      await expect(scheduleDraftAction(early)).resolves.toEqual({ ok: false, error: "Выберите время в будущем" });
+      m.cookie = "Pacific/Honolulu";
+      await expect(scheduleDraftAction(early)).resolves.toEqual({ ok: true });
+    });
   });
 
   it.each([

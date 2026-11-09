@@ -144,10 +144,12 @@ export function ScheduleDialog({ ask }: { ask: ScheduleAsk }) {
               ) : null}
               {tg.enabled ? (
                 tg.linked ? (
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Send className="size-4 text-primary" />
-                    Напомним в Telegram
-                  </p>
+                  tg.notify ? (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Send className="size-4 text-primary" />
+                      Напомним в Telegram
+                    </p>
+                  ) : null
                 ) : (
                   <Button type="button" variant="outline" disabled={busy || linking} onClick={connectTelegram}>
                     {linking ? <Loader2 className="animate-spin" /> : <Send />}

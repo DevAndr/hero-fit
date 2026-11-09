@@ -1,4 +1,5 @@
 import { plural } from "@/lib/format";
+import { occurrenceStart } from "@/lib/plans/reminders";
 
 export type DraftHero = {
   name: string;
@@ -6,6 +7,11 @@ export type DraftHero = {
   hasCompleted: boolean;
   slot: { date: string; time: string } | null;
 };
+
+/** Слот для героя: только ещё не наступившее вхождение, иначе прошедшее время выглядело бы как будущее. */
+export function upcomingSlot(o: { date: string; time: string } | null, tz: string, now: Date): DraftHero["slot"] {
+  return o && occurrenceStart(o, tz).getTime() > now.getTime() ? { date: o.date, time: o.time } : null;
+}
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 const at = (day: string) => new Date(`${day}T12:00:00Z`);

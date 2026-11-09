@@ -1,14 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { z } from "zod";
+import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { requireUser } from "@/lib/auth/dal";
-import { safeTimeZone } from "@/lib/daily-login";
 import { db } from "@/lib/db";
 import { isEnabled } from "@/lib/flags/server";
 import { entryKey } from "@/lib/plans/expand";
 import { planDateSchema, planTimeSchema } from "@/lib/plans/schema";
-import { slotError } from "@/lib/workouts/schedule";
+import { scheduleTimeZone, slotError } from "@/lib/workouts/schedule";
 
 type ScheduleResult = { ok: true } | { ok: false; error: string };
 
@@ -40,7 +41,9 @@ export async function scheduleDraftAction(input: {
   if (!(await isEnabled("first_workout_reminder", user.id))) return { ok: false, error: "Недоступно" };
 
   const { workoutId, date, time, emailReminder } = parsed.data;
-  const error = slotError({ date, time }, new Date(), safeTimeZone(user.timeZone));
+  const cookie = (await cookies()).get(TIMEZONE_COOKIE)?.value;
+  const timeZone = scheduleTimeZone(cookie, user.timeZone);
+  const error = slotError({ date, time }, new Date(), timeZone);
   if (error) return { ok: false, error };
 
   const workout = await db.workout.findFirst({
@@ -68,6 +71,10 @@ export async function scheduleDraftAction(input: {
       });
       // Параллельный вызов уже привязал черновик — откатываем созданную запись.
       if (count === 0) throw new AlreadyScheduled();
+      // Тик напоминаний считает по User.timeZone: у новичка там может быть ещё UTC, а слот выбран по времени браузера
+      if (timeZone === cookie && timeZone !== user.timeZone) {
+        await tx.user.update({ where: { id: user.id }, data: { timeZone } });
+      }
     });
   } catch (e) {
     if (e instanceof AlreadyScheduled) return { ok: false, error: "Тренировка уже запланирована" };

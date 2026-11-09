@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
 import { getOccurrence } from "@/lib/plans/queries";
-import type { DraftHero } from "./draft-hero";
+import { upcomingSlot, type DraftHero } from "./draft-hero";
 
-/** Черновик игрока (последний PLANNED) для героя дашборда; слот — из календаря, если вхождение не отменено. */
-export async function getDraftHero(userId: string): Promise<DraftHero | null> {
+/** Черновик игрока (последний PLANNED) для героя дашборда; слот — из календаря, если вхождение не отменено и ещё впереди. */
+export async function getDraftHero(userId: string, tz: string, now = new Date()): Promise<DraftHero | null> {
   const draft = await db.workout.findFirst({
     where: { userId, status: "PLANNED" },
     orderBy: { createdAt: "desc" },
@@ -18,6 +18,6 @@ export async function getDraftHero(userId: string): Promise<DraftHero | null> {
     name: draft.name,
     exercises: draft._count.exercises,
     hasCompleted: completed > 0,
-    slot: found ? { date: found.occurrence.date, time: found.occurrence.time } : null,
+    slot: upcomingSlot(found?.occurrence ?? null, tz, now),
   };
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { schedulePresets, shouldAskSchedule, slotError } from "./schedule";
+import { schedulePresets, scheduleTimeZone, shouldAskSchedule, slotError } from "./schedule";
+
+describe("scheduleTimeZone", () => {
+  it("cookie важнее сохранённого", () => expect(scheduleTimeZone("Europe/Moscow", "UTC")).toBe("Europe/Moscow"));
+  it("без cookie — сохранённый", () => expect(scheduleTimeZone(undefined, "Asia/Tokyo")).toBe("Asia/Tokyo"));
+  it("некорректная cookie — сохранённый", () => expect(scheduleTimeZone("Mars/Base", "Asia/Tokyo")).toBe("Asia/Tokyo"));
+});
 
 describe("shouldAskSchedule", () => {
   const w = { status: "PLANNED", planKey: null, courseId: null, scheduleAskedAt: null };

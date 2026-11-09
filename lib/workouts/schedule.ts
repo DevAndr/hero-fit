@@ -1,6 +1,11 @@
-import { dayKey, localHour } from "../daily-login";
+import { dayKey, localHour, safeTimeZone } from "../daily-login";
 import { addDays } from "../dates";
 import { occurrenceStart } from "../plans/reminders";
+
+/** Пояс диалога: cookie браузера точнее User.timeZone (у новичка там ещё UTC по умолчанию); некорректная cookie — как будто её нет. */
+export function scheduleTimeZone(cookie: string | undefined, stored: string | undefined): string {
+  return cookie && safeTimeZone(cookie) === cookie ? cookie : safeTimeZone(stored);
+}
 
 /** Время по умолчанию для быстрых вариантов диалога «Когда тренировка?». */
 export const SCHEDULE_TIME = "19:00";

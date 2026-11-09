@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { PageHeader } from "@/components/app/app-shell";
 import { MuscleRecoveryProvider } from "@/components/training/exercise-filter";
 import { OfflineCleanup } from "@/components/training/offline-cleanup";
@@ -17,7 +18,8 @@ import { formatTarget, type Target } from "@/lib/coach/targets";
 import { getActiveWorkout, getLastPerformance, getStartOptions } from "@/lib/workouts/queries";
 import { getWhoopRecovery } from "@/lib/whoop/queries";
 import { getTelegramStatus } from "@/lib/telegram/queries";
-import { schedulePresets, shouldAskSchedule } from "@/lib/workouts/schedule";
+import { schedulePresets, scheduleTimeZone, shouldAskSchedule } from "@/lib/workouts/schedule";
+import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
 import { dayKey } from "@/lib/daily-login";
 import type { ScheduleAsk } from "@/components/training/schedule-dialog";
 import { db } from "@/lib/db";
@@ -87,7 +89,7 @@ export default async function TrainingPage() {
     // Своя прогрессия по шаблону тренировки — вес растёт сам, подсказка «Пора увеличить вес» лишняя
     workout.templateId ? getOwnTemplateTargets(user.id, workout.templateId) : new Map<string, Target>(),
     courseInfo(user.id, workout.courseId ?? null, workout.courseSessionNo ?? null),
-    scheduleAskOf(user, workout, timeZone),
+    scheduleAskOf(user, workout),
   ]);
   const hints = Object.fromEntries(Object.entries(allHints).filter(([exerciseId]) => !own.has(exerciseId)));
   const bodyweight = new Set(workout.exercises.filter((e) => e.exercise.isBodyweight).map((e) => e.exercise.id));
@@ -125,14 +127,14 @@ export default async function TrainingPage() {
 
 /** Диалог «Когда тренировка?»: только при флаге и у новичка с неспрошенным черновиком; иначе null. */
 async function scheduleAskOf(
-  user: { id: string; email: string | null },
+  user: { id: string; email: string | null; timeZone: string },
   workout: NonNullable<Awaited<ReturnType<typeof getActiveWorkout>>>,
-  timeZone: string,
 ): Promise<ScheduleAsk | null> {
   if (!(await isEnabled("first_workout_reminder", user.id))) return null;
   const completed = await db.workout.count({ where: { userId: user.id, status: "COMPLETED" } });
   const asked = workout.scheduleAskedAt ? new Date(workout.scheduleAskedAt) : null;
   if (!shouldAskSchedule({ ...workout, scheduleAskedAt: asked }, completed)) return null;
+  const timeZone = scheduleTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value, user.timeZone);
   const now = new Date();
   return {
     workoutId: workout.id,

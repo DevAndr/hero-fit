@@ -239,7 +239,7 @@ export default async function DashboardPage() {
 
   // Герой: полоса недели и чипы
   const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
-  const draft = data.activeWorkout?.status === "PLANNED" && (await isEnabled("first_workout_reminder", user.id)) ? await getDraftHero(user.id) : null;
+  const draft = data.activeWorkout?.status === "PLANNED" && (await isEnabled("first_workout_reminder", user.id)) ? await getDraftHero(user.id, userTz, now) : null;
   const draftCopy = draft ? draftHeroCopy(draft, dayKey(now, userTz)) : null;
   const headline =
     data.activeWorkout && (data.activeWorkout.status === "IN_PROGRESS" || !draftCopy)
