@@ -18,6 +18,17 @@ test("boss card: full HP and a call to the first hit", async ({ page }) => {
   await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "3000");
 });
 
+test("parallel first visits of the week create one boss without errors", async ({ page }) => {
+  const { login } = await registerUser(page);
+  // Понедельник: босса недели ещё нет, несколько запросов приходят разом (вкладки, предзагрузка)
+  for (let round = 0; round < 5; round++) {
+    await withDb(async (db) => db.query(`DELETE FROM "BossWeek" WHERE "userId" = $1`, [await userId(db, login)]));
+    const responses = await Promise.all(Array.from({ length: 8 }, () => page.request.get("/dashboard")));
+    expect(responses.map((r) => r.status())).toEqual(Array(8).fill(200));
+    expect(await count(`SELECT COUNT(*) n FROM "BossWeek" WHERE "userId" = $1`, login)).toBe(1);
+  }
+});
+
 test("last week's workout does not hit this week's boss", async ({ page }) => {
   const { login } = await registerUser(page);
   await seedWorkouts(login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 5 }], 8);
