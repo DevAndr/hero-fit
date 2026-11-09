@@ -20,14 +20,14 @@ test("without native_app for everyone the landing does not mention the Android a
   await expect(page.getByRole("region", { name: "Где тренироваться с Hero Fit" }).getByRole("listitem")).toHaveCount(2);
 });
 
-test("header with Android, clubs and trainers fits 1280px; «Тренеры» in the header, footer and FAQ", async ({ page }) => {
+test("header with Android, clubs and trainers fits 1280px; «Найти тренера» in the header, footer and FAQ", async ({ page }) => {
   await setFlag("native_app", { enabled: true, percent: 100 });
   await setFlag("clubs", { enabled: true, percent: 100 });
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Разделы сайта" });
-    await expect(nav.getByRole("link", { name: "Тренеры" })).toHaveAttribute("href", "/trainers");
+    await expect(nav.getByRole("link", { name: "Найти тренера" })).toHaveAttribute("href", "/trainers");
     await expect(nav.getByRole("link", { name: "Android" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Клубы" })).toBeVisible();
     await expect(page.getByRole("contentinfo").getByRole("link", { name: "Найти тренера" })).toHaveAttribute("href", "/trainers");

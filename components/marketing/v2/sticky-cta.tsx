@@ -6,8 +6,8 @@ import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** На телефоне после ухода героя из экрана — закреплённая внизу кнопка «Начать бесплатно». */
-export function StickyCta() {
+/** На телефоне после ухода героя из экрана — закреплённая внизу кнопка (по умолчанию «Начать бесплатно»). */
+export function StickyCta({ href = "/register", label = "Начать бесплатно" }: { href?: string; label?: string }) {
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const onScroll = () => setShown(window.scrollY > window.innerHeight * 0.9);
@@ -24,8 +24,8 @@ export function StickyCta() {
         shown ? "translate-y-0" : "translate-y-full",
       )}
     >
-      <Link href="/register" className={buttonVariants({ size: "lg", className: "h-12 w-full text-base" })}>
-        Начать бесплатно <ArrowRight aria-hidden />
+      <Link href={href} className={buttonVariants({ size: "lg", className: "h-12 w-full text-base" })}>
+        {label} <ArrowRight aria-hidden />
       </Link>
     </div>
   );

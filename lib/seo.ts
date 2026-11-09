@@ -48,6 +48,7 @@ export const PUBLIC_SITEMAP: { path: string; priority: number; changeFrequency: 
   { path: "/tools/dots-wilks", priority: 0.8, changeFrequency: "monthly" },
   { path: "/training-programs", priority: 0.8, changeFrequency: "monthly" },
   { path: "/trainers", priority: 0.7, changeFrequency: "weekly" },
+  { path: "/for-coaches", priority: 0.8, changeFrequency: "monthly" },
   ...BUILTIN_PROGRAMS.map((p) => ({ path: `/training-programs/${p.slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
   { path: "/register", priority: 0.5, changeFrequency: "monthly" },
   { path: "/changelog", priority: 0.5, changeFrequency: "weekly" },

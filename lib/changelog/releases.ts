@@ -6,6 +6,19 @@ import type { Release } from "./types";
  */
 export const RELEASES: Release[] = [
   {
+    id: "2028-07-coach-landing",
+    version: "0.39.0",
+    date: "2026-11-09",
+    title: "Своя страница для тренеров",
+    summary: "Всё о работе с клиентами в Hero Fit теперь собрано на отдельной странице.",
+    new: [
+      {
+        text: "Тренерам — отдельная страница: что видно о клиентах, как начать и ответы на частые вопросы",
+        href: "/for-coaches",
+      },
+    ],
+  },
+  {
     id: "2028-06-first-workout",
     version: "0.38.0",
     date: "2026-11-09",

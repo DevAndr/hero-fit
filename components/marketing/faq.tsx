@@ -82,11 +82,11 @@ export function faqFor(clubs: boolean, android: boolean) {
   return FAQ.filter((f) => (clubs || !f.clubs) && (f.android === undefined || f.android === android));
 }
 
-/** Частые вопросы — нативные details (работают без JS, текст виден поисковикам). */
-export function Faq({ clubs, android }: { clubs: boolean; android: boolean }) {
+/** Вопросы лендинга — нативные details (работают без JS, текст виден поисковикам). */
+export function FaqList({ items }: { items: { q: string; a: string }[] }) {
   return (
     <div className="divide-y rounded-2xl border bg-card">
-      {faqFor(clubs, android).map(({ q, a }) => (
+      {items.map(({ q, a }) => (
         <details key={q} className="group p-5 [&_summary::-webkit-details-marker]:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
             <h3>{q}</h3>
@@ -99,4 +99,9 @@ export function Faq({ clubs, android }: { clubs: boolean; android: boolean }) {
       ))}
     </div>
   );
+}
+
+/** Частые вопросы главной. */
+export function Faq({ clubs, android }: { clubs: boolean; android: boolean }) {
+  return <FaqList items={faqFor(clubs, android)} />;
 }

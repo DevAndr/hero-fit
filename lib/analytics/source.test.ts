@@ -8,6 +8,7 @@ describe("landingOf", () => {
     expect(landingOf("/training-programs/5x5")).toBe("program");
     expect(landingOf("/tools/1rm")).toBe("tool");
     expect(landingOf("/trainer/max")).toBe("trainer");
+    expect(landingOf("/for-coaches")).toBe("coaches");
     expect(landingOf("/gym/msk/iron")).toBe("club");
     expect(landingOf("/register")).toBe("other");
     expect(landingOf("/changelog")).toBe("other");

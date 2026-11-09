@@ -9,7 +9,7 @@ import { How } from "@/components/marketing/v2/how";
 import { Bento, FEATURE_LIST } from "@/components/marketing/v2/bento";
 import { Game } from "@/components/marketing/v2/game";
 import { Together } from "@/components/marketing/v2/together";
-import { Coaches } from "@/components/marketing/v2/coaches";
+import { CoachesTeaser } from "@/components/marketing/v2/coaches";
 import { Telegram } from "@/components/marketing/v2/telegram";
 import { Compare } from "@/components/marketing/v2/compare";
 import { Platforms } from "@/components/marketing/v2/platforms";
@@ -164,7 +164,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       {telegramUrl ? <Telegram telegramUrl={telegramUrl} /> : null}
 
-      <Coaches showFind={showCatalogOnLanding(catalogCoaches)} />
+      <CoachesTeaser showFind={showCatalogOnLanding(catalogCoaches)} />
 
       <Compare />
 
