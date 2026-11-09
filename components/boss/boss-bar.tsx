@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { BossHpBar } from "@/components/boss/boss-card";
+import { BossPreview } from "@/components/boss/boss-preview";
 import { BossSprite } from "@/components/boss/boss-sprite";
 import { prefersReducedMotion } from "@/components/lottie/lottie-player";
 import { setDamage } from "@/lib/boss/damage";
@@ -56,7 +57,9 @@ export function BossBar({ boss, sets }: { boss: BossView; sets: SetLike[] }) {
   return (
     <div className="mt-3 flex items-center gap-3 rounded-lg border border-streak/30 bg-streak/5 p-2" data-testid="boss-bar">
       <div ref={spriteRef} className="relative">
-        <BossSprite code={boss.code} defeated={defeated} size={40} />
+        <BossPreview boss={boss} left={left} current={current}>
+          <BossSprite code={boss.code} defeated={defeated} size={40} />
+        </BossPreview>
         {hit ? (
           <span
             key={hit.id}
@@ -76,6 +79,9 @@ export function BossBar({ boss, sets }: { boss: BossView; sets: SetLike[] }) {
           </span>
         </div>
         <BossHpBar hp={boss.hp} left={left} name={boss.name} className="mt-1 h-2" />
+        <p className="mt-1 text-xs text-muted-foreground" data-testid="boss-workout-damage">
+          <span className="font-semibold text-foreground tabular-nums">Урон за тренировку: {current}</span> + криты за рекорды
+        </p>
         {defeated ? (
           <p className="mt-1 text-xs font-semibold text-primary">Повержен на этой неделе — подходы идут в зачёт статистики</p>
         ) : left === 0 ? (
