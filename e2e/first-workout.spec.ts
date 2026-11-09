@@ -94,6 +94,9 @@ test("a user with a completed workout gets no dialog", async ({ page }) => {
   await seedWorkouts(me.login, "Жим штанги лёжа", [{ weight: 40, reps: 10, sets: 3 }]);
   await createDraft(page);
   await expect(page.getByLabel("Название тренировки")).toBeVisible();
+  // Признак гидратации: добавление упражнения работает только в ожившем редакторе, диалог к этому моменту уже появился бы
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  await expect(page.getByTestId("save-status")).toHaveText("Сохранено");
   await expect(dialog(page)).toHaveCount(0);
 });
 

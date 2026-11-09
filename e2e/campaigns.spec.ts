@@ -477,7 +477,20 @@ test.describe("admin pages", () => {
         [login, fresh, old],
       ),
     );
-    // Одни заходы без тренировки не ставят trainedAt
+    // Только заход внутри окна (тренировку не завершал) — returnedAt есть, trainedAt нет
+    const visitor = uniqueLogin();
+    await createUserRow(visitor);
+    await withDb((db) =>
+      db.query(
+        `insert into "CampaignSend" (id, "campaignId", "userId", episode, "sentAt", "returnedAt")
+         select gen_random_uuid()::text, $2, id, 'visit', now() - interval '2 hours', now() - interval '1 hour' from "User" where login = $1`,
+        [visitor, old],
+      ),
+    );
+    const [visit] = await campaignSends(visitor);
+    expect(visit.returnedAt).not.toBeNull();
+    expect(visit.trainedAt).toBeNull();
+    // Заходы без тренировки не ставят trainedAt
     expect((await campaignSends(login)).map((s) => s.trainedAt)).toEqual([null, null]);
 
     await quickWorkout(page, "Жим штанги лёжа", [{ weight: "40", reps: "10" }]);
