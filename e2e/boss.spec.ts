@@ -142,6 +142,43 @@ test("set confirm hits the boss, unconfirm heals it, warmup does nothing", async
   await expect(bar).toContainText("3000 / 3000 HP");
 });
 
+test("workout damage counter follows the sets; the boss icon opens a preview", async ({ page }) => {
+  await registerUser(page);
+  await page.goto("/training");
+  await page.getByRole("button", { name: /Пустая тренировка/ }).click();
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const bench = page.getByRole("region", { name: "Жим штанги лёжа" });
+  for (const i of [1, 2]) {
+    await bench.getByLabel(`Вес, подход ${i}`).fill("60");
+    await bench.getByLabel(`Повторы, подход ${i}`).fill("8");
+  }
+  const counter = page.getByTestId("boss-workout-damage");
+  await expect(counter).toContainText("Урон за тренировку: 0");
+  await expect(counter).toContainText("криты за рекорды");
+
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect(counter).toContainText("Урон за тренировку: 100");
+  await bench.getByRole("button", { name: "Подход 2 выполнен" }).click();
+  await expect(counter).toContainText("Урон за тренировку: 200");
+  await bench.getByRole("group", { name: "Запас повторов, подход 2" }).getByRole("button", { name: "Запас: до отказа" }).click();
+  await expect(counter).toContainText("Урон за тренировку: 250");
+  await bench.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await expect(counter).toContainText("Урон за тренировку: 150");
+
+  await page.getByTestId("boss-bar").getByRole("button", { name: /: подробнее$/ }).click();
+  const preview = page.getByTestId("boss-preview");
+  await expect(preview).toContainText("2850 / 3000");
+  await expect(preview).toContainText("Урон за неделю");
+  await expect(preview).toContainText("150");
+  await expect(preview.getByTestId("boss-viewer")).toBeVisible();
+
+  // Диалог не трогает тренировку: закрыли — подходы и счётчик на месте
+  await page.keyboard.press("Escape");
+  await expect(preview).toBeHidden();
+  await expect(counter).toContainText("Урон за тренировку: 150");
+  await expect(bench.getByLabel("Вес, подход 1")).toHaveValue("60");
+});
+
 test("friend sees the boss victory in the feed and league", async ({ page, browser }) => {
   test.slow(); // две регистрации (argon2) + тренировка — как в leaderboard.spec; под параллельной нагрузкой не укладывается в 30 с
   const me = await registerUser(page);

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 const number = new Intl.NumberFormat("ru-RU");
 
-function Stat({ label, value }: { label: string; value: string }) {
+export function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-muted/50 px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
