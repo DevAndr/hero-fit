@@ -26,6 +26,8 @@ export type ActiveWorkout = {
   /** Занятие курса «Сесть на шпагат» (номер — на момент создания). */
   courseId?: string | null;
   courseSessionNo?: number | null;
+  /** Когда задан вопрос «Когда тренировка?» (null — ещё не спрашивали). */
+  scheduleAskedAt?: string | null;
   /** Самочувствие из чек-ина помощника. */
   wellbeing?: "GREAT" | "OK" | "TIRED" | null;
   /** Золотой гоблин этой тренировки (показывается только при флаге golden_goblin). */
@@ -61,6 +63,7 @@ export async function getActiveWorkout(userId: string): Promise<ActiveWorkout | 
     templateId: workout.templateId,
     courseId: workout.courseId,
     courseSessionNo: workout.courseSessionNo,
+    scheduleAskedAt: workout.scheduleAskedAt?.toISOString() ?? null,
     wellbeing: workout.wellbeing,
     goblin: workout.goblin ? { spawnedAt: workout.goblin.spawnedAt.toISOString() } : null,
     name: workout.name,

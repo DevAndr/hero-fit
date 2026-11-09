@@ -76,6 +76,7 @@ import { RecoveryLine, whoopZone } from "@/components/training/recovery-line";
 import type { WhoopRecoveryView } from "@/lib/whoop/queries";
 import { TogetherControl, type TogetherInitial } from "@/components/together/together-control";
 import { CourseBanner, type CourseInfo } from "@/components/training/course-banner";
+import { ScheduleDialog, type ScheduleAsk } from "@/components/training/schedule-dialog";
 
 type Props = {
   workout: ActiveWorkout;
@@ -97,6 +98,8 @@ type Props = {
   together?: { initial: TogetherInitial } | null;
   /** Занятие курса «Сесть на шпагат» (флаги stretching и stretch_course). */
   course?: CourseInfo | null;
+  /** Диалог «Когда тренировка?» (флаг first_workout_reminder; только первая тренировка). */
+  scheduleAsk?: ScheduleAsk | null;
 };
 
 export function WorkoutEditor(props: Props) {
@@ -104,6 +107,7 @@ export function WorkoutEditor(props: Props) {
     <FavoritesProvider exercises={props.exercises}>
       <RestTimerProvider>
         <Editor {...props} />
+        {props.scheduleAsk ? <ScheduleDialog ask={props.scheduleAsk} /> : null}
         <RestTimerSpacer />
         <RestTimerBar />
       </RestTimerProvider>
