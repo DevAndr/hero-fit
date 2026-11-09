@@ -20,6 +20,10 @@ function dayLabel(d: StripDay): string {
 export function WeekHero(props: {
   name: string;
   headline: string;
+  /** строка под заголовком (черновик тренировки) */
+  detail?: string | null;
+  /** текст главной кнопки вместо стандартного */
+  cta?: string;
   activeWorkout: boolean;
   strip: StripDay[];
   level: { level: number; percent: number };
@@ -39,10 +43,15 @@ export function WeekHero(props: {
           <p className="mt-1 text-sm text-muted-foreground" data-testid="week-headline">
             {props.headline}
           </p>
+          {props.detail ? (
+            <p className="mt-0.5 text-sm font-medium" data-testid="week-headline-detail">
+              {props.detail}
+            </p>
+          ) : null}
         </div>
         <Link href="/training" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
           <Play />
-          {props.activeWorkout ? "Продолжить тренировку" : "Начать тренировку"}
+          {props.cta ?? (props.activeWorkout ? "Продолжить тренировку" : "Начать тренировку")}
         </Link>
       </div>
 

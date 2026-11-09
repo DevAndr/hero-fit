@@ -23,7 +23,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { activeCoachOf } from "@/lib/coach/access";
 import { clientDisplayName } from "@/lib/coach/clients";
 import { getMyCoachCard } from "@/lib/coach/my-coach";
-import { safeTimeZone } from "@/lib/daily-login";
+import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { getDashboard } from "@/lib/dashboard/queries";
 import { getBossView } from "@/lib/boss/queries";
 import { getOnboardingPrograms } from "@/lib/onboarding/queries";
@@ -56,6 +56,8 @@ import { SiteLoginHintCard } from "@/components/telegram/site-login-hint-card";
 import { showSiteLoginHint } from "@/lib/telegram/site-login-hint-queries";
 import { NutritionTodayCard } from "@/components/nutrition/nutrition-today-card";
 import { getNutritionToday } from "@/lib/nutrition/today-queries";
+import { draftHeroCopy } from "@/lib/dashboard/draft-hero";
+import { getDraftHero } from "@/lib/dashboard/draft-hero-queries";
 import { pendingInviteFor } from "@/lib/together/queries";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
@@ -237,15 +239,21 @@ export default async function DashboardPage() {
 
   // Герой: полоса недели и чипы
   const weekCount = status.state === "done" ? STREAK_WEEK_TARGET : status.count;
+  const draft = !data.activeWorkout && (await isEnabled("first_workout_reminder", user.id)) ? await getDraftHero(user.id) : null;
+  const draftCopy = draft ? draftHeroCopy(draft, dayKey(now, userTz)) : null;
   const headline = data.activeWorkout
     ? `Тренировка «${data.activeWorkout.name}» ждёт продолжения`
-    : isStreakUrgent(status)
+    : draftCopy
+      ? draftCopy.headline
+      : isStreakUrgent(status)
       ? "Тренировка сегодня спасёт серию недели"
       : weekHeadline(weekCount, streakValue(status));
   const last = data.lastWorkout?.finishedAt && now.getTime() - data.lastWorkout.finishedAt.getTime() <= 14 * 24 * 60 * 60 * 1000 ? data.lastWorkout : null;
   const heroProps = {
     name: user.name ?? user.login,
     headline,
+    detail: draftCopy?.detail ?? null,
+    cta: draftCopy?.cta,
     activeWorkout: Boolean(data.activeWorkout),
     level: { level: level.level, percent: level.percent },
     streak: streakValue(status),
