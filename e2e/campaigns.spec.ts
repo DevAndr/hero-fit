@@ -13,6 +13,7 @@ import {
   notificationTitles,
   notificationUrls,
   resetFlag,
+  seedDraft,
   seedWorkouts,
   setCampaignSentAt,
   setFlag,
@@ -22,7 +23,7 @@ import {
   setUserTimeZone,
   withDb,
 } from "./db";
-import { registerUser, runTick, uniqueLogin } from "./helpers";
+import { quickWorkout, registerUser, runTick, uniqueLogin } from "./helpers";
 import { startPushService } from "./push-server";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -165,6 +166,25 @@ test("NEVER_TRAINED 2: registered 3 days ago without workouts", async ({ request
   await tick(request, localAt(TODAY, "21:05"));
   expect(await episodes(idle)).toEqual(["never"]);
   expect(await campaignSends(trained)).toHaveLength(0);
+});
+
+test("DRAFT_WAITING 1: one send per draft, empty draft is not picked", async ({ request }) => {
+  await createCampaign({ condition: "DRAFT_WAITING", days: 1, hour: 20 });
+  const created = localAt(shift(TODAY, -2), "10:00");
+  const waiting = await player({ createdAt: created, lastLogin: shift(TODAY, -2) });
+  const draftId = await seedDraft(waiting, { exercises: 2, createdAt: created });
+  // Черновик, из которого удалили все упражнения
+  const emptied = await player({ createdAt: created, lastLogin: shift(TODAY, -2) });
+  await seedDraft(emptied, { exercises: 0, createdAt: created });
+
+  await tick(request, localAt(TODAY, "21:05"));
+  expect(await episodes(waiting)).toEqual([draftId]);
+  expect(await campaignSends(emptied)).toHaveLength(0);
+
+  // Второй тик — тот же эпизод, повтора нет
+  await tick(request, localAt(TODAY, "21:30"));
+  expect(await episodes(waiting)).toEqual([draftId]);
+  expect(await campaignSends(emptied)).toHaveLength(0);
 });
 
 test("STREAK_LOST: only while the restore offer is open", async ({ request }) => {
@@ -440,6 +460,39 @@ test.describe("admin pages", () => {
     await expect(r.getByText("Идёт", { exact: true })).toBeVisible();
     await expect(r).toContainText("Отправлено 1");
     await expect(r).toContainText("Вернулись 1 · 100 %");
+  });
+
+  test("trained: a workout within 72 h of a send marks it, a visit alone does not; list shows the count", async ({ page }) => {
+    const name = `Потренировались ${tag()}`;
+    const fresh = await createCampaign({ condition: "INACTIVE", days: 3, hour: 20, name, status: "ACTIVE" });
+    const old = await createCampaign({ condition: "INACTIVE", days: 5, hour: 20, name: `Старая ${tag()}`, status: "ACTIVE" });
+    const { login } = await registerUser(page);
+    await withDb((db) =>
+      db.query(
+        `insert into "CampaignSend" (id, "campaignId", "userId", episode, "sentAt", "returnedAt")
+         select gen_random_uuid()::text, c.id, u.id, c.ep, c.sent, c.ret from (values
+           ($2::text, 'fresh', now() - interval '2 hours', null::timestamptz),
+           ($3::text, 'old', now() - interval '100 hours', now() - interval '99 hours')) as c(id, ep, sent, ret), "User" u
+         where u.login = $1`,
+        [login, fresh, old],
+      ),
+    );
+    // Одни заходы без тренировки не ставят trainedAt
+    expect((await campaignSends(login)).map((s) => s.trainedAt)).toEqual([null, null]);
+
+    await quickWorkout(page, "Жим штанги лёжа", [{ weight: "40", reps: "10" }]);
+    const sends = await campaignSends(login);
+    const byId = new Map(sends.map((s) => [s.campaignId, s]));
+    expect(byId.get(fresh)?.trainedAt).not.toBeNull();
+    expect(byId.get(old)?.trainedAt).toBeNull();
+    expect(byId.get(old)?.returnedAt).not.toBeNull();
+
+    await makeAdmin(login, E2E_CAMPAIGNS_ADMIN);
+    await addFlagUser("campaigns", E2E_CAMPAIGNS_ADMIN);
+    await page.goto("/admin/campaigns");
+    const r = row(page, name);
+    await expect(r).toContainText("Отправлено 1");
+    await expect(r).toContainText("Потренировались 1");
   });
 
   test("archive moves a row to the end without delete; a draft can be deleted", async ({ page }) => {
