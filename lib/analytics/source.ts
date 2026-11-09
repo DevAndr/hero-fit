@@ -1,12 +1,12 @@
 /** Первая точка входа: классификация страницы и источника перехода. Чистые функции, без server-only (их импортирует proxy). */
 
-export type Landing = "home" | "program" | "tool" | "trainer" | "club" | "other";
+export type Landing = "home" | "coaches" | "program" | "tool" | "trainer" | "club" | "other";
 export type Referrer = "search" | "social" | "direct" | "site";
 
 export const SOURCE_COOKIE = "hf_src";
 export const SOURCE_MAX_AGE = 60 * 60 * 24 * 30;
 
-const LANDINGS: readonly Landing[] = ["home", "program", "tool", "trainer", "club", "other"];
+const LANDINGS: readonly Landing[] = ["home", "coaches", "program", "tool", "trainer", "club", "other"];
 const REFERRERS: readonly Referrer[] = ["search", "social", "direct", "site"];
 
 const SEARCH_DOMAINS = ["yandex.ru", "ya.ru", "yandex.com", "bing.com", "duckduckgo.com", "go.mail.ru", "search.brave.com"];
@@ -38,6 +38,7 @@ export function landingOfJoin(pathname: string): Landing | null {
 
 export function landingOf(pathname: string): Landing {
   if (pathname === "/") return "home";
+  if (pathname === "/for-coaches") return "coaches";
   if (pathname === "/training-programs" || pathname.startsWith("/training-programs/")) return "program";
   if (pathname.startsWith("/tools/")) return "tool";
   if (pathname.startsWith("/trainer/")) return "trainer";
