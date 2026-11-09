@@ -13,13 +13,16 @@ import { usePush } from "@/components/notifications/push-provider";
 import { createTelegramLinkAction } from "@/lib/telegram/actions";
 import type { TelegramStatus } from "@/lib/telegram/queries";
 import { dismissScheduleAction, scheduleDraftAction } from "@/lib/workouts/schedule-actions";
-import type { Slot } from "@/lib/workouts/schedule";
+import { slotError, type Slot } from "@/lib/workouts/schedule";
+import { readNotificationPermission, subscribeErrorText } from "@/lib/notifications/subscribe-error";
 
 export type ScheduleAsk = {
   workoutId: string;
   presets: { evening: Slot | null; tomorrow: Slot };
   /** Сегодняшняя дата пользователя (YYYY-MM-DD) — нижняя граница поля даты. */
   today: string;
+  /** Пояс пользователя — для проверки своего времени на клиенте. */
+  timeZone: string;
   email: string | null;
   telegram: TelegramStatus;
 };
@@ -39,7 +42,8 @@ export function ScheduleDialog({ ask }: { ask: ScheduleAsk }) {
   const [open, setOpen] = useState(true);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [custom, setCustom] = useState(false);
-  const [date, setDate] = useState(ask.today);
+  const [date, setDate] = useState(ask.presets.evening ? ask.today : ask.presets.tomorrow.date);
+  const [customError, setCustomError] = useState<string | null>(null);
   const [time, setTime] = useState(DEFAULT_TIME);
   const [emailReminder, setEmailReminder] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -103,6 +107,12 @@ export function ScheduleDialog({ ask }: { ask: ScheduleAsk }) {
     })();
   };
 
+  const enablePush = async () => {
+    if (!push) return;
+    if (await push.subscribe()) return;
+    toast.error(subscribeErrorText({ native: push.native, nativeReason: push.nativeReason, permission: readNotificationPermission() }));
+  };
+
   const showPushButton = Boolean(push?.supported && push.available && !push.subscribed);
   const tg = ask.telegram;
 
@@ -121,8 +131,13 @@ export function ScheduleDialog({ ask }: { ask: ScheduleAsk }) {
                   <Bell className="size-4 text-primary" />
                   Напомним push-уведомлением
                 </p>
+              ) : push?.supported && push.permission === "denied" ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Bell className="size-4" />
+                  Push запрещён в настройках браузера
+                </p>
               ) : showPushButton ? (
-                <Button type="button" variant="outline" disabled={busy || push?.busy} onClick={() => void push?.subscribe()}>
+                <Button type="button" variant="outline" disabled={busy || push?.busy} onClick={() => void enablePush()}>
                   {push?.busy ? <Loader2 className="animate-spin" /> : <Bell />}
                   Включить push
                 </Button>
@@ -178,19 +193,27 @@ export function ScheduleDialog({ ask }: { ask: ScheduleAsk }) {
                   className="grid gap-2 rounded-lg border p-3"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (date && time) choose({ date, time });
+                    if (!date || !time) return;
+                    const error = slotError({ date, time }, new Date(), ask.timeZone);
+                    setCustomError(error);
+                    if (!error) choose({ date, time });
                   }}
                 >
                   <div className="grid grid-cols-2 gap-2">
                     <div className="grid gap-1.5">
                       <Label htmlFor="schedule-date">Дата</Label>
-                      <Input id="schedule-date" type="date" required min={ask.today} value={date} onChange={(e) => setDate(e.target.value)} />
+                      <Input id="schedule-date" type="date" required min={ask.today} value={date} onChange={(e) => { setDate(e.target.value); setCustomError(null); }} />
                     </div>
                     <div className="grid gap-1.5">
                       <Label htmlFor="schedule-time">Начало</Label>
-                      <Input id="schedule-time" type="time" required step={900} value={time} onChange={(e) => setTime(e.target.value)} />
+                      <Input id="schedule-time" type="time" required step={900} value={time} onChange={(e) => { setTime(e.target.value); setCustomError(null); }} />
                     </div>
                   </div>
+                  {customError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {customError}
+                    </p>
+                  ) : null}
                   <Button type="submit" disabled={busy || !date || !time}>
                     Дальше
                   </Button>

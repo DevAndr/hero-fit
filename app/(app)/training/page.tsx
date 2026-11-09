@@ -138,6 +138,7 @@ async function scheduleAskOf(
     workoutId: workout.id,
     presets: schedulePresets(now, timeZone),
     today: dayKey(now, timeZone),
+    timeZone,
     email: user.email,
     telegram: await getTelegramStatus(user.id),
   };
