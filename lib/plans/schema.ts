@@ -4,7 +4,7 @@ export const planDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d, "Нет такой даты");
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Время в формате ЧЧ:ММ");
+export const planTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Время в формате ЧЧ:ММ");
 const durationMin = z.number().int().min(15).max(240).multipleOf(15);
 const title = z.string().trim().min(1, "Введите название").max(80);
 const templateId = z.string().min(1).nullable();
@@ -15,7 +15,7 @@ export const planInputSchema = z.object({
   templateId,
   title,
   date: planDateSchema,
-  time,
+  time: planTimeSchema,
   durationMin,
   /** Пусто — разовая тренировка; иначе — серия на каждый день недели (0 = пн … 6 = вс). */
   repeatWeekdays: z
@@ -26,7 +26,7 @@ export const planInputSchema = z.object({
 export type PlanInput = z.infer<typeof planInputSchema>;
 
 export const planPatchSchema = z
-  .object({ templateId, title, date: planDateSchema, time, durationMin })
+  .object({ templateId, title, date: planDateSchema, time: planTimeSchema, durationMin })
   .partial();
 
 export const planScopeSchema = z.enum(["one", "following"]);
