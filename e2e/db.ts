@@ -1895,6 +1895,21 @@ export async function seedDraft(login: string, o: { exercises: number; createdAt
   });
 }
 
+/** Записать черновик на время: PlanEntry и Workout.planKey, как «Когда тренировка?». */
+export async function scheduleSeededDraft(login: string, workoutId: string, slot: { date: string; time: string; cancelled?: boolean }) {
+  await withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "PlanEntry" (id, "userId", title, date, time, cancelled, "updatedAt") values ($1, $2, 'Черновик', $3, $4, $5, now())`, [
+      id,
+      await userId(db, login),
+      slot.date,
+      slot.time,
+      slot.cancelled ?? false,
+    ]);
+    await db.query(`update "Workout" set "planKey" = $2 where id = $1`, [workoutId, `e:${id}`]);
+  });
+}
+
 /** Сдвинуть время всех отправок рассылок пользователю. */
 export async function setCampaignSentAt(login: string, sentAt: Date) {
   await withDb(async (db) => db.query(`update "CampaignSend" set "sentAt" = $2 where "userId" = $1`, [await userId(db, login), sentAt]));

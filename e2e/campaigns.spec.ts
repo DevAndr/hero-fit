@@ -13,6 +13,7 @@ import {
   notificationTitles,
   notificationUrls,
   resetFlag,
+  scheduleSeededDraft,
   seedDraft,
   seedWorkouts,
   setCampaignSentAt,
@@ -185,6 +186,27 @@ test("DRAFT_WAITING 1: one send per draft, empty draft is not picked", async ({ 
   await tick(request, localAt(TODAY, "21:30"));
   expect(await episodes(waiting)).toEqual([draftId]);
   expect(await campaignSends(emptied)).toHaveLength(0);
+});
+
+test("DRAFT_WAITING 1: a draft waits for its future slot, a passed or cancelled slot does not hold it", async ({ request }) => {
+  await createCampaign({ condition: "DRAFT_WAITING", days: 1, hour: 20 });
+  const created = localAt(shift(TODAY, -2), "10:00");
+  const later = tickDay(1);
+  const scheduled = await player({ createdAt: created, lastLogin: shift(TODAY, -2) });
+  const draftId = await seedDraft(scheduled, { exercises: 2, createdAt: created });
+  await scheduleSeededDraft(scheduled, draftId, { date: later, time: "19:00" });
+  // Запись отменена — время больше не назначено
+  const cancelled = await player({ createdAt: created, lastLogin: shift(TODAY, -2) });
+  const cancelledDraft = await seedDraft(cancelled, { exercises: 2, createdAt: created });
+  await scheduleSeededDraft(cancelled, cancelledDraft, { date: later, time: "19:00", cancelled: true });
+
+  await tick(request, localAt(TODAY, "21:05"));
+  expect(await campaignSends(scheduled)).toHaveLength(0);
+  expect(await episodes(cancelled)).toEqual([cancelledDraft]);
+
+  // Время прошло, а тренировку не начали — вот теперь кампания нужна
+  await tick(request, localAt(later, "21:05"));
+  expect(await episodes(scheduled)).toEqual([draftId]);
 });
 
 test("STREAK_LOST: only while the restore offer is open", async ({ request }) => {

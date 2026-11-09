@@ -98,11 +98,12 @@ export async function campaignCandidates(
         " AND ",
       )}`;
   } else if (c.condition === "DRAFT_WAITING") {
-    // Самый свежий PLANNED с упражнениями у того, кто ещё ни разу не завершил тренировку; эпизод — id черновика
+    // Самый свежий PLANNED с упражнениями у того, кто ещё ни разу не завершил тренировку; эпизод — id черновика.
+    // Пока назначенное время впереди — ждём его (напомнит шаг reminders); прошедший слот не мешает: кампания как раз про пропуск.
     inner = Prisma.sql`
       SELECT u.id AS "userId", d.id AS episode FROM "User" u
       CROSS JOIN LATERAL (
-        SELECT w.id, w."createdAt" FROM "Workout" w
+        SELECT w.id, w."createdAt", w."planKey" FROM "Workout" w
         WHERE w."userId" = u.id AND w.status = 'PLANNED' ORDER BY w."createdAt" DESC LIMIT 1
       ) d
       WHERE ${Prisma.join(
@@ -111,6 +112,7 @@ export async function campaignCandidates(
           Prisma.sql`((d."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE u."timeZone")::date <= ${today} - ${n}::int`,
           Prisma.sql`EXISTS (SELECT 1 FROM "WorkoutExercise" we WHERE we."workoutId" = d.id)`,
           Prisma.sql`NOT EXISTS (SELECT 1 FROM "Workout" w WHERE w."userId" = u.id AND w.status = 'COMPLETED')`,
+          Prisma.sql`NOT EXISTS (SELECT 1 FROM "PlanEntry" e WHERE d."planKey" = 'e:' || e.id AND NOT e.cancelled AND (e.date::date + e.time::time) > ${local})`,
         ],
         " AND ",
       )}`;
