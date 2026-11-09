@@ -69,7 +69,7 @@ test("workout mockup: the rest timer stops at zero instead of looping", async ({
 });
 
 test("coach mockup shows only real client-list chips", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/for-coaches");
   const phone = page.getByRole("img", { name: "Экран тренера: клиенты и сигналы" });
   await expect(phone).toContainText("Пора увеличить вес");
   await expect(phone).not.toContainText("Новый рекорд");

@@ -2,6 +2,7 @@ import type { SourceGroup } from "@/lib/admin/metrics";
 
 const LANDING: Record<string, string> = {
   home: "Главная",
+  coaches: "Для тренеров",
   program: "Программы",
   tool: "Калькуляторы",
   trainer: "Тренер",

@@ -86,10 +86,13 @@ test("private pages are noindex; signed-in header offers the dashboard", async (
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("coaches block: all coach features with infographics, client screen, CTA opens coach sign-up", async ({ page }) => {
-  await page.goto("/");
-  const block = page.getByRole("region", { name: "Ведите клиентов там, где им интересно тренироваться" });
-  await expect(block.getByRole("img", { name: "Экран тренера: клиенты и сигналы" })).toBeVisible();
+test("coach landing: own hero, client screen, all features, FAQ, CTA opens coach sign-up", async ({ page }) => {
+  await page.goto("/for-coaches");
+  await expect(page).toHaveTitle("Hero Fit для тренеров: ведите клиентов онлайн и в зале");
+  await expect(page.getByRole("heading", { level: 1, name: "Ведите клиентов там, где им интересно тренироваться" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Экран тренера: клиенты и сигналы" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Стать тренером" })).toHaveAttribute("href", "/register?coach=1");
+  const block = page.getByRole("region", { name: "Всё для работы с клиентами" });
   const titles = [
     "Приглашение по ссылке",
     "Клиенты и сигналы",
@@ -107,16 +110,36 @@ test("coaches block: all coach features with infographics, client screen, CTA op
   ];
   await expect(block.getByRole("list", { name: "Возможности тренера" }).getByRole("listitem")).toHaveCount(titles.length);
   for (const title of titles) await expect(block.getByRole("heading", { name: title, exact: true })).toBeVisible();
-  await block.getByRole("link", { name: "Стать тренером — бесплатно" }).click();
+  const faq = page.getByRole("region", { name: "Частые вопросы тренеров" });
+  await expect(faq.getByRole("heading", { name: "Что я увижу о клиенте?" })).toBeVisible();
+  await page.getByRole("link", { name: "Стать тренером — бесплатно" }).first().click();
   await expect(page).toHaveURL(/\/register\?coach=1$/);
   await expect(page.getByRole("checkbox", { name: /Я тренер/ })).toBeChecked();
   await expect(page.getByLabel("Публичный ник")).toBeVisible();
 });
 
-test("header links to the coaches block", async ({ page }) => {
+test("home keeps athletes in focus: a short teaser leads coaches to their page", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("list", { name: "Возможности тренера" })).toHaveCount(0);
+  const teaser = page.getByRole("region", { name: "Вы тренер?" });
+  await teaser.getByRole("link", { name: "Подробнее для тренеров" }).click();
+  await expect(page).toHaveURL(/\/for-coaches$/);
+});
+
+test("header separates the coach page from the trainer catalog", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.getByRole("navigation", { name: "Разделы сайта" }).getByRole("link", { name: "Тренерам" })).toHaveAttribute("href", "/#coaches");
+  const nav = page.getByRole("navigation", { name: "Разделы сайта" });
+  await expect(nav.getByRole("link", { name: "Тренерам" })).toHaveAttribute("href", "/for-coaches");
+  await expect(nav.getByRole("link", { name: "Найти тренера" })).toHaveAttribute("href", "/trainers");
+});
+
+test("guest opens the coach page without signing in", async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("/for-coaches");
+  await expect(page).toHaveURL(/\/for-coaches$/);
+  await context.close();
 });
 
 test("landing offers Hero Fit in Telegram", async ({ page }) => {

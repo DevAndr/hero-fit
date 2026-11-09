@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { HeaderSignupLink } from "@/components/marketing/header-signup-link";
 import { ThemeToggle } from "@/components/marketing/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -14,8 +15,8 @@ const NAV: { href: string; label: string; clubs?: true; android?: true }[] = [
   { href: "/tools/1rm", label: "Калькулятор 1ПМ" },
   { href: "/#guilds", label: "Гильдии" },
   { href: "/#clubs", label: "Клубы", clubs: true },
-  { href: "/#coaches", label: "Тренерам" },
-  { href: "/trainers", label: "Тренеры" },
+  { href: "/for-coaches", label: "Тренерам" },
+  { href: "/trainers", label: "Найти тренера" },
   { href: "/#android", label: "Android", android: true },
   { href: "/#pricing", label: "Тарифы" },
   { href: "/#faq", label: "Вопросы" },
@@ -51,9 +52,7 @@ export function SiteHeader({ authed, clubs, android }: { authed: boolean; clubs:
               <Link href="/login" className={cn(buttonVariants({ variant: "ghost" }), "hidden sm:inline-flex")}>
                 Войти
               </Link>
-              <Link href="/register" className={buttonVariants()}>
-                Начать бесплатно
-              </Link>
+              <HeaderSignupLink />
             </>
           )}
         </div>

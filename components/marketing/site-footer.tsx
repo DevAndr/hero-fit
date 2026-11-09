@@ -9,7 +9,7 @@ const COLUMNS: { title: string; links: { href: string; label: string; clubs?: tr
       { href: "/#how", label: "Как это работает" },
       { href: "/#guilds", label: "Гильдии" },
       { href: "/#clubs", label: "Клубы залов", clubs: true },
-      { href: "/#coaches", label: "Тренерам" },
+      { href: "/for-coaches", label: "Тренерам" },
       { href: "/trainers", label: "Найти тренера" },
       { href: "/#android", label: "Приложение для Android", android: true },
       { href: "/#faq", label: "Частые вопросы" },
