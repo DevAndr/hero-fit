@@ -9,7 +9,8 @@ import { dayKey, safeTimeZone } from "@/lib/daily-login";
 import { shouldRemindStreak, streakReminderBody } from "@/lib/notifications/reminders";
 import { addDays } from "@/lib/plans/expand";
 import { getCalendar } from "@/lib/plans/queries";
-import { duePlanReminders, planReminderText } from "@/lib/plans/reminders";
+import { sendPlanReminderMail } from "@/lib/plans/reminder-mail";
+import { duePlanReminders, planReminderText, planReminderUrl } from "@/lib/plans/reminders";
 import { STREAK_REMINDER_HOUR } from "@/lib/progress/weekly-streak";
 import { processWeeklyRecaps } from "@/lib/recap/tick";
 import { processCoachSignals } from "@/lib/coach/signals-tick";
@@ -197,22 +198,25 @@ export async function processPlanReminders(now = new Date()) {
       leadMin: user.planReminderMin,
       sentKeys,
       doneKeys: new Set(calendar.occurrences.filter((o) => o.status === "done").map((o) => o.key)),
-      hasActiveWorkout: calendar.hasActiveWorkout,
+      hasRunningWorkout: calendar.hasRunningWorkout,
     });
     for (const o of due) {
       const exercises = o.templateId ? (calendar.templates[o.templateId]?.exercises ?? null) : null;
-      await db.$transaction(async (tx) => {
+      const isNew = await db.$transaction(async (tx) => {
         // Уникальная строка — параллельный воркер не напомнит второй раз
         const created = await tx.planReminder.createMany({ data: [{ userId: user.id, planKey: o.key }], skipDuplicates: true });
-        if (created.count === 0) return;
+        if (created.count === 0) return false;
         await notify(
           tx,
           user.id,
-          { type: NotificationType.PLAN, ...planReminderText(o, exercises, today), url: `/calendar?date=${o.date}` },
+          { type: NotificationType.PLAN, ...planReminderText(o, exercises, today), url: planReminderUrl(o, calendar.activePlanKey) },
           { push: true },
         );
         sent++;
+        return true;
       });
+      // Письмо — только после коммита и только если эту строку создали мы; его сбой не мешает остальным
+      if (isNew) await sendPlanReminderMail(user.id, o, today);
     }
   }
   if (sent) await processDuePushes();

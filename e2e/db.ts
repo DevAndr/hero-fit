@@ -1818,7 +1818,7 @@ export async function signupUtmOf(login: string): Promise<{ source: string | nul
 }
 
 export type CampaignSeed = {
-  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST";
+  condition: "INACTIVE" | "NO_WORKOUT" | "NEVER_TRAINED" | "STREAK_LOST" | "DRAFT_WAITING";
   days?: number | null;
   name?: string;
   title?: string;
@@ -1863,14 +1863,50 @@ export async function archiveAllCampaigns() {
 }
 
 /** Отправки рассылок пользователю по порядку отправки. */
-export async function campaignSends(login: string): Promise<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null }[]> {
+export async function campaignSends(
+  login: string,
+): Promise<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null; trainedAt: Date | null }[]> {
   return withDb(async (db) => {
-    const { rows } = await db.query<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null }>(
-      `select s."campaignId", s.episode, s."sentAt", s."returnedAt" from "CampaignSend" s join "User" u on u.id = s."userId"
+    const { rows } = await db.query<{ campaignId: string; episode: string; sentAt: Date; returnedAt: Date | null; trainedAt: Date | null }>(
+      `select s."campaignId", s.episode, s."sentAt", s."returnedAt", s."trainedAt" from "CampaignSend" s join "User" u on u.id = s."userId"
        where u.login = $1 order by s."sentAt", s.episode`,
       [login],
     );
     return rows;
+  });
+}
+
+/** Черновик (PLANNED) с n упражнениями, созданный createdAt; возвращает id. */
+export async function seedDraft(login: string, o: { exercises: number; createdAt: Date; name?: string }): Promise<string> {
+  return withDb(async (db) => {
+    const uid = await userId(db, login);
+    const id = randomUUID();
+    await db.query(`insert into "Workout" (id, "userId", name, status, "createdAt", "updatedAt") values ($1, $2, $3, 'PLANNED', $4, $4)`, [
+      id,
+      uid,
+      o.name ?? "Черновик",
+      o.createdAt,
+    ]);
+    const { rows } = await db.query<{ id: string }>(`select id from "Exercise" where "userId" is null order by name limit $1`, [Math.max(o.exercises, 1)]);
+    for (const [i, ex] of rows.slice(0, o.exercises).entries()) {
+      await db.query(`insert into "WorkoutExercise" (id, "workoutId", "exerciseId", "order", "restSec") values ($1, $2, $3, $4, 90)`, [randomUUID(), id, ex.id, i]);
+    }
+    return id;
+  });
+}
+
+/** Записать черновик на время: PlanEntry и Workout.planKey, как «Когда тренировка?». */
+export async function scheduleSeededDraft(login: string, workoutId: string, slot: { date: string; time: string; cancelled?: boolean }) {
+  await withDb(async (db) => {
+    const id = randomUUID();
+    await db.query(`insert into "PlanEntry" (id, "userId", title, date, time, cancelled, "updatedAt") values ($1, $2, 'Черновик', $3, $4, $5, now())`, [
+      id,
+      await userId(db, login),
+      slot.date,
+      slot.time,
+      slot.cancelled ?? false,
+    ]);
+    await db.query(`update "Workout" set "planKey" = $2 where id = $1`, [workoutId, `e:${id}`]);
   });
 }
 

@@ -21,7 +21,9 @@ export function CampaignList({ campaigns }: { campaigns: CampaignRow[] }) {
   return (
     <ul className="space-y-3">
       {campaigns.map((c) => {
-        const percent = c.sent30 > 0 ? Math.round((c.returned30 / c.sent30) * 100) : 0;
+        const percentOf = (n: number) => (c.sent30 > 0 ? Math.round((n / c.sent30) * 100) : 0);
+        const percent = percentOf(c.returned30);
+        const trainedPercent = percentOf(c.trained30);
         return (
           <li key={c.id} className="rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -38,7 +40,7 @@ export function CampaignList({ campaigns }: { campaigns: CampaignRow[] }) {
               {c.sent30 > 0 ? (
                 <span>
                   {" "}
-                  · Вернулись {c.returned30} · {percent} %
+                  · Вернулись {c.returned30} · {percent} % · Потренировались {c.trained30} · {trainedPercent} %
                 </span>
               ) : null}
               <span className="text-muted-foreground"> за 30 дней</span>

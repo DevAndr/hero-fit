@@ -40,6 +40,13 @@ describe("campaignSchema", () => {
     const r = parse({ condition: "STREAK_LOST", days: "5" });
     expect(r.success && r.data.days).toBe(null);
   });
+  it("DRAFT_WAITING принимается и требует days", () => {
+    const ok = parse({ condition: "DRAFT_WAITING", days: "2" });
+    expect(ok.success && ok.data.days).toBe(2);
+    expect(failsAt(parse({ condition: "DRAFT_WAITING", days: "" }), "days")).toBe(
+      true,
+    );
+  });
   it("нужен хотя бы один канал", () => {
     expect(parse({ push: undefined, telegram: undefined }).success).toBe(false);
     expect(parse({ push: false, telegram: false }).success).toBe(false);

@@ -56,6 +56,8 @@ export type CalendarData = {
   /** Активная тренировка, запущенная из плана: у её вхождения — «Продолжить». */
   activePlanKey: string | null;
   hasActiveWorkout: boolean;
+  /** Тренировка запущена (не черновик): только она глушит напоминания по плану. */
+  hasRunningWorkout: boolean;
   templates: Record<string, { name: string; exercises: number }>;
 };
 
@@ -71,12 +73,24 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
       },
       select: { id: true, name: true, planKey: true, startedAt: true, finishedAt: true },
     }),
-    db.workout.findFirst({ where: { userId, status: { in: ACTIVE_STATUSES } }, select: { planKey: true } }),
+    db.workout.findFirst({ where: { userId, status: { in: ACTIVE_STATUSES } }, select: { planKey: true, status: true } }),
   ]);
-  const done = workouts
+  const expanded = expandPlans(series, entries, from, to);
+  // Тренировка закрывает своё вхождение и когда завершена в другой день (раньше слота, позже него) — вне диапазона её выборка выше не видит.
+  // Ключи с тренировкой в диапазоне не ищем: она важнее, и привязка внутри диапазона остаётся как была.
+  const inRange = new Set(workouts.map((w) => w.planKey));
+  const otherKeys = expanded.map((o) => o.key).filter((key) => !inRange.has(key));
+  const outside = otherKeys.length
+    ? await db.workout.findMany({
+        where: { userId, status: WorkoutStatus.COMPLETED, planKey: { in: otherKeys } },
+        select: { id: true, name: true, planKey: true, startedAt: true, finishedAt: true },
+      })
+    : [];
+  const outsideIds = new Set(outside.map((w) => w.id));
+  const done = [...workouts, ...outside]
     .filter((w) => w.startedAt && w.finishedAt)
     .map((w) => ({ id: w.id, planKey: w.planKey, startedAt: w.startedAt!, finishedAt: w.finishedAt! }));
-  const matched = matchPlans(expandPlans(series, entries, from, to), done, dayKey(now, tz), tz);
+  const matched = matchPlans(expanded, done, dayKey(now, tz), tz);
   const names = new Map(workouts.map((w) => [w.id, w.name]));
 
   const templateIds = [...new Set(matched.occurrences.map((o) => o.templateId).filter((id): id is string => id !== null))];
@@ -89,9 +103,11 @@ export async function getCalendar(userId: string, from: string, to: string, tz: 
 
   return {
     occurrences: matched.occurrences,
-    extra: matched.extra.map((w) => ({ id: w.id, name: names.get(w.id) ?? "Тренировка", startedAt: w.startedAt, finishedAt: w.finishedAt })),
+    // Вторая тренировка по тому же вхождению, завершённая вне диапазона, сюда не попадает: «вне плана» — только тренировки диапазона
+    extra: matched.extra.filter((w) => !outsideIds.has(w.id)).map((w) => ({ id: w.id, name: names.get(w.id) ?? "Тренировка", startedAt: w.startedAt, finishedAt: w.finishedAt })),
     activePlanKey: active?.planKey ?? null,
     hasActiveWorkout: active !== null,
+    hasRunningWorkout: active?.status === WorkoutStatus.IN_PROGRESS,
     templates: Object.fromEntries(templates.map((t) => [t.id, { name: t.name, exercises: t._count.exercises }])),
   };
 }

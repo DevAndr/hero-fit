@@ -10,6 +10,10 @@ const transport = env.SMTP_HOST
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465,
       auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+      // Письмо ждётся внутри последовательного тика: зависший SMTP не должен задерживать push таймера отдыха
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
     })
   : null;
 

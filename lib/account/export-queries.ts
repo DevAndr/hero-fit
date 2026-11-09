@@ -91,7 +91,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
       },
     }),
     db.planSeries.findMany({ where: { userId }, select: { title: true, weekday: true, time: true, durationMin: true, startDate: true, endDate: true, createdAt: true } }),
-    db.planEntry.findMany({ where: { userId }, select: { title: true, date: true, time: true, durationMin: true, cancelled: true, originalDate: true, createdAt: true } }),
+    db.planEntry.findMany({ where: { userId }, select: { title: true, date: true, time: true, durationMin: true, cancelled: true, originalDate: true, emailReminder: true, createdAt: true } }),
     db.goal.findMany({
       where: { userId },
       select: { type: true, exercise: { select: { name: true } }, metric: true, target: true, startValue: true, deadline: true, status: true, createdAt: true, achievedAt: true, closedAt: true, stretchUnit: true, stretchSkill: true, skillTitle: true },
@@ -172,7 +172,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     }),
     db.favoriteExercise.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { createdAt: true, exercise: { select: { name: true } } } }),
     db.feedback.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { kind: true, body: true, status: true, page: true, createdAt: true } }),
-    db.campaignSend.findMany({ where: { userId }, orderBy: { sentAt: "asc" }, select: { sentAt: true, returnedAt: true, campaign: { select: { name: true } } } }),
+    db.campaignSend.findMany({ where: { userId }, orderBy: { sentAt: "asc" }, select: { sentAt: true, returnedAt: true, trainedAt: true, campaign: { select: { name: true } } } }),
     db.pushSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { kind: true, appVersion: true, createdAt: true } }),
     db.coachProfile.findUnique({ where: { userId }, include: { user: { select: { coachContactClicks: { orderBy: { day: "asc" }, select: { day: true, count: true } } } } } }),
   ]);
@@ -241,7 +241,7 @@ export async function getExportData(userId: string): Promise<ExportRaw> {
     feedback,
     pushDevices,
     coachPage: coachPage ? { ...coachPage, user: undefined, contactOpens: coachPage.user.coachContactClicks } : null,
-    campaignSends: campaignSends.map((s) => ({ campaign: s.campaign.name, sentAt: s.sentAt, returnedAt: s.returnedAt })),
+    campaignSends: campaignSends.map((s) => ({ campaign: s.campaign.name, sentAt: s.sentAt, returnedAt: s.returnedAt, trainedAt: s.trainedAt })),
     clientNotes: clientNotes.map((n) => ({ text: n.text, updatedAt: n.updatedAt, client: n.client.nickname })),
     programs: (await programsWithNames(programs)).map(({ catalogProgram, ...p }) => ({ ...p, catalogProgram: catalogProgram ? { name: catalogProgram.name, author: catalogProgram.coach.nickname } : null })),
     coachPrograms: coachPrograms.map((p) => ({ ...p, days: p.days.map((d) => ({ weekday: d.weekday, template: d.template.name, time: d.time })) })),

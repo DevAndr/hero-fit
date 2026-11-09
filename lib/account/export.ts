@@ -72,7 +72,7 @@ export type ExportRaw = {
   /** Устройства с push: тип и версия приложения — без эндпоинта и ключей. */
   pushDevices: ({ kind: string; appVersion: string | null; createdAt: Date } & Record<string, unknown>)[];
   /** Отправки рассылок «вернуться»: название кампании и даты — без id и ключа серии. */
-  campaignSends: ({ campaign: string; sentAt: Date; returnedAt: Dated } & Record<string, unknown>)[];
+  campaignSends: ({ campaign: string; sentAt: Date; returnedAt: Dated; trainedAt: Dated } & Record<string, unknown>)[];
   /** Программы тренера, назначенные мне, и моя библиотека программ (тренер) — на входе с id, в выгрузку — без. */
   programs: (ProgramRuleFields & { name: string; startDate: string; endedAt: Dated; fromCatalog: boolean; catalogProgram: ({ name: string; author: string | null } & Record<string, unknown>) | null; bases: ({ template: string; exercise: string; weight: number; fromWeek: number } & Record<string, unknown>)[] } & Record<string, unknown>)[];
   coachPrograms: (ProgramRuleFields & { name: string; days: ({ weekday: number; template: string; time: string } & Record<string, unknown>)[] } & Record<string, unknown>)[];
@@ -257,7 +257,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     favoriteExercises: raw.favoriteExercises.map((f) => ({ exercise: f.exercise, createdAt: f.createdAt })),
     feedback: raw.feedback.map((f) => ({ kind: f.kind, body: f.body, status: f.status, page: f.page, createdAt: f.createdAt })),
     pushDevices: raw.pushDevices.map((d) => ({ kind: d.kind, appVersion: d.appVersion, createdAt: d.createdAt })),
-    campaignSends: raw.campaignSends.map((s) => ({ campaign: s.campaign, sentAt: s.sentAt, returnedAt: s.returnedAt })),
+    campaignSends: raw.campaignSends.map((s) => ({ campaign: s.campaign, sentAt: s.sentAt, returnedAt: s.returnedAt, trainedAt: s.trainedAt })),
     programs: raw.programs.map((p) => ({
       name: p.name,
       startDate: p.startDate,

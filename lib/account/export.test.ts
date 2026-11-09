@@ -54,7 +54,7 @@ const raw = (): ExportRaw => ({
   clients: [],
   exercises: [],
   templates: [],
-  plans: [],
+  plans: [{ kind: "single", title: "Грудь", emailReminder: true }],
   goals: [],
   stretchMeasurements: [{ skill: "splits", date: "2026-10-20", cm: 12.5 }],
   stretchCourses: [
@@ -106,7 +106,7 @@ const raw = (): ExportRaw => ({
     userId: "cp_secret",
     contactOpens: [{ day: new Date("2026-10-24T00:00:00Z"), count: 3, coachId: "cc_secret" }],
   },
-  campaignSends: [{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null, id: "cs_secret", campaignId: "c_secret", userId: "u_secret", episode: "2026-10-17" }],
+  campaignSends: [{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null, trainedAt: new Date("2026-10-21T10:00:00Z"), id: "cs_secret", campaignId: "c_secret", userId: "u_secret", episode: "2026-10-17" }],
   programs: [
     {
       name: "Сила",
@@ -286,11 +286,18 @@ describe("export — coach page", () => {
   });
 });
 
+describe("export — plans", () => {
+  it("записи плана сохраняют emailReminder", () => {
+    const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
+    expect(o.plans).toEqual([{ kind: "single", title: "Грудь", emailReminder: true }]);
+  });
+});
+
 describe("export — campaign sends", () => {
   it("рассылки — название кампании и даты; без id и ключа серии", () => {
     const o = buildExport(raw(), new Date("2026-10-17T00:00:00Z"));
     expect(EXPORT_SECTIONS).toContain("campaignSends");
-    expect(o.campaignSends).toEqual([{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null }]);
+    expect(o.campaignSends).toEqual([{ campaign: "Вернись через 3 дня", sentAt: new Date("2026-10-20T17:00:00Z"), returnedAt: null, trainedAt: new Date("2026-10-21T10:00:00Z") }]);
     expect(JSON.stringify(o)).not.toMatch(/cs_secret|c_secret|u_secret|2026-10-17"/);
   });
 });
