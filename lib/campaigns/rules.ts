@@ -5,11 +5,20 @@ import type {
 import { plural } from "@/lib/format";
 
 export const RETURN_WINDOW_MS = 48 * 3_600_000;
+export const TRAIN_WINDOW_MS = 72 * 3_600_000;
 export const CAMPAIGN_BATCH = 200;
 export const CAMPAIGN_INTERVAL_MS = 10 * 60_000;
 export const CAMPAIGN_LAST_HOUR = 22;
 
 const DAY_MS = 24 * 3_600_000;
+
+/** Отправки, после которых засчитывается тренировка: за 72 часа до её завершения. */
+export function trainedWindow(finishedAt: Date): { gte: Date; lte: Date } {
+  return {
+    gte: new Date(finishedAt.getTime() - TRAIN_WINDOW_MS),
+    lte: finishedAt,
+  };
+}
 
 export type CampaignLite = {
   id: string;

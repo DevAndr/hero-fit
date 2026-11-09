@@ -3,6 +3,7 @@ import {
   canEditCondition,
   conditionLabel,
   pickCampaigns,
+  trainedWindow,
   withinCap,
   type CampaignLite,
 } from "./rules";
@@ -101,5 +102,15 @@ describe("canEditCondition", () => {
     expect(canEditCondition("PAUSED")).toBe(true);
     expect(canEditCondition("ACTIVE")).toBe(false);
     expect(canEditCondition("ARCHIVED")).toBe(false);
+  });
+});
+
+describe("trainedWindow", () => {
+  it("окно 72 часа до завершения", () => {
+    const f = new Date("2026-11-09T12:00:00Z");
+    expect(trainedWindow(f)).toEqual({
+      gte: new Date("2026-11-06T12:00:00Z"),
+      lte: f,
+    });
   });
 });
