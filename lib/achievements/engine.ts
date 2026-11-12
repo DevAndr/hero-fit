@@ -259,10 +259,11 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
       weekWorkouts: true,
       weekWorkoutsKey: true,
       isCoach: true,
+      firstStrikeAt: true,
     },
   });
   const tz = safeTimeZone(timeZone);
-  const { weekWorkouts, weekWorkoutsKey, isCoach, ...rest } = user;
+  const { weekWorkouts, weekWorkoutsKey, isCoach, firstStrikeAt, ...rest } = user;
   const [exercises, totals, weeks, variety, journal, programs, lifts, customExercises, customTemplates, achievements, leaguePlaces, wins, goblinCatches, raidWins, raidMvps, goalsAchieved, clubTaskRewards, respectsReceived, togetherBonuses, coach, endurance] =
     await Promise.all([
       exerciseStats(client, userId),
@@ -294,6 +295,7 @@ export async function getAchievementStats(client: Client, userId: string, opts: 
     leaguePlaces,
     bossWins: wins,
     goblinCatches,
+    firstStrike: firstStrikeAt !== null,
     ...endurance,
     raidWins,
     raidMvps,

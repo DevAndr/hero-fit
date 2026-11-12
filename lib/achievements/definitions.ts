@@ -78,6 +78,8 @@ export type AchievementStats = {
   bossWins: number;
   /** Пойманных Золотых гоблинов (GoblinEncounter с caughtAt). */
   goblinCatches: number;
+  /** «Первый удар» нанесён (User.firstStrikeAt). */
+  firstStrike: boolean;
   // Выносливость (кардио и упражнения на время)
   /** Σ дистанций подходов кардио, м. */
   cardioDistanceM: number;
@@ -199,6 +201,7 @@ export const EMPTY_STATS: AchievementStats = {
   leaguePlaces: { 1: 0, 2: 0, 3: 0 },
   bossWins: 0,
   goblinCatches: 0,
+  firstStrike: false,
   cardioDistanceM: 0,
   workSec: 0,
   longestCardioSetM: 0,
@@ -713,6 +716,14 @@ function ladders(s: AchievementStats): Ladder[] {
           description: n === 1 ? "Победить босса недели" : `Победить ${n} ${plural(n, "босса", "боссов", "боссов")} недели`,
           xpReward: 30 + n * 5,
         }),
+    },
+
+    // «Первый удар» (lib/first-strike): целью не показывается — у тех, кто уже тренируется, удара не будет
+    {
+      fixed: [1],
+      value: s.firstStrike ? 1 : 0,
+      goal: false,
+      def: single("firststrike", "BOSS", "Первый удар", "Нанести боссу первый удар", 20),
     },
 
     // Золотой гоблин

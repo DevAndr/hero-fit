@@ -175,6 +175,7 @@ enum XpReason {
   GOBLIN_REWARD // сундук Золотого гоблина (lib/goblin)
   TOGETHER_BONUS // бонус за совместную тренировку (lib/together)
   STRETCH_SESSION // XP за сессию растяжки
+  FIRST_STRIKE // XP за «Первый удар» (lib/first-strike)
 }
 
 // ───────────────────────────── Пользователь и авторизация ─────────────────────────────
@@ -182,6 +183,8 @@ enum XpReason {
 model User {
   /// id последнего просмотренного релиза «Что нового» (lib/changelog/releases.ts); null — не смотрел
   changelogSeen     String?
+  /// когда сделан «Первый удар» (мини-тренировка новичка, lib/first-strike); null — не делал
+  firstStrikeAt     DateTime?
   /// монеты магазина (lib/shop): баланс и момент, с которого они считаются; журнал — CoinTx
   coins             Int              @default(0)
   coinsSince        DateTime         @default(now())

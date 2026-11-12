@@ -68,6 +68,10 @@ export const FLAGS = {
     description: "Первая тренировка: диалог «Когда тренировка?», герой черновика",
     expires: "2027-06-30",
   },
+  first_strike: {
+    description: "Первый удар: мини-тренировка для новичка",
+    expires: "2027-05-31",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

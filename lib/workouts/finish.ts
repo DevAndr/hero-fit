@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
 import { bossName, type BossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
-import { getOrCreateBossWeek, weekDamage } from "@/lib/boss/queries";
+import { getOrCreateBossWeek, markBossDefeated, weekDamage } from "@/lib/boss/queries";
 import { goblinProgress } from "@/lib/goblin/rules";
 import { applyRaidHit } from "@/lib/raid/apply";
 import { applyClubTasks, type FinishClubTask } from "@/lib/club/tasks-apply";
@@ -382,12 +382,7 @@ async function applyBoss(
 ): Promise<FinishMeta["boss"]> {
   const bossWeek = await getOrCreateBossWeek(tx, userId, week, tz);
   const before = await weekDamage(tx, userId, week, tz, workoutId);
-  let defeated = false;
-  if (before.damage + hit.damage >= bossWeek.hp) {
-    // Условие по defeatedAt — повтор или параллельная тренировка не засчитают победу дважды
-    const { count } = await tx.bossWeek.updateMany({ where: { id: bossWeek.id, defeatedAt: null }, data: { defeatedAt: now } });
-    defeated = count === 1;
-  }
+  const defeated = before.damage + hit.damage >= bossWeek.hp && (await markBossDefeated(tx, bossWeek.id, now));
   if (defeated) {
     const prefs = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { notifyAchievements: true } });
     await notify(

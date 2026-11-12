@@ -39,6 +39,8 @@ export type CurrentUser = {
   isAdmin: boolean;
   /** Последний просмотренный релиз «Что нового» (точка в меню профиля). */
   changelogSeen: string | null;
+  /** «Первый удар» сделан; null — не делал. */
+  firstStrikeAt: Date | null;
   /** Умный помощник не выключен в /settings. */
   assistantEnabled: boolean;
   /** Надетая косметика и баланс монет — шапке кабинета (магазин). */
@@ -87,6 +89,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           onboardedAt: true,
           isCoach: true,
           changelogSeen: true,
+          firstStrikeAt: true,
           assistantEnabled: true,
           avatarCode: true,
           frameCode: true,
