@@ -310,6 +310,19 @@ describe("boss hunter", () => {
   });
 });
 
+describe("first strike", () => {
+  it("ачивка «Первый удар» — только после удара", () => {
+    expect(codesOf("firststrike", { firstStrike: true })).toEqual(["firststrike:1"]);
+    expect(codesOf("firststrike", { firstStrike: false })).toEqual([]);
+    const earned = earnedAchievements({ ...empty, firstStrike: true }).find((a) => a.code === "firststrike:1");
+    expect(earned).toMatchObject({ category: "BOSS", title: "Первый удар", description: "Нанести боссу первый удар", xpReward: 20 });
+  });
+
+  it("целью не показывается", () => {
+    expect(nextGoals(empty).some((g) => g.code.startsWith("firststrike:"))).toBe(false);
+  });
+});
+
 describe("respect ladder", () => {
   it("respect ladder: 4 → none, 5 → respect:5 «Заметили», 25 → +respect:25, 100 → +respect:100; category SOCIAL; описания и XP", () => {
     expect(codesOf("respect", { respectsReceived: 4 })).toEqual([]);

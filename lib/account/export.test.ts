@@ -29,6 +29,7 @@ const raw = (): ExportRaw => ({
     signupReferrer: "search",
     signupUtmSource: "blogger",
     signupUtmCampaign: "ivan_fit",
+    firstStrikeAt: new Date("2026-11-12T09:00:00Z"),
     notifyRest: true,
     notifyGoal: false,
     passwordHash: "$argon2id$secret-hash",
@@ -172,6 +173,9 @@ describe("buildExport", () => {
   });
   it("профиль содержит источник регистрации", () => {
     expect(out.profile).toMatchObject({ signupLanding: "program", signupReferrer: "search", signupUtmSource: "blogger", signupUtmCampaign: "ivan_fit" });
+  });
+  it("профиль содержит момент первого удара", () => {
+    expect(out.profile).toMatchObject({ firstStrikeAt: new Date("2026-11-12T09:00:00Z") });
   });
   it("друзья и тренер — только ники и даты", () => {
     expect(Object.keys(out.friends[0]).sort()).toEqual(["nickname", "since", "status"]);

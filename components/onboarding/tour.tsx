@@ -55,7 +55,14 @@ function cardPosition(rect: Rect): React.CSSProperties {
  * Экскурсия по дашборду (спека docs/superpowers/specs/2026-10-09-onboarding-tour-design.md).
  * Подсветка — «окно» с огромной тенью; клики по странице перехватывает прозрачный слой, прокрутка не блокируется.
  */
-export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) {
+export function OnboardingTour({
+  programs,
+  strike = false,
+}: {
+  programs: OnboardingProgram[];
+  /** «Первый удар» доступен: на шаге босса — кнопка «Ударить сейчас». */
+  strike?: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -69,6 +76,7 @@ export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) 
 
   const step = TOUR_STEPS[index];
   const last = index === TOUR_STEPS.length - 1;
+  const strikeStep = strike && step.id === "boss";
 
   // Закрываемся только после ответа сервера: иначе быстрая перезагрузка обрывает запрос и экскурсия вернётся
   const finish = useCallback((reason: "done" | "skip", then?: () => void) => {
@@ -207,19 +215,32 @@ export function OnboardingTour({ programs }: { programs: OnboardingProgram[] }) 
             </Button>
           </div>
         ) : (
-          <div className="mt-4 flex items-center justify-between gap-2">
-            <Button type="button" variant="ghost" size="sm" disabled={closing} onClick={() => finish("skip")}>
-              Пропустить
-            </Button>
-            <div className="flex gap-2">
-              {index > 0 ? (
-                <Button type="button" variant="outline" size="sm" onClick={goPrev}>
-                  Назад
-                </Button>
-              ) : null}
-              <Button type="button" size="sm" onClick={goNext}>
-                {index === 0 ? "Поехали" : "Далее"}
+          <div className="mt-4 space-y-2">
+            {/* Шаг босса при доступном «Первом ударе»: главная кнопка — отдельной строкой во всю ширину */}
+            {strikeStep ? (
+              <Button
+                type="button"
+                className="w-full"
+                disabled={closing}
+                onClick={() => finish("done", () => router.push("/dashboard?strike=1"))}
+              >
+                Ударить сейчас
               </Button>
+            ) : null}
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="ghost" size="sm" disabled={closing} onClick={() => finish("skip")}>
+                Пропустить
+              </Button>
+              <div className="flex gap-2">
+                {index > 0 ? (
+                  <Button type="button" variant="outline" size="sm" onClick={goPrev}>
+                    Назад
+                  </Button>
+                ) : null}
+                <Button type="button" variant={strikeStep ? "outline" : "default"} size="sm" onClick={goNext}>
+                  {index === 0 ? "Поехали" : "Далее"}
+                </Button>
+              </div>
             </div>
           </div>
         )}

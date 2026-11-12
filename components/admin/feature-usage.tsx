@@ -31,6 +31,7 @@ export function FeatureUsage({ usage: u }: { usage: Usage }) {
       `анкета ${fmt(u.nutritionProfiles)}, режим выбран ${fmt(u.nutritionModeChosen)}, с БЖУ ${fmt(u.nutritionMacros)}, ` +
         `серия сейчас ${fmt(u.diaryStreaks)}, из них 3+ дн. ${fmt(u.diaryStreaks3)}, средняя серия ${u.avgDiaryStreak.toLocaleString("ru-RU")} дн.`,
     ],
+    ["Первый удар", `${fmt(u.firstStrikes)}, из них с тренировкой ${fmt(u.firstStrikesTrained)}`],
     ["Прошли экскурсию", `${fmt(u.onboarded)} из ${fmt(u.users)}`],
   ];
   return (
