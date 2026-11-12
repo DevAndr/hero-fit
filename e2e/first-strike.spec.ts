@@ -87,6 +87,19 @@ test("invalid input is refused", async ({ page }) => {
   expect(await strikes(login)).toBe(0);
 });
 
+test("spaces around the number are trimmed", async ({ page }) => {
+  const { login } = await setup(page);
+  const result = await strike(page, "Приседания", "12 ");
+  await expect(result).toContainText("−100");
+  const events = await withDb(async (db) => {
+    const { rows } = await db.query<{ meta: unknown }>(`SELECT meta FROM "XpEvent" WHERE "userId" = $1 AND reason = 'FIRST_STRIKE'`, [
+      await userId(db, login),
+    ]);
+    return rows;
+  });
+  expect(events).toEqual([{ meta: { exercise: "squat", value: 12 } }]);
+});
+
 test('second tab gets "already struck"', async ({ page, context }) => {
   const { login } = await setup(page);
   const other = await context.newPage();

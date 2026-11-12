@@ -41,7 +41,8 @@ function StrikeForm({ boss, onStruck }: { boss: BossView | null; onStruck: (resu
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const parsed = parseStrike(exercise, value);
+    // Пробелы из мобильной клавиатуры/вставки обрезаем здесь: серверный parseStrike строгий
+    const parsed = parseStrike(exercise, value.trim());
     if (!parsed.ok) {
       setError(parsed.error);
       return;
