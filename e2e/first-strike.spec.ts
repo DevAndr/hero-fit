@@ -74,6 +74,31 @@ test("card: strike hits the boss, pays XP and the achievement", async ({ page })
   expect(await count(`SELECT COUNT(*) n FROM "Workout" WHERE "userId" = $1`, login)).toBe(0);
 });
 
+const levelCoins = (login: string) =>
+  withDb(async (db) => {
+    const { rows } = await db.query<{ key: string }>(`SELECT key FROM "CoinTx" WHERE "userId" = $1 AND key LIKE 'level:%' ORDER BY key`, [
+      await userId(db, login),
+    ]);
+    return rows.map((r) => r.key);
+  });
+
+test("strike crossing a level pays the level coins", async ({ page }) => {
+  const { login } = await setup(page);
+  // До 2-го уровня 100 XP: удар (+30) переводит 80 → 110 — границу пересекает именно он
+  await withDb(async (db) => db.query(`UPDATE "User" SET xp = 80, level = 1 WHERE id = $1`, [await userId(db, login)]));
+  await page.reload();
+  await strike(page);
+  expect(await levelCoins(login)).toEqual(["level:2"]);
+});
+
+test("strike without a level-up pays no level coins", async ({ page }) => {
+  const { login } = await setup(page);
+  await withDb(async (db) => db.query(`UPDATE "User" SET xp = 0, level = 1 WHERE id = $1`, [await userId(db, login)]));
+  await page.reload();
+  await strike(page);
+  expect(await levelCoins(login)).toEqual([]);
+});
+
 test("invalid input is refused", async ({ page }) => {
   const { login } = await setup(page);
   const dialog = await openDialog(page);

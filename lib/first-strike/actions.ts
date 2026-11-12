@@ -9,6 +9,8 @@ import { getBossView, getOrCreateBossWeek, markBossDefeated, weekDamage } from "
 import { queueGoal } from "@/lib/analytics/queue";
 import { safeTimeZone } from "@/lib/daily-login";
 import { levelProgress } from "@/lib/progress/level";
+import { levelUpGrants } from "@/lib/shop/coins";
+import { grantCoinsDetailed } from "@/lib/shop/coins-db";
 import { weekKey } from "@/lib/progress/weekly-streak";
 import { getOnboardingPrograms } from "@/lib/onboarding/queries";
 import { FIRST_STRIKE_DAMAGE, FIRST_STRIKE_XP, parseStrike } from "@/lib/first-strike/rules";
@@ -18,7 +20,8 @@ import type { StrikeResult } from "@/lib/first-strike/types";
 /**
  * «Первый удар»: один подход без инвентаря до первой тренировки — урон боссу недели, XP и ачивка.
  * Повторный запрос (вторая вкладка) наград не получает: условие по firstStrikeAt.
- * revalidatePath не вызывается — экран результата живёт в диалоге, страницу обновляет клиент при закрытии.
+ * revalidatePath не вызывается — экран результата живёт в диалоге, данные страницы клиент обновляет сам
+ * (router.refresh() сразу после удара, components/first-strike/first-strike-host.tsx).
  */
 export async function firstStrikeAction(input: { exercise: string; value: number }): Promise<StrikeResult> {
   const user = await requireUser();
@@ -41,6 +44,8 @@ export async function firstStrikeAction(input: { exercise: string; value: number
       });
       const { xp } = await tx.user.update({ where: { id: user.id }, data: { xp: { increment: FIRST_STRIKE_XP } }, select: { xp: true } });
       await tx.user.update({ where: { id: user.id }, data: { level: levelProgress(xp).level } });
+      // Монеты за уровень, пересечённый именно этими XP (ачивки ниже платят за свои уровни сами)
+      await grantCoinsDetailed(tx, user.id, levelUpGrants(xp - FIRST_STRIKE_XP, xp));
 
       // Босс текущей недели: урон недели уже с ударом (weekDamage видит firstStrikeAt в этой транзакции)
       const week = weekKey(now, tz);
