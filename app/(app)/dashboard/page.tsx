@@ -59,6 +59,8 @@ import { getNutritionToday } from "@/lib/nutrition/today-queries";
 import { draftHeroCopy } from "@/lib/dashboard/draft-hero";
 import { getDraftHero } from "@/lib/dashboard/draft-hero-queries";
 import { pendingInviteFor } from "@/lib/together/queries";
+import { FirstStrikeHost } from "@/components/first-strike/first-strike-host";
+import { getStrikeOffer } from "@/lib/first-strike/queries";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
@@ -143,11 +145,11 @@ function StreakCard({
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const user = await requireUser();
   const timeZone = safeTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value);
   const userTz = safeTimeZone(user.timeZone);
-  const [data, feed, plan, recap, [recovery, whoopRecovery], balance, boss, coach, guild, goals, club] = await Promise.all([
+  const [data, feed, plan, recap, [recovery, whoopRecovery], balance, boss, coach, guild, goals, club, strikeOffer, params] = await Promise.all([
     getDashboard(user.id, timeZone),
     getFeed(user.id, null, 8),
     getTodayPlan(user.id, userTz),
@@ -159,6 +161,8 @@ export default async function DashboardPage() {
     getMyGuild(user.id, userTz),
     getDashboardGoals(user.id, userTz),
     getClubDashboard(user.id, userTz),
+    getStrikeOffer(user),
+    searchParams,
   ]);
   const programOf = await programWeekLabels([...plan.today, plan.next, plan.missedYesterday].map((p) => p?.seriesId ?? null));
   const [raid, coachCard] = await Promise.all([guild ? getRaidView(guild.id, user.id, userTz) : null, getMyCoachCard(user.id, coach, userTz)]);
@@ -367,7 +371,13 @@ export default async function DashboardPage() {
       {programs ? <OnboardingTour programs={programs} /> : null}
       <DashboardV3
         // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
-        hero={<WeekHero {...heroProps} strip={v3data.strip} />}
+        hero={
+          <>
+            {/* «Первый удар»: карточка — после экскурсии, ?strike=1 (вход из экскурсии) открывает диалог сразу */}
+            <FirstStrikeHost offer={strikeOffer && user.onboardedAt !== null} autoOpen={strikeOffer && params.strike === "1"} boss={boss} />
+            <WeekHero {...heroProps} strip={v3data.strip} />
+          </>
+        }
         today={
           <>
             {siteLoginHint ? <SiteLoginHintCard /> : null}
