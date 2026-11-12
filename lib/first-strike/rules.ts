@@ -42,7 +42,7 @@ export function parseStrike(
   const n =
     typeof value === "number"
       ? value
-      : typeof value === "string" && value.trim() !== ""
+      : typeof value === "string" && /^\d+$/.test(value)
         ? Number(value)
         : NaN;
   if (!Number.isInteger(n) || n < range.min || n > range.max) {

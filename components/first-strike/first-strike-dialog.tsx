@@ -145,8 +145,9 @@ function StrikeResultView({
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShownLeft(left));
+    const animations: Animation[] = [];
     if (!prefersReducedMotion()) {
-      hitRef.current?.animate(
+      const hit = hitRef.current?.animate(
         [
           { opacity: 0, transform: "translateY(6px) scale(0.8)" },
           { opacity: 1, transform: "translateY(-10px) scale(1.15)", offset: 0.3 },
@@ -154,7 +155,7 @@ function StrikeResultView({
         ],
         { duration: 1100, delay: 150, easing: "ease-out", fill: "forwards" },
       );
-      spriteRef.current?.animate(
+      const shake = spriteRef.current?.animate(
         [
           { transform: "translateX(0)" },
           { transform: "translateX(-5px) rotate(-7deg)" },
@@ -163,8 +164,12 @@ function StrikeResultView({
         ],
         { duration: 320, delay: 150 },
       );
+      for (const a of [hit, shake]) if (a) animations.push(a);
     }
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      for (const a of animations) a.cancel();
+    };
   }, [left]);
 
   return (

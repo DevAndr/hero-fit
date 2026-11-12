@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addFoodEntry, addLandingVisit, setNutritionMacros, setNutritionProfile, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
+import { addFlagUser, addFoodEntry, addLandingVisit, setNutritionMacros, setNutritionProfile, backdateUser, clearCohort, landingUtmVisits, createUserRow, E2E_METRICS_ADMIN, enableCoach, makeAdmin, seedWorkouts, setSignupSource, setSignupUtm, setTimeZone, startWorkoutRow, visitDays, visitHours } from "./db";
 import { registerUser } from "./helpers";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
 
@@ -144,6 +144,38 @@ test.describe("admin metrics page", () => {
     const after = await numbers();
     for (const i of [0, 1, 2, 3, 4]) expect(after[i]).toBeGreaterThanOrEqual(before[i] + 1);
     await expect(row.locator("dd")).toContainText(/средняя серия \d+(,\d)? дн\./);
+  });
+
+  test("first strike row: strikes and those who trained after it", async ({ page, browser }) => {
+    const playerCtx = await browser.newContext();
+    const playerPage = await playerCtx.newPage();
+    const player = await registerUser(playerPage);
+    await addFlagUser("first_strike", player.login);
+    const admin = await registerUser(page);
+    await makeAdmin(admin.login, E2E_METRICS_ADMIN);
+    const row = page.getByRole("region", { name: "Фичи" }).locator("div").filter({ has: page.getByText("Первый удар", { exact: true }) });
+    const numbers = async () => {
+      await page.goto("/admin");
+      const text = await row.locator("dd").innerText();
+      const m = text.match(/^(\d[\d\s]*), из них с тренировкой (\d[\d\s]*)$/);
+      expect(m, text).not.toBeNull();
+      return [m![1], m![2]].map((v) => Number(v.replace(/\s/g, "")));
+    };
+    const before = await numbers();
+
+    await playerPage.reload();
+    await playerPage.getByTestId("first-strike-card").getByRole("button", { name: "Ударить" }).click();
+    await playerPage.getByTestId("first-strike-dialog").getByRole("button", { name: "Ударить" }).click();
+    await expect(playerPage.getByTestId("first-strike-result")).toBeVisible();
+    await playerCtx.close();
+    const struck = await numbers();
+    expect(struck[0]).toBeGreaterThanOrEqual(before[0] + 1);
+    expect(struck[0]).toBeGreaterThanOrEqual(1);
+
+    // Обычная тренировка после удара попадает во вторую цифру
+    await seedWorkouts(player.login, "Жим штанги лёжа", [{ weight: 60, reps: 8, sets: 1 }], 1, { finishedAt: [new Date()] });
+    const trained = await numbers();
+    expect(trained[1]).toBeGreaterThanOrEqual(before[1] + 1);
   });
 
   test("time of day chart: 24 hours, the admin's own visit is in the current local hour", async ({ page }) => {

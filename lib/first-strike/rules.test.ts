@@ -37,6 +37,14 @@ describe("parseStrike", () => {
     ] as const)
       expect(parseStrike(e, v).ok).toBe(false);
   });
+  it("границы допустимого", () => {
+    for (const [e, v] of [["squat", 1], ["squat", 200], ["plank", 5], ["plank", 600]] as const)
+      expect(parseStrike(e, v)).toEqual({ ok: true, exercise: e, value: v });
+  });
+  it("строка — только из цифр", () => {
+    for (const v of ["1e2", "0x10", "+5", " 10", "-5", "1.5"])
+      expect(parseStrike("squat", v)).toEqual({ ok: false, error: "Повторов — от 1 до 200" });
+  });
   it("тексты ошибок", () => {
     expect(parseStrike("squat", 0)).toEqual({ ok: false, error: "Повторов — от 1 до 200" });
     expect(parseStrike("plank", 4)).toEqual({ ok: false, error: "Секунд — от 5 до 600" });

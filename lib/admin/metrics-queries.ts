@@ -360,6 +360,9 @@ export type FeatureUsage = {
   diaryStreaks: number;
   diaryStreaks3: number;
   avgDiaryStreak: number;
+  /** «Первый удар»: нанесли удар и из них с завершённой обычной тренировкой после удара. */
+  firstStrikes: number;
+  firstStrikesTrained: number;
 };
 
 /**
@@ -422,7 +425,10 @@ export async function getFeatureUsage(): Promise<FeatureUsage> {
       (SELECT COUNT(DISTINCT meta->>'sessionId') FROM "XpEvent" WHERE reason = 'TOGETHER_BONUS' AND "createdAt" > now() - interval '30 days')::int AS "togetherBonus30",
       (SELECT COUNT(*) FROM "User" WHERE "heightCm" IS NOT NULL AND "birthYear" IS NOT NULL AND "activityLevel" IS NOT NULL AND "nutritionGoal" IS NOT NULL)::int AS "nutritionProfiles",
       (SELECT COUNT(*) FROM "User" WHERE "nutritionModeChosenAt" IS NOT NULL)::int AS "nutritionModeChosen",
-      (SELECT COUNT(*) FROM "User" WHERE "nutritionModeChosenAt" IS NOT NULL AND "nutritionMacros")::int AS "nutritionMacros"
+      (SELECT COUNT(*) FROM "User" WHERE "nutritionModeChosenAt" IS NOT NULL AND "nutritionMacros")::int AS "nutritionMacros",
+      (SELECT COUNT(*) FROM "User" WHERE "firstStrikeAt" IS NOT NULL)::int AS "firstStrikes",
+      (SELECT COUNT(*) FROM "User" u WHERE u."firstStrikeAt" IS NOT NULL AND EXISTS (
+         SELECT 1 FROM "Workout" w WHERE w."userId" = u.id AND w.status = 'COMPLETED' AND NOT w."stretchOnly" AND w."finishedAt" > u."firstStrikeAt"))::int AS "firstStrikesTrained"
   `;
   const [catalogCoaches, streaks] = await Promise.all([catalogCount(), diaryStreakUsage()]);
   return { ...row, catalogCoaches, ...streaks };

@@ -46,6 +46,7 @@ export async function firstStrikeAction(input: { exercise: string; value: number
       const week = weekKey(now, tz);
       const bossWeek = await getOrCreateBossWeek(tx, user.id, week, tz);
       const { damage } = await weekDamage(tx, user.id, week, tz);
+      // Уведомление и титулы победы сознательно не выдаются: они привязаны к тренировке, а при HP ≥ 3000 победа ударом недостижима
       if (damage >= bossWeek.hp) await markBossDefeated(tx, bossWeek.id, now);
 
       const unlocked = await evaluateAchievements(tx, user.id);
