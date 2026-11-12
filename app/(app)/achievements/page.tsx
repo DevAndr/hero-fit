@@ -6,6 +6,7 @@ import { AchievementIcon } from "@/components/achievements/achievement-icon";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/components/achievements/category";
 import { GoalCard } from "@/components/achievements/goal-card";
 import { Bestiary } from "@/components/boss/bestiary";
+import { SeasonalCard } from "@/components/boss/seasonal-card";
 import { GoblinCard } from "@/components/goblin/goblin-card";
 import { requireUser } from "@/lib/auth/dal";
 import { getAchievementsOverview } from "@/lib/achievements/queries";
@@ -45,15 +46,28 @@ export default async function AchievementsPage({ searchParams }: PageProps<"/ach
         ))}
       </nav>
       {tab === "bestiary" ? (
-        <Bestiary
-          entries={await getBestiary(user.id, safeTimeZone(user.timeZone))}
-          rare={(await isEnabled("golden_goblin", user.id)) ? <GoblinCard stats={await getGoblinStats(user.id)} /> : undefined}
-        />
+        <BestiaryTab userId={user.id} timeZone={safeTimeZone(user.timeZone)} />
       ) : (
         <AchievementsTab earned={earned} goals={goals} />
       )}
     </>
   );
+}
+
+/** Бестиарий; «Редкие» — Золотой гоблин (флаг golden_goblin) и сезонные боссы (флаг seasonal_boss), каждый по своему флагу. */
+async function BestiaryTab({ userId, timeZone }: { userId: string; timeZone: string }) {
+  const [{ entries, seasonal }, goblin, seasonalOn] = await Promise.all([
+    getBestiary(userId, timeZone),
+    isEnabled("golden_goblin", userId).then((on) => (on ? getGoblinStats(userId) : null)),
+    isEnabled("seasonal_boss", userId),
+  ]);
+  const rare = goblin || seasonalOn ? (
+    <>
+      {goblin ? <GoblinCard stats={goblin} /> : null}
+      {seasonalOn ? seasonal.map((e) => <SeasonalCard key={e.code} entry={e} />) : null}
+    </>
+  ) : undefined;
+  return <Bestiary entries={entries} rare={rare} />;
 }
 
 function AchievementsTab({ earned, goals }: Awaited<ReturnType<typeof getAchievementsOverview>>) {

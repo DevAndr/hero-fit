@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
-import { bossName, type BossCode } from "@/lib/boss/bosses";
+import { bossName, type AnyBossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, markBossDefeated, weekDamage } from "@/lib/boss/queries";
 import { goblinProgress } from "@/lib/goblin/rules";
@@ -407,7 +407,7 @@ async function applyBoss(
       _count: { _all: true },
     });
     const winsBefore = Object.fromEntries(wins.map((w) => [w.bossCode, w._count._all]));
-    titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as BossCode).map((t) => t.label);
+    titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as AnyBossCode).map((t) => t.label);
   }
   return {
     week,

@@ -2,7 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import type { BossCode } from "@/lib/boss/bosses";
+import type { AnyBossCode } from "@/lib/boss/bosses";
 import { BOSS_SPRITE_FILES } from "@/lib/boss/sprite-files";
 import { plural } from "@/lib/format";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
@@ -24,7 +24,7 @@ const DANGER = "#fb2c36";
 const asset = (...parts: string[]) => readFile(join(process.cwd(), "assets", ...parts));
 
 async function bossSprite(code: string): Promise<string | null> {
-  const file = BOSS_SPRITE_FILES[code as BossCode];
+  const file = BOSS_SPRITE_FILES[code as AnyBossCode];
   if (!file) return null;
   const png = await asset("icons", "game", "bosses", file);
   return `data:image/png;base64,${png.toString("base64")}`;
