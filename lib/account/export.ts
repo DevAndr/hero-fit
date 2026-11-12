@@ -176,6 +176,7 @@ const PROFILE_FIELDS = [
   "signupUtmSource",
   "signupUtmCampaign",
   "coachGuideHiddenAt",
+  "firstStrikeAt",
   "xp",
   "level",
   "currentStreak",

@@ -6,6 +6,7 @@ import { addWeeks, weekKey } from "@/lib/progress/weekly-streak";
 import { bossForWeek, bossName } from "@/lib/boss/bosses";
 import { bossHp, CRIT_DAMAGE, FAILURE_BONUS, rewardXp, SET_DAMAGE } from "@/lib/boss/damage";
 import { bestiary } from "@/lib/boss/bestiary";
+import { FIRST_STRIKE_DAMAGE } from "@/lib/first-strike/rules";
 
 type Client = Prisma.TransactionClient | typeof db;
 
@@ -50,10 +51,25 @@ export async function damageByWeek(client: Client, userId: string, tz: string, f
   return new Map(rows.map((r) => [r.week, { damage: r.sets + r.crits * CRIT_DAMAGE, crits: r.crits, workouts: r.workouts }]));
 }
 
-/** Урон недели `week`; `excludeWorkoutId` — без этой тренировки (её урон досчитывают отдельно). */
+/**
+ * Урон недели `week`; `excludeWorkoutId` — без этой тренировки (её урон досчитывают отдельно).
+ * «Первый удар» (User.firstStrikeAt в этой неделе) прибавляет FIRST_STRIKE_DAMAGE — только здесь:
+ * в damageByWeek его нет, поэтому HP будущих боссов и бестиарий считаются без удара.
+ */
 export async function weekDamage(client: Client, userId: string, week: string, tz: string, excludeWorkoutId?: string) {
-  const byWeek = await damageByWeek(client, userId, tz, week, week, excludeWorkoutId);
-  return byWeek.get(week) ?? { damage: 0, crits: 0, workouts: 0 };
+  const [byWeek, user] = await Promise.all([
+    damageByWeek(client, userId, tz, week, week, excludeWorkoutId),
+    client.user.findUnique({ where: { id: userId }, select: { firstStrikeAt: true } }),
+  ]);
+  const result = byWeek.get(week) ?? { damage: 0, crits: 0, workouts: 0 };
+  const strike = user?.firstStrikeAt && weekKey(user.firstStrikeAt, tz) === week ? FIRST_STRIKE_DAMAGE : 0;
+  return { ...result, damage: result.damage + strike };
+}
+
+/** Победа над боссом недели: условие по defeatedAt — повтор или параллельный запрос не засчитают её дважды. */
+export async function markBossDefeated(client: Client, bossWeekId: string, now: Date): Promise<boolean> {
+  const { count } = await client.bossWeek.updateMany({ where: { id: bossWeekId, defeatedAt: null }, data: { defeatedAt: now } });
+  return count === 1;
 }
 
 /** Босс недели: создаётся при первом обращении, HP — по урону прошлых недель и больше не меняется. */
