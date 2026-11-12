@@ -64,6 +64,8 @@ export function bossTitles(code: BossCode): (Title & { wins: number })[] {
   return BOSS_TITLE_LABELS[code].map((label, i) => ({ code: `boss:${code}:${i + 1}`, label, source: "boss", wins: BOSS_STAR_WINS[i] }));
 }
 
+const isBossCode = (code: string): code is BossCode => Object.hasOwn(BOSS_TITLE_LABELS, code);
+
 const hasLegend = (wins: BossWins) => BOSSES.every((b) => (wins[b.code] ?? 0) >= BOSS_STAR_WINS[0]);
 
 export function availableTitles({ achievementCodes, bossWins }: { achievementCodes: Iterable<string>; bossWins: BossWins }): Title[] {
@@ -89,10 +91,14 @@ export function titleForAchievement(achievementCode: string): Title | null {
   return ALL_TITLES.get(`ach:${achievementCode}`) ?? null;
 }
 
-/** Титулы, которые открывает одна новая победа над `code`. */
-export function titlesUnlockedByWin(winsBefore: BossWins, code: AnyBossCode): Title[] {
+/**
+ * Титулы, которые открывает одна новая победа над `code`. Неизвестный код (босс убран из каталога) — `[]`:
+ * вызывается в транзакции завершения тренировки, исключение оборвало бы её.
+ */
+export function titlesUnlockedByWin(winsBefore: BossWins, code: string): Title[] {
+  if (isSeasonalCode(code)) return (winsBefore[code] ?? 0) === 0 ? [SEASONAL_TITLES[code]] : [];
+  if (!isBossCode(code)) return [];
   const before = winsBefore[code] ?? 0;
-  if (isSeasonalCode(code)) return before === 0 ? [SEASONAL_TITLES[code]] : [];
   const after: BossWins = { ...winsBefore, [code]: before + 1 };
   const titles: Title[] = [];
   const stars = bossStars(before + 1);

@@ -28,6 +28,7 @@ export function SeasonalCard({ entry }: { entry: SeasonalEntry }) {
       ) : null}
       <div className="min-w-0 space-y-1">
         <h3 className="font-bold">{open ? entry.name : "???"}</h3>
+        {entry.current ? <p className="text-xs text-muted-foreground">На арене сейчас</p> : null}
         {open ? (
           <p className="text-sm">
             Побед: {entry.wins}

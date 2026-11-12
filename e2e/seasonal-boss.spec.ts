@@ -42,6 +42,8 @@ test("Grinch week: dashboard card, workout bar and preview", async ({ page }) =>
   await expect(card).toContainText("Гринч");
   await expect(card).toContainText("3000 / 3000 HP");
   await expect(card.locator('[data-boss="grinch"] img')).toBeVisible();
+  // Непрозрачная картинка скруглена и в карточке (88 px), не только в маленьких размерах
+  await expect(card.locator('[data-boss="grinch"] img')).not.toHaveCSS("border-radius", "0px");
 
   await page.goto("/training");
   await page.getByRole("button", { name: /Пустая тренировка/ }).click();
@@ -95,6 +97,20 @@ test("bestiary with the flag: the Grinch among the rare, the star counter keeps 
   await expect(grinch).toContainText("первая победа");
   await expect(grinch.getByRole("img", { name: /звезд/ })).toHaveCount(0);
   await expect(page.getByTestId("bestiary-legend")).toContainText("звёзды у 0 из 12 боссов");
+});
+
+test("bestiary in the Grinch week: «На арене сейчас» only at the Grinch, the replaced boss comes in 12 weeks", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addFlagUser("seasonal_boss", login);
+  await grinchThisWeek(login);
+
+  await page.goto("/achievements?tab=bestiary");
+  await expect(page.getByTestId("bestiary-grinch")).toContainText("На арене сейчас");
+  await expect(page.getByTestId("bestiary-legend")).toBeVisible();
+  const main = page.locator('[data-testid^="bestiary-"]:not([data-testid="bestiary-grinch"]):not([data-testid="bestiary-legend"])');
+  await expect(main).toHaveCount(12);
+  await expect(main.filter({ hasText: "На арене сейчас" })).toHaveCount(0);
+  await expect(main.filter({ hasText: "Придёт через 12 недель" })).toHaveCount(1);
 });
 
 test("bestiary without the flag: no Grinch card even after a win", async ({ page }) => {
