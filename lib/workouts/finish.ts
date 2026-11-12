@@ -100,7 +100,8 @@ export type FinishResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Завершение тренировки одной транзакцией: чистим невыполненное, считаем итоги,
- * обновляем рекорды, XP, уровень и streak.
+ * обновляем рекорды, XP, уровень и streak. `scheduleAskedAt` сбрасывается: у завершённой тренировки он значит
+ * только ответ на «Когда следующая?» в сводке.
  */
 export async function finishWorkout(
   userId: string,
@@ -236,6 +237,9 @@ export async function finishWorkout(
         totalVolume: totals.volume,
         xpEarned: baseXp + recordsXp,
         stretchOnly,
+        // Отметка «спросили» черновика («Когда тренировка?», в т. ч. «Начинаю сейчас») не должна считаться ответом
+        // на вопрос сводки «Когда следующая?»: диалог черновика спрашивает только PLANNED и снова не всплывёт
+        scheduleAskedAt: null,
       },
     });
 

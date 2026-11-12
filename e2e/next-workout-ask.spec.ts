@@ -12,6 +12,10 @@ const shift = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`
 const TODAY = new Date(Date.now() + E2E_TZ_OFFSET * 3_600_000).toISOString().slice(0, 10);
 const TOMORROW = shift(TODAY, 1);
 
+/** Кнопки пресетов показывают время слота: «Завтра, 07:00». */
+const TOMORROW_BUTTON = /^Завтра, \d\d:[03]0$/;
+const DAY_AFTER_BUTTON = /^Послезавтра, \d\d:[03]0$/;
+
 const card = (page: Page) => page.getByTestId("next-workout");
 const summaryLoaded = (page: Page) => expect(page.getByRole("heading", { name: /— готово!/ })).toBeVisible();
 
@@ -49,14 +53,19 @@ test("after finishing: «Завтра» → confirmation, one entry tomorrow, vi
   const me = await flaggedUser(page);
   await quickWorkout(page, "Жим штанги лёжа", [{ weight: "40", reps: "10" }]);
   await expect(card(page).getByRole("heading", { name: "Когда следующая тренировка?" })).toBeVisible();
-  await card(page).getByRole("button", { name: "Завтра", exact: true }).click();
+  const label = await card(page).getByRole("button", { name: TOMORROW_BUTTON }).textContent();
+  await expect(card(page).getByRole("button", { name: DAY_AFTER_BUTTON })).toHaveText(label!.replace("Завтра", "Послезавтра"));
+  await card(page).getByRole("button", { name: TOMORROW_BUTTON }).click();
   await expect(card(page).getByRole("heading", { name: /^Запланировано: / })).toBeVisible();
+  await expect(card(page).getByRole("status")).toContainText("Запланировано: ");
   await expect(card(page).getByRole("link", { name: "Открыть календарь" })).toHaveAttribute("href", "/calendar");
 
   const rows = await planRows(me.login);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ date: TOMORROW, title: "Тренировка", templateId: null, durationMin: 60, emailReminder: false });
   expect(rows[0].time).toMatch(/^\d\d:[03]0$/);
+  // Время на кнопке — время сохранённого слота
+  expect(label).toBe(`Завтра, ${rows[0].time}`);
   const { id } = await latestWorkout(me.login);
   expect(await asked(id)).toBe(true);
   await page.reload();
@@ -98,9 +107,9 @@ test("two tabs: the second choice says «Уже запланировано», on
   await second.goto(`/workouts/${id}`);
   await expect(card(second)).toBeVisible();
 
-  await card(page).getByRole("button", { name: "Завтра", exact: true }).click();
+  await card(page).getByRole("button", { name: TOMORROW_BUTTON }).click();
   await expect(card(page).getByRole("heading", { name: /^Запланировано: / })).toBeVisible();
-  await card(second).getByRole("button", { name: "Послезавтра" }).click();
+  await card(second).getByRole("button", { name: DAY_AFTER_BUTTON }).click();
   await expect(card(second).getByRole("alert")).toHaveText("Уже запланировано");
   expect(await planRows(me.login)).toHaveLength(1);
   await second.close();
@@ -163,7 +172,7 @@ test("a stretching session → no card", async ({ page }) => {
 test("no push and no Telegram: «Как напомнить?» step, email checkbox → emailReminder", async ({ page }) => {
   const me = await flaggedUser(page, { channel: false });
   await seededSummary(page, me.login);
-  await card(page).getByRole("button", { name: "Завтра", exact: true }).click();
+  await card(page).getByRole("button", { name: TOMORROW_BUTTON }).click();
   await expect(card(page).getByRole("heading", { name: "Как напомнить?" })).toBeVisible();
   await card(page).getByRole("checkbox", { name: new RegExp(`Напомнить на почту \\(${me.email}\\)`) }).click();
   await card(page).getByRole("button", { name: "Готово" }).click();
@@ -172,4 +181,37 @@ test("no push and no Telegram: «Как напомнить?» step, email checkb
   const rows = await planRows(me.login);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ date: TOMORROW, title: "Тренировка", emailReminder: true });
+});
+
+test("«Как напомнить?»: Telegram connected in another tab shows up after returning to the tab", async ({ page }) => {
+  const me = await flaggedUser(page, { channel: false });
+  await seededSummary(page, me.login);
+  await card(page).getByRole("button", { name: TOMORROW_BUTTON }).click();
+  await expect(card(page).getByRole("heading", { name: "Как напомнить?" })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Подключить Telegram" })).toBeVisible();
+
+  // Привязка прошла в другой вкладке; возврат во вкладку перерисовывает страницу
+  await linkTelegram(me.login, `7${Math.floor(Math.random() * 1e12)}`);
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(card(page).getByText("Напомним в Telegram")).toBeVisible();
+  await expect(card(page).getByRole("heading", { name: "Как напомнить?" })).toBeVisible();
+});
+
+test("«Как напомнить?» offline: «Готово» shows the error, retry after reconnect saves", async ({ page, context }) => {
+  const me = await flaggedUser(page, { channel: false });
+  await seededSummary(page, me.login);
+  await card(page).getByRole("button", { name: TOMORROW_BUTTON }).click();
+  await expect(card(page).getByRole("heading", { name: "Как напомнить?" })).toBeVisible();
+
+  await context.setOffline(true);
+  await card(page).getByRole("button", { name: "Готово" }).click();
+  await expect(card(page).getByRole("alert")).toHaveText("Не удалось сохранить, попробуйте позже");
+  await expect(card(page).getByRole("heading", { name: "Как напомнить?" })).toBeVisible();
+  expect(await planRows(me.login)).toEqual([]);
+
+  await context.setOffline(false);
+  await card(page).getByRole("button", { name: "Готово" }).click();
+  await expect(card(page).getByRole("status")).toContainText("Запланировано: ");
+  await expect(card(page).getByRole("alert")).toHaveCount(0);
+  expect(await planRows(me.login)).toHaveLength(1);
 });

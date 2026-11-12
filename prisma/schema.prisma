@@ -598,7 +598,8 @@ model Workout {
   totalSets          Int           @default(0)
   totalReps          Int           @default(0)
   xpEarned           Int           @default(0)
-  /// когда игрок ответил на вопрос «Когда тренировка?» (черновик первой тренировки)
+  /// когда игрок ответил на вопрос о расписании: у черновика (PLANNED) — «Когда тренировка?» первой тренировки,
+  /// у завершённой — «Когда следующая тренировка?» в сводке; finishWorkout сбрасывает отметку черновика в null
   scheduleAskedAt    DateTime?
   /// тяжесть тренировки 1–10 (оценка в сводке, lib/workouts/feedback.ts)
   rpe                Int?

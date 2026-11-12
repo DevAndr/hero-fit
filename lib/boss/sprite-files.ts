@@ -19,3 +19,10 @@ export const BOSS_SPRITE_FILES: Record<AnyBossCode, string> = {
   void: "void_titan.png",
   grinch: "grinch.png",
 };
+
+/** Спрайты с непрозрачным фоном: их углы скругляем везде (BossSprite, сторис), чтобы не было прямоугольной плашки. */
+const OPAQUE_SPRITES: ReadonlySet<string> = new Set<AnyBossCode>(["grinch"]);
+
+export function isOpaqueSprite(code: string): boolean {
+  return OPAQUE_SPRITES.has(code);
+}

@@ -57,9 +57,25 @@ describe("bestiary", () => {
       { week: addWeeks(cur, -4), code: "golem", defeatedAt: new Date("2026-09-01T10:00:00Z"), damage: 2100 },
     ];
     expect(seasonalBestiary(rows)).toEqual([
-      { code: "grinch", name: "Гринч", wins: 1, firstWin: "2026-12-30T10:00:00.000Z", bestDamage: 3200 },
+      { code: "grinch", name: "Гринч", wins: 1, firstWin: "2026-12-30T10:00:00.000Z", bestDamage: 3200, current: false },
     ]);
-    expect(seasonalBestiary([])).toEqual([{ code: "grinch", name: "Гринч", wins: 0, firstWin: null, bestDamage: 0 }]);
+    expect(seasonalBestiary([])).toEqual([{ code: "grinch", name: "Гринч", wins: 0, firstWin: null, bestDamage: 0, current: false }]);
+  });
+
+  it("в сезонную неделю на арене сезонный: заменённый босс ротации — через 12 недель, остальные как по ротации", () => {
+    const usual = bestiary([], cur).map((e) => e.weeksUntil);
+    const entries = bestiary([], cur, "grinch");
+    expect(entries.every((e) => e.weeksUntil > 0)).toBe(true);
+    expect(entries.find((e) => e.code === "golem")!.weeksUntil).toBe(12);
+    expect(entries.slice(1).map((e) => e.weeksUntil)).toEqual(usual.slice(1));
+    // Босс ротации на арене — как без кода
+    expect(bestiary([], cur, "golem").map((e) => e.weeksUntil)).toEqual(usual);
+  });
+
+  it("сезонная карточка: current — только когда он босс текущей недели", () => {
+    expect(seasonalBestiary([], "grinch")[0].current).toBe(true);
+    expect(seasonalBestiary([], "golem")[0].current).toBe(false);
+    expect(seasonalBestiary([])[0].current).toBe(false);
   });
 
   it("история — не больше 10 недель", () => {

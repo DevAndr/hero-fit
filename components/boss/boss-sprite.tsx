@@ -1,6 +1,7 @@
 import Image, { type StaticImageData } from "next/image";
 import { Skull } from "lucide-react";
 import type { AnyBossCode } from "@/lib/boss/bosses";
+import { isOpaqueSprite } from "@/lib/boss/sprite-files";
 import { cn } from "@/lib/utils";
 import boneLich from "@/assets/icons/game/bosses/bone_lich.png";
 import crystalGuardian from "@/assets/icons/game/bosses/crystal_guardian.png";
@@ -19,30 +20,28 @@ import voidTitan from "@/assets/icons/game/bosses/void_titan.png";
 /**
  * Спрайты боссов: `assets/icons/game/bosses/*.png`, статический импорт (next/image ужимает в WebP).
  * Новый босс — импорт и строка в SPRITES. Без спрайта (неизвестный код) — заглушка.
- * `opaque` — картинка с непрозрачным фоном: в маленьком размере скругляем углы, чтобы не было плашки.
+ * Картинка с непрозрачным фоном (`isOpaqueSprite`, lib/boss/sprite-files.ts) рисуется по своим пропорциям
+ * со скруглёнными углами на любом размере, чтобы не было прямоугольной плашки.
  */
-const SPRITES: Record<AnyBossCode, { image: StaticImageData; opaque?: true }> = {
-  golem: { image: ironGolem },
-  troll: { image: iceTroll },
-  dragon: { image: fireDragon },
-  knight: { image: shadowKnight },
-  lich: { image: boneLich },
-  treant: { image: forestTree },
-  colossus: { image: sandSpike },
-  crystal: { image: crystalGuardian },
-  storm: { image: thunderstormTitan },
-  queen: { image: poisonousQueen },
-  runes: { image: guardianRunes },
-  void: { image: voidTitan },
-  grinch: { image: grinch, opaque: true },
+const SPRITES: Record<AnyBossCode, StaticImageData> = {
+  golem: ironGolem,
+  troll: iceTroll,
+  dragon: fireDragon,
+  knight: shadowKnight,
+  lich: boneLich,
+  treant: forestTree,
+  colossus: sandSpike,
+  crystal: crystalGuardian,
+  storm: thunderstormTitan,
+  queen: poisonousQueen,
+  runes: guardianRunes,
+  void: voidTitan,
+  grinch,
 };
-
-/** До какого размера спрайт считается маленьким (скругление непрозрачных). */
-const SMALL_SPRITE = 64;
 
 /** Картинка босса целиком (бестиарий); неизвестный код — null. */
 export function bossImage(code: string): StaticImageData | null {
-  return SPRITES[code as AnyBossCode]?.image ?? null;
+  return SPRITES[code as AnyBossCode] ?? null;
 }
 
 /** Декоративно: имя босса всегда рядом текстом. */
@@ -60,9 +59,8 @@ export function BossSprite({
   size: number;
   className?: string;
 }) {
-  const entry = SPRITES[code as AnyBossCode];
-  const sprite = entry?.image ?? null;
-  const rounded = !!entry?.opaque && size <= SMALL_SPRITE;
+  const sprite = bossImage(code);
+  const rounded = sprite !== null && isOpaqueSprite(code);
   return (
     <span
       aria-hidden

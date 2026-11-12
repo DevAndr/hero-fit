@@ -76,6 +76,11 @@ describe("titlesUnlockedByWin", () => {
     expect(codes(titlesUnlockedByWin(others, "knight"))).toEqual(["boss:knight:1", "legend"]);
     expect(codes(titlesUnlockedByWin({ golem: 4, troll: 1, dragon: 2 }, "knight"))).toEqual(["boss:knight:1"]);
   });
+
+  it("неизвестный код босса (удалён из каталога) — ничего, без исключения", () => {
+    expect(titlesUnlockedByWin({}, "yeti")).toEqual([]);
+    expect(titlesUnlockedByWin({ golem: 2 }, "yeti")).toEqual([]);
+  });
 });
 
 describe("сезонный титул «Спаситель праздника»", () => {

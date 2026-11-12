@@ -29,7 +29,7 @@ type Step = { kind: "ask" } | { kind: "how"; slot: Slot } | { kind: "done"; slot
  * ask = null — уже ответили: после ответа страница перерисовывается без вопроса, а карточка держит подтверждение.
  */
 export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
-  // Вопрос первого рендера: перерисовка после ответа приходит уже с ask = null
+  // Вопрос первого рендера — только для подтверждения: перерисовка после ответа приходит уже с ask = null
   const [question] = useState(ask);
   const [step, setStep] = useState<Step>({ kind: "ask" });
   const [custom, setCustom] = useState(false);
@@ -43,7 +43,8 @@ export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
   useRefreshOnVisible(step.kind === "how");
 
   if (!question || step.kind === "closed" || (!ask && step.kind !== "done")) return null;
-  const q = question;
+  // Пока вопрос есть — живые данные (Telegram, подключённый в другой вкладке, виден после возврата)
+  const q = ask ?? question;
 
   const save = async (slot: Slot) => {
     if (sent.current) return;
@@ -68,6 +69,7 @@ export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
 
   const choose = (slot: Slot) => {
     if (busy) return;
+    setError(null);
     if (q.askReminder) setStep({ kind: "how", slot });
     else void save(slot);
   };
@@ -84,10 +86,16 @@ export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
     setStep({ kind: "closed" });
   };
 
+  const errorLine = error ? (
+    <p role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  ) : null;
+
   return (
     <section aria-labelledby="next-workout-title" className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-4" data-testid="next-workout">
       {step.kind === "done" ? (
-        <div className="grid gap-2">
+        <div role="status" className="grid gap-2">
           <h2 id="next-workout-title" className="flex items-center gap-2 font-bold">
             <CalendarCheck className="size-4 text-primary" />
             Запланировано: {slotDay(step.slot.date)}, {step.slot.time}
@@ -105,6 +113,7 @@ export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
             <p className="text-sm text-muted-foreground">{slotLabel(step.slot)}</p>
           </div>
           <ReminderOptions email={q.email} telegram={q.telegram} emailReminder={emailReminder} onEmailReminderChange={setEmailReminder} busy={busy} />
+          {errorLine}
           <Button type="button" className="justify-self-start" disabled={busy} onClick={() => void save(step.slot)}>
             {busy ? <Loader2 className="animate-spin" /> : null}
             Готово
@@ -119,17 +128,13 @@ export function NextWorkoutCard({ ask }: { ask: NextAsk | null }) {
             </h2>
             <p className="text-sm text-muted-foreground">Выберите день — напомним, и тренировка появится в календаре.</p>
           </div>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
+          {errorLine}
           <div className="flex flex-wrap gap-2">
             <Button type="button" disabled={busy} onClick={() => choose(q.presets.tomorrow)}>
-              Завтра
+              Завтра, {q.presets.tomorrow.time}
             </Button>
             <Button type="button" variant="outline" disabled={busy} onClick={() => choose(q.presets.dayAfter)}>
-              Послезавтра
+              Послезавтра, {q.presets.dayAfter.time}
             </Button>
             {custom ? null : (
               <Button type="button" variant="outline" disabled={busy} onClick={() => setCustom(true)}>

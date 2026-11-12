@@ -1,4 +1,4 @@
-import { BOSSES, bossForWeek, SEASONAL_BOSSES, type BossCode, type SeasonalCode } from "@/lib/boss/bosses";
+import { BOSSES, bossForWeek, isSeasonalCode, SEASONAL_BOSSES, type BossCode, type SeasonalCode } from "@/lib/boss/bosses";
 import { addWeeks } from "@/lib/progress/weekly-streak";
 import { bossStars } from "@/lib/titles/catalog";
 
@@ -23,10 +23,18 @@ export type BestiaryEntry = {
 const HISTORY_LIMIT = 10;
 
 /** Сезонный босс в «Редких»: без звёзд, ротации и истории. */
-export type SeasonalEntry = { code: SeasonalCode; name: string; wins: number; firstWin: string | null; bestDamage: number };
+export type SeasonalEntry = {
+  code: SeasonalCode;
+  name: string;
+  wins: number;
+  firstWin: string | null;
+  bestDamage: number;
+  /** На арене сейчас: босс текущей недели. */
+  current: boolean;
+};
 
-/** Карточки сезонных боссов (Гринч) — отдельно от 12 основных. */
-export function seasonalBestiary(rows: BestiaryRow[]): SeasonalEntry[] {
+/** Карточки сезонных боссов (Гринч) — отдельно от 12 основных. `currentCode` — фактический босс текущей недели. */
+export function seasonalBestiary(rows: BestiaryRow[], currentCode?: string): SeasonalEntry[] {
   return SEASONAL_BOSSES.map(({ code, name }) => {
     const mine = rows.filter((r) => r.code === code);
     const wins = mine.filter((r) => r.defeatedAt).map((r) => r.defeatedAt!.getTime());
@@ -36,17 +44,22 @@ export function seasonalBestiary(rows: BestiaryRow[]): SeasonalEntry[] {
       wins: wins.length,
       firstWin: wins.length ? new Date(Math.min(...wins)).toISOString() : null,
       bestDamage: Math.max(0, ...mine.map((r) => r.damage)),
+      current: code === currentCode,
     };
   });
 }
 
-/** Бестиарий: по карточке на каждого босса в порядке ротации. */
-export function bestiary(rows: BestiaryRow[], currentWeek: string): BestiaryEntry[] {
+/**
+ * Бестиарий: по карточке на каждого босса в порядке ротации. `currentCode` — фактический босс текущей недели:
+ * если это сезонный, он заменил босса ротации, и «на арене сейчас» нет ни у кого из 12 — отсчёт идёт со следующей недели.
+ */
+export function bestiary(rows: BestiaryRow[], currentWeek: string, currentCode?: string): BestiaryEntry[] {
+  const from = currentCode && isSeasonalCode(currentCode) ? 1 : 0;
   return BOSSES.map(({ code, name }) => {
     const mine = rows.filter((r) => r.code === code);
     const wins = mine.filter((r) => r.defeatedAt).map((r) => r.defeatedAt!.getTime());
-    let weeksUntil = 0;
-    while (weeksUntil < BOSSES.length && bossForWeek(addWeeks(currentWeek, weeksUntil)) !== code) weeksUntil++;
+    let weeksUntil = from;
+    while (weeksUntil < from + BOSSES.length && bossForWeek(addWeeks(currentWeek, weeksUntil)) !== code) weeksUntil++;
     return {
       code,
       name,
