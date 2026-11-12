@@ -1,13 +1,18 @@
-import { BOSSES, type BossCode } from "@/lib/boss/bosses";
+import { BOSSES, isSeasonalCode, type AnyBossCode, type BossCode, type SeasonalCode } from "@/lib/boss/bosses";
 import { MUSCLE_GROUPS } from "@/lib/muscle-groups";
 
 /**
  * Титулы рядом с ником. Доступность вычисляется из побед над боссами (`BossWeek`) и ачивок —
  * нигде не хранится; у пользователя хранится только выбор `User.titleCode`.
- * Коды: `boss:<bossCode>:<звёзды>`, `legend`, `ach:<код ачивки>`. Тексты — без рода.
+ * Коды: `boss:<bossCode>:<звёзды>`, `legend`, `season:<код сезонного босса>`, `ach:<код ачивки>`. Тексты — без рода.
  */
 export type Title = { code: string; label: string; source: "boss" | "achievement" };
-export type BossWins = Partial<Record<BossCode, number>>;
+export type BossWins = Partial<Record<AnyBossCode, number>>;
+
+/** Сезонные боссы: один титул за первую победу; в «Легенду бестиария» не идут. */
+const SEASONAL_TITLES: Record<SeasonalCode, Title> = {
+  grinch: { code: "season:grinch", label: "Спаситель праздника", source: "boss" },
+};
 
 /** Побед для 1, 2 и 3 звёзд босса. */
 export const BOSS_STAR_WINS = [1, 3, 10] as const;
@@ -59,6 +64,8 @@ export function bossTitles(code: BossCode): (Title & { wins: number })[] {
   return BOSS_TITLE_LABELS[code].map((label, i) => ({ code: `boss:${code}:${i + 1}`, label, source: "boss", wins: BOSS_STAR_WINS[i] }));
 }
 
+const isBossCode = (code: string): code is BossCode => Object.hasOwn(BOSS_TITLE_LABELS, code);
+
 const hasLegend = (wins: BossWins) => BOSSES.every((b) => (wins[b.code] ?? 0) >= BOSS_STAR_WINS[0]);
 
 export function availableTitles({ achievementCodes, bossWins }: { achievementCodes: Iterable<string>; bossWins: BossWins }): Title[] {
@@ -66,12 +73,13 @@ export function availableTitles({ achievementCodes, bossWins }: { achievementCod
   return [
     ...BOSSES.flatMap((b) => bossTitles(b.code).slice(0, bossStars(bossWins[b.code] ?? 0))).map(({ code, label, source }) => ({ code, label, source })),
     ...(hasLegend(bossWins) ? [LEGEND] : []),
+    ...Object.entries(SEASONAL_TITLES).filter(([code]) => (bossWins[code as SeasonalCode] ?? 0) > 0).map(([, t]) => t),
     ...ACHIEVEMENT_TITLES.filter(([code]) => earned.has(code)).map(achievementTitle),
   ];
 }
 
 const ALL_TITLES = new Map<string, Title>(
-  [...BOSSES.flatMap((b) => bossTitles(b.code)), LEGEND, ...ACHIEVEMENT_TITLES.map(achievementTitle)].map((t) => [t.code, t]),
+  [...BOSSES.flatMap((b) => bossTitles(b.code)), LEGEND, ...Object.values(SEASONAL_TITLES), ...ACHIEVEMENT_TITLES.map(achievementTitle)].map((t) => [t.code, t]),
 );
 
 /** Название титула по коду; неизвестный код (переименование каталога) — null. */
@@ -83,8 +91,13 @@ export function titleForAchievement(achievementCode: string): Title | null {
   return ALL_TITLES.get(`ach:${achievementCode}`) ?? null;
 }
 
-/** Титулы, которые открывает одна новая победа над `code`. */
-export function titlesUnlockedByWin(winsBefore: BossWins, code: BossCode): Title[] {
+/**
+ * Титулы, которые открывает одна новая победа над `code`. Неизвестный код (босс убран из каталога) — `[]`:
+ * вызывается в транзакции завершения тренировки, исключение оборвало бы её.
+ */
+export function titlesUnlockedByWin(winsBefore: BossWins, code: string): Title[] {
+  if (isSeasonalCode(code)) return (winsBefore[code] ?? 0) === 0 ? [SEASONAL_TITLES[code]] : [];
+  if (!isBossCode(code)) return [];
   const before = winsBefore[code] ?? 0;
   const after: BossWins = { ...winsBefore, [code]: before + 1 };
   const titles: Title[] = [];

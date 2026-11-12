@@ -10,23 +10,32 @@ const m = vi.hoisted(() => ({
   findFirst: vi.fn(),
   isEnabled: vi.fn(),
   revalidatePath: vi.fn(),
+  /** Записи календаря, пережившие транзакцию (исключение — откат). */
+  committed: [] as unknown[],
 }));
-vi.mock("@/lib/db", () => {
-  const tx = { planEntry: { create: m.planCreate }, workout: { updateMany: m.updateMany }, user: { update: m.userUpdate } };
-  return {
-    db: {
-      $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
-      workout: { findFirst: m.findFirst, updateMany: m.updateMany },
+vi.mock("@/lib/db", () => ({
+  db: {
+    $transaction: async (fn: (t: unknown) => unknown) => {
+      const pending: unknown[] = [];
+      const tx = {
+        planEntry: { create: async (args: unknown) => (pending.push(args), m.planCreate(args)) },
+        workout: { updateMany: m.updateMany },
+        user: { update: m.userUpdate },
+      };
+      const result = await fn(tx);
+      m.committed.push(...pending);
+      return result;
     },
-  };
-});
+    workout: { findFirst: m.findFirst, updateMany: m.updateMany },
+  },
+}));
 vi.mock("@/lib/auth/dal", () => ({ requireUser: async () => m.user }));
 vi.mock("@/lib/flags/server", () => ({ isEnabled: m.isEnabled }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidatePath }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => (m.cookie ? { value: m.cookie } : undefined) }) }));
 vi.mock("@/lib/achievements/daily-visit", () => ({ TIMEZONE_COOKIE: "hf_tz" }));
 
-import { dismissScheduleAction, scheduleDraftAction } from "./schedule-actions";
+import { dismissScheduleAction, scheduleDraftAction, scheduleNextAction } from "./schedule-actions";
 
 const input = { workoutId: "w1", date: "2026-11-10", time: "19:00", emailReminder: true };
 
@@ -39,6 +48,7 @@ beforeEach(() => {
   m.findFirst.mockResolvedValue({ id: "w1", name: "Первая", templateId: "t1" });
   m.planCreate.mockResolvedValue({ id: "pe1" });
   m.updateMany.mockResolvedValue({ count: 1 });
+  m.committed.length = 0;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -139,6 +149,36 @@ describe("scheduleDraftAction", () => {
     expect(r).toEqual({ ok: false, error: "Проверьте дату и время" });
     expect(m.findFirst).not.toHaveBeenCalled();
     expect(m.planCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleNextAction", () => {
+  it("своя завершённая тренировка — запись «Тренировка» сохраняется", async () => {
+    await expect(scheduleNextAction(input)).resolves.toEqual({ ok: true });
+    expect(m.isEnabled).toHaveBeenCalledWith("next_workout_ask", "u1");
+    expect(m.committed).toHaveLength(1);
+  });
+
+  it("чужая тренировка — отказ, записи нет", async () => {
+    // Условие захвата — по владельцу: чужую строку updateMany не находит
+    m.updateMany.mockImplementation(async ({ where }: { where: { userId: string } }) => ({ count: where.userId === "other" ? 1 : 0 }));
+    const r = await scheduleNextAction({ ...input, workoutId: "foreign" });
+    expect(r.ok).toBe(false);
+    expect(m.updateMany).toHaveBeenCalledWith({
+      where: { id: "foreign", userId: "u1", status: "COMPLETED", scheduleAskedAt: null },
+      data: { scheduleAskedAt: expect.any(Date) },
+    });
+    expect(m.committed).toEqual([]);
+    expect(m.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("флаг выключен — отказ, до базы не доходит", async () => {
+    m.isEnabled.mockResolvedValue(false);
+    await expect(scheduleNextAction(input)).resolves.toEqual({ ok: false, error: "Недоступно" });
+    expect(m.isEnabled).toHaveBeenCalledWith("next_workout_ask", "u1");
+    expect(m.planCreate).not.toHaveBeenCalled();
+    expect(m.updateMany).not.toHaveBeenCalled();
+    expect(m.committed).toEqual([]);
   });
 });
 

@@ -1,11 +1,13 @@
 import Image, { type StaticImageData } from "next/image";
 import { Skull } from "lucide-react";
-import type { BossCode } from "@/lib/boss/bosses";
+import type { AnyBossCode } from "@/lib/boss/bosses";
+import { isOpaqueSprite } from "@/lib/boss/sprite-files";
 import { cn } from "@/lib/utils";
 import boneLich from "@/assets/icons/game/bosses/bone_lich.png";
 import crystalGuardian from "@/assets/icons/game/bosses/crystal_guardian.png";
 import fireDragon from "@/assets/icons/game/bosses/fire_dragon.png";
 import forestTree from "@/assets/icons/game/bosses/forest_tree.png";
+import grinch from "@/assets/icons/game/bosses/grinch.png";
 import guardianRunes from "@/assets/icons/game/bosses/guardian_runes.png";
 import iceTroll from "@/assets/icons/game/bosses/ice_troll.png";
 import ironGolem from "@/assets/icons/game/bosses/iron_golem.png";
@@ -18,8 +20,10 @@ import voidTitan from "@/assets/icons/game/bosses/void_titan.png";
 /**
  * Спрайты боссов: `assets/icons/game/bosses/*.png`, статический импорт (next/image ужимает в WebP).
  * Новый босс — импорт и строка в SPRITES. Без спрайта (неизвестный код) — заглушка.
+ * Картинка с непрозрачным фоном (`isOpaqueSprite`, lib/boss/sprite-files.ts) рисуется по своим пропорциям
+ * со скруглёнными углами на любом размере, чтобы не было прямоугольной плашки.
  */
-const SPRITES: Record<BossCode, StaticImageData> = {
+const SPRITES: Record<AnyBossCode, StaticImageData> = {
   golem: ironGolem,
   troll: iceTroll,
   dragon: fireDragon,
@@ -32,11 +36,12 @@ const SPRITES: Record<BossCode, StaticImageData> = {
   queen: poisonousQueen,
   runes: guardianRunes,
   void: voidTitan,
+  grinch,
 };
 
 /** Картинка босса целиком (бестиарий); неизвестный код — null. */
 export function bossImage(code: string): StaticImageData | null {
-  return SPRITES[code as BossCode] ?? null;
+  return SPRITES[code as AnyBossCode] ?? null;
 }
 
 /** Декоративно: имя босса всегда рядом текстом. */
@@ -55,6 +60,7 @@ export function BossSprite({
   className?: string;
 }) {
   const sprite = bossImage(code);
+  const rounded = sprite !== null && isOpaqueSprite(code);
   return (
     <span
       aria-hidden
@@ -68,7 +74,7 @@ export function BossSprite({
       data-boss={code}
     >
       {sprite ? (
-        <Image src={sprite} alt="" sizes={`${size}px`} className="size-full object-contain" />
+        <Image src={sprite} alt="" sizes={`${size}px`} className={rounded ? "h-auto max-h-full w-full rounded-lg object-contain" : "size-full object-contain"} />
       ) : (
         <span className="flex size-full items-center justify-center rounded-full bg-streak/15 text-streak">
           <Skull className="size-1/2" />

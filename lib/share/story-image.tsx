@@ -2,8 +2,8 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import type { BossCode } from "@/lib/boss/bosses";
-import { BOSS_SPRITE_FILES } from "@/lib/boss/sprite-files";
+import type { AnyBossCode } from "@/lib/boss/bosses";
+import { BOSS_SPRITE_FILES, isOpaqueSprite } from "@/lib/boss/sprite-files";
 import { plural } from "@/lib/format";
 import { STREAK_WEEK_TARGET } from "@/lib/progress/weekly-streak";
 import type { StoryData } from "@/lib/share/story";
@@ -23,11 +23,22 @@ const DANGER = "#fb2c36";
 
 const asset = (...parts: string[]) => readFile(join(process.cwd(), "assets", ...parts));
 
-async function bossSprite(code: string): Promise<string | null> {
-  const file = BOSS_SPRITE_FILES[code as BossCode];
+/** Место под спрайт босса в карточке сторис. */
+const SPRITE_BOX = { width: 300, height: 214 };
+
+/**
+ * Спрайт босса для сторис. Непрозрачный (`isOpaqueSprite`) — по своим пропорциям внутри SPRITE_BOX (размер из
+ * заголовка PNG): скругление рамки `<img>` тогда совпадает с краями картинки, а не с пустыми полями object-fit.
+ */
+async function bossSprite(code: string): Promise<{ src: string; width: number; height: number; rounded: boolean } | null> {
+  const file = BOSS_SPRITE_FILES[code as AnyBossCode];
   if (!file) return null;
   const png = await asset("icons", "game", "bosses", file);
-  return `data:image/png;base64,${png.toString("base64")}`;
+  const src = `data:image/png;base64,${png.toString("base64")}`;
+  if (!isOpaqueSprite(code)) return { src, ...SPRITE_BOX, rounded: false };
+  // IHDR: ширина и высота — байты 16–23
+  const scale = Math.min(SPRITE_BOX.width / png.readUInt32BE(16), SPRITE_BOX.height / png.readUInt32BE(20));
+  return { src, width: Math.round(png.readUInt32BE(16) * scale), height: Math.round(png.readUInt32BE(20) * scale), rounded: true };
 }
 
 function Bar({ percent, color, height }: { percent: number; color: string; height: number }) {
@@ -98,7 +109,13 @@ export async function storyImage(d: StoryData): Promise<ImageResponse> {
             {sprite ? (
               // satori (next/og) рисует только обычный <img>; next/image здесь неприменим
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={sprite} alt="" width={300} height={214} style={{ objectFit: "contain" }} />
+              <img
+                src={sprite.src}
+                alt=""
+                width={sprite.width}
+                height={sprite.height}
+                style={{ objectFit: "contain", ...(sprite.rounded ? { borderRadius: 28 } : {}) }}
+              />
             ) : null}
             <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
               <div style={{ fontSize: 28, fontWeight: 500, color: MUTED }}>Босс недели</div>

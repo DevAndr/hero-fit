@@ -3,9 +3,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { dayKey } from "@/lib/daily-login";
 import { addWeeks, weekKey } from "@/lib/progress/weekly-streak";
-import { bossForWeek, bossName } from "@/lib/boss/bosses";
+import { bossName, seasonalBossForWeek, weekBossCode } from "@/lib/boss/bosses";
 import { bossHp, CRIT_DAMAGE, FAILURE_BONUS, rewardXp, SET_DAMAGE } from "@/lib/boss/damage";
-import { bestiary } from "@/lib/boss/bestiary";
+import { bestiary, seasonalBestiary } from "@/lib/boss/bestiary";
+import { isEnabled } from "@/lib/flags/server";
 import { FIRST_STRIKE_DAMAGE } from "@/lib/first-strike/rules";
 
 type Client = Prisma.TransactionClient | typeof db;
@@ -72,14 +73,26 @@ export async function markBossDefeated(client: Client, bossWeekId: string, now: 
   return count === 1;
 }
 
+/**
+ * Босс для недели, у которой ещё нет строки `BossWeek`. Флаг `seasonal_boss` читается только в неделю сезонного
+ * босса (Гринч): на обычной неделе — ни запроса, ни кэша флагов. Читается через глобальный `db` и кэш флагов,
+ * а не через транзакцию вызывающего.
+ */
+async function newWeekBossCode(userId: string, week: string) {
+  const seasonalOn = seasonalBossForWeek(week) !== null && (await isEnabled("seasonal_boss", userId));
+  return weekBossCode(week, seasonalOn);
+}
+
 /** Босс недели: создаётся при первом обращении, HP — по урону прошлых недель и больше не меняется. */
 export async function getOrCreateBossWeek(client: Client, userId: string, week: string, tz: string) {
   const existing = await client.bossWeek.findUnique({ where: { userId_week: { userId, week } } });
+  // Строка уже есть — её босс не меняется (и флаг не читается)
   if (existing) return existing;
   const byWeek = await damageByWeek(client, userId, tz, addWeeks(week, -HP_HISTORY_WEEKS), addWeeks(week, -1));
   const history = Array.from({ length: HP_HISTORY_WEEKS }, (_, i) => byWeek.get(addWeeks(week, -(i + 1))) ?? { damage: 0, workouts: 0 });
+  const bossCode = await newWeekBossCode(userId, week);
   // ON CONFLICT DO NOTHING: upsert с пустым update падает на параллельном запросе (P2002) и обрывает транзакцию завершения
-  await client.bossWeek.createMany({ data: [{ userId, week, bossCode: bossForWeek(week), hp: bossHp(history) }], skipDuplicates: true });
+  await client.bossWeek.createMany({ data: [{ userId, week, bossCode, hp: bossHp(history) }], skipDuplicates: true });
   return client.bossWeek.findUniqueOrThrow({ where: { userId_week: { userId, week } } });
 }
 
@@ -134,13 +147,15 @@ export async function bossChestAvailable(userId: string, week: string) {
   return !!boss?.defeatedAt && !boss.rewardOpenedAt;
 }
 
-/** Бестиарий: все недели с боссом — победы и лучший урон по каждому боссу. */
+/**
+ * Бестиарий: все недели с боссом — победы и лучший урон по каждому боссу; `seasonal` — карточки «Редких» (Гринч).
+ * «На арене сейчас» — по фактическому боссу текущей недели: её строка `BossWeek`, а без неё — по дате и флагу.
+ */
 export async function getBestiary(userId: string, tz: string, now = new Date()) {
   const week = weekKey(now, tz);
   const weeks = await db.bossWeek.findMany({ where: { userId }, select: { week: true, bossCode: true, defeatedAt: true }, orderBy: { week: "asc" } });
   const damage = weeks.length ? await damageByWeek(db, userId, tz, weeks[0].week, week) : new Map<string, { damage: number }>();
-  return bestiary(
-    weeks.map((w) => ({ week: w.week, code: w.bossCode, defeatedAt: w.defeatedAt, damage: damage.get(w.week)?.damage ?? 0 })),
-    week,
-  );
+  const rows = weeks.map((w) => ({ week: w.week, code: w.bossCode, defeatedAt: w.defeatedAt, damage: damage.get(w.week)?.damage ?? 0 }));
+  const currentCode = weeks.find((w) => w.week === week)?.bossCode ?? (await newWeekBossCode(userId, week));
+  return { entries: bestiary(rows, week, currentCode), seasonal: seasonalBestiary(rows, currentCode) };
 }

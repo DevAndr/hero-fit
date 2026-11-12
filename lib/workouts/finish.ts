@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NotificationType, RecordType, WorkoutStatus, XpReason } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { evaluateAchievements, type NewAchievement } from "@/lib/achievements/engine";
-import { bossName, type BossCode } from "@/lib/boss/bosses";
+import { bossName, type AnyBossCode } from "@/lib/boss/bosses";
 import { rewardXp, workoutDamage } from "@/lib/boss/damage";
 import { getOrCreateBossWeek, markBossDefeated, weekDamage } from "@/lib/boss/queries";
 import { goblinProgress } from "@/lib/goblin/rules";
@@ -100,7 +100,8 @@ export type FinishResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Завершение тренировки одной транзакцией: чистим невыполненное, считаем итоги,
- * обновляем рекорды, XP, уровень и streak.
+ * обновляем рекорды, XP, уровень и streak. `scheduleAskedAt` сбрасывается: у завершённой тренировки он значит
+ * только ответ на «Когда следующая?» в сводке.
  */
 export async function finishWorkout(
   userId: string,
@@ -236,6 +237,9 @@ export async function finishWorkout(
         totalVolume: totals.volume,
         xpEarned: baseXp + recordsXp,
         stretchOnly,
+        // Отметка «спросили» черновика («Когда тренировка?», в т. ч. «Начинаю сейчас») не должна считаться ответом
+        // на вопрос сводки «Когда следующая?»: диалог черновика спрашивает только PLANNED и снова не всплывёт
+        scheduleAskedAt: null,
       },
     });
 
@@ -407,7 +411,7 @@ async function applyBoss(
       _count: { _all: true },
     });
     const winsBefore = Object.fromEntries(wins.map((w) => [w.bossCode, w._count._all]));
-    titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as BossCode).map((t) => t.label);
+    titles = titlesUnlockedByWin(winsBefore, bossWeek.bossCode as AnyBossCode).map((t) => t.label);
   }
   return {
     week,

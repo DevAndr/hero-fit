@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addSubscription, linkTelegram, seedWorkouts, setFlag, resetFlag, setUserTimeZone, userId, withDb } from "./db";
+import { addFlagUser, addSubscription, linkTelegram, seedWorkouts, setFlag, resetFlag, setUserTimeZone, userId, withDb } from "./db";
 import { addToWorkout, registerUser, runTick } from "./helpers";
 import { startPushService } from "./push-server";
 import { E2E_TZ, E2E_TZ_OFFSET, localAt } from "./tz";
@@ -190,6 +190,45 @@ test("reminder with a draft: one PLAN notification to /training an hour before t
   } finally {
     await push.close();
   }
+});
+
+/** Добавить упражнение в черновик, отметить подход и завершить → сводка. */
+async function finishDraft(page: Page) {
+  await addToWorkout(page, ["Жим штанги лёжа"]);
+  const block = page.getByRole("region", { name: "Жим штанги лёжа" });
+  await block.getByLabel("Вес, подход 1").fill("40");
+  await block.getByLabel("Повторы, подход 1").fill("10");
+  await block.getByRole("button", { name: "Подход 1 выполнен" }).click();
+  await page.getByRole("button", { name: "Завершить тренировку" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Завершить" }).click();
+  await expect(page).toHaveURL(/\/workouts\//);
+  await expect(page.getByRole("heading", { name: /— готово!/ })).toBeVisible();
+}
+
+const nextCard = (page: Page) => page.getByTestId("next-workout");
+
+test("with next_workout_ask: «Начинаю сейчас» → finish → «Когда следующая тренировка?» is asked", async ({ page }) => {
+  const me = await newbie(page);
+  await addFlagUser("next_workout_ask", me.login);
+  await createDraft(page);
+  await askDialog(page).getByRole("button", { name: "Начинаю сейчас" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await finishDraft(page);
+  await expect(nextCard(page).getByRole("heading", { name: "Когда следующая тренировка?" })).toBeVisible();
+});
+
+test("with next_workout_ask: slot picked for tomorrow, trained today → the slot is closed, so the card is asked", async ({ page }) => {
+  const me = await newbie(page);
+  await addFlagUser("next_workout_ask", me.login);
+  await createDraft(page);
+  await askDialog(page).getByRole("button", { name: "Завтра" }).click();
+  await dialog(page).getByRole("button", { name: "Готово" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect.poll(() => planRows(me.login)).toHaveLength(1);
+
+  await finishDraft(page);
+  // Запись на завтра закрыта завершённой сегодня тренировкой (planKey) — на 7 дней ничего не запланировано
+  await expect(nextCard(page).getByRole("heading", { name: "Когда следующая тренировка?" })).toBeVisible();
 });
 
 test("a workout finished before its slot day closes the slot: no PLAN reminder on that day", async ({ page, request }) => {

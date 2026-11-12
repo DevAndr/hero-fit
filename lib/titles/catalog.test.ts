@@ -76,6 +76,33 @@ describe("titlesUnlockedByWin", () => {
     expect(codes(titlesUnlockedByWin(others, "knight"))).toEqual(["boss:knight:1", "legend"]);
     expect(codes(titlesUnlockedByWin({ golem: 4, troll: 1, dragon: 2 }, "knight"))).toEqual(["boss:knight:1"]);
   });
+
+  it("неизвестный код босса (удалён из каталога) — ничего, без исключения", () => {
+    expect(titlesUnlockedByWin({}, "yeti")).toEqual([]);
+    expect(titlesUnlockedByWin({ golem: 2 }, "yeti")).toEqual([]);
+  });
+});
+
+describe("сезонный титул «Спаситель праздника»", () => {
+  const all = Object.fromEntries(BOSSES.map((b) => [b.code, 1])) as BossWins;
+
+  it("открыт победой над Гринчем, без неё — нет", () => {
+    expect(codes(availableTitles({ achievementCodes: [], bossWins: { grinch: 1 } }))).toEqual(["season:grinch"]);
+    expect(codes(availableTitles({ achievementCodes: [], bossWins: { golem: 1 } }))).not.toContain("season:grinch");
+    expect(titleLabel("season:grinch")).toBe("Спаситель праздника");
+  });
+
+  it("первая победа над Гринчем открывает титул, вторая — ничего", () => {
+    expect(codes(titlesUnlockedByWin({}, "grinch"))).toEqual(["season:grinch"]);
+    expect(titlesUnlockedByWin({ grinch: 1 }, "grinch")).toEqual([]);
+  });
+
+  it("«Легенда бестиария» не зависит от Гринча", () => {
+    expect(labels(all)).toContain("Легенда бестиария");
+    expect(labels({ ...all, void: 0, grinch: 1 })).not.toContain("Легенда бестиария");
+    const { void: _, ...eleven } = all;
+    expect(codes(titlesUnlockedByWin(eleven, "grinch"))).toEqual(["season:grinch"]);
+  });
 });
 
 describe("bossTitles", () => {

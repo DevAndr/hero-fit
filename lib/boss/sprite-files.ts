@@ -1,10 +1,10 @@
-import type { BossCode } from "@/lib/boss/bosses";
+import type { AnyBossCode } from "@/lib/boss/bosses";
 
 /**
  * Спрайты боссов для картинки — файлы в `assets/icons/game/bosses` (в standalone их кладёт
  * outputFileTracingIncludes в next.config.ts). Тот же набор, что SPRITES в components/boss/boss-sprite.tsx.
  */
-export const BOSS_SPRITE_FILES: Record<BossCode, string> = {
+export const BOSS_SPRITE_FILES: Record<AnyBossCode, string> = {
   golem: "iron_golem.png",
   troll: "ice_troll.png",
   dragon: "fire_dragon.png",
@@ -17,4 +17,12 @@ export const BOSS_SPRITE_FILES: Record<BossCode, string> = {
   queen: "poisonous_queen.png",
   runes: "guardian_runes.png",
   void: "void_titan.png",
+  grinch: "grinch.png",
 };
+
+/** Спрайты с непрозрачным фоном: их углы скругляем везде (BossSprite, сторис), чтобы не было прямоугольной плашки. */
+const OPAQUE_SPRITES: ReadonlySet<string> = new Set<AnyBossCode>(["grinch"]);
+
+export function isOpaqueSprite(code: string): boolean {
+  return OPAQUE_SPRITES.has(code);
+}
