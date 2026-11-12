@@ -368,7 +368,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   ]);
   return (
     <>
-      {programs ? <OnboardingTour programs={programs} /> : null}
+      {programs ? <OnboardingTour programs={programs} strike={strikeOffer} /> : null}
       <DashboardV3
         // Выкуп серии — в карточке «Серия», метки экскурсии — на карточках «Уровень» и «Серия»
         hero={

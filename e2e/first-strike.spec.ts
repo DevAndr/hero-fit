@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { achievementCodes, addFlagUser, seedStretchSessions, seedWorkouts, userExists, userId, withDb } from "./db";
+import { achievementCodes, addFlagUser, resetOnboarding, seedStretchSessions, seedWorkouts, userExists, userId, withDb } from "./db";
 import { addToWorkout, PASSWORD, quickWorkout, registerUser } from "./helpers";
 
 // «Первый удар» из кабинета (спека 2026-11-12-first-strike-design): флаг включается пользователю по списку
@@ -50,8 +50,10 @@ test("card: strike hits the boss, pays XP and the achievement", async ({ page })
   await expect(result).toContainText("−100");
   await expect(result).toContainText("+30 XP");
   await expect(result).toContainText("Первый удар");
+  // Без черновика диалог закрывает «Не сейчас» — второй кнопки «Позже» нет
+  await expect(result.getByRole("button", { name: "Позже" })).toHaveCount(0);
 
-  await result.getByRole("button", { name: "Позже" }).click();
+  await result.getByRole("button", { name: "Не сейчас" }).click();
   await expect(page.getByTestId("first-strike-dialog")).toBeHidden();
   await expect(page.getByTestId("first-strike-card")).toHaveCount(0);
   await expect(page.getByTestId("boss-card")).toContainText("2900 / 3000 HP");
@@ -120,7 +122,7 @@ test("no card without the flag", async ({ page }) => {
 test("strike then a real workout the same week", async ({ page }) => {
   const { login } = await setup(page);
   const result = await strike(page);
-  await result.getByRole("button", { name: "Позже" }).click();
+  await result.getByRole("button", { name: "Не сейчас" }).click();
   await expect(page.getByTestId("first-strike-card")).toHaveCount(0);
 
   await quickWorkout(page, "Шраги со штангой", [{ weight: "60", reps: "10" }]);
@@ -133,7 +135,7 @@ test("strike then a real workout the same week", async ({ page }) => {
 test("flag turned off after the strike keeps the damage", async ({ page }) => {
   const { login } = await setup(page);
   const result = await strike(page);
-  await result.getByRole("button", { name: "Позже" }).click();
+  await result.getByRole("button", { name: "Не сейчас" }).click();
   await withDb(async (db) =>
     db.query(`UPDATE "FeatureFlag" SET "userIds" = array_remove("userIds", $1) WHERE key = 'first_strike'`, [await userId(db, login)]),
   );
@@ -158,12 +160,89 @@ test("strike with a draft offers to continue it", async ({ page }) => {
 
   const result = await strike(page);
   await expect(result.getByRole("link", { name: "Продолжить черновик" })).toHaveAttribute("href", "/training");
+  await expect(result.getByRole("button", { name: "Не сейчас" })).toHaveCount(0);
+  await result.getByRole("button", { name: "Позже" }).click();
+  await expect(page.getByTestId("first-strike-dialog")).toBeHidden();
+});
+
+test("?strike=1 opens the dialog and is cleaned up on close", async ({ page }) => {
+  await setup(page);
+  await page.goto("/dashboard?strike=1");
+  const dialog = page.getByTestId("first-strike-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Ударить" }).click();
+  const result = page.getByTestId("first-strike-result");
+  await expect(result).toBeVisible();
+  // Данные страницы обновились (босс за диалогом), а результат остался на экране
+  await expect(page.getByTestId("boss-card")).toContainText("2900 / 3000 HP");
+  await expect(result).toBeVisible();
+
+  await result.getByRole("button", { name: "Не сейчас" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId("first-strike-card")).toHaveCount(0);
+});
+
+const tour = (page: Page, title: string) => page.getByRole("dialog", { name: title });
+
+/** Экскурсия до шага «Босс недели». */
+async function tourToBoss(page: Page) {
+  await page.getByRole("button", { name: "Поехали" }).click();
+  for (const title of ["Уровень и опыт", "Недельный streak"]) {
+    await expect(tour(page, title)).toBeVisible();
+    await page.getByRole("button", { name: "Далее" }).click();
+  }
+  const step = tour(page, "Босс недели");
+  await expect(step).toBeVisible();
+  return step;
+}
+
+test("tour: «Ударить сейчас» ends the tour and opens the strike", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await addFlagUser("first_strike", login);
+  await resetOnboarding(login);
+  await page.goto("/dashboard");
+
+  const step = await tourToBoss(page);
+  await step.getByRole("button", { name: "Ударить сейчас" }).click();
+  const dialog = page.getByTestId("first-strike-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(tour(page, "Босс недели")).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Ударить" }).click();
+  const result = page.getByTestId("first-strike-result");
+  await expect(result).toBeVisible();
+  await result.getByRole("button", { name: /Full Body/ }).click();
+  await expect(page).toHaveURL(/\/training$/);
+  await expect(page.getByRole("region", { name: "Приседания со штангой" })).toBeVisible();
+  expect(await count(`SELECT COUNT(*) n FROM "User" WHERE id = $1 AND "onboardedAt" IS NOT NULL`, login)).toBe(1);
+});
+
+test("tour without the flag has no strike button", async ({ page }) => {
+  const { login } = await registerUser(page);
+  await resetOnboarding(login);
+  await page.goto("/dashboard");
+  const step = await tourToBoss(page);
+  await expect(step.getByRole("button", { name: "Далее" })).toBeVisible();
+  await expect(step.getByRole("button", { name: "Ударить сейчас" })).toHaveCount(0);
+});
+
+test("tour restarted after the strike has no strike button", async ({ page }) => {
+  const { login } = await setup(page);
+  const result = await strike(page);
+  await result.getByRole("button", { name: "Не сейчас" }).click();
+  await resetOnboarding(login);
+  await page.goto("/dashboard");
+  const step = await tourToBoss(page);
+  await expect(step.getByRole("button", { name: "Далее" })).toBeVisible();
+  await expect(step.getByRole("button", { name: "Ударить сейчас" })).toHaveCount(0);
+  await expect(page.getByTestId("first-strike-card")).toHaveCount(0);
 });
 
 test("account data", async ({ page }) => {
   const { login } = await setup(page);
   const result = await strike(page);
-  await result.getByRole("button", { name: "Позже" }).click();
+  await result.getByRole("button", { name: "Не сейчас" }).click();
 
   await page.goto("/settings");
   const [json] = await Promise.all([

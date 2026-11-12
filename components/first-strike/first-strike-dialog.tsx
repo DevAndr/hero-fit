@@ -213,16 +213,19 @@ function StrikeResultView({
 
       <div className="space-y-3 border-t pt-3">
         <p className="text-sm text-muted-foreground">Настоящая тренировка бьёт сильнее: каждый подход — ещё {result.damage} урона</p>
+        {/* Без черновика диалог закрывает «Не сейчас» из FirstWorkout — своей кнопки «Позже» нет */}
         {result.hasDraft ? (
-          <Link href="/training" className={buttonVariants({ size: "lg", className: "w-full" })}>
-            Продолжить черновик
-          </Link>
+          <>
+            <Link href="/training" className={buttonVariants({ size: "lg", className: "w-full" })}>
+              Продолжить черновик
+            </Link>
+            <Button type="button" variant="ghost" className="w-full" onClick={onLater}>
+              Позже
+            </Button>
+          </>
         ) : (
           <FirstWorkout programs={result.programs} disabled={false} onSelf={onSelf} onLater={onLater} />
         )}
-        <Button type="button" variant="ghost" className="w-full" onClick={onLater}>
-          Позже
-        </Button>
       </div>
     </div>
   );

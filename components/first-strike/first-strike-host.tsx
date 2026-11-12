@@ -10,7 +10,7 @@ import type { BossView } from "@/lib/boss/queries";
 
 /**
  * «Первый удар» на дашборде: карточка над героем недели и диалог. Диалог и результат удара живут здесь, поэтому
- * обновление страницы после удара (offer = false) их не сбрасывает; страница обновляется при закрытии диалога.
+ * обновление страницы сразу после удара (offer = false) их не сбрасывает.
  * offer — показывать карточку (удар доступен и экскурсия пройдена); autoOpen — открыть диалог сразу (`?strike=1`).
  */
 export function FirstStrikeHost({ offer, autoOpen, boss }: { offer: boolean; autoOpen: boolean; boss: BossView | null }) {
@@ -25,10 +25,15 @@ export function FirstStrikeHost({ offer, autoOpen, boss }: { offer: boolean; aut
     if (autoOpen) setOpen(true);
   }
 
+  // После удара — свежие данные страницы (босс, опыт); диалог и результат живут здесь и не сбрасываются
+  const struck = (next: StrikeSuccess) => {
+    setResult(next);
+    router.refresh();
+  };
+  // Убрать ?strike=1, чтобы перезагрузка не открыла диалог снова; без параметра URL не трогаем
   const close = () => {
     setOpen(false);
-    router.replace("/dashboard");
-    router.refresh();
+    if (new URLSearchParams(window.location.search).has("strike")) router.replace("/dashboard", { scroll: false });
   };
   const toTraining = () => {
     setOpen(false);
@@ -59,7 +64,7 @@ export function FirstStrikeHost({ offer, autoOpen, boss }: { offer: boolean; aut
           </Button>
         </section>
       ) : null}
-      <FirstStrikeDialog open={open} boss={result?.boss ?? boss} result={result} onStruck={setResult} onClose={close} onSelf={toTraining} />
+      <FirstStrikeDialog open={open} boss={result?.boss ?? boss} result={result} onStruck={struck} onClose={close} onSelf={toTraining} />
     </>
   );
 }
