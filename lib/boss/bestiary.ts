@@ -1,4 +1,4 @@
-import { BOSSES, bossForWeek, type BossCode } from "@/lib/boss/bosses";
+import { BOSSES, bossForWeek, SEASONAL_BOSSES, type BossCode, type SeasonalCode } from "@/lib/boss/bosses";
 import { addWeeks } from "@/lib/progress/weekly-streak";
 import { bossStars } from "@/lib/titles/catalog";
 
@@ -21,6 +21,24 @@ export type BestiaryEntry = {
 };
 
 const HISTORY_LIMIT = 10;
+
+/** Сезонный босс в «Редких»: без звёзд, ротации и истории. */
+export type SeasonalEntry = { code: SeasonalCode; name: string; wins: number; firstWin: string | null; bestDamage: number };
+
+/** Карточки сезонных боссов (Гринч) — отдельно от 12 основных. */
+export function seasonalBestiary(rows: BestiaryRow[]): SeasonalEntry[] {
+  return SEASONAL_BOSSES.map(({ code, name }) => {
+    const mine = rows.filter((r) => r.code === code);
+    const wins = mine.filter((r) => r.defeatedAt).map((r) => r.defeatedAt!.getTime());
+    return {
+      code,
+      name,
+      wins: wins.length,
+      firstWin: wins.length ? new Date(Math.min(...wins)).toISOString() : null,
+      bestDamage: Math.max(0, ...mine.map((r) => r.damage)),
+    };
+  });
+}
 
 /** Бестиарий: по карточке на каждого босса в порядке ротации. */
 export function bestiary(rows: BestiaryRow[], currentWeek: string): BestiaryEntry[] {

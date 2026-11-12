@@ -26,11 +26,47 @@ export function bossForWeek(week: string): BossCode {
   return BOSSES[((n % BOSSES.length) + BOSSES.length) % BOSSES.length].code;
 }
 
+/**
+ * Сезонные боссы (флаг `seasonal_boss`) — отдельно от ротации: не на лендинге, не в «Легенде бестиария»,
+ * ротацию `bossForWeek` не сдвигают (в свою неделю просто заменяют босса ротации).
+ */
+export const SEASONAL_BOSSES = [
+  {
+    code: "grinch",
+    name: "Гринч",
+    lore: "Крадёт не подарки, а декабрьские тренировки. Отступает перед теми, кто не бросил зал под Новый год.",
+    hint: "Приходит под Новый год",
+  },
+] as const;
+
+export type SeasonalCode = (typeof SEASONAL_BOSSES)[number]["code"];
+/** Код любого босса недели: ротации или сезонного. */
+export type AnyBossCode = BossCode | SeasonalCode;
+
+/** Сезонный босс недели (понедельник «YYYY-MM-DD»): Гринч — в неделю, где 31 декабря; иначе null. */
+export function seasonalBossForWeek(week: string): SeasonalCode | null {
+  const monday = Date.parse(`${week}T00:00:00Z`);
+  // 31 декабря недели — всегда того же года, что и понедельник
+  const dec31 = Date.UTC(new Date(monday).getUTCFullYear(), 11, 31);
+  return dec31 >= monday && dec31 - monday < WEEK_MS ? "grinch" : null;
+}
+
+/** Босс, которого ставим новой неделе: сезонный при включённом флаге, иначе ротация. */
+export function weekBossCode(week: string, seasonalOn: boolean): AnyBossCode {
+  return (seasonalOn && seasonalBossForWeek(week)) || bossForWeek(week);
+}
+
+const ALL_BOSSES: readonly { code: AnyBossCode; name: string; lore: string }[] = [...BOSSES, ...SEASONAL_BOSSES];
+
 /** Описание босса для бестиария. */
 export function bossLore(code: string): string {
-  return BOSSES.find((b) => b.code === code)?.lore ?? "";
+  return ALL_BOSSES.find((b) => b.code === code)?.lore ?? "";
 }
 
 export function bossName(code: string): string {
-  return BOSSES.find((b) => b.code === code)?.name ?? "Босс";
+  return ALL_BOSSES.find((b) => b.code === code)?.name ?? "Босс";
+}
+
+export function isSeasonalCode(code: string): code is SeasonalCode {
+  return SEASONAL_BOSSES.some((b) => b.code === code);
 }

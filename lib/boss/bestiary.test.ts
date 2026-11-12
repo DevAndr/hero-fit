@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestiary } from "@/lib/boss/bestiary";
+import { bestiary, seasonalBestiary } from "@/lib/boss/bestiary";
 import { BOSSES, bossForWeek } from "@/lib/boss/bosses";
 import { addWeeks } from "@/lib/progress/weekly-streak";
 
@@ -40,6 +40,26 @@ describe("bestiary", () => {
       { week: addWeeks(cur, -12), damage: 1600, won: true, current: false },
       { week: addWeeks(cur, -36), damage: 700, won: false, current: false },
     ]);
+  });
+
+  it("сезонного босса нет среди основных записей", () => {
+    const rows = [{ week: addWeeks(cur, -2), code: "grinch", defeatedAt: new Date("2026-12-30T10:00:00Z"), damage: 3200 }];
+    const entries = bestiary(rows, cur);
+    expect(entries).toHaveLength(12);
+    expect(entries.map((e) => e.code)).not.toContain("grinch");
+    expect(entries.every((e) => e.wins === 0)).toBe(true);
+  });
+
+  it("сезонные записи: победы, первая победа, лучший урон", () => {
+    const rows = [
+      { week: "2026-12-28", code: "grinch", defeatedAt: new Date("2026-12-30T10:00:00Z"), damage: 3200 },
+      { week: "2027-12-27", code: "grinch", defeatedAt: null, damage: 1400 },
+      { week: addWeeks(cur, -4), code: "golem", defeatedAt: new Date("2026-09-01T10:00:00Z"), damage: 2100 },
+    ];
+    expect(seasonalBestiary(rows)).toEqual([
+      { code: "grinch", name: "Гринч", wins: 1, firstWin: "2026-12-30T10:00:00.000Z", bestDamage: 3200 },
+    ]);
+    expect(seasonalBestiary([])).toEqual([{ code: "grinch", name: "Гринч", wins: 0, firstWin: null, bestDamage: 0 }]);
   });
 
   it("история — не больше 10 недель", () => {
