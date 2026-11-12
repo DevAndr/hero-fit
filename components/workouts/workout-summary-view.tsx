@@ -75,6 +75,7 @@ export function WorkoutSummaryView({
   feedback,
   recordCard,
   wearable,
+  nextWorkout,
   goalChests = [],
   goblinOpened = true,
   supersets = false,
@@ -98,6 +99,8 @@ export function WorkoutSummaryView({
   recordCard?: ReactNode;
   /** Данные браслета (WHOOP) — только у владельца; выводятся перед оценкой. */
   wearable?: ReactNode;
+  /** Карточка «Когда следующая тренировка?» (своя свежая тренировка, флаг next_workout_ask). */
+  nextWorkout?: ReactNode;
   /** Цели этой тренировки с ещё не открытым сундуком. */
   goalChests?: string[];
   /** Сундук Золотого гоблина этой тренировки уже открыт (нет гоблина — не важно). */
@@ -187,6 +190,7 @@ export function WorkoutSummaryView({
       </div>
 
       {!readOnly && meta?.coins ? <CoinLines coins={meta.coins} /> : null}
+      {readOnly ? null : nextWorkout}
 
       {meta?.records.length ? (
         <section className="mt-4 rounded-xl border border-xp/40 bg-xp/5 p-4">

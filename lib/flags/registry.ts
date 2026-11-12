@@ -72,6 +72,10 @@ export const FLAGS = {
     description: "Первый удар: мини-тренировка для новичка",
     expires: "2027-05-31",
   },
+  next_workout_ask: {
+    description: "Вопрос «Когда следующая?» в сводке тренировки",
+    expires: "2027-05-31",
+  },
 } as const satisfies Record<string, { description: string; expires: string }>;
 
 export type FlagKey = keyof typeof FLAGS;

@@ -28,11 +28,16 @@ import { getWorkoutSummary } from "@/lib/workouts/queries";
 import { getWhoopCard, whoopAvailable } from "@/lib/whoop/queries";
 import { TogetherSummaryBlock } from "@/components/together/summary-block";
 import { getTogetherSummary } from "@/lib/together/summary";
+import { cookies } from "next/headers";
+import { NextWorkoutCard, type NextAsk } from "@/components/workouts/next-workout-card";
+import { TIMEZONE_COOKIE } from "@/lib/achievements/daily-visit";
+import { addDays } from "@/lib/dates";
+import { getCalendar } from "@/lib/plans/queries";
+import { hasUpcomingPlan, isFreshFinish, NEXT_ASK_HORIZON_DAYS, nextPresets, shouldAskNext } from "@/lib/workouts/next-ask";
+import { scheduleTimeZone } from "@/lib/workouts/schedule";
+import { getTelegramStatus } from "@/lib/telegram/queries";
 
 export const metadata: Metadata = { title: "Сводка тренировки" };
-
-/** Окно «Новый рекорд!» всплывает само, если тренировка завершена не раньше 6 ч назад (а не при просмотре старой). */
-const RECORD_CARD_FRESH_MS = 6 * 60 * 60 * 1000;
 
 export default async function WorkoutSummaryPage({ params }: PageProps<"/workouts/[id]">) {
   const user = await requireUser();
@@ -61,7 +66,9 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
   // Карточки рекордов — по тумблеру в /settings; сами всплывают только у только что завершённой тренировки
   const { shareRecordCards } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { shareRecordCards: true } });
   const recordExercises = shareRecordCards && meta?.records.length ? bestRecordPerExercise(meta.records, false).map((r) => r.exerciseName) : [];
-  const freshFinish = workout.finishedAt !== null && new Date().getTime() - workout.finishedAt.getTime() < RECORD_CARD_FRESH_MS;
+  // Окно «Новый рекорд!» всплывает само, если тренировка завершена не раньше 6 ч назад (а не при просмотре старой)
+  const freshFinish = isFreshFinish(workout.finishedAt, new Date());
+  const nextAsk = await nextAskOf(user, workout);
 
   return (
     <WorkoutSummaryView
@@ -94,6 +101,7 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
           />
         ) : null
       }
+      nextWorkout={nextAsk ? <NextWorkoutCard ask={nextAsk.ask} /> : null}
       feedback={<WorkoutFeedback workoutId={workout.id} rpe={workout.rpe} note={workout.notes} />}
       renderComment={(workoutExerciseId) => {
         const comment = byExercise.get(workoutExerciseId);
@@ -121,4 +129,47 @@ export default async function WorkoutSummaryPage({ params }: PageProps<"/workout
       }
     />
   );
+}
+
+/**
+ * Карточка «Когда следующая тренировка?»: при флаге, у свежей тренировки и без планов на ближайшие 7 дней — { ask }.
+ * Уже ответили — { ask: null }: карточка остаётся смонтированной, чтобы после ответа (action перерисовывает страницу)
+ * показать подтверждение; при новом открытии страницы она пустая. Иначе null.
+ */
+async function nextAskOf(
+  user: { id: string; email: string | null; timeZone: string },
+  workout: NonNullable<Awaited<ReturnType<typeof getWorkoutSummary>>>,
+): Promise<{ ask: NextAsk | null } | null> {
+  const now = new Date();
+  const base = {
+    enabled: await isEnabled("next_workout_ask", user.id),
+    owner: workout.userId === user.id,
+    now,
+    workout: { ...workout, scheduleAskedAt: null },
+    hasUpcoming: false,
+  };
+  if (!shouldAskNext(base)) return null;
+  if (workout.scheduleAskedAt) return { ask: null };
+  // Календарь разворачиваем, только если остальные условия уже выполнены
+  const timeZone = scheduleTimeZone((await cookies()).get(TIMEZONE_COOKIE)?.value, user.timeZone);
+  const today = dayKey(now, timeZone);
+  const { occurrences } = await getCalendar(user.id, today, addDays(today, NEXT_ASK_HORIZON_DAYS), timeZone, now);
+  if (!shouldAskNext({ ...base, hasUpcoming: hasUpcomingPlan(occurrences, now, timeZone) })) return null;
+
+  const [devices, linked, telegram] = await Promise.all([
+    db.pushSubscription.count({ where: { userId: user.id } }),
+    db.user.findUniqueOrThrow({ where: { id: user.id }, select: { telegramChatId: true } }),
+    getTelegramStatus(user.id),
+  ]);
+  return {
+    ask: {
+      workoutId: workout.id,
+      presets: nextPresets(now, timeZone, workout.startedAt),
+      today,
+      timeZone,
+      email: user.email,
+      telegram,
+      askReminder: devices === 0 && linked.telegramChatId === null,
+    },
+  };
 }
