@@ -2169,6 +2169,59 @@ export async function foodEntries(login: string, date: string) {
   });
 }
 
+/** Напоминание о приёме пищи напрямую; возвращает id. remindedDay — «уже решено» в этот местный день. */
+export async function addMealReminder(
+  login: string,
+  r: { meal: string; minutes: number; enabled?: boolean; remindedDay?: string | null },
+): Promise<string> {
+  const id = randomUUID();
+  await withDb(async (db) =>
+    db.query(`insert into "MealReminder" (id, "userId", meal, minutes, enabled, "remindedDay") values ($1, $2, $3::"Meal", $4, $5, $6)`, [
+      id,
+      await userId(db, login),
+      r.meal,
+      r.minutes,
+      r.enabled ?? true,
+      r.remindedDay ?? null,
+    ]),
+  );
+  return id;
+}
+
+/** Убрать все напоминания пользователя: общая тестовая база копит их между прогонами, и они срабатывали бы заново. */
+export async function deleteMealReminders(login: string) {
+  await withDb(async (db) => db.query(`delete from "MealReminder" where "userId" = (select id from "User" where login = $1)`, [login]));
+}
+
+/** Удалить одно напоминание пользователя (по времени) прямым SQL — «за спиной» интерфейса. */
+export async function deleteMealReminderAt(login: string, minutes: number) {
+  await withDb(async (db) =>
+    db.query(`delete from "MealReminder" where "userId" = (select id from "User" where login = $1) and minutes = $2`, [login, minutes]),
+  );
+}
+
+/** Напоминания пользователя по возрастанию времени. */
+export async function mealReminders(login: string) {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ meal: string; minutes: number; enabled: boolean; remindedDay: string | null }>(
+      `select meal::text, minutes, enabled, "remindedDay" from "MealReminder" where "userId" = (select id from "User" where login = $1) order by minutes`,
+      [login],
+    );
+    return rows;
+  });
+}
+
+/** Уведомления «приём пищи» пользователя (заголовок и текст) в порядке создания. */
+export async function mealReminderNotifications(login: string): Promise<{ title: string; body: string }[]> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ title: string; body: string }>(
+      `select title, body from "Notification" where "userId" = (select id from "User" where login = $1) and type = 'MEAL_REMINDER' order by "createdAt"`,
+      [login],
+    );
+    return rows;
+  });
+}
+
 /** Режим ввода питания выбран (диалог первого захода не показывается); on — продвинутый (Б/Ж/У). */
 export async function setNutritionMacros(login: string, on: boolean) {
   await withDb((db) => db.query(`update "User" set "nutritionMacros" = $2, "nutritionModeChosenAt" = now() where login = $1`, [login, on]));

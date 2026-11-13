@@ -42,6 +42,7 @@ import {
   seedTogether,
   setNutritionProfile,
   addFoodEntry,
+  addMealReminder,
   setNutritionMacros,
 } from "./db";
 import { createGuild, guildName, inviteUrl, nickOf, player } from "./guild-helpers";
@@ -67,6 +68,20 @@ test("export: food diary is in the JSON", async ({ page }) => {
   const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
   const data = JSON.parse(await readFile((await json.path())!, "utf8"));
   expect(data.food).toEqual([expect.objectContaining({ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300, protein: 10 })]);
+});
+
+test("export: meal reminders are in the JSON, deletion removes them", async ({ page }) => {
+  const me = await registerUser(page);
+  await addMealReminder(me.login, { meal: "LUNCH", minutes: 840, remindedDay: "2026-11-13" });
+  await page.goto("/settings");
+  const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("region", { name: "Мои данные" }).getByRole("link", { name: "Все данные (JSON)" }).click()]);
+  const text = await readFile((await json.path())!, "utf8");
+  expect(JSON.parse(text).mealReminders).toEqual([{ meal: "LUNCH", time: "14:00", enabled: true }]);
+  expect(text).not.toContain("remindedDay");
+  const id = await idOf(me.login);
+  await deleteAccount(page, PASSWORD);
+  await expect(page).toHaveURL(/deleted=1/);
+  expect(await withDb(async (db) => (await db.query(`select 1 from "MealReminder" where "userId" = $1`, [id])).rowCount)).toBe(0);
 });
 
 test("export: JSON has the workout and no secrets, CSV opens in Excel", async ({ page }) => {

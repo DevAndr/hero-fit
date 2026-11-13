@@ -5,6 +5,7 @@ import { DiaryStreakLine } from "@/components/nutrition/nutrition-today-card";
 import { NutritionProfileDialog } from "@/components/nutrition/profile-dialog";
 import { SummaryMenu } from "@/components/nutrition/summary-menu";
 import type { Macros } from "@/lib/nutrition/diary";
+import type { MealReminderView } from "@/lib/nutrition/reminder-queries";
 import type { Norm } from "@/lib/nutrition/norm";
 import type { NutritionView } from "@/lib/nutrition/queries";
 import type { CalorieBar } from "@/generated/prisma/enums";
@@ -27,7 +28,8 @@ function Bar({ value, max }: { value: number; max: number }) {
 /**
  * Итог дня: кольцо калорий (осталось / сверх нормы), съедено и норма, полоски Б/Ж/У; без нормы — только суммы.
  * Настройки — в меню «⋮» в углу (`SummaryMenu`): «Белки, жиры, углеводы» и с флагом `nutrition_bar_styles` — «Сменить вид
- * шкалы ккал…» (`CalorieBarDialog`): котёл с зельем во всю ширину (`CauldronBar`, по умолчанию), кольцо или пончик (`DonutRing`).
+ * шкалы ккал…» (`CalorieBarDialog`): котёл с зельем во всю ширину (`CauldronBar`, по умолчанию), кольцо или пончик (`DonutRing`);
+ * там же «Напоминания…» (`MealRemindersDialog`) — список напоминаний и `canPush` приходят пропсами со страницы.
  */
 export function DaySummary({
   date,
@@ -37,6 +39,8 @@ export function DaySummary({
   macros: showMacros,
   streak,
   bar = null,
+  reminders,
+  canPush,
 }: {
   /** день дневника — у кольца «+N» и отсчёт только в пределах дня */
   date: string;
@@ -48,6 +52,10 @@ export function DaySummary({
   streak: number;
   /** вид шкалы; null — флага nutrition_bar_styles нет: кольцо и без пункта в меню */
   bar?: CalorieBar | null;
+  /** напоминания о приёмах пищи (для окна из меню) */
+  reminders: MealReminderView[];
+  /** есть куда слать push (подписка или Telegram) */
+  canPush: boolean;
 }) {
   const macros = [
     ["Белки", total.protein, norm?.protein],
@@ -57,7 +65,7 @@ export function DaySummary({
   return (
     <section aria-label="Итог дня" className="relative rounded-xl border bg-card p-4">
       <div className="absolute top-2 right-2 z-10">
-        <SummaryMenu macros={showMacros} bar={norm ? bar : null} eaten={total.kcal} norm={norm?.kcal ?? null} />
+        <SummaryMenu macros={showMacros} bar={norm ? bar : null} eaten={total.kcal} norm={norm?.kcal ?? null} reminders={reminders} canPush={canPush} />
       </div>
       {norm && bar === "CAULDRON" ? (
         <div className="mx-auto mb-2 max-w-xl">
