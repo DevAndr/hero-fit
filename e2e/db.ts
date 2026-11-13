@@ -2188,6 +2188,11 @@ export async function addMealReminder(
   return id;
 }
 
+/** Убрать все напоминания пользователя: общая тестовая база копит их между прогонами, и они срабатывали бы заново. */
+export async function deleteMealReminders(login: string) {
+  await withDb(async (db) => db.query(`delete from "MealReminder" where "userId" = (select id from "User" where login = $1)`, [login]));
+}
+
 /** Напоминания пользователя по возрастанию времени. */
 export async function mealReminders(login: string) {
   return withDb(async (db) => {

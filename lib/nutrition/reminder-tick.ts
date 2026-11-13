@@ -11,10 +11,12 @@ const BUDGET_MS = 1_000;
 
 /**
  * Напоминания о приёмах пищи: время наступило не более часа назад по местному времени, сегодня ещё не решали.
- * Решение принимается раз в день (`remindedDay`): день ставится и когда уведомление ушло, и когда приём уже записан.
+ * Решение принимается раз в день (`remindedDay`): день ставится и когда уведомление ушло, и когда приём уже записан,
+ * и когда у пользователя не включён флаг `nutrition` (уведомления нет, но строка больше не занимает выборку).
  * Отбор — в SQL по местным минутам и дню (уже решённые сегодня в выборку не попадают, поэтому `LIMIT 500` не
- * застревает на одних и тех же строках); точная проверка — `mealReminderDue`. Флаг `nutrition` — по пользователю,
- * без флага строка пропускается без записи дня. Записи дневника — одним запросом на всех кандидатов.
+ * застревает на одних и тех же строках, порядок — `minutes, id`); точная проверка — `mealReminderDue`.
+ * Пояс в SQL не перепроверяется (как у streak): пояс, которого не знает Postgres, остановит шаг.
+ * Записи дневника — одним запросом на всех кандидатов.
  */
 export async function processMealReminders(now: Date): Promise<number> {
   const started = Date.now();
@@ -29,7 +31,7 @@ export async function processMealReminders(now: Date): Promise<number> {
     WHERE "remindedDay" IS DISTINCT FROM to_char(l, 'YYYY-MM-DD')
       AND (extract(hour FROM l) * 60 + extract(minute FROM l))::int - minutes >= 0
       AND (extract(hour FROM l) * 60 + extract(minute FROM l))::int - minutes < ${MEAL_REMIND_WINDOW_MIN}
-    ORDER BY "remindedDay" ASC NULLS FIRST, id
+    ORDER BY minutes, id
     LIMIT 500
   `;
   const due = rows.flatMap((r) => {
@@ -47,15 +49,15 @@ export async function processMealReminders(now: Date): Promise<number> {
   let sent = 0;
   for (const r of due) {
     if (Date.now() - started > BUDGET_MS) break;
-    if (!(await isEnabled("nutrition", r.userId))) continue;
+    const allowed = await isEnabled("nutrition", r.userId);
     const already = logged.has(`${r.userId}|${r.day}|${r.meal}`);
     sent += await db.$transaction(async (tx) => {
       // Условие по remindedDay — защита от параллельного тика
       const { count } = await tx.mealReminder.updateMany({
-        where: { id: r.id, enabled: true, OR: [{ remindedDay: null }, { remindedDay: { not: r.day } }] },
+        where: { id: r.id, enabled: true, minutes: r.minutes, OR: [{ remindedDay: null }, { remindedDay: { not: r.day } }] },
         data: { remindedDay: r.day },
       });
-      if (count !== 1 || already) return 0;
+      if (count !== 1 || already || !allowed) return 0;
       await notify(
         tx,
         r.userId,
