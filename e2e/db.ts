@@ -2193,6 +2193,13 @@ export async function deleteMealReminders(login: string) {
   await withDb(async (db) => db.query(`delete from "MealReminder" where "userId" = (select id from "User" where login = $1)`, [login]));
 }
 
+/** Удалить одно напоминание пользователя (по времени) прямым SQL — «за спиной» интерфейса. */
+export async function deleteMealReminderAt(login: string, minutes: number) {
+  await withDb(async (db) =>
+    db.query(`delete from "MealReminder" where "userId" = (select id from "User" where login = $1) and minutes = $2`, [login, minutes]),
+  );
+}
+
 /** Напоминания пользователя по возрастанию времени. */
 export async function mealReminders(login: string) {
   return withDb(async (db) => {

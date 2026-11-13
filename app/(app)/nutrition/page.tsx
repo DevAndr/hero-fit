@@ -15,6 +15,7 @@ import { isEnabled } from "@/lib/flags/server";
 import { dayTotals, MEALS, parseDiaryDate, weekSeries } from "@/lib/nutrition/diary";
 import { getDiaryDay, getDiaryWeek, getRecentFoods } from "@/lib/nutrition/food-queries";
 import { getNutritionView } from "@/lib/nutrition/queries";
+import { getMealReminders } from "@/lib/nutrition/reminder-queries";
 import { getDiaryStreak } from "@/lib/nutrition/streak-queries";
 
 export const metadata: Metadata = { title: "Питание" };
@@ -26,13 +27,14 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
   const now = new Date();
   const today = dayKey(now, tz);
   const date = parseDiaryDate((await searchParams).date, today);
-  const [view, day, recents, streak, weekRows, barStyles] = await Promise.all([
+  const [view, day, recents, streak, weekRows, barStyles, mealReminders] = await Promise.all([
     getNutritionView(user.id, tz, now),
     getDiaryDay(user.id, date),
     getRecentFoods(user.id, today),
     getDiaryStreak(user.id, tz, now),
     getDiaryWeek(user.id, today),
     isEnabled("nutrition_bar_styles", user.id),
+    getMealReminders(user.id),
   ]);
   const totals = dayTotals(day.entries);
   const week = weekSeries(weekRows, today, view.norm?.kcal ?? null);
@@ -41,7 +43,17 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
       {view.modeChosen ? null : <NutritionModeDialog />}
       <DayNav date={date} today={today} />
-      <DaySummary date={date} total={totals.total} norm={view.norm} profile={view.profile} macros={view.macros} streak={streak.current} bar={barStyles ? view.bar : null} />
+      <DaySummary
+        date={date}
+        total={totals.total}
+        norm={view.norm}
+        profile={view.profile}
+        macros={view.macros}
+        streak={streak.current}
+        bar={barStyles ? view.bar : null}
+        reminders={mealReminders.reminders}
+        canPush={mealReminders.canPush}
+      />
       <AddFoodButton date={date} recents={recents} macros={view.macros} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {MEALS.map((meal) => (

@@ -1,5 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
-import { addFlagUser, addFoodEntry, addMealReminder, deleteMealReminders, mealReminderNotifications, mealReminders, setTimeZone } from "./db";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  addFlagUser,
+  addFoodEntry,
+  addMealReminder,
+  addSubscription,
+  setNutritionMacros,
+  deleteMealReminderAt,
+  deleteMealReminders,
+  linkTelegram,
+  mealReminderNotifications,
+  mealReminders,
+  setTimeZone,
+} from "./db";
 import { registerUser, runTick } from "./helpers";
 import { E2E_TZ, localAt } from "./tz";
 import { formatTime, localMinutes } from "@/lib/nutrition/reminders";
@@ -32,6 +44,8 @@ async function reminderUser(page: Page, withFlag = true) {
   const me = await registerUser(page);
   created.push(me.login);
   if (withFlag) await addFlagUser("nutrition", me.login);
+  // Режим ввода выбран — иначе на /nutrition откроется окно выбора режима и закроет страницу
+  if (withFlag) await setNutritionMacros(me.login, false);
   await setTimeZone(me.login);
   return me;
 }
@@ -149,5 +163,200 @@ test.describe("тик", () => {
         { title: `Перекус · ${formatTime(m + 30)}`, body: "Запишите перекус в дневник" },
       ]),
     );
+  });
+});
+
+test.describe("окно", () => {
+  // Тики соседних тестов обрабатывают все включённые напоминания базы — убираем свои, чтобы не мешать им
+  test.afterEach(async () => {
+    for (const login of created.splice(0)) await deleteMealReminders(login);
+  });
+
+  async function openWindow(page: Page) {
+    await page.goto("/nutrition");
+    await page.getByRole("button", { name: "Настройки итога дня" }).click();
+    await page.getByRole("menuitem", { name: "Напоминания…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Напоминания о приёмах пищи" });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  const addButton = (dialog: Locator) => dialog.getByRole("button", { name: "Добавить напоминание" });
+
+  test("добавление: завтрак 09:00, потом обед 14:00; после перезагрузки на месте по порядку времени", async ({ page }) => {
+    const me = await reminderUser(page);
+    const dialog = await openWindow(page);
+    await expect(dialog.getByText("Напоминаний пока нет")).toBeVisible();
+    await expect(dialog.getByText("Придёт в выбранное время, если приём ещё не записан")).toBeVisible();
+
+    await addButton(dialog).click();
+    await expect(dialog.getByLabel("Время напоминания")).toHaveValue("09:00");
+    await expect(dialog.getByRole("combobox", { name: "Приём пищи" })).toContainText("Завтрак");
+    await expect(dialog.getByRole("switch", { name: "Напоминание 09:00 включено" })).toBeChecked();
+
+    await addButton(dialog).click();
+    await expect(dialog.getByLabel("Время напоминания")).toHaveCount(2);
+    await expect(dialog.getByLabel("Время напоминания").nth(1)).toHaveValue("14:00");
+    await expect(dialog.getByRole("combobox", { name: "Приём пищи" }).nth(1)).toContainText("Обед");
+
+    await page.reload();
+    await page.getByRole("button", { name: "Настройки итога дня" }).click();
+    await page.getByRole("menuitem", { name: "Напоминания…" }).click();
+    const again = page.getByRole("dialog", { name: "Напоминания о приёмах пищи" });
+    await expect(again.getByLabel("Время напоминания")).toHaveCount(2);
+    await expect(again.getByLabel("Время напоминания").nth(0)).toHaveValue("09:00");
+    await expect(again.getByLabel("Время напоминания").nth(1)).toHaveValue("14:00");
+    expect((await mealReminders(me.login)).map((r) => [r.meal, r.minutes])).toEqual([
+      ["BREAKFAST", 540],
+      ["LUNCH", 840],
+    ]);
+  });
+
+  test("смена времени и приёма, выключение — сохраняется и видно после перезагрузки", async ({ page }) => {
+    const me = await reminderUser(page);
+    await addMealReminder(me.login, { meal: "BREAKFAST", minutes: 540 });
+    await addMealReminder(me.login, { meal: "LUNCH", minutes: 840 });
+    const dialog = await openWindow(page);
+
+    const time = dialog.getByLabel("Время напоминания").first();
+    await time.fill("08:15");
+    await time.blur();
+    await expect.poll(async () => (await mealReminders(me.login))[0].minutes).toBe(495);
+
+    const meal = dialog.getByRole("combobox", { name: "Приём пищи" }).first();
+    await meal.click();
+    await page.getByRole("option", { name: "Перекус" }).click();
+    await expect.poll(async () => (await mealReminders(me.login))[0].meal).toBe("SNACK");
+
+    await dialog.getByRole("switch", { name: "Напоминание 08:15 включено" }).click();
+    await expect.poll(async () => (await mealReminders(me.login))[0].enabled).toBe(false);
+    expect(await mealReminders(me.login)).toMatchObject([
+      { meal: "SNACK", minutes: 495, enabled: false },
+      { meal: "LUNCH", minutes: 840, enabled: true },
+    ]);
+
+    await page.reload();
+    await page.getByRole("button", { name: "Настройки итога дня" }).click();
+    await page.getByRole("menuitem", { name: "Напоминания…" }).click();
+    const again = page.getByRole("dialog", { name: "Напоминания о приёмах пищи" });
+    await expect(again.getByLabel("Время напоминания").first()).toHaveValue("08:15");
+    await expect(again.getByRole("combobox", { name: "Приём пищи" }).first()).toContainText("Перекус");
+    await expect(again.getByRole("switch", { name: "Напоминание 08:15 включено" })).not.toBeChecked();
+  });
+
+  test("удаление строки", async ({ page }) => {
+    const me = await reminderUser(page);
+    await addMealReminder(me.login, { meal: "SNACK", minutes: 495 });
+    await addMealReminder(me.login, { meal: "LUNCH", minutes: 840 });
+    const dialog = await openWindow(page);
+
+    await dialog.getByRole("button", { name: "Удалить напоминание 08:15" }).click();
+    await expect(dialog.getByLabel("Время напоминания")).toHaveCount(1);
+    await expect(dialog.getByLabel("Время напоминания")).toHaveValue("14:00");
+    await expect.poll(async () => (await mealReminders(me.login)).map((r) => r.minutes)).toEqual([840]);
+  });
+
+  test("шесть напоминаний — добавить нельзя, виден лимит", async ({ page }) => {
+    const me = await reminderUser(page);
+    for (const [i, meal] of (["BREAKFAST", "LUNCH", "DINNER", "SNACK", "SNACK", "SNACK"] as const).entries()) {
+      await addMealReminder(me.login, { meal, minutes: 420 + i * 60 });
+    }
+    const dialog = await openWindow(page);
+    await expect(addButton(dialog)).toBeDisabled();
+    await expect(dialog.getByText("Не больше 6 напоминаний")).toBeVisible();
+  });
+
+  test("время, уже занятое другим напоминанием, отклоняется — прежнее время в поле и в базе", async ({ page }) => {
+    const me = await reminderUser(page);
+    await addMealReminder(me.login, { meal: "BREAKFAST", minutes: 540 });
+    await addMealReminder(me.login, { meal: "LUNCH", minutes: 840 });
+    const dialog = await openWindow(page);
+
+    const second = dialog.getByLabel("Время напоминания").nth(1);
+    await second.fill("09:00");
+    await second.blur();
+    await expect(page.getByText("На это время уже есть напоминание")).toBeVisible();
+    await expect(second).toHaveValue("14:00");
+    expect((await mealReminders(me.login)).map((r) => r.minutes)).toEqual([540, 840]);
+  });
+
+  test("быстрые двойные клики не обходят лимит; строка, удалённая за спиной интерфейса, не роняет страницу", async ({ page }) => {
+    const me = await reminderUser(page);
+    for (const [i, meal] of (["BREAKFAST", "LUNCH", "DINNER", "SNACK", "SNACK"] as const).entries()) {
+      await addMealReminder(me.login, { meal, minutes: 420 + i * 60 });
+    }
+    const errors: Error[] = [];
+    page.on("pageerror", (e) => errors.push(e));
+    const dialog = await openWindow(page);
+
+    const add = addButton(dialog);
+    await add.click({ noWaitAfter: true });
+    await add.click({ noWaitAfter: true, force: true }).catch(() => {});
+    await expect.poll(async () => (await mealReminders(me.login)).length).toBe(6);
+    await expect(dialog.getByLabel("Время напоминания")).toHaveCount(6);
+    expect(await mealReminders(me.login)).toHaveLength(6);
+
+    // Строка исчезла в базе, а интерфейс про это не знает
+    await deleteMealReminderAt(me.login, 420);
+    await dialog.getByRole("switch", { name: "Напоминание 07:00 включено" }).click();
+    await expect(page.getByText("Напоминание не найдено — обновите страницу")).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("пустое поле времени возвращает прежнее значение без обращения к серверу", async ({ page }) => {
+    const me = await reminderUser(page);
+    await addMealReminder(me.login, { meal: "LUNCH", minutes: 840 });
+    const dialog = await openWindow(page);
+    let actions = 0;
+    page.on("request", (r) => {
+      if (r.method() === "POST" && r.headers()["next-action"]) actions++;
+    });
+
+    const time = dialog.getByLabel("Время напоминания");
+    await time.fill("");
+    await time.blur();
+    await expect(time).toHaveValue("14:00");
+    expect(actions).toBe(0);
+    expect((await mealReminders(me.login)).map((r) => r.minutes)).toEqual([840]);
+  });
+
+  test("подсказка про уведомления: без подписок есть, с push-подпиской или Telegram — нет", async ({ page }) => {
+    const me = await reminderUser(page);
+    let dialog = await openWindow(page);
+    await expect(dialog.getByText("Чтобы напоминания приходили на телефон,")).toBeVisible();
+    await expect(dialog.getByRole("link", { name: "включите уведомления" })).toHaveAttribute("href", "/settings");
+
+    await addSubscription(me.login, { endpoint: `https://push.example.test/${me.login}`, p256dh: "p", auth: "a" });
+    dialog = await openWindow(page);
+    await expect(dialog.getByText("Напоминаний пока нет")).toBeVisible();
+    await expect(dialog.getByText("Чтобы напоминания приходили на телефон,")).toHaveCount(0);
+  });
+
+  test("подсказка про уведомления не показывается при привязанном Telegram", async ({ page }) => {
+    const me = await reminderUser(page);
+    await linkTelegram(me.login, String(Math.floor(9e12 + Math.random() * 1e12)));
+    const dialog = await openWindow(page);
+    await expect(dialog.getByText("Напоминаний пока нет")).toBeVisible();
+    await expect(dialog.getByText("Чтобы напоминания приходили на телефон,")).toHaveCount(0);
+  });
+
+  test("напоминание, поставленное на уже наступившее время, сегодня не срабатывает", async ({ page, request }) => {
+    const today = localDay();
+    const nowMin = localMinutes(new Date(), E2E_TZ);
+    test.skip(nowMin < 10, "В первые минуты суток «10 минут назад» — вчера");
+    const past = nowMin - 10;
+    const me = await reminderUser(page);
+    const dialog = await openWindow(page);
+
+    await addButton(dialog).click();
+    const time = dialog.getByLabel("Время напоминания");
+    await expect(time).toHaveValue("09:00");
+    await time.fill(formatTime(past));
+    await time.blur();
+    await expect.poll(async () => (await mealReminders(me.login))[0].minutes).toBe(past);
+    expect((await mealReminders(me.login))[0].remindedDay).toBe(today);
+
+    await tick(request, new Date());
+    expect(await mealReminderNotifications(me.login)).toEqual([]);
   });
 });
