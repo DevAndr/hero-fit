@@ -50,6 +50,17 @@ async function reminderUser(page: Page, withFlag = true) {
   return me;
 }
 
+async function openWindow(page: Page) {
+  await page.goto("/nutrition");
+  await page.getByRole("button", { name: "Настройки итога дня" }).click();
+  await page.getByRole("menuitem", { name: "Напоминания…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Напоминания о приёмах пищи" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+const addButton = (dialog: Locator) => dialog.getByRole("button", { name: "Добавить напоминание" });
+
 test.describe("тик", () => {
   // Тик по шагу идёт по всем напоминаниям базы: тесты в одно время задевали бы друг друга (и десктоп с мобильным)
   test.describe.configure({ mode: "serial" });
@@ -164,6 +175,29 @@ test.describe("тик", () => {
       ]),
     );
   });
+
+  test("добавленное после 09:00 и перенесённое на более позднее время сегодня — приходит в новое время", async ({ page, request }) => {
+    const today = localDay();
+    const later = safeMinutes(1080, 1200);
+    const nowMin = localMinutes(new Date(), E2E_TZ);
+    test.skip(nowMin < 540 || nowMin >= later, "Нужно местное время между 09:00 и новым временем напоминания");
+    const me = await reminderUser(page);
+    const dialog = await openWindow(page);
+
+    // Время по умолчанию (09:00) уже прошло — строка создаётся с сегодняшним днём
+    await addButton(dialog).click();
+    const time = dialog.getByLabel("Время напоминания");
+    await expect(time).toHaveValue("09:00");
+    expect((await mealReminders(me.login))[0].remindedDay).toBe(today);
+
+    await time.fill(formatTime(later));
+    await time.blur();
+    await expect.poll(async () => (await mealReminders(me.login))[0].minutes).toBe(later);
+    expect((await mealReminders(me.login))[0].remindedDay).toBeNull();
+
+    await tick(request, at(today, later));
+    expect(await mealReminderNotifications(me.login)).toEqual([{ title: `Завтрак · ${formatTime(later)}`, body: "Запишите завтрак в дневник" }]);
+  });
 });
 
 test.describe("окно", () => {
@@ -171,17 +205,6 @@ test.describe("окно", () => {
   test.afterEach(async () => {
     for (const login of created.splice(0)) await deleteMealReminders(login);
   });
-
-  async function openWindow(page: Page) {
-    await page.goto("/nutrition");
-    await page.getByRole("button", { name: "Настройки итога дня" }).click();
-    await page.getByRole("menuitem", { name: "Напоминания…" }).click();
-    const dialog = page.getByRole("dialog", { name: "Напоминания о приёмах пищи" });
-    await expect(dialog).toBeVisible();
-    return dialog;
-  }
-
-  const addButton = (dialog: Locator) => dialog.getByRole("button", { name: "Добавить напоминание" });
 
   test("добавление: завтрак 09:00, потом обед 14:00; после перезагрузки на месте по порядку времени", async ({ page }) => {
     const me = await reminderUser(page);

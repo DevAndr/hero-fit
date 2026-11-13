@@ -72,12 +72,10 @@ export async function updateMealReminderAction(id: string, patch: { meal?: strin
   if (enabled !== undefined) data.enabled = enabled;
   if (minutes !== undefined) {
     data.minutes = minutes;
-    // Только при реальной смене времени: прошедшее сегодня не должно сработать задним числом
+    // Только при реальной смене времени: прошедшее сегодня не должно сработать задним числом, а перенос на ещё
+    // не наступившее снимает отметку дня — иначе строка, созданная с прошедшим временем по умолчанию, сегодня молчит
     const current = await db.mealReminder.findFirst({ where: { id, userId: user.id }, select: { minutes: true } });
-    if (current && current.minutes !== minutes) {
-      const mark = passedMark(user, minutes);
-      if (mark) data.remindedDay = mark;
-    }
+    if (current && current.minutes !== minutes) data.remindedDay = passedMark(user, minutes);
   }
   try {
     const { count } = await db.mealReminder.updateMany({ where: { id, userId: user.id }, data });
