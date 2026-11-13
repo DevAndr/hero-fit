@@ -142,6 +142,7 @@ enum NotificationType {
   COACH // тренер: новый клиент, клиент ушёл, тренер завершил работу
   GOAL // личные цели: выполнена, 7 дней до срока, срок вышел
   COURSE_REMINDER // напоминание о занятии курса «Сесть на шпагат»
+  MEAL_REMINDER // напоминание о приёме пищи
   FEEDBACK // обратная связь: обращение сделано или отклонено
   COMEBACK // рассылки «вернись»
   WORKOUT // забытая тренировка: «не завершена», отменена через сутки
@@ -377,6 +378,7 @@ model User {
   campaignSends              CampaignSend[]
   bodyWeights                BodyWeightEntry[]
   foodEntries                FoodEntry[]
+  mealReminders              MealReminder[]
   errorEvents                ErrorEvent[]
   goblinEncounters           GoblinEncounter[]
   /// последнее появление Золотого гоблина — пауза 14 дней (не сбрасывается отменой тренировки)
@@ -1428,6 +1430,21 @@ model FoodEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+/// Напоминание о приёме пищи (спека 2026-11-13-meal-reminders-design)
+model MealReminder {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meal        Meal
+  minutes     Int // минуты от местной полуночи, 0…1439
+  enabled     Boolean  @default(true)
+  remindedDay String? // местный день последнего решения (YYYY-MM-DD)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, minutes])
+  @@index([enabled, minutes])
 }
 
 /// День посещения кабинета (местный день пользователя) — метрики админки (lib/admin/metrics-queries.ts).

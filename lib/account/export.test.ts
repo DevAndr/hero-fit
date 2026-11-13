@@ -63,6 +63,7 @@ const raw = (): ExportRaw => ({
   ],
   bodyWeight: [],
   food: [{ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300, protein: 10, fat: null, carbs: 50, createdAt: new Date("2026-10-30T06:00:00Z") }],
+  mealReminders: [{ id: "mr_secret", userId: "u_secret", meal: "LUNCH", minutes: 840, enabled: true, remindedDay: "2026-11-13", createdAt: new Date("2026-11-01T10:00:00Z") }],
   records: [],
   achievements: [],
   xpHistory: [],
@@ -145,7 +146,7 @@ describe("buildExport", () => {
   const text = JSON.stringify(out);
 
   it("секретов и чужих id/логинов нет", () => {
-    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach", "u_client", "pa_secret", "cp_secret", "d_secret"]) {
+    for (const bad of ["passwordHash", "secret-hash", "telegramId", "telegramChatId", "777", "888", "u_friend", "demo.masha", "u_coach", "u_client", "pa_secret", "cp_secret", "d_secret", "mr_secret", "2026-11-13"]) {
       expect(text).not.toContain(bad);
     }
   });
@@ -167,6 +168,10 @@ describe("buildExport", () => {
   });
   it("дневник питания — отдельный раздел", () => {
     expect(out.food).toEqual([expect.objectContaining({ date: "2026-10-30", meal: "BREAKFAST", name: "Овсянка", kcal: 300 })]);
+  });
+  it("напоминания о приёмах пищи — приём, время и включённость, без id и служебного дня", () => {
+    expect(EXPORT_SECTIONS).toContain("mealReminders");
+    expect(out.mealReminders).toEqual([{ meal: "LUNCH", time: "14:00", enabled: true }]);
   });
   it("профиль содержит анкету питания", () => {
     expect(out.profile).toMatchObject({ heightCm: 170, birthYear: 1995, activityLevel: "MODERATE", nutritionGoal: "LOSE", nutritionMacros: true, nutritionModeChosenAt: new Date("2026-10-31T10:00:00Z") });
