@@ -26,7 +26,7 @@
 
 1. Чужой или мусорный `id` в `update`/`delete` (не строка, id другого пользователя) — ничего не меняется, ответ `{ ok: false }`, без исключения. Тест — задача 2.
 2. Двойной клик «Добавить напоминание» при 5 напоминаниях — седьмое не создаётся, и два параллельных добавления на одно время не роняют действие (ошибка уникальности → текст). Тест — задача 2.
-3. Некорректный `User.timeZone` (мусор в базе) — тик не падает и не останавливает остальных (`safeTimeZone`; в SQL-отборе — тоже). Тест — задача 3.
+3. Пояс пользователя, отличный от пояса сервера и от UTC, со сменой местных суток (напоминание на 00:30 и 23:30) — день и окно считаются по местному времени и в SQL-отборе, и в `mealReminderDue`. Тест — задачи 1 и 3.
 4. Пользователь с напоминаниями, у которого выключили флаг `nutrition`, — уведомления не уходят, `remindedDay` не трогается. Тест — задача 3.
 5. Мусор из `<input type="time">` (пустая строка после очистки поля) — строка не сохраняется и не уходит на сервер, прежнее значение остаётся. Тест — задача 4.
 
@@ -109,10 +109,10 @@ describe("nextDefault", () => {
     expect(nextDefault([
       { meal: "BREAKFAST", minutes: 540 }, { meal: "LUNCH", minutes: 840 }, { meal: "SNACK", minutes: 1020 }, { meal: "DINNER", minutes: 1200 },
     ])).toEqual({ meal: "SNACK", minutes: 1230 }));
-  it("последнее в 23:45 → ищет свободное с 00:00 шагом 30", () =>
+  it("последнее в 23:45 → +30 по модулю суток", () =>
     expect(nextDefault([
       { meal: "BREAKFAST", minutes: 540 }, { meal: "LUNCH", minutes: 840 }, { meal: "SNACK", minutes: 1020 }, { meal: "DINNER", minutes: 1425 },
-    ])).toEqual({ meal: "SNACK", minutes: 0 }));
+    ])).toEqual({ meal: "SNACK", minutes: 15 }));
   it("6 штук → null", () => expect(nextDefault(Array.from({ length: 6 }, (_, i) => ({ meal: "SNACK" as const, minutes: i * 60 })))).toBeNull());
 });
 ```
@@ -185,14 +185,14 @@ describe("nextDefault", () => {
   4. Тик в 13:59 → нет, `remindedDay` пуст; тик в 15:00 → нет, `remindedDay` пуст.
   5. `enabled: false` → нет.
   6. Флаг `nutrition` у пользователя не включён → нет, `remindedDay` пуст (Review Focus 4).
-  7. `User.timeZone = 'Not/AZone'` у одного пользователя (прямой SQL через `e2e/db.ts`), у второго — нормальный пояс: тик отвечает 200, второй получает уведомление (Review Focus 3).
+  7. Напоминание на 00:30, тик в местные 00:40 завтрашнего дня (`localAt(завтра, "00:40")`) → уведомление уходит, `remindedDay` = завтрашняя местная дата (Review Focus 3). Мусорный пояс в базу не писать: остальные шаги тика (`processStreakReminders`) считают пояс в SQL и упадут у соседних тестов.
   8. Два напоминания одного пользователя на 14:00 (обед) и 14:30 (перекус), тик в 14:40 → два уведомления.
 
   Тесты шага идут с часами «сегодня» и только шагом `"meals"` — соседей не задевают; если понадобится глобальное состояние — `mode: "serial"`.
 
 - [ ] **Step 2:** `npm run build && npm run test:e2e -- nutrition-reminders --project=desktop` (имя проекта сверить в `playwright.config.ts`) — падает: шага `meals` нет.
 
-- [ ] **Step 3: Реализация `processMealReminders`** по разделу «Тик» спеки, структура — как `lib/stretching/course-tick.ts` (бюджет 1 с, `take`/`LIMIT 500`, транзакция с условным `updateMany`). Отбор кандидатов — `$queryRaw` с `JOIN "User"`; местные минуты считать в SQL как в `processStreakReminders` (`${now}::timestamptz AT TIME ZONE u."timeZone"`). Некорректный пояс роняет такой SQL целиком, поэтому в запросе отсекать пояса, которых нет в `pg_timezone_names` (`JOIN pg_timezone_names z ON z.name = u."timeZone"`) — пользователь с мусорным поясом пропускается, остальные идут. Записи дневника — один `findMany` по `userId in (…)` и `date in (…)`, сверка `(userId, date, meal)` в коде. Порядок внутри транзакции: `updateMany({ where: { id, enabled: true, OR: [{ remindedDay: null }, { remindedDay: { not: day } }] }, data: { remindedDay: day } })`; `count === 1` и приём пуст → `notify(tx, userId, { type: MEAL_REMINDER, ...mealReminderText(meal, minutes), url: "/nutrition" }, { push: true })`. Флаг проверять до транзакции; без флага — `continue` без записи.
+- [ ] **Step 3: Реализация `processMealReminders`** по разделу «Тик» спеки, структура — как `lib/stretching/course-tick.ts` (бюджет 1 с, `take`/`LIMIT 500`, транзакция с условным `updateMany`). Отбор кандидатов — `$queryRaw` с `JOIN "User"`; местные минуты считать в SQL как в `processStreakReminders` (`${now}::timestamptz AT TIME ZONE u."timeZone"`). Пояс в SQL не проверять отдельно — как в `processStreakReminders` (пояс пишется в базу уже проверенным); в коде — `safeTimeZone`. Записи дневника — один `findMany` по `userId in (…)` и `date in (…)`, сверка `(userId, date, meal)` в коде. Порядок внутри транзакции: `updateMany({ where: { id, enabled: true, OR: [{ remindedDay: null }, { remindedDay: { not: day } }] }, data: { remindedDay: day } })`; `count === 1` и приём пуст → `notify(tx, userId, { type: MEAL_REMINDER, ...mealReminderText(meal, minutes), url: "/nutrition" }, { push: true })`. Флаг проверять до транзакции; без флага — `continue` без записи.
 
 - [ ] **Step 4: Подключение.** `"meals"` в `TICK_STEPS` после `"course"`; в `runNotificationTick` — блок по образцу `course` с логом `[meals] шаг напоминаний о приёмах пищи упал`. В `push.ts` — `MEAL_REMINDER: "hero-fit-meal"`; в `notification-bell.tsx` — `MEAL_REMINDER: { icon: Utensils, color: "text-xp" }`. `npm run typecheck` покажет остальные исчерпывающие таблицы по `NotificationType` — заполнить по аналогии с `COURSE_REMINDER`. Android (`Notifications.kt`) не трогать: неизвестный тип уходит в канал по умолчанию, как `COURSE_REMINDER`.
 
