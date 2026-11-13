@@ -95,3 +95,10 @@ export function nextDefault(existing: { meal: Meal; minutes: number }[]): { meal
   const last = Math.max(...existing.map((e) => e.minutes));
   return { meal: "SNACK", minutes: free((last + STEP_MIN) % DAY_MINUTES) };
 }
+
+/** Можно ли добавить напоминание на `minutes`: лимит важнее занятого времени. */
+export function canAddReminder(existing: { minutes: number }[], minutes: number): "limit" | "taken" | null {
+  if (existing.length >= MAX_MEAL_REMINDERS) return "limit";
+  if (existing.some((e) => e.minutes === minutes)) return "taken";
+  return null;
+}

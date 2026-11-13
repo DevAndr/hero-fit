@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alreadyPassedToday, formatTime, localMinutes, mealReminderDue, mealReminderText, nextDefault, parseTime } from "./reminders";
+import { alreadyPassedToday, canAddReminder, formatTime, localMinutes, mealReminderDue, mealReminderSchema, mealReminderText, nextDefault, parseTime } from "./reminders";
 
 const base = { timeZone: "Europe/Moscow", minutes: 14 * 60, enabled: true, remindedDay: null };
 const at = (iso: string) => new Date(iso); // 2026-11-13T11:00:00Z = 14:00 МСК
@@ -58,4 +58,30 @@ describe("nextDefault", () => {
       { meal: "BREAKFAST", minutes: 540 }, { meal: "LUNCH", minutes: 840 }, { meal: "SNACK", minutes: 1020 }, { meal: "DINNER", minutes: 1425 },
     ])).toEqual({ meal: "SNACK", minutes: 15 }));
   it("6 штук → null", () => expect(nextDefault(Array.from({ length: 6 }, (_, i) => ({ meal: "SNACK" as const, minutes: i * 60 })))).toBeNull());
+});
+
+describe("canAddReminder", () => {
+  const six = Array.from({ length: 6 }, (_, i) => ({ minutes: i * 60 }));
+  it("6 напоминаний → limit", () => expect(canAddReminder(six, 1000)).toBe("limit"));
+  it("совпадение времени → taken", () => expect(canAddReminder([{ minutes: 840 }], 840)).toBe("taken"));
+  it("limit важнее taken", () => expect(canAddReminder(six, 60)).toBe("limit"));
+  it("иначе null", () => {
+    expect(canAddReminder([], 840)).toBeNull();
+    expect(canAddReminder(six.slice(0, 5), 1000)).toBeNull();
+  });
+});
+
+describe("mealReminderSchema", () => {
+  const ok = (v: unknown) => mealReminderSchema.safeParse(v).success;
+  it("границы minutes: 0 и 1439 проходят", () => {
+    expect(ok({ meal: "LUNCH", minutes: 0 })).toBe(true);
+    expect(ok({ meal: "LUNCH", minutes: 1439 })).toBe(true);
+  });
+  it("1440, -1, 1.5 и строка — нет", () => {
+    expect(ok({ meal: "LUNCH", minutes: 1440 })).toBe(false);
+    expect(ok({ meal: "LUNCH", minutes: -1 })).toBe(false);
+    expect(ok({ meal: "LUNCH", minutes: 1.5 })).toBe(false);
+    expect(ok({ meal: "LUNCH", minutes: "840" })).toBe(false);
+  });
+  it("неизвестный приём — нет", () => expect(ok({ meal: "BRUNCH", minutes: 600 })).toBe(false));
 });

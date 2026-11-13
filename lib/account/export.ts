@@ -3,6 +3,7 @@
  * не попадают, даже если пришли в выборке; о других людях — только ники.
  */
 
+import { formatTime } from "@/lib/nutrition/reminders";
 import { itemByCode } from "@/lib/shop/catalog";
 
 type Dated = Date | null;
@@ -40,6 +41,8 @@ export type ExportRaw = {
   stretchCourses: ({ skill: string; status: string; remindDays: number[]; nextSession: number; startedAt: Date; finishedAt: Dated } & Record<string, unknown>)[];
   bodyWeight: unknown[];
   food: unknown[];
+  /** Напоминания о приёмах пищи: на входе с id/userId/remindedDay — в выгрузку идут приём, время и включённость. */
+  mealReminders: ({ meal: string; minutes: number; enabled: boolean } & Record<string, unknown>)[];
   records: unknown[];
   achievements: unknown[];
   xpHistory: unknown[];
@@ -119,6 +122,7 @@ export const EXPORT_SECTIONS = [
   "stretchCourses",
   "bodyWeight",
   "food",
+  "mealReminders",
   "records",
   "achievements",
   "xpHistory",
@@ -228,6 +232,7 @@ export function buildExport(raw: ExportRaw, exportedAt: Date) {
     stretchCourses: raw.stretchCourses.map((c) => ({ skill: c.skill, status: c.status, remindDays: c.remindDays, nextSession: c.nextSession, startedAt: c.startedAt, finishedAt: c.finishedAt })),
     bodyWeight: raw.bodyWeight,
     food: raw.food,
+    mealReminders: raw.mealReminders.map((r) => ({ meal: r.meal, time: formatTime(r.minutes), enabled: r.enabled })),
     records: raw.records,
     achievements: raw.achievements,
     xpHistory: raw.xpHistory,
