@@ -442,6 +442,26 @@
   .donut-glaze { transition: none; }
 }
 
+/* Бургер калорий (BurgerBar): начинка открывается снизу вверх — доля нормы в --burger-share.
+   Начинка в burger-fill.png занимает по высоте от 4.3% до 59.6% холста снизу — доля переводится в эту полосу.
+   @property — чтобы граница плавно анимировалась при новой записи; край чуть размыт */
+@property --burger-share {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+.burger-fill {
+  /* В своём холсте начинка нарисована ниже проёма между булками — поднимаем, чтобы салат уходил под верхнюю булку,
+     а нижняя булка была видна (маска едет вместе с картинкой) */
+  translate: 0 -7%;
+  --burger-edge: calc(4.3% + var(--burger-share) * 0.553);
+  mask-image: linear-gradient(to top, #000 calc(var(--burger-edge) - 1.5%), transparent var(--burger-edge));
+  transition: --burger-share 0.7s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .burger-fill { transition: none; }
+}
+
 /* Кольцо восстановления WHOOP: заполнение один раз при показе */
 @keyframes ring-fill {
   from {
