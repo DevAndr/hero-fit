@@ -442,7 +442,8 @@
   .donut-glaze { transition: none; }
 }
 
-/* Бургер калорий (BurgerBar): цветная картинка открывается снизу вверх — доля нормы в --burger-share.
+/* Бургер калорий (BurgerBar): начинка открывается снизу вверх — доля нормы в --burger-share.
+   Начинка в burger-fill.png занимает по высоте от 4.3% до 59.6% холста снизу — доля переводится в эту полосу.
    @property — чтобы граница плавно анимировалась при новой записи; край чуть размыт */
 @property --burger-share {
   syntax: "<percentage>";
@@ -450,7 +451,8 @@
   initial-value: 0%;
 }
 .burger-fill {
-  mask-image: linear-gradient(to top, #000 calc(var(--burger-share) - 1.5%), transparent var(--burger-share));
+  --burger-edge: calc(4.3% + var(--burger-share) * 0.553);
+  mask-image: linear-gradient(to top, #000 calc(var(--burger-edge) - 1.5%), transparent var(--burger-edge));
   transition: --burger-share 0.7s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {

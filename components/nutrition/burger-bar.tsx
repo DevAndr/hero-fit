@@ -2,7 +2,8 @@
 
 import type { CSSProperties } from "react";
 import Image from "next/image";
-import burger from "@/assets/icons/food/burger.png";
+import base from "@/assets/icons/food/burger-base.png";
+import filling from "@/assets/icons/food/burger-fill.png";
 import { useKcalGain } from "@/components/nutrition/use-kcal-gain";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +15,12 @@ const SIZES = {
 } as const;
 
 /**
- * Бургер калорий (флаг nutrition_bar_styles, вид BURGER): картинка одна (`burger.png`) — снизу лежит её серая
- * полупрозрачная копия, а цветная открывается снизу вверх по доле нормы (`.burger-fill`, граница плавно доезжает):
- * бургер «собирается» от нижней булки к верхней. Сверх нормы — бургер целый и за ним красное свечение (`.ring-halo`,
- * два вдоха после записи). Под бургером — «осталось N» / «+N сверх нормы» с досчётом, «+N» всплывает над бургером
- * (`useKcalGain`); `role="img"` — та же подпись, что у кольца.
+ * Бургер калорий (флаг nutrition_bar_styles, вид BURGER): булки с пустой серединой (`burger-base.png`) видны всегда,
+ * начинка (`burger-fill.png`, тот же холст) открывается снизу вверх по доле нормы (`.burger-fill`, граница плавно
+ * доезжает): котлета, сыр, бекон, овощи, салат. Начинка занимает не весь холст — долю в высоту картинки переводит CSS.
+ * Сверх нормы — начинка вся и за бургером красное свечение (`.ring-halo`, два вдоха после записи). Под бургером —
+ * «осталось N» / «+N сверх нормы» с досчётом, «+N» всплывает над бургером (`useKcalGain`); `role="img"` — та же
+ * подпись, что у кольца.
  */
 export function BurgerBar({ eaten, norm, day, size = "md" }: { eaten: number; norm: number; day: string; size?: keyof typeof SIZES }) {
   const { px, number, label: labelClass } = SIZES[size];
@@ -26,7 +28,7 @@ export function BurgerBar({ eaten, norm, day, size = "md" }: { eaten: number; no
   const overBy = eaten - norm;
   const over = overBy > 0;
   const share = Math.min(1, Math.max(0, eaten / Math.max(1, norm)));
-  // Целый бургер — с запасом: размытая граница не оставляет бледной полоски на верхней булке
+  // Вся начинка — с запасом: размытая граница не оставляет бледной полоски на верхнем салате
   const fillShare = share >= 1 ? 102 : share * 100;
   const shownOver = shown - norm;
   const label = `Съедено ${n(eaten)} из ${n(norm)} ккал, ${over ? `${n(overBy)} сверх нормы` : `осталось ${n(-overBy)}`}`;
@@ -39,12 +41,12 @@ export function BurgerBar({ eaten, norm, day, size = "md" }: { eaten: number; no
       className="relative flex shrink-0 flex-col items-center gap-1"
       style={{ width: px }}
     >
-      <div className="relative w-full" style={{ aspectRatio: `${burger.width} / ${burger.height}` }}>
+      <div className="relative w-full" style={{ aspectRatio: `${base.width} / ${base.height}` }}>
         {/* key — съеденное: новая запись перезапускает пульс */}
         {over ? <div key={eaten} aria-hidden data-testid="burger-halo" className="ring-halo [--halo:var(--destructive)]" /> : null}
-        <Image src={burger} alt="" fill sizes={`${px}px`} className="pointer-events-none opacity-25 grayscale select-none" />
+        <Image src={base} alt="" fill sizes={`${px}px`} className="pointer-events-none select-none" />
         <Image
-          src={burger}
+          src={filling}
           alt=""
           fill
           sizes={`${px}px`}
