@@ -3,6 +3,7 @@
 import { useOptimistic, useTransition, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
+import { BurgerBar } from "@/components/nutrition/burger-bar";
 import { CalorieRing } from "@/components/nutrition/calorie-ring";
 import { CauldronBar } from "@/components/nutrition/cauldron-bar";
 import { DonutRing } from "@/components/nutrition/donut-ring";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * «Вид шкалы калорий» (флаг nutrition_bar_styles): карточки с живым превью на цифрах дня — котёл с зельем (во всю
- * ширину), кольцо и пончик (рядом); нажатие сохраняет выбор и закрывает диалог.
+ * ширину), кольцо, пончик и бургер (по два в ряд); нажатие сохраняет выбор и закрывает диалог.
  */
 export function CalorieBarDialog({
   open,
@@ -46,6 +47,7 @@ export function CalorieBarDialog({
     { bar: "CAULDRON", title: "Котёл с зельем", wide: true, preview: <CauldronBar eaten={eaten} norm={norm} day="preview" /> },
     { bar: "RING", title: "Кольцо", preview: <CalorieRing eaten={eaten} norm={norm} size="sm" /> },
     { bar: "DONUT", title: "Пончик", preview: <DonutRing eaten={eaten} norm={norm} day="preview" size="sm" /> },
+    { bar: "BURGER", title: "Бургер", preview: <BurgerBar eaten={eaten} norm={norm} day="preview" size="sm" /> },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

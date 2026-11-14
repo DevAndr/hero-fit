@@ -3,7 +3,7 @@ import { addFlagUser, logWeight, setNutritionMacros, setNutritionProfile } from 
 import { registerUser } from "./helpers";
 import { E2E_TZ } from "./tz";
 
-// Вид шкалы калорий (флаг nutrition_bar_styles, у пользователя — не глобальный): котёл (по умолчанию), кольцо, пончик.
+// Вид шкалы калорий (флаг nutrition_bar_styles, у пользователя — не глобальный): котёл (по умолчанию), кольцо, пончик, бургер.
 // С движением — чтобы проверить всплывающее «+N» над котлом.
 test.use({ contextOptions: { reducedMotion: "no-preference" } });
 
@@ -113,6 +113,39 @@ test("donut: glaze opens by the share of the norm, over the norm — full glaze 
   await expect(summary.getByTestId("donut-halo")).toBeVisible();
   await page.reload();
   await expect(summary.getByTestId("donut-ring")).toBeVisible();
+});
+
+test("burger: fills bottom-up by the share of the norm, over the norm — whole burger and a red halo", async ({ page }) => {
+  await cauldronUser(page);
+  await page.goto("/nutrition");
+  const summary = page.getByRole("region", { name: "Итог дня" });
+  const dialog = await openBarDialog(page);
+  const option = dialog.getByRole("button", { name: /Бургер/ });
+  await expect(option).toHaveAttribute("aria-pressed", "false");
+  await expect(option.getByTestId("burger-bar")).toContainText("2 760");
+  await option.click();
+  const burger = summary.getByTestId("burger-bar");
+  await expect(burger).toHaveAccessibleName("Съедено 0 из 2 760 ккал, осталось 2 760");
+  await expect(summary.getByTestId("cauldron-bar")).toHaveCount(0);
+  await expect(summary.getByTestId("burger-fill")).toHaveCSS("--burger-share", "0%");
+
+  await addEntry(page, "Завтрак", "690");
+  await expect(burger).toHaveAccessibleName("Съедено 690 из 2 760 ккал, осталось 2 070");
+  await expect(summary.getByTestId("burger-gain")).toHaveText("+690");
+  await expect(burger).toContainText("2 070осталось");
+  // Собрана нижняя четверть бургера
+  await expect(summary.getByTestId("burger-fill")).toHaveCSS("--burger-share", "25%");
+  await expect(summary.getByTestId("burger-halo")).toHaveCount(0);
+
+  await addEntry(page, "Обед", "2310");
+  await expect(burger).toHaveAccessibleName("Съедено 3 000 из 2 760 ккал, 240 сверх нормы");
+  await expect(burger).toHaveAttribute("data-over", "true");
+  await expect(burger).toContainText("+240сверх нормы");
+  await expect(summary.getByTestId("burger-halo")).toBeVisible();
+  await page.reload();
+  await expect(summary.getByTestId("burger-bar")).toBeVisible();
+  const again = await openBarDialog(page);
+  await expect(again.getByRole("button", { name: /Бургер/ })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("without the flag — the usual ring and no bar item in the menu", async ({ page }) => {

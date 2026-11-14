@@ -36,6 +36,7 @@ enum CalorieBar {
   RING
   CAULDRON
   DONUT
+  BURGER
 }
 
 /// Приём пищи в дневнике питания

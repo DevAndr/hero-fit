@@ -442,6 +442,21 @@
   .donut-glaze { transition: none; }
 }
 
+/* Бургер калорий (BurgerBar): цветная картинка открывается снизу вверх — доля нормы в --burger-share.
+   @property — чтобы граница плавно анимировалась при новой записи; край чуть размыт */
+@property --burger-share {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+.burger-fill {
+  mask-image: linear-gradient(to top, #000 calc(var(--burger-share) - 1.5%), transparent var(--burger-share));
+  transition: --burger-share 0.7s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .burger-fill { transition: none; }
+}
+
 /* Кольцо восстановления WHOOP: заполнение один раз при показе */
 @keyframes ring-fill {
   from {
