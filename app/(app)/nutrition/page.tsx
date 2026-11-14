@@ -39,7 +39,7 @@ export default async function NutritionPage({ searchParams }: PageProps<"/nutrit
   const totals = dayTotals(day.entries);
   const week = weekSeries(weekRows, today, view.norm?.kcal ?? null);
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <PageHeader title="Питание" description="Дневник, норма калорий и расход на тренировках" />
       {view.modeChosen ? null : <NutritionModeDialog />}
       <DayNav date={date} today={today} />
