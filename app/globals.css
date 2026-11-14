@@ -451,6 +451,9 @@
   initial-value: 0%;
 }
 .burger-fill {
+  /* В своём холсте начинка нарисована ниже проёма между булками — поднимаем, чтобы салат уходил под верхнюю булку,
+     а нижняя булка была видна (маска едет вместе с картинкой) */
+  translate: 0 -7%;
   --burger-edge: calc(4.3% + var(--burger-share) * 0.553);
   mask-image: linear-gradient(to top, #000 calc(var(--burger-edge) - 1.5%), transparent var(--burger-edge));
   transition: --burger-share 0.7s ease-out;
